@@ -16,6 +16,7 @@ import Forms from "./pages/Forms";
 import Users from "./pages/Users";
 import PublicForm from "./pages/PublicForm";
 import Auth from "./pages/Auth";
+import Setup from "./pages/Setup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -82,6 +83,7 @@ const App = () => {
           <RealtimeNotifications />
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/setup" element={<Setup />} />
             <Route path="/public/form/:formId" element={<PublicForm />} />
             <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
             <Route path="/inbox" element={<ProtectedRoute><Layout><Inbox /></Layout></ProtectedRoute>} />

@@ -111,6 +111,13 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  /* FORÇA TEMA PRETO - FIX EMERGENCIAL */
+  html, body, #root {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+    min-height: 100vh;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

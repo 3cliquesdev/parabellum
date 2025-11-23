@@ -3,7 +3,7 @@ import { ContextualMenu } from "@/components/ContextualMenu";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen w-full bg-background overflow-hidden">
+    <div className="flex h-screen w-full bg-black overflow-hidden">
       {/* Coluna 1: Icon Sidebar - 80px */}
       <IconSidebar />
 

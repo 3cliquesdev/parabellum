@@ -79,7 +79,7 @@ export function ContextualMenu() {
   };
 
   return (
-    <aside className="w-64 bg-muted border-r border-border flex flex-col">
+    <aside className="w-64 bg-[#0A0A0A] border-r border-[#27272A] flex flex-col">
       {/* Menu Header */}
       <div className="p-6 border-b border-border">
         <h2 className="text-lg font-bold text-foreground">{currentMenu.title}</h2>
@@ -93,7 +93,7 @@ export function ContextualMenu() {
               key={item.value}
               className={cn(
                 "w-full text-left px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-200",
-                "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                "text-[#999999] hover:bg-[#1A1A1A] hover:text-white"
               )}
             >
               {item.label}

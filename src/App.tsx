@@ -34,7 +34,9 @@ class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("App crashed:", error, errorInfo);
+    console.error("🔴 App crashed:", error);
+    console.error("🔴 Error stack:", error.stack);
+    console.error("🔴 Component stack:", errorInfo.componentStack);
   }
 
   render() {

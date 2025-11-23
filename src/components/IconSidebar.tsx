@@ -26,7 +26,7 @@ export function IconSidebar() {
   const { isAdmin } = useUserRole();
 
   return (
-    <aside className="w-20 bg-sidebar border-r border-sidebar-border flex flex-col items-center py-6">
+    <aside className="w-20 bg-[#050505] border-r border-[#27272A] flex flex-col items-center py-6">
       {/* Logo */}
       <div className="mb-8 flex items-center justify-center w-12 h-12 rounded-2xl bg-primary">
         <span className="text-2xl font-bold text-primary-foreground">C</span>

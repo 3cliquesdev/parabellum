@@ -28,8 +28,8 @@ export function IconSidebar() {
   return (
     <aside className="w-20 bg-[#050505] border-r border-[#27272A] flex flex-col items-center py-6">
       {/* Logo */}
-      <div className="mb-8 flex items-center justify-center w-12 h-12 rounded-2xl bg-primary">
-        <span className="text-2xl font-bold text-primary-foreground">C</span>
+      <div className="mb-8 flex items-center justify-center w-12 h-12 rounded-2xl bg-[#4ADE80]">
+        <span className="text-2xl font-bold text-black">C</span>
       </div>
 
       {/* Navigation Icons */}
@@ -44,8 +44,8 @@ export function IconSidebar() {
               className={cn(
                 "flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200",
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/50"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  ? "bg-[#4ADE80] text-black shadow-lg shadow-[#4ADE80]/50"
+                  : "text-[#999999] hover:bg-[#1A1A1A] hover:text-white"
               )}
               title={item.name}
             >
@@ -60,8 +60,8 @@ export function IconSidebar() {
             className={cn(
               "flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200",
               location.pathname === "/users"
-                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/50"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                ? "bg-[#4ADE80] text-black shadow-lg shadow-[#4ADE80]/50"
+                : "text-[#999999] hover:bg-[#1A1A1A] hover:text-white"
             )}
             title="Usuários"
           >
@@ -71,7 +71,7 @@ export function IconSidebar() {
       </nav>
 
       {/* Settings at bottom */}
-      <button className="flex items-center justify-center w-12 h-12 rounded-2xl text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200">
+      <button className="flex items-center justify-center w-12 h-12 rounded-2xl text-[#999999] hover:bg-[#1A1A1A] hover:text-white transition-all duration-200">
         <Settings className="h-5 w-5" />
       </button>
     </aside>

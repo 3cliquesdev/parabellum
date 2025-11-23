@@ -108,7 +108,7 @@ All colors MUST be HSL.
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: #27272A;
   }
 
   /* FORÇA TEMA PRETO - FIX EMERGENCIAL */

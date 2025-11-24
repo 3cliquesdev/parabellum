@@ -2,20 +2,32 @@ import { useSearchParams } from "react-router-dom";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useConversionStats } from "@/hooks/useConversionStats";
+import { useFinancialStats } from "@/hooks/useFinancialStats";
 
-// Widgets Admin/Manager
+// Widgets BI - KPIs
+import { PipelineValueWidget } from "@/components/widgets/PipelineValueWidget";
+
+// Widgets BI - Gráficos
+import { SalesByRepWidget } from "@/components/widgets/SalesByRepWidget";
+import { RevenueEvolutionWidget } from "@/components/widgets/RevenueEvolutionWidget";
+import { SalesFunnelWidget } from "@/components/widgets/SalesFunnelWidget";
+import { HotDealsWidget } from "@/components/widgets/HotDealsWidget";
+
+// Widgets Legacy
 import { FinancialStatusWidget } from "@/components/widgets/FinancialStatusWidget";
 import { LTVWidget } from "@/components/widgets/LTVWidget";
 import { ConversionRateWidget } from "@/components/widgets/ConversionRateWidget";
 import { RecentActionsWidget } from "@/components/widgets/RecentActionsWidget";
+import RottenDealsWidget from "@/components/widgets/RottenDealsWidget";
+import LostReasonsWidget from "@/components/widgets/LostReasonsWidget";
 
 // Widgets Sales Rep
 import { MySalesWidget } from "@/components/widgets/MySalesWidget";
 import { MyActivitiesWidget } from "@/components/widgets/MyActivitiesWidget";
 import { MyLeadsWidget } from "@/components/widgets/MyLeadsWidget";
 import { MyPerformanceWidget } from "@/components/widgets/MyPerformanceWidget";
-import RottenDealsWidget from "@/components/widgets/RottenDealsWidget";
-import LostReasonsWidget from "@/components/widgets/LostReasonsWidget";
 
 export default function Dashboard() {
   const [searchParams] = useSearchParams();
@@ -40,16 +52,30 @@ export default function Dashboard() {
           <p className="text-muted-foreground">Suas métricas e atividades pessoais</p>
         </div>
 
+        {/* Linha 1: Vendas + Pipeline Ponderado */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <MySalesWidget userId={user?.id} />
-          <MyLeadsWidget userId={user?.id} />
+          <PipelineValueWidget />
         </div>
 
+        {/* Linha 2: Leads + Atividades */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <MyLeadsWidget userId={user?.id} />
           <MyActivitiesWidget />
+        </div>
+
+        {/* Linha 3: Hot Deals + Performance */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <HotDealsWidget />
           <MyPerformanceWidget userId={user?.id} />
         </div>
 
+        {/* Linha 4: Funil Pessoal */}
+        <div className="w-full">
+          <SalesFunnelWidget />
+        </div>
+
+        {/* Linha 5: Negócios Estagnados */}
         <div className="w-full">
           <RottenDealsWidget />
         </div>
@@ -76,12 +102,22 @@ export default function Dashboard() {
     );
   }
 
-  // ADMIN/MANAGER: Dashboard Geral (Atual)
+  const { data: conversionStats } = useConversionStats();
+  const financialStats = useFinancialStats();
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  // ADMIN/MANAGER: Dashboard Geral com Business Intelligence
   return (
     <div className="min-h-screen p-6 flex flex-col gap-6">
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-foreground">Dashboard Geral</h1>
-        <p className="text-muted-foreground">Visão geral da empresa</p>
+        <h1 className="text-2xl font-bold text-foreground">Dashboard de Vendas</h1>
+        <p className="text-muted-foreground">Inteligência de negócios em tempo real</p>
       </div>
 
       {/* Visualização Financeira */}
@@ -101,31 +137,69 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Visualização Completa (overview) */}
+      {/* Visualização Completa (overview) - NOVO LAYOUT BI */}
       {view === "overview" && (
         <>
-          <div className="w-full">
-            <FinancialStatusWidget />
+          {/* LINHA 1: KPIs Cards (3 colunas) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <PipelineValueWidget />
+            
+            {/* Taxa de Conversão simplificada */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  🎯 Taxa de Conversão
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-primary">
+                  {conversionStats?.conversionRate?.toFixed(1) || 0}%
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {conversionStats?.wonDeals || 0} ganhos /{" "}
+                  {(conversionStats?.wonDeals || 0) + (conversionStats?.lostDeals || 0)}{" "}
+                  finalizados
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Saldo Líquido simplificado */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  💵 Saldo Líquido
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-primary">
+                  {formatCurrency(financialStats.balance)}
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Lucro acumulado
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 flex-1">
-            <div className="min-h-[400px]">
-              <LTVWidget />
-            </div>
-            <div className="min-h-[400px]">
-              <ConversionRateWidget />
-            </div>
-          </div>
-
+          {/* LINHA 2: Gráficos Principais (2 colunas) */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div className="min-h-[400px]">
-              <RottenDealsWidget />
-            </div>
-            <div className="min-h-[400px]">
-              <LostReasonsWidget />
-            </div>
+            <SalesByRepWidget />
+            <RevenueEvolutionWidget />
           </div>
 
+          {/* LINHA 3: Funil + Hot Deals (2 colunas) */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <SalesFunnelWidget />
+            <HotDealsWidget />
+          </div>
+
+          {/* LINHA 4: Análises Complementares (2 colunas) */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <RottenDealsWidget />
+            <LostReasonsWidget />
+          </div>
+
+          {/* LINHA 5: Ações Recentes (Full Width) */}
           <div className="w-full">
             <RecentActionsWidget />
           </div>

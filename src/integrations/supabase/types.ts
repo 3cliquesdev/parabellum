@@ -343,6 +343,7 @@ export type Database = {
           contact_id: string | null
           created_at: string
           currency: string | null
+          expected_close_date: string | null
           id: string
           lost_reason: string | null
           organization_id: string | null
@@ -360,6 +361,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           currency?: string | null
+          expected_close_date?: string | null
           id?: string
           lost_reason?: string | null
           organization_id?: string | null
@@ -377,6 +379,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           currency?: string | null
+          expected_close_date?: string | null
           id?: string
           lost_reason?: string | null
           organization_id?: string | null

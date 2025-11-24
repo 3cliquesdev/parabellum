@@ -70,26 +70,37 @@ export default function DealDialog({ deal, trigger, onOpenChange, prefilledConta
       currency: deal?.currency || "BRL",
       contact_id: prefilledContactId || deal?.contact_id || "",
       organization_id: deal?.organization_id || "",
-      stage_id: deal?.stage_id || stages?.[0]?.id || "",
+      stage_id: deal?.stage_id || "",
       status: deal?.status || "open",
       assigned_to: (deal as any)?.assigned_to || "",
     },
   });
 
   useEffect(() => {
-    if (stages && !deal && !form.getValues("stage_id")) {
-      form.setValue("stage_id", stages[0]?.id || "");
+    if (stages && stages.length > 0 && !deal) {
+      const currentStageId = form.getValues("stage_id");
+      if (!currentStageId || currentStageId === "") {
+        form.setValue("stage_id", stages[0].id);
+      }
     }
   }, [stages, deal, form]);
 
   const onSubmit = async (data: DealFormData) => {
+    // Validação: garantir que stage_id existe
+    if (!data.stage_id || data.stage_id === "") {
+      console.error("[DealDialog] stage_id is required but missing", data);
+      return;
+    }
+
+    console.log("[DealDialog] Submitting deal with data:", data);
+
     const payload = {
       title: data.title,
       value: data.value ? parseFloat(data.value) : null,
       currency: data.currency || "BRL",
       contact_id: data.contact_id || null,
       organization_id: data.organization_id || null,
-      stage_id: data.stage_id || null,
+      stage_id: data.stage_id,
       status: data.status,
       assigned_to: data.assigned_to || null,
     };

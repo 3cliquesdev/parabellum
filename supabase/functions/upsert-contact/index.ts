@@ -14,6 +14,7 @@ interface UpsertContactRequest {
   phone?: string;
   company?: string;
   organization_id?: string;
+  assigned_to?: string;
   source?: string;
 }
 

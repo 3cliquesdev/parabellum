@@ -86,6 +86,9 @@ export function useUpdateContact() {
       });
     },
     onError: (error: Error) => {
+      console.error("[useUpdateContact] Error details:", error);
+      console.error("[useUpdateContact] Error name:", error.name);
+      console.error("[useUpdateContact] Error stack:", error.stack);
       toast({
         title: "Erro ao atualizar contato",
         description: error.message,

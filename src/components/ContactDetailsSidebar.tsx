@@ -108,6 +108,7 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
                       Criar
                     </Button>
                   }
+                  onOpenChange={(open) => {}}
                 />
               </div>
               {contactDeals && contactDeals.length > 0 ? (

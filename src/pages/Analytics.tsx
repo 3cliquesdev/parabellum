@@ -2,6 +2,7 @@ import { ConversionRateWidget } from "@/components/widgets/ConversionRateWidget"
 import { AIInsightsWidget } from "@/components/widgets/AIInsightsWidget";
 import { YoYComparisonWidget } from "@/components/widgets/YoYComparisonWidget";
 import { ChannelQualityWidget } from "@/components/widgets/ChannelQualityWidget";
+import { SalesLeaderboard } from "@/components/widgets/SalesLeaderboard";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
@@ -163,6 +164,11 @@ export default function Analytics() {
         {/* Conversion Rate Trend - Full Width */}
         <div className="w-full">
           <ConversionRateWidget daysBack={daysBack} />
+        </div>
+
+        {/* Sales Leaderboard - Full Width */}
+        <div className="w-full">
+          <SalesLeaderboard />
         </div>
       </div>
     </div>

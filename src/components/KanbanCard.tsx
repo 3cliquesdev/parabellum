@@ -10,6 +10,9 @@ import { ptBR } from "date-fns/locale";
 import DealDialog from "./DealDialog";
 import { useNextActivity } from "@/hooks/useNextActivity";
 import type { Tables } from "@/integrations/supabase/types";
+import confetti from "canvas-confetti";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
 type Deal = Tables<"deals"> & {
   contacts: { first_name: string; last_name: string } | null;
@@ -22,6 +25,8 @@ interface KanbanCardProps {
 }
 
 export default function KanbanCard({ deal }: KanbanCardProps) {
+  const [previousStageId, setPreviousStageId] = useState(deal.stage_id);
+  
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
     data: {
@@ -30,6 +35,38 @@ export default function KanbanCard({ deal }: KanbanCardProps) {
   });
 
   const { data: nextActivity } = useNextActivity(deal.id);
+
+  // Detect when deal is moved to "Won" stage and trigger confetti
+  useEffect(() => {
+    // Check if deal was just moved to a different stage
+    if (previousStageId !== deal.stage_id) {
+      // Query the stage name to check if it's "Fechado" (Won)
+      const checkIfWon = async () => {
+        const { data: stage } = await supabase
+          .from("stages")
+          .select("name")
+          .eq("id", deal.stage_id)
+          .single();
+
+        if (stage?.name === "Fechado") {
+          // Trigger confetti celebration
+          confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#FFD700', '#FFA500', '#FF6347', '#00FF00', '#1E90FF'],
+          });
+
+          // Optional: Play cash register sound
+          // const audio = new Audio('/sounds/cash-register.mp3');
+          // audio.play().catch(() => console.log('Audio playback failed'));
+        }
+      };
+
+      checkIfWon();
+      setPreviousStageId(deal.stage_id);
+    }
+  }, [deal.stage_id, previousStageId]);
   
   const style = transform
     ? {

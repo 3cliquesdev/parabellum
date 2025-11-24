@@ -10,6 +10,7 @@ import RealtimeNotifications from "./components/RealtimeNotifications";
 import Dashboard from "./pages/Dashboard";
 import Inbox from "./pages/Inbox";
 import Contacts from "./pages/Contacts";
+import ContactDetails from "./pages/ContactDetails";
 import Organizations from "./pages/Organizations";
 import Deals from "./pages/Deals";
 import Forms from "./pages/Forms";
@@ -88,6 +89,7 @@ const App = () => {
             <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
             <Route path="/inbox" element={<ProtectedRoute><Layout><Inbox /></Layout></ProtectedRoute>} />
             <Route path="/contacts" element={<ProtectedRoute><Layout><Contacts /></Layout></ProtectedRoute>} />
+            <Route path="/contacts/:id" element={<ProtectedRoute><Layout><ContactDetails /></Layout></ProtectedRoute>} />
             <Route path="/organizations" element={<ProtectedRoute><Layout><Organizations /></Layout></ProtectedRoute>} />
             <Route path="/deals" element={<ProtectedRoute><Layout><Deals /></Layout></ProtectedRoute>} />
             <Route path="/forms" element={<ProtectedRoute><Layout><Forms /></Layout></ProtectedRoute>} />

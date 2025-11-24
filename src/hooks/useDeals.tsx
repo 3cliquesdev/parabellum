@@ -9,30 +9,36 @@ type Deal = Tables<"deals">;
 type DealInsert = TablesInsert<"deals">;
 type DealUpdate = TablesUpdate<"deals">;
 
-export function useDeals() {
+export function useDeals(pipelineId?: string) {
   const { user } = useAuth();
   const { role } = useUserRole();
 
   return useQuery({
-    queryKey: ["deals", user?.id, role],
+    queryKey: ["deals", pipelineId],
     queryFn: async () => {
       let query = supabase
         .from("deals")
-        .select(`
-          *, 
-          contacts(first_name, last_name), 
-          organizations(name), 
-          stages(name, position),
-          assigned_user:profiles!deals_assigned_to_fkey(id, full_name, avatar_url)
-        `);
+        .select(
+          `
+          *,
+          contacts (first_name, last_name),
+          organizations (name),
+          assigned_user:profiles!deals_assigned_to_fkey (id, full_name, avatar_url)
+        `
+        )
+        .order("created_at", { ascending: false });
 
-      // Filtrar por assigned_to se for sales_rep
-      if (role && (role as string) === "sales_rep" && user?.id) {
+      // Filtrar por pipeline se especificado
+      if (pipelineId) {
+        query = query.eq("pipeline_id", pipelineId);
+      }
+
+      // Filtrar por usuário se for sales_rep
+      if (role === "sales_rep" && user) {
         query = query.eq("assigned_to", user.id);
       }
 
-      const { data, error } = await query.order("created_at", { ascending: false });
-
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

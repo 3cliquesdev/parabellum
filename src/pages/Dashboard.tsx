@@ -11,7 +11,7 @@ import { RecentActionsWidget } from "@/components/widgets/RecentActionsWidget";
 
 // Widgets Sales Rep
 import { MySalesWidget } from "@/components/widgets/MySalesWidget";
-import { MyTasksWidget } from "@/components/widgets/MyTasksWidget";
+import { MyActivitiesWidget } from "@/components/widgets/MyActivitiesWidget";
 import { MyLeadsWidget } from "@/components/widgets/MyLeadsWidget";
 import { MyPerformanceWidget } from "@/components/widgets/MyPerformanceWidget";
 
@@ -44,7 +44,7 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <MyTasksWidget userId={user?.id} />
+          <MyActivitiesWidget />
           <MyPerformanceWidget userId={user?.id} />
         </div>
       </div>

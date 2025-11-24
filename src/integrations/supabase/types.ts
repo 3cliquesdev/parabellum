@@ -14,6 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
+      activities: {
+        Row: {
+          assigned_to: string
+          completed: boolean
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          deal_id: string | null
+          description: string | null
+          due_date: string
+          id: string
+          title: string
+          type: Database["public"]["Enums"]["activity_type"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_to: string
+          completed?: boolean
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          description?: string | null
+          due_date: string
+          id?: string
+          title: string
+          type: Database["public"]["Enums"]["activity_type"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string
+          completed?: boolean
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          description?: string | null
+          due_date?: string
+          id?: string
+          title?: string
+          type?: Database["public"]["Enums"]["activity_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           assigned_to: string | null
@@ -569,6 +646,7 @@ export type Database = {
           }
     }
     Enums: {
+      activity_type: "call" | "meeting" | "email" | "task" | "lunch"
       app_role: "admin" | "user" | "manager" | "sales_rep"
       communication_channel:
         | "email"
@@ -732,6 +810,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      activity_type: ["call", "meeting", "email", "task", "lunch"],
       app_role: ["admin", "user", "manager", "sales_rep"],
       communication_channel: [
         "email",

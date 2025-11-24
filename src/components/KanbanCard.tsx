@@ -3,8 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { User, Pencil } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { User, Pencil, AlertCircle, CheckCircle, AlertTriangle } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import DealDialog from "./DealDialog";
+import { useNextActivity } from "@/hooks/useNextActivity";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Deal = Tables<"deals"> & {
@@ -25,12 +29,45 @@ export default function KanbanCard({ deal }: KanbanCardProps) {
     },
   });
 
+  const { data: nextActivity } = useNextActivity(deal.id);
+  
   const style = transform
     ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
         opacity: isDragging ? 0.5 : 1,
       }
     : undefined;
+
+  const getActivityStatus = () => {
+    if (!nextActivity) {
+      return {
+        icon: AlertTriangle,
+        color: "text-yellow-500",
+        tooltip: "Nenhuma atividade agendada",
+      };
+    }
+
+    const now = new Date();
+    const dueDate = new Date(nextActivity.due_date);
+    const isOverdue = dueDate < now;
+
+    if (isOverdue) {
+      return {
+        icon: AlertCircle,
+        color: "text-destructive",
+        tooltip: `Atividade atrasada: ${nextActivity.title} (${format(dueDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })})`,
+      };
+    }
+
+    return {
+      icon: CheckCircle,
+      color: "text-green-500",
+      tooltip: `Próxima atividade: ${nextActivity.title} (${format(dueDate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })})`,
+    };
+  };
+
+  const activityStatus = getActivityStatus();
+  const ActivityIcon = activityStatus.icon;
 
   return (
     <Card
@@ -52,10 +89,24 @@ export default function KanbanCard({ deal }: KanbanCardProps) {
             </Button>
           }
         />
+        
+        {/* Ícone de Status de Atividade */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="absolute top-2 left-2">
+                <ActivityIcon className={`h-5 w-5 ${activityStatus.color}`} />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-sm">{activityStatus.tooltip}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
         {/* Área draggable */}
         <div {...listeners} {...attributes}>
-          <h4 className="font-semibold text-foreground mb-2 pr-8">{deal.title}</h4>
+          <h4 className="font-semibold text-foreground mb-2 pl-8 pr-8">{deal.title}</h4>
             
             {deal.value && (
               <p className="text-lg font-bold text-success mb-2">

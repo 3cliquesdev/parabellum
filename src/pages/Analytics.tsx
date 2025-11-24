@@ -1,4 +1,5 @@
 import { ConversionRateWidget } from "@/components/widgets/ConversionRateWidget";
+import { AIInsightsWidget } from "@/components/widgets/AIInsightsWidget";
 
 export default function Analytics() {
   return (
@@ -11,6 +12,9 @@ export default function Analytics() {
           </p>
         </div>
         
+        {/* FASE 12C: AI Insights Widget */}
+        <AIInsightsWidget />
+
         {/* FASE 12B: Conversion Rate Trend Widget */}
         <div className="grid gap-6">
           <ConversionRateWidget />

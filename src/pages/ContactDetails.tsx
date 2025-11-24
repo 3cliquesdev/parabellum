@@ -5,11 +5,13 @@ import { useCustomerTimeline } from "@/hooks/useCustomerTimeline";
 import { useCustomerTags } from "@/hooks/useCustomerTags";
 import { useDeals } from "@/hooks/useDeals";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import CustomerTimeline from "@/components/CustomerTimeline";
 import ContactInfoCard from "@/components/ContactInfoCard";
 import ContactLTVCard from "@/components/ContactLTVCard";
 import ContactTagsCard from "@/components/ContactTagsCard";
+import ActivityDialog from "@/components/ActivityDialog";
+import ActivitiesList from "@/components/ActivitiesList";
 
 export default function ContactDetails() {
   const { id } = useParams();
@@ -81,10 +83,23 @@ export default function ContactDetails() {
               removeTag={removeTag}
               isLoading={isLoadingTags}
             />
+            
+            {/* Botão Nova Atividade */}
+            <ActivityDialog
+              trigger={
+                <Button className="w-full gap-2">
+                  <Plus className="h-4 w-4" />
+                  Nova Atividade
+                </Button>
+              }
+              contactId={id}
+            />
           </div>
 
           {/* COLUNA DIREITA: 70% */}
-          <div className="flex-1">
+          <div className="flex-1 space-y-6 overflow-auto">
+            <ActivitiesList contactId={id || ""} />
+            
             <CustomerTimeline 
               timeline={timeline || []} 
               customerName={`${contact.first_name} ${contact.last_name}`}

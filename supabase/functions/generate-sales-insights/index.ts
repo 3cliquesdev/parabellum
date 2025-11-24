@@ -34,7 +34,8 @@ serve(async (req) => {
     const openDeals = deals.filter(d => d.status === 'open').length;
     const wonDeals = deals.filter(d => d.status === 'won').length;
     const lostDeals = deals.filter(d => d.status === 'lost').length;
-    const conversionRate = totalDeals > 0 ? parseFloat(((wonDeals / (wonDeals + lostDeals)) * 100).toFixed(1)) : 0;
+    const finalizedDeals = wonDeals + lostDeals;
+    const conversionRate = finalizedDeals > 0 ? parseFloat(((wonDeals / finalizedDeals) * 100).toFixed(1)) : 0;
     const totalValue = deals.filter(d => d.status === 'won').reduce((sum, d) => sum + (d.value || 0), 0);
     const avgDealValue = wonDeals > 0 ? parseFloat((totalValue / wonDeals).toFixed(0)) : 0;
 

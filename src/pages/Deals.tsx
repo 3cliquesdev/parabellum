@@ -1,10 +1,11 @@
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from "@dnd-kit/core";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { useDeals, useUpdateDealStage } from "@/hooks/useDeals";
 import { useStages } from "@/hooks/useStages";
+import { usePipelines } from "@/hooks/usePipelines";
 import { useSalesReps } from "@/hooks/useSalesReps";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useRottenDeals } from "@/hooks/useRottenDeals";
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import KanbanColumn from "@/components/KanbanColumn";
 import KanbanCard from "@/components/KanbanCard";
 import DealDialog from "@/components/DealDialog";
+import PipelineDialog from "@/components/PipelineDialog";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Deal = Tables<"deals"> & {
@@ -25,14 +27,26 @@ export default function Deals() {
   const filter = searchParams.get("filter") || "all";
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>("all");
-  const { data: deals, isLoading: dealsLoading } = useDeals();
-  const { data: stages, isLoading: stagesLoading } = useStages();
+  const [selectedPipeline, setSelectedPipeline] = useState<string>("");
+  
+  const { data: pipelines, isLoading: pipelinesLoading } = usePipelines();
+  const { data: stages, isLoading: stagesLoading } = useStages(selectedPipeline);
+  const { data: deals, isLoading: dealsLoading } = useDeals(selectedPipeline);
   const { data: salesReps } = useSalesReps();
   const { role } = useUserRole();
   const { data: rottenDeals } = useRottenDeals();
   const updateDealStage = useUpdateDealStage();
   
   const isManagerOrAdmin = role && (role === "admin" || role === "manager");
+  const isAdmin = role === "admin";
+
+  // Selecionar pipeline default ao carregar
+  useEffect(() => {
+    if (pipelines && pipelines.length > 0 && !selectedPipeline) {
+      const defaultPipeline = pipelines.find(p => p.is_default) || pipelines[0];
+      setSelectedPipeline(defaultPipeline.id);
+    }
+  }, [pipelines, selectedPipeline]);
 
   const filteredDeals = useMemo(() => {
     if (!deals) return [];
@@ -90,7 +104,7 @@ export default function Deals() {
     updateDealStage.mutate({ id: dealId, stage_id: newStageId });
   };
 
-  if (dealsLoading || stagesLoading) {
+  if (dealsLoading || stagesLoading || pipelinesLoading) {
     return (
       <div className="p-8">
         <div className="flex items-center justify-center h-64">
@@ -122,36 +136,64 @@ export default function Deals() {
               Arraste e solte para mover negócios entre etapas
             </p>
           </div>
-          <DealDialog
-            trigger={
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Novo Negócio
-              </Button>
-            }
-          />
+          <div className="flex gap-2">
+            {isAdmin && <PipelineDialog />}
+            <DealDialog
+              trigger={
+                <Button className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Novo Negócio
+                </Button>
+              }
+            />
+          </div>
         </div>
 
-        {isManagerOrAdmin && salesReps && salesReps.length > 0 && (
-          <div className="mt-4 flex items-center gap-3">
-            <label className="text-sm font-medium text-foreground">
-              Filtrar por Vendedor:
-            </label>
-            <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep}>
-              <SelectTrigger className="w-[250px]">
-                <SelectValue placeholder="Selecione um vendedor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os vendedores</SelectItem>
-                {salesReps.map((rep) => (
-                  <SelectItem key={rep.id} value={rep.id}>
-                    {rep.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          {/* Pipeline Selector */}
+          {pipelines && pipelines.length > 0 && (
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-foreground">
+                Pipeline:
+              </label>
+              <Select value={selectedPipeline} onValueChange={setSelectedPipeline}>
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue placeholder="Selecione um pipeline" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pipelines.map((pipeline) => (
+                    <SelectItem key={pipeline.id} value={pipeline.id}>
+                      {pipeline.name}
+                      {pipeline.is_default && " (Padrão)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Sales Rep Filter */}
+          {isManagerOrAdmin && salesReps && salesReps.length > 0 && (
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-foreground">
+                Filtrar por Vendedor:
+              </label>
+              <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep}>
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue placeholder="Selecione um vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os vendedores</SelectItem>
+                  {salesReps.map((rep) => (
+                    <SelectItem key={rep.id} value={rep.id}>
+                      {rep.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
       </div>
 
       <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

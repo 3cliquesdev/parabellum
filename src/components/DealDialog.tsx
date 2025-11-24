@@ -31,7 +31,9 @@ import { useCreateDeal, useUpdateDeal } from "@/hooks/useDeals";
 import { useContacts } from "@/hooks/useContacts";
 import { useOrganizations } from "@/hooks/useOrganizations";
 import { useStages } from "@/hooks/useStages";
+import { usePipelines } from "@/hooks/usePipelines";
 import { useSalesReps } from "@/hooks/useSalesReps";
+import { useUserRole } from "@/hooks/useUserRole";
 import type { Tables } from "@/integrations/supabase/types";
 
 const dealSchema = z.object({
@@ -40,6 +42,7 @@ const dealSchema = z.object({
   currency: z.string().optional(),
   contact_id: z.string().uuid().optional().nullable(),
   organization_id: z.string().uuid().optional().nullable(),
+  pipeline_id: z.string().uuid(),
   stage_id: z.string().uuid(),
   status: z.enum(["open", "won", "lost"]),
   assigned_to: z.string().uuid().optional().nullable(),
@@ -69,10 +72,16 @@ export default function DealDialog({ deal, trigger, onOpenChange, prefilledConta
   const updateDeal = useUpdateDeal();
   const { data: contacts } = useContacts();
   const { data: organizations } = useOrganizations();
-  const { data: stages } = useStages();
+  const { data: pipelines } = usePipelines();
   const { data: salesReps, isLoading: salesRepsLoading } = useSalesReps();
+  const { role } = useUserRole();
 
   console.log("[DealDialog] Sales reps data:", { salesReps, salesRepsLoading });
+
+  const isAdminOrManager = role === "admin" || role === "manager";
+
+  // Encontrar pipeline default
+  const defaultPipeline = pipelines?.find(p => p.is_default) || pipelines?.[0];
 
   const form = useForm<DealFormData>({
     resolver: zodResolver(dealSchema),
@@ -82,6 +91,7 @@ export default function DealDialog({ deal, trigger, onOpenChange, prefilledConta
       currency: deal?.currency || "BRL",
       contact_id: prefilledContactId || deal?.contact_id || "",
       organization_id: deal?.organization_id || "",
+      pipeline_id: deal?.pipeline_id || defaultPipeline?.id || "",
       stage_id: deal?.stage_id || "",
       status: deal?.status || "open",
       assigned_to: (deal as any)?.assigned_to || "",
@@ -90,25 +100,41 @@ export default function DealDialog({ deal, trigger, onOpenChange, prefilledConta
   });
 
   const watchStatus = form.watch("status");
+  const watchPipelineId = form.watch("pipeline_id");
 
+  // Buscar stages do pipeline selecionado
+  const { data: stages } = useStages(watchPipelineId);
+
+  // Atualizar stage_id quando pipeline mudar
   useEffect(() => {
-    if (stages && stages.length > 0 && !deal) {
+    if (stages && stages.length > 0 && watchPipelineId) {
       const currentStageId = form.getValues("stage_id");
-      if (!currentStageId || currentStageId === "") {
+      const stageExists = stages.find(s => s.id === currentStageId);
+      
+      if (!stageExists) {
         form.setValue("stage_id", stages[0].id);
       }
     }
-  }, [stages, deal, form]);
+  }, [stages, watchPipelineId, form]);
 
   const onSubmit = async (data: DealFormData) => {
     console.log("[DealDialog] onSubmit called with data:", data);
     
-    // Validação: garantir que stage_id existe
+    // Validação: garantir que stage_id e pipeline_id existem
     if (!data.stage_id) {
       console.error("[DealDialog] stage_id is required but missing", data);
       form.setError("stage_id", {
         type: "manual",
         message: "Etapa é obrigatória",
+      });
+      return;
+    }
+
+    if (!data.pipeline_id) {
+      console.error("[DealDialog] pipeline_id is required but missing", data);
+      form.setError("pipeline_id", {
+        type: "manual",
+        message: "Pipeline é obrigatório",
       });
       return;
     }
@@ -121,6 +147,7 @@ export default function DealDialog({ deal, trigger, onOpenChange, prefilledConta
       currency: data.currency || "BRL",
       contact_id: data.contact_id || null,
       organization_id: data.organization_id || null,
+      pipeline_id: data.pipeline_id,
       stage_id: data.stage_id,
       status: data.status,
       assigned_to: data.assigned_to || null,
@@ -205,6 +232,34 @@ export default function DealDialog({ deal, trigger, onOpenChange, prefilledConta
                 )}
               />
             </div>
+
+            {isAdminOrManager && (
+              <FormField
+                control={form.control}
+                name="pipeline_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pipeline</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um pipeline" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {pipelines?.map((pipeline) => (
+                          <SelectItem key={pipeline.id} value={pipeline.id}>
+                            {pipeline.name}
+                            {pipeline.is_default && " (Padrão)"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

@@ -258,6 +258,7 @@ export type Database = {
           id: string
           lost_reason: string | null
           organization_id: string | null
+          pipeline_id: string
           probability: number | null
           stage_id: string | null
           status: Database["public"]["Enums"]["deal_status"]
@@ -274,6 +275,7 @@ export type Database = {
           id?: string
           lost_reason?: string | null
           organization_id?: string | null
+          pipeline_id: string
           probability?: number | null
           stage_id?: string | null
           status?: Database["public"]["Enums"]["deal_status"]
@@ -290,6 +292,7 @@ export type Database = {
           id?: string
           lost_reason?: string | null
           organization_id?: string | null
+          pipeline_id?: string
           probability?: number | null
           stage_id?: string | null
           status?: Database["public"]["Enums"]["deal_status"]
@@ -317,6 +320,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
             referencedColumns: ["id"]
           },
           {

@@ -91,6 +91,94 @@ export type Database = {
           },
         ]
       }
+      automation_logs: {
+        Row: {
+          automation_id: string
+          error_message: string | null
+          executed_at: string
+          execution_result: Json | null
+          execution_status: string
+          id: string
+          trigger_data: Json
+        }
+        Insert: {
+          automation_id: string
+          error_message?: string | null
+          executed_at?: string
+          execution_result?: Json | null
+          execution_status: string
+          id?: string
+          trigger_data: Json
+        }
+        Update: {
+          automation_id?: string
+          error_message?: string | null
+          executed_at?: string
+          execution_result?: Json | null
+          execution_status?: string
+          id?: string
+          trigger_data?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_logs_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automations: {
+        Row: {
+          action_config: Json
+          action_type: Database["public"]["Enums"]["automation_action"]
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          trigger_conditions: Json | null
+          trigger_event: Database["public"]["Enums"]["automation_trigger"]
+          updated_at: string
+        }
+        Insert: {
+          action_config: Json
+          action_type: Database["public"]["Enums"]["automation_action"]
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          trigger_conditions?: Json | null
+          trigger_event: Database["public"]["Enums"]["automation_trigger"]
+          updated_at?: string
+        }
+        Update: {
+          action_config?: Json
+          action_type?: Database["public"]["Enums"]["automation_action"]
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          trigger_conditions?: Json | null
+          trigger_event?: Database["public"]["Enums"]["automation_trigger"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           assigned_to: string | null
@@ -661,6 +749,20 @@ export type Database = {
     Enums: {
       activity_type: "call" | "meeting" | "email" | "task" | "lunch"
       app_role: "admin" | "user" | "manager" | "sales_rep"
+      automation_action:
+        | "assign_to_user"
+        | "create_activity"
+        | "add_tag"
+        | "send_notification"
+        | "change_status"
+      automation_trigger:
+        | "deal_created"
+        | "deal_won"
+        | "deal_lost"
+        | "deal_stage_changed"
+        | "activity_overdue"
+        | "contact_created"
+        | "contact_inactive"
       communication_channel:
         | "email"
         | "phone"
@@ -825,6 +927,22 @@ export const Constants = {
     Enums: {
       activity_type: ["call", "meeting", "email", "task", "lunch"],
       app_role: ["admin", "user", "manager", "sales_rep"],
+      automation_action: [
+        "assign_to_user",
+        "create_activity",
+        "add_tag",
+        "send_notification",
+        "change_status",
+      ],
+      automation_trigger: [
+        "deal_created",
+        "deal_won",
+        "deal_lost",
+        "deal_stage_changed",
+        "activity_overdue",
+        "contact_created",
+        "contact_inactive",
+      ],
       communication_channel: [
         "email",
         "phone",

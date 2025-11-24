@@ -8,7 +8,8 @@ import {
   TrendingUp, 
   FileText,
   Settings,
-  UserCog
+  UserCog,
+  Zap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,8 +27,7 @@ const navigationIcons = [
 
 export function IconSidebar() {
   const location = useLocation();
-  const { isAdmin, loading } = useUserRole();
-  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const { isAdmin, isManager, loading } = useUserRole();
 
   return (
     <aside className="w-20 bg-[#050505] border-r border-[#27272A] flex flex-col items-center py-6">
@@ -61,42 +61,59 @@ export function IconSidebar() {
         {loading ? (
           <Skeleton className="h-12 w-12 rounded-2xl" />
         ) : (
-          isAdmin && (
-            <>
+          <>
+            {(isAdmin || isManager) && (
               <Link
-                to="/users"
+                to="/automations"
                 className={cn(
                   "flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200",
-                  location.pathname === "/users"
+                  location.pathname === "/automations"
                     ? "bg-[#4ADE80] text-black shadow-lg shadow-[#4ADE80]/50"
                     : "text-[#999999] hover:bg-[#1A1A1A] hover:text-white"
                 )}
-                title="Usuários"
+                title="Automações"
               >
-                <UserCog className="h-5 w-5" />
+                <Zap className="h-5 w-5" />
               </Link>
+            )}
+            
+            {isAdmin && (
+              <>
+                <Link
+                  to="/users"
+                  className={cn(
+                    "flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200",
+                    location.pathname === "/users"
+                      ? "bg-[#4ADE80] text-black shadow-lg shadow-[#4ADE80]/50"
+                      : "text-[#999999] hover:bg-[#1A1A1A] hover:text-white"
+                  )}
+                  title="Usuários"
+                >
+                  <UserCog className="h-5 w-5" />
+                </Link>
 
-              <Link
-                to="/settings"
-                className={cn(
-                  "flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200",
-                  location.pathname === "/settings"
-                    ? "bg-[#4ADE80] text-black shadow-lg shadow-[#4ADE80]/50"
-                    : "text-[#999999] hover:bg-[#1A1A1A] hover:text-white"
-                )}
-                title="Configurações"
-              >
-                <Settings className="h-5 w-5" />
-              </Link>
-            </>
-          )
+                <Link
+                  to="/settings"
+                  className={cn(
+                    "flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200",
+                    location.pathname === "/settings"
+                      ? "bg-[#4ADE80] text-black shadow-lg shadow-[#4ADE80]/50"
+                      : "text-[#999999] hover:bg-[#1A1A1A] hover:text-white"
+                  )}
+                  title="Configurações"
+                >
+                  <Settings className="h-5 w-5" />
+                </Link>
+              </>
+            )}
+          </>
         )}
       </nav>
 
-      {/* Settings at bottom */}
+      {/* Profile Settings at bottom */}
       <ProfileEditDialog
         trigger={
-          <button className="flex items-center justify-center w-12 h-12 rounded-2xl text-[#999999] hover:bg-[#1A1A1A] hover:text-white transition-all duration-200">
+          <button className="flex items-center justify-center w-12 h-12 rounded-2xl text-[#999999] hover:bg-[#1A1A1A] hover:text-white transition-all duration-200" title="Editar Perfil">
             <Settings className="h-5 w-5" />
           </button>
         }

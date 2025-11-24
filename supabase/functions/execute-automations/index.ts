@@ -1,0 +1,285 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface Automation {
+  id: string;
+  name: string;
+  trigger_event: string;
+  trigger_conditions: any;
+  action_type: string;
+  action_config: any;
+  is_active: boolean;
+}
+
+async function executeAction(automation: Automation, triggerData: any) {
+  console.log(`Executing action ${automation.action_type} for automation ${automation.name}`);
+
+  try {
+    switch (automation.action_type) {
+      case 'assign_to_user':
+        return await executeAssignToUser(automation, triggerData);
+      case 'create_activity':
+        return await executeCreateActivity(automation, triggerData);
+      case 'add_tag':
+        return await executeAddTag(automation, triggerData);
+      case 'send_notification':
+        return await executeSendNotification(automation, triggerData);
+      default:
+        console.log(`Unknown action type: ${automation.action_type}`);
+        return { success: false, message: 'Unknown action type' };
+    }
+  } catch (error: any) {
+    console.error(`Error executing action:`, error);
+    return { success: false, message: error.message };
+  }
+}
+
+async function executeAssignToUser(automation: Automation, triggerData: any) {
+  const { strategy, user_id, department } = automation.action_config;
+
+  if (strategy === 'specific_user' && user_id) {
+    const { error } = await supabase
+      .from('deals')
+      .update({ assigned_to: user_id })
+      .eq('id', triggerData.deal_id);
+
+    if (error) throw error;
+    return { success: true, assigned_to: user_id };
+  }
+
+  if (strategy === 'round_robin') {
+    // Buscar todos os vendedores do departamento
+    const { data: salesReps, error: repsError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('department', department || 'comercial');
+
+    if (repsError) throw repsError;
+
+    if (!salesReps || salesReps.length === 0) {
+      return { success: false, message: 'No sales reps available' };
+    }
+
+    // Buscar o último vendedor que recebeu um lead
+    const { data: lastAssigned } = await supabase
+      .from('deals')
+      .select('assigned_to')
+      .not('assigned_to', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Determinar próximo vendedor no round robin
+    let nextRepIndex = 0;
+    if (lastAssigned?.assigned_to) {
+      const lastIndex = salesReps.findIndex(rep => rep.id === lastAssigned.assigned_to);
+      nextRepIndex = (lastIndex + 1) % salesReps.length;
+    }
+
+    const nextRep = salesReps[nextRepIndex];
+
+    const { error } = await supabase
+      .from('deals')
+      .update({ assigned_to: nextRep.id })
+      .eq('id', triggerData.deal_id);
+
+    if (error) throw error;
+    return { success: true, assigned_to: nextRep.id, strategy: 'round_robin' };
+  }
+
+  return { success: false, message: 'Invalid strategy' };
+}
+
+async function executeCreateActivity(automation: Automation, triggerData: any) {
+  const { type, title, description, days_offset } = automation.action_config;
+
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + (days_offset || 0));
+
+  // Buscar o deal para pegar o assigned_to e contact_id
+  const { data: deal } = await supabase
+    .from('deals')
+    .select('assigned_to, contact_id')
+    .eq('id', triggerData.deal_id)
+    .single();
+
+  if (!deal) {
+    return { success: false, message: 'Deal not found' };
+  }
+
+  const { error } = await supabase
+    .from('activities')
+    .insert({
+      deal_id: triggerData.deal_id,
+      contact_id: deal.contact_id,
+      assigned_to: deal.assigned_to,
+      type: type || 'task',
+      title: title || 'Atividade Automática',
+      description: description || '',
+      due_date: dueDate.toISOString(),
+    });
+
+  if (error) throw error;
+  return { success: true, activity_created: true };
+}
+
+async function executeAddTag(automation: Automation, triggerData: any) {
+  const { tag_name, tag_color } = automation.action_config;
+
+  // Buscar ou criar a tag
+  let { data: tag } = await supabase
+    .from('tags')
+    .select('id')
+    .eq('name', tag_name)
+    .single();
+
+  if (!tag) {
+    const { data: newTag, error: tagError } = await supabase
+      .from('tags')
+      .insert({ name: tag_name, color: tag_color || '#3B82F6' })
+      .select('id')
+      .single();
+
+    if (tagError) throw tagError;
+    tag = newTag;
+  }
+
+  // Buscar o contact_id do deal
+  const { data: deal } = await supabase
+    .from('deals')
+    .select('contact_id')
+    .eq('id', triggerData.deal_id)
+    .single();
+
+  if (!deal?.contact_id) {
+    return { success: false, message: 'Contact not found' };
+  }
+
+  // Adicionar tag ao contato (se não existir)
+  const { error } = await supabase
+    .from('customer_tags')
+    .insert({
+      customer_id: deal.contact_id,
+      tag_id: tag.id,
+    });
+
+  // Ignorar erro de duplicidade
+  if (error && !error.message.includes('duplicate')) {
+    throw error;
+  }
+
+  return { success: true, tag_added: tag_name };
+}
+
+async function executeSendNotification(automation: Automation, triggerData: any) {
+  const { message } = automation.action_config;
+
+  // Por enquanto, apenas registra no log
+  // Futuramente pode integrar com sistema de notificações real
+  console.log(`NOTIFICATION: ${message}`, triggerData);
+
+  return { success: true, notification_sent: true, message };
+}
+
+async function logExecution(
+  automationId: string,
+  triggerData: any,
+  status: string,
+  result: any,
+  errorMessage?: string
+) {
+  await supabase
+    .from('automation_logs')
+    .insert({
+      automation_id: automationId,
+      trigger_data: triggerData,
+      execution_status: status,
+      execution_result: result,
+      error_message: errorMessage,
+    });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { trigger_event, data } = await req.json();
+
+    console.log(`Processing trigger event: ${trigger_event}`, data);
+
+    // Buscar automações ativas para este evento
+    const { data: automations, error: automationsError } = await supabase
+      .from('automations')
+      .select('*')
+      .eq('trigger_event', trigger_event)
+      .eq('is_active', true);
+
+    if (automationsError) throw automationsError;
+
+    if (!automations || automations.length === 0) {
+      console.log(`No active automations for event: ${trigger_event}`);
+      return new Response(
+        JSON.stringify({ message: 'No active automations found', processed: 0 }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const results = [];
+
+    for (const automation of automations) {
+      console.log(`Processing automation: ${automation.name}`);
+
+      // Verificar condições do trigger
+      const conditions = automation.trigger_conditions || {};
+      let shouldExecute = true;
+
+      if (conditions.value_gte && data.value < conditions.value_gte) {
+        shouldExecute = false;
+      }
+
+      if (conditions.pipeline_id && data.pipeline_id !== conditions.pipeline_id) {
+        shouldExecute = false;
+      }
+
+      if (!shouldExecute) {
+        console.log(`Skipping automation ${automation.name} - conditions not met`);
+        await logExecution(automation.id, data, 'skipped', { reason: 'conditions not met' });
+        continue;
+      }
+
+      // Executar ação
+      const result = await executeAction(automation, data);
+
+      if (result.success) {
+        await logExecution(automation.id, data, 'success', result);
+        results.push({ automation: automation.name, status: 'success', result });
+      } else {
+        await logExecution(automation.id, data, 'error', result, result.message);
+        results.push({ automation: automation.name, status: 'error', message: result.message });
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ processed: results.length, results }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error: any) {
+    console.error('Error processing automations:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

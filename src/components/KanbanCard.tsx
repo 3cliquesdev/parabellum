@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +16,6 @@ interface KanbanCardProps {
 }
 
 export default function KanbanCard({ deal }: KanbanCardProps) {
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
     data: {
@@ -33,29 +31,29 @@ export default function KanbanCard({ deal }: KanbanCardProps) {
     : undefined;
 
   return (
-    <>
-      <Card
-        ref={setNodeRef}
-        style={style}
-        className="cursor-grab active:cursor-grabbing mb-3 hover:border-primary transition-colors relative group"
-      >
-        <CardContent className="p-4">
-          {/* Botão de Edição - Aparece no hover */}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsEditDialogOpen(true);
-            }}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className="cursor-grab active:cursor-grabbing mb-3 hover:border-primary transition-colors relative group"
+    >
+      <CardContent className="p-4">
+        <DealDialog
+          deal={deal}
+          trigger={
+            <Button
+              size="icon"
+              variant="ghost"
+              className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          }
+        />
 
-          {/* Área draggable */}
-          <div {...listeners} {...attributes}>
-            <h4 className="font-semibold text-foreground mb-2 pr-8">{deal.title}</h4>
+        {/* Área draggable */}
+        <div {...listeners} {...attributes}>
+          <h4 className="font-semibold text-foreground mb-2 pr-8">{deal.title}</h4>
             
             {deal.value && (
               <p className="text-lg font-bold text-success mb-2">
@@ -73,23 +71,13 @@ export default function KanbanCard({ deal }: KanbanCardProps) {
               </div>
             )}
 
-            {deal.organizations && (
-              <Badge variant="secondary" className="mt-2">
-                {deal.organizations.name}
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Dialog de Edição */}
-      {isEditDialogOpen && (
-        <DealDialog
-          deal={deal}
-          trigger={<span />}
-          onOpenChange={setIsEditDialogOpen}
-        />
-      )}
-    </>
+          {deal.organizations && (
+            <Badge variant="secondary" className="mt-2">
+              {deal.organizations.name}
+            </Badge>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Mail, Phone, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, Mail, Phone, Pencil, Trash2, Eye } from "lucide-react";
 import { useContacts, useDeleteContact } from "@/hooks/useContacts";
 import ContactDialog from "@/components/ContactDialog";
 import type { Tables } from "@/integrations/supabase/types";
@@ -33,6 +33,7 @@ type ContactWithOrg = Tables<"contacts"> & {
 
 export default function Contacts() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const filter = searchParams.get("filter") || "all";
   const [searchQuery, setSearchQuery] = useState("");
   const { data: contacts, isLoading } = useContacts(searchQuery);
@@ -152,6 +153,13 @@ export default function Contacts() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => navigate(`/contacts/${contact.id}`)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
                       <ContactDialog
                         contact={contact}
                         trigger={

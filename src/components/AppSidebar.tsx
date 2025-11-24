@@ -10,7 +10,8 @@ import {
   UserCog,
   Zap,
   Mail,
-  LogOut
+  LogOut,
+  BarChart3
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -48,6 +49,10 @@ const crmItems = [
 const automationItems = [
   { title: "Automações", href: "/automations", icon: Zap },
   { title: "Templates de Email", href: "/email-templates", icon: Mail },
+];
+
+const reportItems = [
+  { title: "Analytics", href: "/analytics", icon: BarChart3 },
 ];
 
 const formsItems = [
@@ -158,6 +163,31 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {automationItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.href}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                        activeClassName="bg-primary text-primary-foreground font-medium hover:bg-primary hover:text-primary-foreground"
+                      >
+                        <item.icon className="h-5 w-5 flex-shrink-0" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Relatórios - apenas admin/manager */}
+        {(isAdmin || isManager) && (
+          <SidebarGroup>
+            {!collapsed && <SidebarGroupLabel>Relatórios</SidebarGroupLabel>}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {reportItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink

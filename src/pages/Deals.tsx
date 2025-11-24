@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useDeals, useUpdateDealStage } from "@/hooks/useDeals";
 import { useStages } from "@/hooks/useStages";
+import { useSalesReps } from "@/hooks/useSalesReps";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import KanbanColumn from "@/components/KanbanColumn";
 import KanbanCard from "@/components/KanbanCard";
 import DealDialog from "@/components/DealDialog";
@@ -20,24 +23,40 @@ export default function Deals() {
   const [searchParams] = useSearchParams();
   const filter = searchParams.get("filter") || "all";
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
+  const [selectedSalesRep, setSelectedSalesRep] = useState<string>("all");
   const { data: deals, isLoading: dealsLoading } = useDeals();
   const { data: stages, isLoading: stagesLoading } = useStages();
+  const { data: salesReps } = useSalesReps();
+  const { role } = useUserRole();
   const updateDealStage = useUpdateDealStage();
+  
+  const isManagerOrAdmin = role && (role === "admin" || role === "manager");
 
   const filteredDeals = useMemo(() => {
     if (!deals) return [];
     
+    let filtered = deals;
+    
+    // Filtrar por status
     switch (filter) {
       case "open":
-        return deals.filter(d => d.status === "open");
+        filtered = filtered.filter(d => d.status === "open");
+        break;
       case "won":
-        return deals.filter(d => d.status === "won");
+        filtered = filtered.filter(d => d.status === "won");
+        break;
       case "lost":
-        return deals.filter(d => d.status === "lost");
-      default:
-        return deals;
+        filtered = filtered.filter(d => d.status === "lost");
+        break;
     }
-  }, [deals, filter]);
+    
+    // Filtrar por vendedor (apenas para admin/manager)
+    if (isManagerOrAdmin && selectedSalesRep !== "all") {
+      filtered = filtered.filter(d => d.assigned_to === selectedSalesRep);
+    }
+    
+    return filtered;
+  }, [deals, filter, selectedSalesRep, isManagerOrAdmin]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -88,21 +107,44 @@ export default function Deals() {
 
   return (
     <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">Pipeline de Negócios</h2>
-          <p className="text-muted-foreground">
-            Arraste e solte para mover negócios entre etapas
-          </p>
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">Pipeline de Negócios</h2>
+            <p className="text-muted-foreground">
+              Arraste e solte para mover negócios entre etapas
+            </p>
+          </div>
+          <DealDialog
+            trigger={
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                Novo Negócio
+              </Button>
+            }
+          />
         </div>
-        <DealDialog
-          trigger={
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Novo Negócio
-            </Button>
-          }
-        />
+
+        {isManagerOrAdmin && salesReps && salesReps.length > 0 && (
+          <div className="mt-4 flex items-center gap-3">
+            <label className="text-sm font-medium text-foreground">
+              Filtrar por Vendedor:
+            </label>
+            <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep}>
+              <SelectTrigger className="w-[250px]">
+                <SelectValue placeholder="Selecione um vendedor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os vendedores</SelectItem>
+                {salesReps.map((rep) => (
+                  <SelectItem key={rep.id} value={rep.id}>
+                    {rep.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

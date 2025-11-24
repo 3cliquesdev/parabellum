@@ -7,7 +7,14 @@ export function useSalesReps() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, job_title, avatar_url")
+        .select(`
+          id, 
+          full_name, 
+          job_title, 
+          avatar_url,
+          user_roles!inner(role)
+        `)
+        .eq("user_roles.role", "sales_rep")
         .order("full_name");
 
       if (error) throw error;

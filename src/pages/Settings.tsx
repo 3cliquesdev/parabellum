@@ -1,10 +1,12 @@
 import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Shield, Database, Mail, Webhook, Loader2 } from "lucide-react";
+import { Shield, Database, Mail, Webhook, Loader2, FileText } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function Settings() {
   const { isAdmin, loading } = useUserRole();
+  const navigate = useNavigate();
 
   if (loading) {
     return (
@@ -57,6 +59,21 @@ export default function Settings() {
           </CardHeader>
           <CardContent>
             <Button variant="outline">Configurar</Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Templates de Email
+            </CardTitle>
+            <CardDescription>Gerencie templates para automações</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => navigate('/settings/email-templates')}>
+              Gerenciar Templates
+            </Button>
           </CardContent>
         </Card>
 

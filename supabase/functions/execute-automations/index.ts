@@ -33,6 +33,8 @@ async function executeAction(automation: Automation, triggerData: any) {
         return await executeAddTag(automation, triggerData);
       case 'send_notification':
         return await executeSendNotification(automation, triggerData);
+      case 'send_email_to_customer':
+        return await executeSendEmailToCustomer(automation, triggerData);
       default:
         console.log(`Unknown action type: ${automation.action_type}`);
         return { success: false, message: 'Unknown action type' };
@@ -188,6 +190,83 @@ async function executeSendNotification(automation: Automation, triggerData: any)
   console.log(`NOTIFICATION: ${message}`, triggerData);
 
   return { success: true, notification_sent: true, message };
+}
+
+async function executeSendEmailToCustomer(automation: Automation, triggerData: any) {
+  const { template_id } = automation.action_config;
+
+  if (!template_id) {
+    return { success: false, message: 'Template ID not provided' };
+  }
+
+  // Buscar template
+  const { data: template, error: templateError } = await supabase
+    .from('email_templates')
+    .select('*')
+    .eq('id', template_id)
+    .single();
+
+  if (templateError || !template) {
+    console.error('Template not found:', templateError);
+    return { success: false, message: 'Template not found' };
+  }
+
+  // Buscar dados do deal
+  const { data: deal, error: dealError } = await supabase
+    .from('deals')
+    .select(`
+      *,
+      contact:contacts(*)
+    `)
+    .eq('id', triggerData.deal_id)
+    .single();
+
+  if (dealError || !deal || !deal.contact) {
+    console.error('Deal or contact not found:', dealError);
+    return { success: false, message: 'Deal or contact not found' };
+  }
+
+  const contact = deal.contact as any;
+
+  if (!contact.email) {
+    console.error('Contact has no email');
+    return { success: false, message: 'Contact has no email' };
+  }
+
+  // Substituir variáveis no subject e html_body
+  const variables: Record<string, string> = {
+    customer_name: `${contact.first_name} ${contact.last_name}`,
+    deal_title: deal.title,
+    deal_value: deal.value?.toString() || '0',
+    deal_currency: deal.currency || 'BRL',
+  };
+
+  let subject = template.subject;
+  let html_body = template.html_body;
+
+  Object.keys(variables).forEach(key => {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    subject = subject.replace(regex, variables[key]);
+    html_body = html_body.replace(regex, variables[key]);
+  });
+
+  // Chamar send-email Edge Function
+  const { data: emailResult, error: emailError } = await supabase.functions.invoke('send-email', {
+    body: {
+      to: contact.email,
+      to_name: variables.customer_name,
+      subject: subject,
+      html: html_body,
+      customer_id: contact.id,
+    },
+  });
+
+  if (emailError) {
+    console.error('Error sending email:', emailError);
+    return { success: false, message: emailError.message };
+  }
+
+  return { success: true, email_sent: true, to: contact.email };
 }
 
 async function logExecution(

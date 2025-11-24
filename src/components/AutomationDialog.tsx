@@ -32,6 +32,7 @@ import { useCreateAutomation } from "@/hooks/useCreateAutomation";
 import { useUpdateAutomation } from "@/hooks/useUpdateAutomation";
 import { useSalesReps } from "@/hooks/useSalesReps";
 import { useTags } from "@/hooks/useTags";
+import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -57,6 +58,7 @@ const formSchema = z.object({
     "add_tag",
     "send_notification",
     "change_status",
+    "send_email_to_customer",
   ]),
   action_config: z.object({
     strategy: z.string().optional(),
@@ -70,6 +72,7 @@ const formSchema = z.object({
     tag_color: z.string().optional(),
     message: z.string().optional(),
     status: z.string().optional(),
+    template_id: z.string().optional(),
   }).default({}),
   is_active: z.boolean().default(true),
 });
@@ -87,6 +90,7 @@ export function AutomationDialog({ open, onOpenChange, automation }: AutomationD
   const updateMutation = useUpdateAutomation();
   const { data: salesReps } = useSalesReps();
   const { data: tags } = useTags();
+  const { data: emailTemplates } = useEmailTemplates();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -291,6 +295,7 @@ export function AutomationDialog({ open, onOpenChange, automation }: AutomationD
                         <SelectItem value="add_tag">Adicionar Tag</SelectItem>
                         <SelectItem value="send_notification">Enviar Notificação</SelectItem>
                         <SelectItem value="change_status">Mudar Status</SelectItem>
+                        <SelectItem value="send_email_to_customer">Enviar Email ao Cliente</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -438,6 +443,33 @@ export function AutomationDialog({ open, onOpenChange, automation }: AutomationD
                       <FormControl>
                         <Textarea placeholder="Digite a mensagem da notificação..." {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {watchActionType === "send_email_to_customer" && (
+                <FormField
+                  control={form.control}
+                  name="action_config.template_id"
+                  render={({ field }) => (
+                    <FormItem className="mt-3">
+                      <FormLabel>Template de Email</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um template" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {emailTemplates?.filter(t => t.is_active).map((template) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              {template.name} ({template.subject})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

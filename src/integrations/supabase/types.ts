@@ -426,6 +426,53 @@ export type Database = {
           },
         ]
       }
+      email_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          html_body: string
+          id: string
+          is_active: boolean
+          name: string
+          subject: string
+          trigger_type: string | null
+          updated_at: string
+          variables: Json | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          html_body: string
+          id?: string
+          is_active?: boolean
+          name: string
+          subject: string
+          trigger_type?: string | null
+          updated_at?: string
+          variables?: Json | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          html_body?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          subject?: string
+          trigger_type?: string | null
+          updated_at?: string
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forms: {
         Row: {
           created_at: string | null
@@ -755,6 +802,7 @@ export type Database = {
         | "add_tag"
         | "send_notification"
         | "change_status"
+        | "send_email_to_customer"
       automation_trigger:
         | "deal_created"
         | "deal_won"
@@ -933,6 +981,7 @@ export const Constants = {
         "add_tag",
         "send_notification",
         "change_status",
+        "send_email_to_customer",
       ],
       automation_trigger: [
         "deal_created",

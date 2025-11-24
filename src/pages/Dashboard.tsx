@@ -1,6 +1,6 @@
 import { FinancialStatusWidget } from "@/components/widgets/FinancialStatusWidget";
-import { GuestChartWidget } from "@/components/widgets/GuestChartWidget";
-import { OccupancyDonutWidget } from "@/components/widgets/OccupancyDonutWidget";
+import { LTVWidget } from "@/components/widgets/LTVWidget";
+import { ConversionRateWidget } from "@/components/widgets/ConversionRateWidget";
 import { RecentActionsWidget } from "@/components/widgets/RecentActionsWidget";
 
 export default function Dashboard() {
@@ -14,10 +14,10 @@ export default function Dashboard() {
       {/* Grid de 2 colunas para Widgets 2 e 3 */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 flex-1">
         <div className="min-h-[400px]">
-          <GuestChartWidget />
+          <LTVWidget />
         </div>
         <div className="min-h-[400px]">
-          <OccupancyDonutWidget />
+          <ConversionRateWidget />
         </div>
       </div>
 

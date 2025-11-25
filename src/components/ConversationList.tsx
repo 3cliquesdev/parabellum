@@ -8,7 +8,7 @@ import { ptBR } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
 import { useSentimentAnalysis, type Sentiment } from "@/hooks/useSentimentAnalysis";
 import { useMessages } from "@/hooks/useMessages";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 type Contact = Tables<"contacts"> & {
   organizations: Tables<"organizations"> | null;
@@ -33,34 +33,48 @@ interface ConversationListProps {
 function ConversationItem({ 
   conversation, 
   isActive, 
-  onClick 
+  onClick,
+  index
 }: { 
   conversation: Conversation; 
   isActive: boolean; 
   onClick: () => void;
+  index: number;
 }) {
   const { data: messages } = useMessages(conversation.id);
   const sentimentAnalysis = useSentimentAnalysis();
   const [sentiment, setSentiment] = useState<Sentiment | null>(null);
+  const hasAnalyzedRef = useRef(false);
 
   useEffect(() => {
-    if (messages && messages.length > 0 && !sentiment) {
+    if (messages && messages.length > 0 && !sentiment && !hasAnalyzedRef.current) {
+      hasAnalyzedRef.current = true;
+      
       const customerMessages = messages
         .filter(m => m.sender_type === 'contact')
         .slice(-5);
 
       if (customerMessages.length > 0) {
-        const formattedMessages = customerMessages.map(m => ({
-          content: m.content,
-          sender_type: m.sender_type as 'user' | 'contact'
-        }));
+        // Adicionar delay progressivo baseado no index para espaçar requisições
+        const delay = index * 1500; // 1.5s entre cada análise
+        
+        setTimeout(() => {
+          const formattedMessages = customerMessages.map(m => ({
+            content: m.content,
+            sender_type: m.sender_type as 'user' | 'contact'
+          }));
 
-        sentimentAnalysis.mutate(formattedMessages, {
-          onSuccess: (result) => setSentiment(result)
-        });
+          sentimentAnalysis.mutate(formattedMessages, {
+            onSuccess: (result) => setSentiment(result),
+            onError: () => {
+              // Fallback para neutro em caso de rate limit
+              setSentiment('neutro');
+            }
+          });
+        }, delay);
       }
     }
-  }, [messages, sentiment]);
+  }, [messages, sentiment, index]);
 
   return (
     <button
@@ -144,12 +158,13 @@ export default function ConversationList({
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {conversations.map((conversation) => (
+            {conversations.map((conversation, index) => (
               <ConversationItem
                 key={conversation.id}
                 conversation={conversation}
                 isActive={activeConversationId === conversation.id}
                 onClick={() => onSelectConversation(conversation)}
+                index={index}
               />
             ))}
           </div>

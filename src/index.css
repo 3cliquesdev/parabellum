@@ -8,7 +8,15 @@
     --background: 0 0% 100%;           /* Branco Puro */
     --foreground: 222.2 84% 4.9%;      /* Azul Quase Preto */
     
-    --sidebar-background: 210 40% 98%; /* Cinza Gelo para Sidebar */
+    /* SIDEBAR - Variáveis Completas */
+    --sidebar-background: 210 40% 98%;        /* Cinza Gelo */
+    --sidebar-foreground: 222.2 84% 4.9%;     /* Texto Escuro */
+    --sidebar-primary: 221.2 83.2% 53.3%;     /* Azul Royal */
+    --sidebar-primary-foreground: 210 40% 98%;/* Branco */
+    --sidebar-accent: 210 40% 96.1%;          /* Hover Cinza Suave */
+    --sidebar-accent-foreground: 222.2 84% 4.9%;/* Texto Escuro no Hover */
+    --sidebar-border: 214.3 31.8% 91.4%;      /* Bordas Sutis */
+    --sidebar-ring: 221.2 83.2% 53.3%;        /* Foco Azul */
     
     --card: 0 0% 100%;                 /* Branco */
     --card-foreground: 222.2 84% 4.9%;
@@ -42,6 +50,16 @@
     /* DARK MODE - PALETA TECH BLUE ENTERPRISE */
     --background: 0 0% 0%;             /* Preto Puro */
     --foreground: 0 0% 100%;           /* Texto Branco */
+    
+    /* SIDEBAR - Variáveis Completas */
+    --sidebar-background: 0 0% 5%;            /* Cinza Quase Preto */
+    --sidebar-foreground: 0 0% 100%;          /* Texto Branco */
+    --sidebar-primary: 221.2 83.2% 53.3%;     /* Azul Royal */
+    --sidebar-primary-foreground: 210 40% 98%;/* Branco */
+    --sidebar-accent: 0 0% 12%;               /* Hover Cinza Escuro */
+    --sidebar-accent-foreground: 0 0% 100%;   /* Texto Branco no Hover */
+    --sidebar-border: 0 0% 15%;               /* Bordas Sutis */
+    --sidebar-ring: 221.2 83.2% 53.3%;        /* Foco Azul */
     
     --card: 0 0% 5%;                   /* Cinza Quase Preto */
     --card-foreground: 0 0% 100%;

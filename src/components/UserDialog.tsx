@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useUpdateUser } from "@/hooks/useUpdateUser";
 import { z } from "zod";
 
 const userSchema = z.object({
@@ -17,75 +18,136 @@ const userSchema = z.object({
   department: z.string().uuid({ message: "Departamento inválido" }),
 });
 
+const editUserSchema = z.object({
+  role: z.enum(["admin", "manager", "sales_rep", "consultant"], { message: "Role inválida" }),
+  full_name: z.string().min(1, { message: "Nome completo é obrigatório" }),
+  department: z.string().uuid({ message: "Departamento inválido" }),
+});
+
+interface UserWithRole {
+  id: string;
+  email: string;
+  created_at: string;
+  role: "admin" | "manager" | "sales_rep" | "consultant";
+  full_name?: string;
+  job_title?: string;
+  avatar_url?: string;
+  department?: string;
+}
+
 interface UserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  editUser?: UserWithRole | null;
 }
 
-export default function UserDialog({ open, onOpenChange, onSuccess }: UserDialogProps) {
+export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: UserDialogProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"admin" | "manager" | "sales_rep" | "consultant">("sales_rep");
   const [fullName, setFullName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
   const [department, setDepartment] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { data: departments } = useDepartments();
+  const updateUserMutation = useUpdateUser();
+
+  const isEditMode = !!editUser;
+
+  // Populate form when editing
+  useEffect(() => {
+    if (editUser) {
+      setEmail(editUser.email);
+      setRole(editUser.role);
+      setFullName(editUser.full_name || "");
+      setJobTitle(editUser.job_title || "");
+      setDepartment(editUser.department || "");
+    } else {
+      // Reset form for creation mode
+      setEmail("");
+      setPassword("");
+      setRole("sales_rep");
+      setFullName("");
+      setJobTitle("");
+      setDepartment("");
+    }
+  }, [editUser, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Validate input
-      userSchema.parse({ email, password, role, full_name: fullName, department });
+      if (isEditMode && editUser) {
+        // Edit mode - validate without password
+        editUserSchema.parse({ role, full_name: fullName, department });
 
-      console.log("Criando usuário:", { email, role, full_name: fullName, department });
+        console.log("Atualizando usuário:", { user_id: editUser.id, role, full_name: fullName, job_title: jobTitle, department });
 
-      // Call Edge Function to create user (secure server-side operation)
-      const { data, error } = await supabase.functions.invoke('create-user', {
-        body: {
-          email,
-          password,
+        await updateUserMutation.mutateAsync({
+          user_id: editUser.id,
           role,
           full_name: fullName,
+          job_title: jobTitle || undefined,
           department,
+        });
+
+        onOpenChange(false);
+        onSuccess();
+      } else {
+        // Create mode - validate with password
+        userSchema.parse({ email, password, role, full_name: fullName, department });
+
+        console.log("Criando usuário:", { email, role, full_name: fullName, department });
+
+        // Call Edge Function to create user (secure server-side operation)
+        const { data, error } = await supabase.functions.invoke('create-user', {
+          body: {
+            email,
+            password,
+            role,
+            full_name: fullName,
+            job_title: jobTitle || undefined,
+            department,
+          }
+        });
+
+        if (error) {
+          console.error("Edge Function error:", error);
+          throw new Error(error.message || "Erro ao chamar função de criação");
         }
-      });
 
-      if (error) {
-        console.error("Edge Function error:", error);
-        throw new Error(error.message || "Erro ao chamar função de criação");
+        if (!data?.success) {
+          throw new Error(data?.error || "Falha ao criar usuário");
+        }
+
+        console.log("Usuário criado com sucesso:", data.user);
+
+        const roleLabels = {
+          admin: "Administrador",
+          manager: "Gerente de Vendas",
+          sales_rep: "Vendedor",
+          consultant: "Consultor",
+        };
+
+        toast({
+          title: "Usuário criado com sucesso!",
+          description: `${email} foi criado como ${roleLabels[role]}.`,
+        });
+
+        setEmail("");
+        setPassword("");
+        setRole("sales_rep");
+        setFullName("");
+        setJobTitle("");
+        setDepartment("");
+        onOpenChange(false);
+        onSuccess();
       }
-
-      if (!data?.success) {
-        throw new Error(data?.error || "Falha ao criar usuário");
-      }
-
-      console.log("Usuário criado com sucesso:", data.user);
-
-      const roleLabels = {
-        admin: "Administrador",
-        manager: "Gerente de Vendas",
-        sales_rep: "Vendedor",
-        consultant: "Consultor",
-      };
-
-      toast({
-        title: "Usuário criado com sucesso!",
-        description: `${email} foi criado como ${roleLabels[role]}.`,
-      });
-
-      setEmail("");
-      setPassword("");
-      setRole("sales_rep");
-      setFullName("");
-      setDepartment("");
-      onOpenChange(false);
-      onSuccess();
     } catch (error) {
-      console.error("Error creating user:", error);
+      console.error("Error submitting user:", error);
       
       if (error instanceof z.ZodError) {
         toast({
@@ -96,7 +158,7 @@ export default function UserDialog({ open, onOpenChange, onSuccess }: UserDialog
       } else if (error instanceof Error) {
         toast({
           variant: "destructive",
-          title: "Erro ao criar usuário",
+          title: isEditMode ? "Erro ao atualizar usuário" : "Erro ao criar usuário",
           description: error.message,
         });
       }
@@ -109,9 +171,12 @@ export default function UserDialog({ open, onOpenChange, onSuccess }: UserDialog
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Criar Novo Usuário</DialogTitle>
+          <DialogTitle>{isEditMode ? "Editar Usuário" : "Criar Novo Usuário"}</DialogTitle>
           <DialogDescription>
-            Adicione um novo usuário ao sistema. A senha será temporária e o usuário poderá alterá-la após o primeiro login.
+            {isEditMode 
+              ? "Atualize as informações do usuário. Email não pode ser alterado."
+              : "Adicione um novo usuário ao sistema. A senha será temporária e o usuário poderá alterá-la após o primeiro login."
+            }
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -135,18 +200,31 @@ export default function UserDialog({ open, onOpenChange, onSuccess }: UserDialog
                 placeholder="usuario@exemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                disabled={isEditMode}
+                required={!isEditMode}
               />
             </div>
+            {!isEditMode && (
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha Temporária</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Mínimo 8 caracteres"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             <div className="space-y-2">
-              <Label htmlFor="password">Senha Temporária</Label>
+              <Label htmlFor="job_title">Cargo (opcional)</Label>
               <Input
-                id="password"
-                type="password"
-                placeholder="Mínimo 8 caracteres"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                id="job_title"
+                type="text"
+                placeholder="Vendedor Senior"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -211,7 +289,7 @@ export default function UserDialog({ open, onOpenChange, onSuccess }: UserDialog
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Criando..." : "Criar Usuário"}
+              {loading ? (isEditMode ? "Salvando..." : "Criando...") : (isEditMode ? "Salvar Alterações" : "Criar Usuário")}
             </Button>
           </DialogFooter>
         </form>

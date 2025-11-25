@@ -23,6 +23,7 @@ interface UserWithRole {
 
 export default function Users() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { role, isAdmin, loading: roleLoading } = useUserRole();
@@ -41,6 +42,19 @@ export default function Users() {
 
   const handleSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["users"] });
+    setEditingUser(null);
+  };
+
+  const handleEditClick = (user: UserWithRole) => {
+    setEditingUser(user);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingUser(null);
+    }
   };
 
   if (roleLoading || isLoading) {
@@ -133,7 +147,11 @@ export default function Users() {
                     {new Date(user.created_at).toLocaleDateString("pt-BR")}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleEditClick(user)}
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -151,7 +169,12 @@ export default function Users() {
         </CardContent>
       </Card>
 
-      <UserDialog open={dialogOpen} onOpenChange={setDialogOpen} onSuccess={handleSuccess} />
+      <UserDialog 
+        open={dialogOpen} 
+        onOpenChange={handleDialogClose} 
+        onSuccess={handleSuccess}
+        editUser={editingUser}
+      />
     </div>
   );
 }

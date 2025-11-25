@@ -28,8 +28,8 @@ export function useAIQueue() {
         item.reject(error);
       }
 
-      // Delay entre requisições para evitar rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Delay entre requisições para evitar rate limiting (aumentado para 2s)
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     processingRef.current = false;

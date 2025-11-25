@@ -15,13 +15,13 @@ import { z } from "zod";
 const userSchema = z.object({
   email: z.string().email({ message: "Email inválido" }),
   password: z.string().min(8, { message: "Senha deve ter no mínimo 8 caracteres" }),
-  role: z.enum(["admin", "manager", "sales_rep", "consultant"], { message: "Role inválida" }),
+  role: z.enum(["admin", "manager", "sales_rep", "consultant", "support_agent"], { message: "Role inválida" }),
   full_name: z.string().min(1, { message: "Nome completo é obrigatório" }),
   department: z.string().uuid({ message: "Departamento inválido" }),
 });
 
 const editUserSchema = z.object({
-  role: z.enum(["admin", "manager", "sales_rep", "consultant"], { message: "Role inválida" }),
+  role: z.enum(["admin", "manager", "sales_rep", "consultant", "support_agent"], { message: "Role inválida" }),
   full_name: z.string().min(1, { message: "Nome completo é obrigatório" }),
   department: z.string().uuid({ message: "Departamento inválido" }),
 });
@@ -30,7 +30,7 @@ interface UserWithRole {
   id: string;
   email: string;
   created_at: string;
-  role: "admin" | "manager" | "sales_rep" | "consultant";
+  role: "admin" | "manager" | "sales_rep" | "consultant" | "support_agent";
   full_name?: string;
   job_title?: string;
   avatar_url?: string;
@@ -47,7 +47,7 @@ interface UserDialogProps {
 export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: UserDialogProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "manager" | "sales_rep" | "consultant">("sales_rep");
+  const [role, setRole] = useState<"admin" | "manager" | "sales_rep" | "consultant" | "support_agent">("sales_rep");
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [department, setDepartment] = useState<string>("");
@@ -161,6 +161,7 @@ export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: 
           manager: "Gerente de Vendas",
           sales_rep: "Vendedor",
           consultant: "Consultor",
+          support_agent: "Atendente",
         };
 
         toast({
@@ -308,6 +309,12 @@ export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: 
                     <div className="flex flex-col">
                       <span className="font-medium">Consultor / Account Manager</span>
                       <span className="text-xs text-muted-foreground">Carteira pós-venda</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="support_agent">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Atendente / Solver</span>
+                      <span className="text-xs text-muted-foreground">Suporte e tickets</span>
                     </div>
                   </SelectItem>
                 </SelectContent>

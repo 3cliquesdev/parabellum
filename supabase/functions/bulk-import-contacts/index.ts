@@ -11,11 +11,24 @@ interface ContactRow {
   last_name?: string;
   phone?: string;
   company?: string;
+  document?: string;
+  state_registration?: string;
   address?: string;
+  address_number?: string;
+  address_complement?: string;
+  neighborhood?: string;
   city?: string;
   state?: string;
   zip_code?: string;
   birth_date?: string;
+  customer_type?: string;
+  blocked?: string | boolean;
+  subscription_plan?: string;
+  registration_date?: string;
+  last_payment_date?: string;
+  next_payment_date?: string;
+  recent_orders_count?: string | number;
+  account_balance?: string | number;
   assigned_to?: string;
 }
 
@@ -73,11 +86,30 @@ Deno.serve(async (req) => {
         last_name: contact.last_name?.trim() || '',
         phone: contact.phone?.trim() || null,
         company: contact.company?.trim() || null,
+        document: contact.document?.trim() || null,
+        state_registration: contact.state_registration?.trim() || null,
         address: contact.address?.trim() || null,
+        address_number: contact.address_number?.trim() || null,
+        address_complement: contact.address_complement?.trim() || null,
+        neighborhood: contact.neighborhood?.trim() || null,
         city: contact.city?.trim() || null,
         state: contact.state?.trim() || null,
         zip_code: contact.zip_code?.trim() || null,
         birth_date: contact.birth_date || null,
+        customer_type: contact.customer_type?.trim() || null,
+        blocked: typeof contact.blocked === 'boolean' 
+          ? contact.blocked 
+          : (contact.blocked?.toLowerCase().trim() === 'sim' || contact.blocked?.toLowerCase().trim() === 'yes' || contact.blocked === '1'),
+        subscription_plan: contact.subscription_plan?.trim() || null,
+        registration_date: contact.registration_date || null,
+        last_payment_date: contact.last_payment_date || null,
+        next_payment_date: contact.next_payment_date || null,
+        recent_orders_count: contact.recent_orders_count 
+          ? parseInt(String(contact.recent_orders_count), 10) 
+          : 0,
+        account_balance: contact.account_balance 
+          ? parseFloat(String(contact.account_balance).replace(',', '.')) 
+          : 0,
         assigned_to: contact.assigned_to || null,
         source: 'csv_import',
         last_contact_date: new Date().toISOString(),

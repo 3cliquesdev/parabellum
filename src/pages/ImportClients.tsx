@@ -37,11 +37,24 @@ export default function ImportClients() {
         'last_name': ['sobrenome', 'last_name', 'lastname', 'last name', 'ultimonome'],
         'phone': ['telefone', 'phone', 'tel', 'celular', 'fone'],
         'company': ['empresa', 'company', 'companhia'],
-        'address': ['endereco', 'endereço', 'address', 'rua'],
-        'city': ['cidade', 'city'],
+        'document': ['cpf', 'cnpj', 'documento', 'document', 'cpf/cnpj'],
+        'state_registration': ['ie', 'inscricao estadual', 'inscricão estadual', 'state_registration', 'inscricao_estadual'],
+        'address': ['endereco', 'endereço', 'address', 'rua', 'logradouro'],
+        'address_number': ['numero', 'número', 'number', 'address_number', 'num'],
+        'address_complement': ['complemento', 'complement', 'address_complement', 'compl'],
+        'neighborhood': ['bairro', 'neighborhood', 'district'],
+        'city': ['cidade', 'city', 'municipio', 'município'],
         'state': ['estado', 'state', 'uf'],
         'zip_code': ['cep', 'zip', 'zipcode', 'zip_code', 'postalcode'],
         'birth_date': ['nascimento', 'data_nascimento', 'birth_date', 'birthdate', 'data de nascimento'],
+        'customer_type': ['tipo', 'customer_type', 'tipo_cliente', 'tipo de cliente'],
+        'blocked': ['bloqueado', 'blocked', 'bloquear', 'ativo'],
+        'subscription_plan': ['plano', 'subscription_plan', 'plano_assinatura', 'assinatura'],
+        'registration_date': ['cadastro', 'registration_date', 'data_cadastro', 'data de cadastro'],
+        'last_payment_date': ['ultimo_pagamento', 'last_payment_date', 'data_ultimo_pagamento', 'último pagamento'],
+        'next_payment_date': ['proximo_pagamento', 'next_payment_date', 'data_proximo_pagamento', 'próximo pagamento'],
+        'recent_orders_count': ['pedidos', 'recent_orders_count', 'qtd_pedidos', 'quantidade pedidos'],
+        'account_balance': ['saldo', 'account_balance', 'saldo_conta', 'balance'],
       };
 
       csvHeaders.forEach((header) => {
@@ -106,8 +119,8 @@ export default function ImportClients() {
   };
 
   const downloadTemplate = () => {
-    const template = `email,nome,sobrenome,telefone,empresa,endereco,cidade,estado,cep,data_nascimento
-exemplo@email.com,João,Silva,(11) 99999-9999,Empresa Exemplo,Rua Exemplo 123,São Paulo,SP,01234-567,1990-01-15`;
+    const template = `email,nome,sobrenome,telefone,empresa,cpf/cnpj,ie,endereco,numero,complemento,bairro,cidade,estado,cep,data_nascimento,tipo,bloqueado,plano,data_cadastro,ultimo_pagamento,proximo_pagamento,pedidos_recentes,saldo
+exemplo@email.com,João,Silva,(11) 99999-9999,Empresa Exemplo,123.456.789-00,987654321,Rua Aldo Focosi,111,Sala 10,Centro,Ribeirão Preto,SP,14091-310,1990-01-15,Cliente,não,Premium,2024-01-15,2024-12-01,2025-01-01,5,1500.00`;
     
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');

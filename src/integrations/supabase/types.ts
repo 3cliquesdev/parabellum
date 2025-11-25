@@ -404,67 +404,106 @@ export type Database = {
       }
       contacts: {
         Row: {
+          account_balance: number | null
           address: string | null
+          address_complement: string | null
+          address_number: string | null
           assigned_to: string | null
           avatar_url: string | null
           birth_date: string | null
+          blocked: boolean | null
           city: string | null
           company: string | null
           created_at: string
+          customer_type: string | null
+          document: string | null
           email: string | null
           first_name: string
           id: string
           last_contact_date: string | null
           last_name: string
+          last_payment_date: string | null
+          neighborhood: string | null
+          next_payment_date: string | null
           organization_id: string | null
           phone: string | null
+          recent_orders_count: number | null
+          registration_date: string | null
           source: string | null
           state: string | null
+          state_registration: string | null
           status: Database["public"]["Enums"]["customer_status"] | null
+          subscription_plan: string | null
           total_ltv: number | null
           whatsapp_id: string | null
           zip_code: string | null
         }
         Insert: {
+          account_balance?: number | null
           address?: string | null
+          address_complement?: string | null
+          address_number?: string | null
           assigned_to?: string | null
           avatar_url?: string | null
           birth_date?: string | null
+          blocked?: boolean | null
           city?: string | null
           company?: string | null
           created_at?: string
+          customer_type?: string | null
+          document?: string | null
           email?: string | null
           first_name: string
           id?: string
           last_contact_date?: string | null
           last_name: string
+          last_payment_date?: string | null
+          neighborhood?: string | null
+          next_payment_date?: string | null
           organization_id?: string | null
           phone?: string | null
+          recent_orders_count?: number | null
+          registration_date?: string | null
           source?: string | null
           state?: string | null
+          state_registration?: string | null
           status?: Database["public"]["Enums"]["customer_status"] | null
+          subscription_plan?: string | null
           total_ltv?: number | null
           whatsapp_id?: string | null
           zip_code?: string | null
         }
         Update: {
+          account_balance?: number | null
           address?: string | null
+          address_complement?: string | null
+          address_number?: string | null
           assigned_to?: string | null
           avatar_url?: string | null
           birth_date?: string | null
+          blocked?: boolean | null
           city?: string | null
           company?: string | null
           created_at?: string
+          customer_type?: string | null
+          document?: string | null
           email?: string | null
           first_name?: string
           id?: string
           last_contact_date?: string | null
           last_name?: string
+          last_payment_date?: string | null
+          neighborhood?: string | null
+          next_payment_date?: string | null
           organization_id?: string | null
           phone?: string | null
+          recent_orders_count?: number | null
+          registration_date?: string | null
           source?: string | null
           state?: string | null
+          state_registration?: string | null
           status?: Database["public"]["Enums"]["customer_status"] | null
+          subscription_plan?: string | null
           total_ltv?: number | null
           whatsapp_id?: string | null
           zip_code?: string | null

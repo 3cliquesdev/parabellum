@@ -13,6 +13,7 @@ import { Search, Briefcase, AlertCircle, CheckCircle, Clock, DollarSign, Users, 
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import FocusTodayWidget from "@/components/FocusTodayWidget";
+import ExpansionRadarWidget from "@/components/widgets/ExpansionRadarWidget";
 
 export default function MyPortfolio() {
   const navigate = useNavigate();
@@ -138,8 +139,11 @@ export default function MyPortfolio() {
         </Card>
       </div>
 
-      {/* Focus Today Widget */}
-      <FocusTodayWidget />
+      {/* Widgets Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <FocusTodayWidget />
+        <ExpansionRadarWidget />
+      </div>
 
       {/* Filters and Search */}
       <Card>

@@ -26,6 +26,7 @@ import TVMode from "./pages/TVMode";
 import Goals from "./pages/Goals";
 import ImportClients from "./pages/ImportClients";
 import Support from "./pages/Support";
+import PublicTicketForm from "./pages/PublicTicketForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -94,6 +95,7 @@ const App = () => {
             <Route path="/auth" element={<Auth />} />
             <Route path="/setup" element={<Setup />} />
             <Route path="/public/form/:formId" element={<PublicForm />} />
+            <Route path="/open-ticket" element={<PublicTicketForm />} />
             <Route path="/tv" element={<TVMode />} />
             <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
             <Route path="/inbox" element={<ProtectedRoute><Layout><Inbox /></Layout></ProtectedRoute>} />

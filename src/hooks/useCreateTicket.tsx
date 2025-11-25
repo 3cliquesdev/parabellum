@@ -6,6 +6,7 @@ interface CreateTicketData {
   subject: string;
   description: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
+  category?: 'financeiro' | 'tecnico' | 'bug' | 'outro';
   customer_id: string;
   assigned_to?: string;
 }

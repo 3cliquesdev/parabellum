@@ -1,27 +1,31 @@
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAIQueue } from "./useAIQueue";
 
 export function useSmartReply() {
   const { toast } = useToast();
+  const { enqueue } = useAIQueue();
 
   return useMutation({
     mutationFn: async ({ description, subject }: { description: string; subject: string }) => {
-      const { data, error } = await supabase.functions.invoke('analyze-ticket', {
-        body: { 
-          mode: 'reply', 
-          description,
-          ticketSubject: subject
-        }
-      });
+      return enqueue(async () => {
+        const { data, error } = await supabase.functions.invoke('analyze-ticket', {
+          body: { 
+            mode: 'reply', 
+            description,
+            ticketSubject: subject
+          }
+        });
 
-      if (error) {
-        if (error.message?.includes('429') || error.message?.includes('Rate limit')) {
-          throw new Error('Muitas requisições AI. Aguarde alguns segundos e tente novamente.');
+        if (error) {
+          if (error.message?.includes('429') || error.message?.includes('Rate limit')) {
+            throw new Error('Muitas requisições AI. Aguarde alguns segundos e tente novamente.');
+          }
+          throw error;
         }
-        throw error;
-      }
-      return data.result as string;
+        return data.result as string;
+      });
     },
     onSuccess: async (result) => {
       // Log AI usage

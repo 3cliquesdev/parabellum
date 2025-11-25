@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mail, Phone, Building2, Plus, FileText, Clock, AlertCircle, TrendingUp, Ticket } from "lucide-react";
-import { useDeals } from "@/hooks/useDeals";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useContactTickets } from "@/hooks/useContactTickets";
 import { useCustomerTimeline } from "@/hooks/useCustomerTimeline";
 import DealDialog from "./DealDialog";
@@ -25,9 +26,32 @@ interface ContactDetailsSidebarProps {
 }
 
 export default function ContactDetailsSidebar({ conversation }: ContactDetailsSidebarProps) {
-  const { data: allDeals } = useDeals();
-  const { data: contactTickets = [] } = useContactTickets(conversation?.contacts.id || null);
-  const { data: timeline = [] } = useCustomerTimeline(conversation?.contacts.id || null);
+  const contactId = conversation?.contacts?.id || null;
+
+  const { data: contactDeals = [] } = useQuery({
+    queryKey: ["contact-deals", contactId],
+    queryFn: async () => {
+      if (!contactId) return [];
+      
+      const { data, error } = await supabase
+        .from("deals")
+        .select(`
+          *,
+          contacts (first_name, last_name),
+          organizations (name),
+          assigned_user:profiles!deals_assigned_to_fkey (id, full_name, avatar_url)
+        `)
+        .eq("contact_id", contactId)
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!contactId,
+  });
+
+  const { data: contactTickets = [] } = useContactTickets(contactId);
+  const { data: timeline = [] } = useCustomerTimeline(contactId);
   
   if (!conversation) {
     return (
@@ -40,9 +64,6 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
   }
 
   const contact = conversation.contacts;
-  const contactDeals = allDeals?.filter(
-    (deal) => deal.contact_id === contact.id
-  );
 
   const openTickets = contactTickets.filter(t => t.status !== 'closed' && t.status !== 'resolved');
   const recentInteractions = timeline.slice(0, 5);

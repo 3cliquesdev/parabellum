@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.execute-playbook]
 verify_jwt = true
 
+[functions.process-playbook-queue]
+verify_jwt = false
+
 [functions.upsert-contact]
 verify_jwt = false
 

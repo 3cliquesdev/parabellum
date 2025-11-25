@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,13 +22,20 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
+  const { role, loading: roleLoading } = useUserRole();
 
-  // Redirect to home if already authenticated
+  // Redirect based on role after authentication
   useEffect(() => {
-    if (!authLoading && user) {
-      navigate("/");
+    if (!authLoading && !roleLoading && user && role) {
+      // Redirect consultants to their portfolio
+      if (role === "consultant") {
+        navigate("/my-portfolio");
+      } else {
+        // Admin, manager, sales_rep go to dashboard
+        navigate("/dashboard");
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, role, authLoading, roleLoading, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +71,7 @@ export default function Auth() {
         title: "Login realizado!",
         description: "Bem-vindo de volta.",
       });
-      navigate("/");
+      // Redirection will be handled by useEffect based on role
     }
   };
 

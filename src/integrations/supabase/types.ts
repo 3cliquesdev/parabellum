@@ -583,6 +583,63 @@ export type Database = {
           },
         ]
       }
+      customer_journey_steps: {
+        Row: {
+          completed: boolean
+          completed_at: string | null
+          completed_by: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          is_critical: boolean
+          notes: string | null
+          position: number
+          step_name: string
+          updated_at: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          is_critical?: boolean
+          notes?: string | null
+          position?: number
+          step_name: string
+          updated_at?: string
+        }
+        Update: {
+          completed?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          is_critical?: boolean
+          notes?: string | null
+          position?: number
+          step_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_journey_steps_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_journey_steps_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_tags: {
         Row: {
           created_at: string | null

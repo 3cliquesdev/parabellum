@@ -21,6 +21,7 @@ import Products from "./pages/Products";
 import Departments from "./pages/Departments";
 import PublicForm from "./pages/PublicForm";
 import PublicChat from "./pages/PublicChat";
+import PublicChatWindow from "./pages/PublicChatWindow";
 import ChatLinksSettings from "./pages/ChatLinksSettings";
 import Auth from "./pages/Auth";
 import Setup from "./pages/Setup";
@@ -104,7 +105,8 @@ const App = () => {
             <Route path="/auth" element={<Auth />} />
             <Route path="/setup" element={<Setup />} />
             <Route path="/public/form/:formId" element={<PublicForm />} />
-            <Route path="/public-chat" element={<PublicChat />} />
+          <Route path="/public-chat" element={<PublicChat />} />
+          <Route path="/public-chat/:conversationId" element={<PublicChatWindow />} />
             <Route path="/open-ticket" element={<PublicTicketForm />} />
             <Route path="/tv" element={<TVMode />} />
             <Route path="/" element={<ProtectedRoute allowedRoles={["sales_rep", "admin", "manager"]}><Layout><Dashboard /></Layout></ProtectedRoute>} />

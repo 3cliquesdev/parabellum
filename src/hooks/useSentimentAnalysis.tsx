@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAIQueue } from "./useAIQueue";
 
 interface Message {
   content: string;
@@ -9,22 +10,29 @@ interface Message {
 export type Sentiment = 'critico' | 'neutro' | 'promotor';
 
 export function useSentimentAnalysis() {
+  const { enqueue } = useAIQueue();
+
   return useMutation({
     mutationFn: async (messages: Message[]) => {
-      const { data, error } = await supabase.functions.invoke('analyze-ticket', {
-        body: { mode: 'sentiment', messages }
-      });
+      // Enfileirar requisição para evitar rate limiting
+      return enqueue(async () => {
+        const { data, error } = await supabase.functions.invoke('analyze-ticket', {
+          body: { mode: 'sentiment', messages }
+        });
 
-      if (error) {
-        // Handle rate limiting gracefully
-        if (error.message?.includes('429') || error.message?.includes('Rate limit')) {
-          throw new Error('Muitas requisições. Aguarde alguns segundos e tente novamente.');
+        if (error) {
+          // Handle rate limiting gracefully
+          if (error.message?.includes('429') || error.message?.includes('Rate limit')) {
+            // Retornar neutro como fallback ao invés de error
+            console.warn('[Sentiment] Rate limited, returning neutral');
+            return 'neutro' as Sentiment;
+          }
+          throw error;
         }
-        throw error;
-      }
-      
-      const sentiment = data.result.toLowerCase().trim() as Sentiment;
-      return sentiment;
+        
+        const sentiment = data.result.toLowerCase().trim() as Sentiment;
+        return sentiment;
+      });
     },
     onSuccess: async (sentiment) => {
       // Log AI usage

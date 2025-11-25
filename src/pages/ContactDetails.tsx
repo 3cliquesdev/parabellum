@@ -12,6 +12,8 @@ import ContactLTVCard from "@/components/ContactLTVCard";
 import ContactTagsCard from "@/components/ContactTagsCard";
 import ActivityDialog from "@/components/ActivityDialog";
 import ActivitiesList from "@/components/ActivitiesList";
+import OnboardingJourneyCard from "@/components/OnboardingJourneyCard";
+import OnboardingSummaryCard from "@/components/OnboardingSummaryCard";
 
 export default function ContactDetails() {
   const { id } = useParams();
@@ -76,6 +78,7 @@ export default function ContactDetails() {
           <div className="w-[30%] space-y-6 overflow-auto">
             <ContactInfoCard contact={contact} />
             <ContactLTVCard contact={contact} deals={contactDeals} />
+            <OnboardingSummaryCard contactId={id || ""} />
             <ContactTagsCard 
               customerId={id || ""} 
               customerTags={tags} 
@@ -99,6 +102,8 @@ export default function ContactDetails() {
           {/* COLUNA DIREITA: 70% */}
           <div className="flex-1 space-y-6 overflow-auto">
             <ActivitiesList contactId={id || ""} />
+            
+            <OnboardingJourneyCard contactId={id || ""} />
             
             <CustomerTimeline 
               timeline={timeline || []} 

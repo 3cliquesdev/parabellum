@@ -24,6 +24,7 @@ import Automations from "./pages/Automations";
 import Analytics from "./pages/Analytics";
 import TVMode from "./pages/TVMode";
 import Goals from "./pages/Goals";
+import ImportClients from "./pages/ImportClients";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -105,6 +106,7 @@ const App = () => {
             <Route path="/email-templates" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><Layout><EmailTemplates /></Layout></ProtectedRoute>} />
             <Route path="/analytics" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><Layout><Analytics /></Layout></ProtectedRoute>} />
             <Route path="/goals" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><Layout><Goals /></Layout></ProtectedRoute>} />
+            <Route path="/import-clients" element={<ProtectedRoute allowedRoles={["admin"]}><Layout><ImportClients /></Layout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><Layout><Settings /></Layout></ProtectedRoute>} />
             <Route path="/settings/email-templates" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><EmailTemplates /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

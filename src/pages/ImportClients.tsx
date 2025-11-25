@@ -1,0 +1,187 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { CSVUploader } from "@/components/CSVUploader";
+import { ColumnMapper } from "@/components/ColumnMapper";
+import { ImportProgress } from "@/components/ImportProgress";
+import { useImportContacts } from "@/hooks/useImportContacts";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Download } from "lucide-react";
+
+export default function ImportClients() {
+  const navigate = useNavigate();
+  const { role, loading: roleLoading } = useUserRole();
+  const [csvData, setCsvData] = useState<any[]>([]);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [importResult, setImportResult] = useState<any>(null);
+  
+  const importMutation = useImportContacts();
+
+  // Redirecionar se não for admin
+  useEffect(() => {
+    if (!roleLoading && role !== null && role !== 'admin') {
+      navigate('/dashboard');
+    }
+  }, [role, roleLoading, navigate]);
+
+  // Auto-mapear colunas quando CSV é carregado
+  useEffect(() => {
+    if (csvHeaders.length > 0) {
+      const autoMapping: Record<string, string> = {};
+      
+      // Mapeamento automático inteligente
+      const mappings: Record<string, string[]> = {
+        'email': ['email', 'e-mail', 'mail'],
+        'first_name': ['nome', 'first_name', 'firstname', 'first name', 'primeironome'],
+        'last_name': ['sobrenome', 'last_name', 'lastname', 'last name', 'ultimonome'],
+        'phone': ['telefone', 'phone', 'tel', 'celular', 'fone'],
+        'company': ['empresa', 'company', 'companhia'],
+        'address': ['endereco', 'endereço', 'address', 'rua'],
+        'city': ['cidade', 'city'],
+        'state': ['estado', 'state', 'uf'],
+        'zip_code': ['cep', 'zip', 'zipcode', 'zip_code', 'postalcode'],
+        'birth_date': ['nascimento', 'data_nascimento', 'birth_date', 'birthdate', 'data de nascimento'],
+      };
+
+      csvHeaders.forEach((header) => {
+        const lowerHeader = header.toLowerCase().trim();
+        
+        for (const [dbField, possibleNames] of Object.entries(mappings)) {
+          if (possibleNames.some(name => lowerHeader.includes(name))) {
+            autoMapping[dbField] = header;
+            break;
+          }
+        }
+      });
+
+      setMapping(autoMapping);
+    }
+  }, [csvHeaders]);
+
+  const handleDataParsed = (data: any[], headers: string[]) => {
+    setCsvData(data);
+    setCsvHeaders(headers);
+    setImportResult(null);
+  };
+
+  const handleMappingChange = (field: string, csvColumn: string) => {
+    setMapping((prev) => ({
+      ...prev,
+      [field]: csvColumn === '__none__' ? '' : csvColumn,
+    }));
+  };
+
+  const handleImport = async () => {
+    if (!mapping.email) {
+      alert('O campo Email é obrigatório. Por favor, mapeie a coluna de email.');
+      return;
+    }
+
+    // Mapear dados do CSV para formato do banco
+    const mappedContacts = csvData.map((row) => {
+      const contact: any = {};
+      
+      Object.entries(mapping).forEach(([dbField, csvColumn]) => {
+        if (csvColumn && row[csvColumn]) {
+          contact[dbField] = row[csvColumn];
+        }
+      });
+
+      return contact;
+    }).filter(contact => contact.email); // Apenas contatos com email
+
+    try {
+      const result = await importMutation.mutateAsync(mappedContacts);
+      setImportResult({
+        total: mappedContacts.length,
+        processed: mappedContacts.length,
+        created: result.created,
+        updated: result.updated,
+        errors: result.errors,
+      });
+    } catch (error) {
+      console.error('Erro na importação:', error);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const template = `email,nome,sobrenome,telefone,empresa,endereco,cidade,estado,cep,data_nascimento
+exemplo@email.com,João,Silva,(11) 99999-9999,Empresa Exemplo,Rua Exemplo 123,São Paulo,SP,01234-567,1990-01-15`;
+    
+    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'template_importacao_clientes.csv';
+    link.click();
+  };
+
+  if (roleLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-8 px-4 max-w-6xl">
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-3xl font-bold">Importação de Clientes</h1>
+          <Button variant="outline" onClick={downloadTemplate}>
+            <Download className="w-4 h-4 mr-2" />
+            Baixar Template
+          </Button>
+        </div>
+        <p className="text-muted-foreground">
+          Importe sua base de clientes através de um arquivo CSV
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        <CSVUploader onDataParsed={handleDataParsed} />
+
+        {csvHeaders.length > 0 && (
+          <>
+            <ColumnMapper
+              csvHeaders={csvHeaders}
+              mapping={mapping}
+              onMappingChange={handleMappingChange}
+            />
+
+            <div className="flex justify-end gap-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCsvData([]);
+                  setCsvHeaders([]);
+                  setMapping({});
+                  setImportResult(null);
+                }}
+              >
+                Limpar
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={!mapping.email || csvData.length === 0 || importMutation.isPending}
+              >
+                {importMutation.isPending ? 'Importando...' : `Importar ${csvData.length} Contatos`}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {importResult && (
+          <ImportProgress
+            total={importResult.total}
+            processed={importResult.processed}
+            created={importResult.created}
+            updated={importResult.updated}
+            errors={importResult.errors}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

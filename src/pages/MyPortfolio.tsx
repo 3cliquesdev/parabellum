@@ -1,20 +1,23 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePortfolioClients } from "@/hooks/usePortfolioClients";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { usePortfolioKPIs } from "@/hooks/usePortfolioKPIs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Search, Briefcase, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Search, Briefcase, AlertCircle, CheckCircle, Clock, DollarSign, Users, TrendingDown, UserPlus, Phone, Mail } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import FocusTodayWidget from "@/components/FocusTodayWidget";
 
 export default function MyPortfolio() {
   const navigate = useNavigate();
   const { data: clients, isLoading } = usePortfolioClients();
+  const { data: kpis, isLoading: isLoadingKPIs } = usePortfolioKPIs();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
 
@@ -67,6 +70,76 @@ export default function MyPortfolio() {
           </div>
         </div>
       </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Clients */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isLoadingKPIs ? "..." : kpis?.totalClients || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Clientes ativos sob sua gestão
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Revenue Under Management */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Receita Sob Gestão</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isLoadingKPIs ? "..." : `R$ ${(kpis?.totalRevenue || 0).toLocaleString("pt-BR")}`}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Valor mensal total da carteira
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* At Risk */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Em Risco</CardTitle>
+            <TrendingDown className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">
+              {isLoadingKPIs ? "..." : kpis?.atRiskCount || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Sem contato há mais de 30 dias
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* New Arrivals */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Recém-Chegados</CardTitle>
+            <UserPlus className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">
+              {isLoadingKPIs ? "..." : kpis?.newArrivalsCount || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Finalizaram onboarding recentemente
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Focus Today Widget */}
+      <FocusTodayWidget />
 
       {/* Filters and Search */}
       <Card>
@@ -185,14 +258,36 @@ export default function MyPortfolio() {
                         {getHealthIcon(client.health_score)}
                       </div>
 
-                      {/* Actions */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/contacts/${client.id}`)}
-                      >
-                        Ver Detalhes
-                      </Button>
+                      {/* Quick Actions */}
+                      <div className="flex items-center gap-2">
+                        {client.phone && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`https://wa.me/55${client.phone.replace(/\D/g, "")}`, "_blank")}
+                            title="WhatsApp"
+                          >
+                            <Phone className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {client.email && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.location.href = `mailto:${client.email}`}
+                            title="Email"
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => navigate(`/contacts/${client.id}`)}
+                        >
+                          Ver Detalhes
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

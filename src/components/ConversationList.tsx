@@ -91,15 +91,15 @@ function ConversationItem({
     >
       <Avatar className="h-12 w-12 bg-primary/10 flex items-center justify-center">
         <span className="text-sm font-semibold text-primary">
-          {conversation.contacts.first_name[0]}
-          {conversation.contacts.last_name[0]}
+          {conversation.contacts?.first_name?.[0] || ''}
+          {conversation.contacts?.last_name?.[0] || ''}
         </span>
       </Avatar>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
           <p className="font-medium text-foreground truncate">
-            {conversation.contacts.first_name}{" "}
-            {conversation.contacts.last_name}
+            {conversation.contacts?.first_name || 'Cliente'}{" "}
+            {conversation.contacts?.last_name || ''}
           </p>
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(conversation.last_message_at), {

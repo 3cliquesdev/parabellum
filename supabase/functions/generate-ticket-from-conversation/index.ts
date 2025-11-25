@@ -81,19 +81,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if conversation already has a ticket
+    // Log if conversation already has a ticket (will be updated to newest)
     if (conversation.related_ticket_id) {
-      console.warn('⚠️ Conversation already has a ticket:', conversation.related_ticket_id);
-      return new Response(
-        JSON.stringify({
-          error: 'Conversation already has an associated ticket',
-          ticket_id: conversation.related_ticket_id,
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      console.log('ℹ️ Conversation has existing ticket:', conversation.related_ticket_id);
+      console.log('📝 Creating additional ticket - related_ticket_id will point to newest');
     }
 
     console.log('✅ Conversation found, contact_id:', conversation.contact_id);
@@ -199,8 +190,8 @@ Deno.serve(async (req) => {
 
     console.log('✅ Ticket created:', ticket.id);
 
-    // 7. Update conversation with related_ticket_id (Bidirectional link 2)
-    console.log('🔗 Updating conversation with ticket link...');
+    // 7. Update conversation with related_ticket_id (always points to newest ticket)
+    console.log('🔗 Updating conversation with newest ticket link...');
     const { error: updateError } = await supabase
       .from('conversations')
       .update({ related_ticket_id: ticket.id })
@@ -210,7 +201,7 @@ Deno.serve(async (req) => {
       console.error('⚠️ Warning: Failed to update conversation link:', updateError);
       // Don't fail the request, ticket was created successfully
     } else {
-      console.log('✅ Bidirectional link established');
+      console.log('✅ Bidirectional link established (related_ticket_id → newest)');
     }
 
     // 8. Create interaction in timeline

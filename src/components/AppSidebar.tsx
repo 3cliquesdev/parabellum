@@ -94,7 +94,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { isAdmin, isManager, isSalesRep, isConsultant } = useUserRole();
+  const { isAdmin, isManager, isSalesRep, isConsultant, loading } = useUserRole();
   const { signOut, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -135,8 +135,15 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2">
-        {/* Consultant-only simplified navigation */}
-        {isConsultant && !isAdmin && !isManager ? (
+        {/* Loading state - prevent flickering */}
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-sm text-muted-foreground">Carregando menu...</div>
+          </div>
+        ) : (
+          <>
+            {/* Consultant-only simplified navigation */}
+            {isConsultant && !isAdmin && !isManager ? (
           <>
             {/* Gestão de Carteira */}
             <SidebarGroup>
@@ -361,6 +368,8 @@ export function AppSidebar() {
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
+            )}
+          </>
             )}
           </>
         )}

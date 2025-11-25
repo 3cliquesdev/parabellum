@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Search, Plus, Edit, Trash2, BookOpen, Eye, EyeOff } from "lucide-react";
+import { Search, Plus, Edit, Trash2, BookOpen, Eye, EyeOff, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useKnowledgeArticles } from "@/hooks/useKnowledgeArticles";
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function Knowledge() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -74,10 +76,16 @@ export default function Knowledge() {
           </p>
         </div>
         {canManageArticles && (
-          <Button onClick={handleCreateNew} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Novo Artigo
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/settings/knowledge-import')} className="gap-2">
+              <Upload className="h-4 w-4" />
+              Importar
+            </Button>
+            <Button onClick={handleCreateNew} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Artigo
+            </Button>
+          </div>
         )}
       </div>
 

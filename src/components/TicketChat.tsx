@@ -9,6 +9,7 @@ import { useCreateComment } from "@/hooks/useCreateComment";
 import { Send } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { SafeHTML } from "@/components/SafeHTML";
 
 interface TicketChatProps {
   ticketId: string;
@@ -66,7 +67,10 @@ export function TicketChat({ ticketId }: TicketChatProps) {
                         })}
                       </span>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                    <SafeHTML 
+                      html={comment.content}
+                      className="text-sm whitespace-pre-wrap"
+                    />
                   </div>
                 </div>
               ))

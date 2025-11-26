@@ -21,6 +21,7 @@ import TransferConversationDialog from "@/components/TransferConversationDialog"
 import { CreateTicketFromInboxDialog } from "@/components/CreateTicketFromInboxDialog";
 import CopilotSuggestionCard from "@/components/CopilotSuggestionCard";
 import CloseConversationDialog from "@/components/CloseConversationDialog";
+import { SafeHTML } from "@/components/SafeHTML";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Contact = Tables<"contacts"> & {
@@ -378,7 +379,10 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
                                   : "bg-primary text-primary-foreground rounded-2xl rounded-tr-none"
                               )}
                             >
-                              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                              <SafeHTML 
+                                html={message.content}
+                                className="text-sm whitespace-pre-wrap break-words"
+                              />
                               <span className={cn(
                                 "text-[10px] mt-1 block",
                                 isCustomer || isAI ? "text-slate-400 dark:text-slate-500" : "text-white/70"

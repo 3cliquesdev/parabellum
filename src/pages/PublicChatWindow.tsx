@@ -11,6 +11,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAutopilotTrigger } from "@/hooks/useAutopilotTrigger";
 import { cn } from "@/lib/utils";
+import { SafeHTML } from "@/components/SafeHTML";
 
 export default function PublicChatWindow() {
   const { conversationId } = useParams();
@@ -227,7 +228,10 @@ export default function PublicChatWindow() {
                               : "bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 rounded-2xl rounded-tl-none text-slate-800 dark:text-slate-100"
                           )}
                         >
-                          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                          <SafeHTML 
+                            html={message.content}
+                            className="text-sm whitespace-pre-wrap break-words"
+                          />
                           <span className={cn(
                             "text-[10px] mt-1 block",
                             isCustomer ? "text-white/70" : "text-slate-400 dark:text-slate-500"

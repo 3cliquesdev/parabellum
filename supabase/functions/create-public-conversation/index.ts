@@ -19,6 +19,30 @@ serve(async (req) => {
 
     const { department_id, contact_id, customer_data } = await req.json();
 
+    // FASE 4: Rate Limiting por IP (10 conversas por minuto por IP anônimo)
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown';
+    
+    const { data: rateLimitAllowed, error: rateLimitError } = await supabase
+      .rpc('check_rate_limit', {
+        p_identifier: `ip_${ip}`,
+        p_action_type: 'create_conversation',
+        p_max_requests: 10,
+        p_window_minutes: 1,
+        p_block_minutes: 60
+      });
+
+    if (rateLimitError) {
+      console.error('[create-public-conversation] Erro ao verificar rate limit:', rateLimitError);
+    }
+
+    if (rateLimitAllowed === false) {
+      console.warn('[create-public-conversation] Rate limit excedido para IP:', ip);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Rate limit exceeded. Please try again later.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
+      );
+    }
+
     if (!department_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'department_id é obrigatório' }),

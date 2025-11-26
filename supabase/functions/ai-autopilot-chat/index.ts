@@ -25,6 +25,30 @@ serve(async (req) => {
 
     const { conversationId, customerMessage, maxHistory = 10 }: AutopilotChatRequest = await req.json();
     
+    // FASE 4: Rate Limiting (10 mensagens por minuto por conversa)
+    const { data: rateLimitAllowed, error: rateLimitError } = await supabaseClient
+      .rpc('check_rate_limit', {
+        p_identifier: `conversation_${conversationId}`,
+        p_action_type: 'ai_autopilot_message',
+        p_max_requests: 10,
+        p_window_minutes: 1,
+        p_block_minutes: 60
+      });
+
+    if (rateLimitError) {
+      console.error('[ai-autopilot-chat] Erro ao verificar rate limit:', rateLimitError);
+    }
+
+    if (rateLimitAllowed === false) {
+      console.warn('[ai-autopilot-chat] Rate limit excedido para conversa:', conversationId);
+      return new Response(JSON.stringify({ 
+        error: 'Rate limit exceeded. Please try again in a moment.' 
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
     console.log(`[ai-autopilot-chat] Processando mensagem para conversa ${conversationId}...`);
 
     // 1. Buscar conversa e informações do contato

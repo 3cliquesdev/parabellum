@@ -39,6 +39,7 @@ import OnboardingBuilder from "./pages/OnboardingBuilder";
 import PlaybookExecutions from "./pages/PlaybookExecutions";
 import KnowledgeImport from "./pages/KnowledgeImport";
 import NotFound from "./pages/NotFound";
+import AuditLogs from "./pages/AuditLogs";
 
 const queryClient = new QueryClient();
 
@@ -129,6 +130,7 @@ const App = () => {
             <Route path="/settings/departments" element={<ProtectedRoute allowedRoles={["admin"]}><Layout><Departments /></Layout></ProtectedRoute>} />
             <Route path="/settings/chat-links" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><Layout><ChatLinksSettings /></Layout></ProtectedRoute>} />
             <Route path="/settings/knowledge-import" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><Layout><KnowledgeImport /></Layout></ProtectedRoute>} />
+            <Route path="/settings/audit-logs" element={<ProtectedRoute allowedRoles={["admin"]}><Layout><AuditLogs /></Layout></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -162,6 +162,21 @@ export default function Settings() {
             <Button variant="outline">Configurar</Button>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-amber-600" />
+              Logs de Auditoria
+            </CardTitle>
+            <CardDescription>Histórico imutável de mudanças críticas</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => navigate('/settings/audit-logs')}>
+              Ver Logs Forenses
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

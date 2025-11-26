@@ -30,6 +30,7 @@ import { NavLink } from "@/components/NavLink";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useAvailabilityStatus } from "@/hooks/useAvailabilityStatus";
 import { useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -135,6 +136,7 @@ export function AppSidebar() {
   const { signOut, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { status: availabilityStatus } = useAvailabilityStatus();
 
   // Determine mode label and color
   const getModeInfo = () => {
@@ -143,6 +145,15 @@ export function AppSidebar() {
     if (isSalesRep && !isAdmin && !isManager) return { label: "🎯 Modo Vendas", color: "bg-orange-500" };
     if (isAdmin || isManager) return { label: "👑 Modo Admin", color: "bg-purple-500" };
     return { label: "Sistema", color: "bg-gray-500" };
+  };
+
+  const getStatusColor = (status: string | null) => {
+    switch (status) {
+      case 'online': return 'bg-green-500';
+      case 'busy': return 'bg-yellow-500';
+      case 'offline': return 'bg-red-500';
+      default: return 'bg-gray-400';
+    }
   };
 
   const modeInfo = getModeInfo();
@@ -364,11 +375,18 @@ export function AppSidebar() {
             )}
             
             <div className="flex items-center gap-3 px-2">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {user?.email?.substring(0, 2).toUpperCase() || "US"}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {user?.email?.substring(0, 2).toUpperCase() || "US"}
+                  </AvatarFallback>
+                </Avatar>
+                {(isConsultant || isSupportAgent) && (
+                  <span 
+                    className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-sidebar ${getStatusColor(availabilityStatus)}`}
+                  />
+                )}
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">Usuário</p>
                 <p className="text-xs text-muted-foreground truncate">{user?.email}</p>

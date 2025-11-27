@@ -1,6 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -80,11 +81,26 @@ export function ProductDialog({ open, onOpenChange, product }: ProductDialogProp
       playbook_id:
         product?.onboarding_playbooks?.[0]?.id ||
         product?.playbook?.[0]?.id ||
-        "",
+        "none",
       requires_account_manager: product?.requires_account_manager || false,
       is_active: product?.is_active ?? true,
     },
   });
+
+  // Reset form when product changes
+  useEffect(() => {
+    form.reset({
+      name: product?.name || "",
+      description: product?.description || "",
+      external_id: product?.external_id || "",
+      playbook_id:
+        product?.onboarding_playbooks?.[0]?.id ||
+        product?.playbook?.[0]?.id ||
+        "none",
+      requires_account_manager: product?.requires_account_manager || false,
+      is_active: product?.is_active ?? true,
+    });
+  }, [product, form]);
 
   const onSubmit = async (data: ProductFormData) => {
     if (product) {
@@ -109,7 +125,7 @@ export function ProductDialog({ open, onOpenChange, product }: ProductDialogProp
     }
 
     // Update playbook link if changed
-    if (data.playbook_id && product) {
+    if (data.playbook_id && data.playbook_id !== "none" && product) {
       await supabase
         .from("onboarding_playbooks")
         .update({ product_id: product.id })
@@ -195,7 +211,7 @@ export function ProductDialog({ open, onOpenChange, product }: ProductDialogProp
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {playbooks?.filter(p => p.is_active).map((playbook) => (
                         <SelectItem key={playbook.id} value={playbook.id}>
                           {playbook.name}

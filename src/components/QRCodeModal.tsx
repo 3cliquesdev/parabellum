@@ -62,6 +62,67 @@ export function QRCodeModal({ open, onOpenChange, instance }: QRCodeModalProps) 
     return () => clearInterval(interval);
   }, [instance?.id, instance?.instance_name, open, status, qrCode]);
 
+  // Polling de Status - Verificar se conectou (Plan B caso webhook falhe)
+  useEffect(() => {
+    if (!instance?.id || !open || status === 'connected') return;
+
+    const statusInterval = setInterval(async () => {
+      console.log('[QRCodeModal] Polling status via fetchInstances...');
+      
+      try {
+        const { data: result, error } = await supabase.functions.invoke('whatsapp-proxy', {
+          body: {
+            instance_id: instance.id,
+            endpoint: '/instance/fetchInstances',
+            method: 'GET',
+          }
+        });
+
+        if (error) {
+          console.error('[QRCodeModal] Status polling error:', error);
+          return;
+        }
+
+        // Procurar nossa instância no array retornado
+        if (Array.isArray(result)) {
+          const currentInstance = result.find((item: any) => {
+            const itemName = item.instance?.instanceName || item.name || item.instanceName;
+            return itemName === instance.instance_name;
+          });
+
+          if (currentInstance) {
+            const instanceState = currentInstance.instance?.state || currentInstance.state || currentInstance.connectionStatus;
+            console.log('[QRCodeModal] Instance state:', instanceState);
+
+            // Se conectou, atualizar status no banco
+            if (instanceState === 'open' || instanceState === 'connected') {
+              const phoneNumber = currentInstance.instance?.owner || currentInstance.owner || currentInstance.ownerJid;
+              
+              await supabase
+                .from('whatsapp_instances')
+                .update({ 
+                  status: 'connected',
+                  phone_number: phoneNumber 
+                })
+                .eq('id', instance.id);
+
+              setStatus('connected');
+              
+              toast({
+                title: "✅ WhatsApp Conectado!",
+                description: `Número: ${phoneNumber || 'Carregando...'}`,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[QRCodeModal] Status polling failed:', error);
+      }
+    }, 3000); // 3 segundos
+
+    return () => clearInterval(statusInterval);
+  }, [instance?.id, instance?.instance_name, open, status, toast]);
+
   // Realtime subscription para status da instância
   useEffect(() => {
     if (!instance?.id || !open) return;
@@ -139,6 +200,39 @@ export function QRCodeModal({ open, onOpenChange, instance }: QRCodeModalProps) 
       });
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleRestartInstance = async () => {
+    if (!confirm('🔄 Reiniciar instância?\n\nIsso vai forçar o WhatsApp a recarregar sem perder o login.')) {
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      const { error } = await supabase.functions.invoke('whatsapp-proxy', {
+        body: {
+          instance_id: instance.id,
+          endpoint: `/instance/restart/${encodeURIComponent(instance.instance_name)}`,
+          method: 'PUT',
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "🔄 Instância Reiniciada",
+        description: "A conexão foi recarregada com sucesso.",
+      });
+    } catch (error) {
+      console.error('[QRCodeModal] Error restarting instance:', error);
+      toast({
+        title: "Erro ao reiniciar instância",
+        description: "Tente novamente em alguns instantes.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -277,6 +371,20 @@ export function QRCodeModal({ open, onOpenChange, instance }: QRCodeModalProps) 
                     <RefreshCw className="w-4 h-4 mr-2" />
                   )}
                   Gerar Novo Código
+                </Button>
+
+                <Button
+                  onClick={handleRestartInstance}
+                  disabled={isResetting}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  {isResetting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  Reiniciar Instância (Destravar)
                 </Button>
 
                 <Button

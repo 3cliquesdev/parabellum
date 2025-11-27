@@ -486,37 +486,106 @@ Use essas informações de forma natural e personalizada.`;
 
     // 8. Se WhatsApp, enviar via Evolution API e atualizar status
     if (channel === 'whatsapp' && contact.phone && messageId) {
+      console.log('[ai-autopilot-chat] 📱 Tentando enviar WhatsApp:', {
+        contactPhone: contact.phone,
+        contactWhatsappId: contact.whatsapp_id,
+        messageId,
+        conversationWhatsappInstanceId: conversation.whatsapp_instance_id
+      });
+
       try {
-        const { data: whatsappInstance } = await supabaseClient
-          .from('whatsapp_instances')
-          .select('*')
-          .eq('status', 'connected')
-          .or(`department_id.eq.${department},department_id.is.null`)
-          .limit(1)
-          .single();
-
-        if (whatsappInstance) {
-          const { data: whatsappResponse, error: whatsappError } = await supabaseClient.functions.invoke('send-whatsapp-message', {
-            body: {
-              instance_id: whatsappInstance.id,
-              phone_number: contact.phone,
-              whatsapp_id: contact.whatsapp_id,  // ✅ FASE 3: Passar JID original
-              message: assistantMessage,
-            },
-          });
-
-          if (whatsappError) {
-            throw whatsappError;
+        // FASE 1: Priorizar instância vinculada à conversa
+        let whatsappInstance = null;
+        
+        // 1. Primeiro: tentar usar instância vinculada à conversa
+        if (conversation.whatsapp_instance_id) {
+          console.log('[ai-autopilot-chat] 🔗 Tentando instância vinculada:', conversation.whatsapp_instance_id);
+          const { data } = await supabaseClient
+            .from('whatsapp_instances')
+            .select('*')
+            .eq('id', conversation.whatsapp_instance_id)
+            .single();
+          
+          whatsappInstance = data;
+          
+          if (whatsappInstance) {
+            console.log('[ai-autopilot-chat] ✅ Usando instância vinculada:', {
+              instanceId: whatsappInstance.id,
+              instanceName: whatsappInstance.instance_name,
+              status: whatsappInstance.status
+            });
           }
-
-          // SUCCESS: Update message status to 'sent'
+        }
+        
+        // 2. Fallback: buscar qualquer instância conectada
+        if (!whatsappInstance) {
+          console.log('[ai-autopilot-chat] 🔄 Fallback: buscando instância conectada...');
+          const { data } = await supabaseClient
+            .from('whatsapp_instances')
+            .select('*')
+            .eq('status', 'connected')
+            .limit(1)
+            .single();
+          
+          whatsappInstance = data;
+          
+          if (whatsappInstance) {
+            console.log('[ai-autopilot-chat] ✅ Instância conectada encontrada:', {
+              instanceId: whatsappInstance.id,
+              instanceName: whatsappInstance.instance_name
+            });
+          }
+        }
+        
+        // FASE 2: Validar status da instância
+        if (!whatsappInstance) {
+          console.error('[ai-autopilot-chat] ⚠️ NENHUMA instância WhatsApp disponível');
+          
+          // Salvar mensagem como 'failed' com motivo
           await supabaseClient
             .from('messages')
-            .update({ status: 'sent' })
+            .update({ 
+              status: 'failed',
+              delivery_error: 'Nenhuma instância WhatsApp conectada disponível'
+            })
             .eq('id', messageId);
-
-          console.log('[ai-autopilot-chat] ✅ WhatsApp message sent successfully');
+          
+          throw new Error('Nenhuma instância WhatsApp disponível');
         }
+        
+        // Log de aviso se instância não está conectada
+        if (whatsappInstance.status !== 'connected') {
+          console.warn('[ai-autopilot-chat] ⚠️ Tentando enviar com instância não-conectada:', whatsappInstance.status);
+        }
+
+        // FASE 4: Enviar mensagem via Evolution API
+        console.log('[ai-autopilot-chat] 📤 Invocando send-whatsapp-message:', {
+          instanceId: whatsappInstance.id,
+          instanceStatus: whatsappInstance.status,
+          phoneNumber: contact.phone,
+          whatsappId: contact.whatsapp_id
+        });
+
+        const { data: whatsappResponse, error: whatsappError } = await supabaseClient.functions.invoke('send-whatsapp-message', {
+          body: {
+            instance_id: whatsappInstance.id,
+            phone_number: contact.phone,
+            whatsapp_id: contact.whatsapp_id,
+            message: assistantMessage,
+          },
+        });
+
+        if (whatsappError) {
+          throw whatsappError;
+        }
+
+        // SUCCESS: Update message status to 'sent'
+        await supabaseClient
+          .from('messages')
+          .update({ status: 'sent' })
+          .eq('id', messageId);
+
+        console.log('[ai-autopilot-chat] ✅ Saldo OK - Resposta Gerada via Evolution API');
       } catch (whatsappError) {
         console.error('[ai-autopilot-chat] ❌ WhatsApp send failed:', whatsappError);
         

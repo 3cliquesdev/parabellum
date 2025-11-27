@@ -72,7 +72,15 @@ serve(async (req) => {
     function sanitizePhoneNumber(phone?: string, whatsappId?: string): string {
       // 1. PRIORIDADE: Extrair dígitos do whatsapp_id se disponível
       if (whatsappId) {
-        // Remover qualquer sufixo JID (@s.whatsapp.net, @lid, @c.us, @g.us)
+        // FASE 3: Tratamento especial para números LID (@lid)
+        if (whatsappId.endsWith('@lid')) {
+          const lidNumber = whatsappId.replace('@lid', '');
+          console.log('[send-whatsapp-message] 🔗 Número LID detectado:', lidNumber);
+          // Para LID, usar exatamente como está (Evolution API espera sem sufixo)
+          return lidNumber;
+        }
+        
+        // Remover qualquer sufixo JID (@s.whatsapp.net, @c.us, @g.us)
         const digitsOnly = whatsappId.replace(/\D/g, '');
         
         // Adicionar DDI 55 se necessário (números brasileiros com 10-11 dígitos)

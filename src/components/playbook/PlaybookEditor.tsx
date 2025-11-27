@@ -9,6 +9,7 @@ import ReactFlow, {
   Node,
   useNodesState,
   useEdgesState,
+  MarkerType,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -59,9 +60,19 @@ export default function PlaybookEditor({ initialFlow, onSave, onCancel, isSaving
   const { data: emailTemplates } = useEmailTemplates();
 
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
+    (params: Connection) => setEdges((eds) => addEdge({
+      ...params,
+      style: { strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed },
+    }, eds)),
     [setEdges]
   );
+
+  const defaultEdgeOptions = {
+    style: { strokeWidth: 2, stroke: 'hsl(var(--primary))' },
+    markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' },
+    animated: false,
+  };
 
   const addNode = (type: string) => {
     const newNode: Node = {
@@ -487,6 +498,8 @@ export default function PlaybookEditor({ initialFlow, onSave, onCancel, isSaving
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
+          deleteKeyCode={['Backspace', 'Delete']}
           fitView
         >
           <Background />

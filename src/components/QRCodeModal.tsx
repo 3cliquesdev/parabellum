@@ -26,48 +26,14 @@ export function QRCodeModal({ open, onOpenChange, instance }: QRCodeModalProps) 
     setStatus(instance.status ?? 'disconnected');
   }, [instance]);
 
-  // Auto-refresh QR Code via polling a cada 5 segundos enquanto status for qr_pending
-  useEffect(() => {
-    if (!instance?.id || !open || status !== 'qr_pending') return;
-
-    const interval = setInterval(async () => {
-      console.log('[QRCodeModal] Polling QR code via proxy...');
-      
-      try {
-        const { data: result, error } = await supabase.functions.invoke('whatsapp-proxy', {
-          body: {
-            instance_id: instance.id,
-            endpoint: `/instance/connect/${encodeURIComponent(instance.instance_name)}`,
-            method: 'GET',
-          }
-        });
-
-        if (error) {
-          console.error('[QRCodeModal] Polling error:', error);
-          return;
-        }
-
-        // Evolution API retorna base64 diretamente no connect
-        const newQrCode = result?.base64;
-        
-        if (newQrCode && newQrCode !== qrCode) {
-          console.log('[QRCodeModal] QR Code updated via polling');
-          setQrCode(newQrCode);
-        }
-      } catch (error) {
-        console.error('[QRCodeModal] Polling failed:', error);
-      }
-    }, 5000); // 5 segundos
-
-    return () => clearInterval(interval);
-  }, [instance?.id, instance?.instance_name, open, status, qrCode]);
-
-  // Polling de Status - Verificar se conectou (Plan B caso webhook falhe)
+  // Polling de Status - Verificar se conectou a cada 2 segundos (Modo Compatibilidade HTTP)
   useEffect(() => {
     if (!instance?.id || !open || status === 'connected') return;
 
+    console.log('[QRCodeModal] Iniciando polling de status (modo compatibilidade)...');
+    
     const statusInterval = setInterval(async () => {
-      console.log('[QRCodeModal] Polling status via fetchInstances...');
+      console.log('[QRCodeModal] Verificando status via fetchInstances...');
       
       try {
         const { data: result, error } = await supabase.functions.invoke('whatsapp-proxy', {
@@ -79,7 +45,7 @@ export function QRCodeModal({ open, onOpenChange, instance }: QRCodeModalProps) 
         });
 
         if (error) {
-          console.error('[QRCodeModal] Status polling error:', error);
+          console.error('[QRCodeModal] Polling error:', error);
           return;
         }
 
@@ -92,11 +58,13 @@ export function QRCodeModal({ open, onOpenChange, instance }: QRCodeModalProps) 
 
           if (currentInstance) {
             const instanceState = currentInstance.instance?.state || currentInstance.state || currentInstance.connectionStatus;
-            console.log('[QRCodeModal] Instance state:', instanceState);
+            console.log('[QRCodeModal] Estado da instância:', instanceState);
 
-            // Se conectou, atualizar status no banco
+            // Se conectou, atualizar status no banco e UI
             if (instanceState === 'open' || instanceState === 'connected') {
               const phoneNumber = currentInstance.instance?.owner || currentInstance.owner || currentInstance.ownerJid;
+              
+              console.log('✅ WhatsApp conectado! Atualizando banco...');
               
               await supabase
                 .from('whatsapp_instances')
@@ -116,47 +84,48 @@ export function QRCodeModal({ open, onOpenChange, instance }: QRCodeModalProps) 
           }
         }
       } catch (error) {
-        console.error('[QRCodeModal] Status polling failed:', error);
+        console.error('[QRCodeModal] Polling falhou:', error);
       }
-    }, 3000); // 3 segundos
+    }, 2000); // 2 segundos (modo compatibilidade)
 
     return () => clearInterval(statusInterval);
   }, [instance?.id, instance?.instance_name, open, status, toast]);
 
-  // Realtime subscription para status da instância
+  // Auto-refresh QR Code via polling a cada 5 segundos enquanto status for qr_pending
   useEffect(() => {
-    if (!instance?.id || !open) return;
+    if (!instance?.id || !open || status !== 'qr_pending') return;
 
-    const channel = supabase
-      .channel(`whatsapp-instance-${instance.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'whatsapp_instances',
-          filter: `id=eq.${instance.id}`,
-        },
-        (payload) => {
-          console.log('[QRCodeModal] Instance updated:', payload.new);
-          setStatus(payload.new.status);
-          setQrCode(payload.new.qr_code_base64);
-          
-          // Feedback automático quando conectar
-          if (payload.new.status === 'connected' && status !== 'connected') {
-            toast({
-              title: "✅ WhatsApp Conectado!",
-              description: `Número: ${payload.new.phone_number || 'Carregando...'}`,
-            });
+    const interval = setInterval(async () => {
+      console.log('[QRCodeModal] Atualizando QR code via proxy...');
+      
+      try {
+        const { data: result, error } = await supabase.functions.invoke('whatsapp-proxy', {
+          body: {
+            instance_id: instance.id,
+            endpoint: `/instance/connect/${encodeURIComponent(instance.instance_name)}`,
+            method: 'GET',
           }
-        }
-      )
-      .subscribe();
+        });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [instance?.id, open, status, toast]);
+        if (error) {
+          console.error('[QRCodeModal] Erro ao buscar QR:', error);
+          return;
+        }
+
+        // Evolution API retorna base64 diretamente no connect
+        const newQrCode = result?.base64;
+        
+        if (newQrCode && newQrCode !== qrCode) {
+          console.log('[QRCodeModal] QR Code atualizado');
+          setQrCode(newQrCode);
+        }
+      } catch (error) {
+        console.error('[QRCodeModal] Falha ao atualizar QR:', error);
+      }
+    }, 5000); // 5 segundos
+
+    return () => clearInterval(interval);
+  }, [instance?.id, instance?.instance_name, open, status, qrCode]);
 
   const handleRefreshQR = async () => {
     setIsRefreshing(true);
@@ -351,11 +320,15 @@ export function QRCodeModal({ open, onOpenChange, instance }: QRCodeModalProps) 
                 </p>
               </div>
 
-              {/* Auto-refresh indicator */}
-              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span>Polling automático a cada 5s via servidor...</span>
+              {/* Feedback de Verificação */}
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span className="font-medium">Verificando conexão com o celular...</span>
               </div>
+              
+              <p className="text-xs text-center text-muted-foreground">
+                Sistema atualiza a cada 2 segundos (modo compatibilidade)
+              </p>
 
               {/* Action Buttons */}
               <div className="space-y-2">

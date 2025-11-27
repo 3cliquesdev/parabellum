@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +12,6 @@ import { useContactTickets } from "@/hooks/useContactTickets";
 import { useUnifiedTimeline } from "@/hooks/useUnifiedTimeline";
 import DealDialog from "./DealDialog";
 import { SLABadge } from "./SLABadge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
@@ -29,30 +27,7 @@ interface ContactDetailsSidebarProps {
 }
 
 export default function ContactDetailsSidebar({ conversation }: ContactDetailsSidebarProps) {
-  // 🔄 ESTADO DE TRANSIÇÃO: Detectar mudança de conversa
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [previousConversationId, setPreviousConversationId] = useState<string | null>(null);
-  
   const contactId = conversation?.contacts?.id || null;
-  const conversationId = conversation?.id || null;
-
-  // ✅ SINCRONIZAÇÃO OBRIGATÓRIA: Limpar dados antigos ao mudar conversa
-  useEffect(() => {
-    if (conversationId && conversationId !== previousConversationId) {
-      console.log('[ContactDetailsSidebar] 🔄 Conversa mudou:', { 
-        anterior: previousConversationId, 
-        nova: conversationId,
-        contactId 
-      });
-      
-      setIsTransitioning(true);
-      setPreviousConversationId(conversationId);
-      
-      // Delay mínimo para evitar flash de conteúdo
-      const timer = setTimeout(() => setIsTransitioning(false), 150);
-      return () => clearTimeout(timer);
-    }
-  }, [conversationId, previousConversationId, contactId]);
 
   const { data: contactDeals = [] } = useQuery({
     queryKey: ["contact-deals", contactId],
@@ -89,39 +64,7 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
     );
   }
 
-  // ✅ NULL SAFETY: Verificar se contact existe
-  if (!conversation.contacts) {
-    return (
-      <div className="w-96 border-l bg-slate-50 dark:bg-card border-slate-200 dark:border-border p-6">
-        <p className="text-slate-500 dark:text-muted-foreground text-center">
-          ⚠️ Contato não encontrado
-        </p>
-      </div>
-    );
-  }
-
   const contact = conversation.contacts;
-  console.log('[ContactDetailsSidebar] Dados do Cliente:', contact);
-
-  // 🚨 PREVENÇÃO DE STALE DATA: Mostrar skeleton durante transição
-  if (isTransitioning) {
-    return (
-      <div className="w-96 flex-none border-l bg-slate-50 dark:bg-card border-slate-200 dark:border-border flex flex-col h-full overflow-hidden">
-        <div className="flex-none p-6 border-b border-slate-200 dark:border-border">
-          <div className="flex flex-col items-center mb-6">
-            <Skeleton className="h-20 w-20 rounded-full mb-3" />
-            <Skeleton className="h-6 w-32 mb-2" />
-            <Skeleton className="h-5 w-24" />
-          </div>
-        </div>
-        <div className="flex-1 min-h-0 p-6">
-          <Skeleton className="h-4 w-full mb-4" />
-          <Skeleton className="h-4 w-3/4 mb-4" />
-          <Skeleton className="h-32 w-full" />
-        </div>
-      </div>
-    );
-  }
 
   const openTickets = contactTickets.filter(t => t.status !== 'closed' && t.status !== 'resolved');
   const recentTimeline = unifiedTimeline.slice(0, 10);
@@ -129,31 +72,6 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
   // Verificar se sessão está verificada
   const metadata = conversation.customer_metadata as any;
   const isSessionVerified = metadata?.session_verified ?? true;
-
-  // 📱 FORMATAÇÃO DE TELEFONE BR
-  const formatPhoneNumber = (phone: string | null): string => {
-    if (!phone) return '';
-    
-    // Remover caracteres não numéricos
-    const cleaned = phone.replace(/\D/g, '');
-    
-    // Remover DDI 55 se existir (apenas para formatação visual)
-    const withoutDDI = cleaned.startsWith('55') && cleaned.length > 11 
-      ? cleaned.substring(2) 
-      : cleaned;
-    
-    // Formatar conforme o tamanho
-    if (withoutDDI.length === 11) {
-      // Celular: (11) 91234-5678
-      return `(${withoutDDI.substring(0, 2)}) ${withoutDDI.substring(2, 7)}-${withoutDDI.substring(7)}`;
-    } else if (withoutDDI.length === 10) {
-      // Fixo: (11) 1234-5678
-      return `(${withoutDDI.substring(0, 2)}) ${withoutDDI.substring(2, 6)}-${withoutDDI.substring(6)}`;
-    }
-    
-    // Se não bater com formato BR, retornar como está
-    return phone;
-  };
 
   const getPriorityColor = (priority: string) => {
     switch(priority) {
@@ -178,32 +96,25 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
 
   return (
     <div className="w-96 flex-none border-l bg-slate-50 dark:bg-card border-slate-200 dark:border-border flex flex-col h-full overflow-hidden">
-      {/* 🐛 DEBUG BANNER - Temporário */}
-      <div className="bg-yellow-100 dark:bg-yellow-900/30 px-3 py-1 text-xs font-mono border-b border-yellow-300 dark:border-yellow-700">
-        🔍 Contact ID: {contactId || 'null'} | Conv ID: {conversationId || 'null'}
-        <br />
-        📱 Phone: {contact?.phone || 'não cadastrado'}
-      </div>
-      
       <div className="flex-none p-6 border-b border-slate-200 dark:border-border">
           {/* Contact Info */}
           <div className="flex flex-col items-center mb-6">
             <Avatar className="h-20 w-20 bg-primary/10 flex items-center justify-center mb-3">
               <span className="text-2xl font-semibold text-primary">
-                {contact?.first_name?.[0] || '?'}
-                {contact?.last_name?.[0] || '?'}
+                {contact.first_name[0]}
+                {contact.last_name[0]}
               </span>
             </Avatar>
             <h3 className="text-lg font-semibold text-foreground text-center">
-              {contact?.first_name || 'Nome'} {contact?.last_name || 'Desconhecido'}
+              {contact.first_name} {contact.last_name}
             </h3>
             <Badge variant="secondary" className="mt-2">
-              {contact?.status === 'lead' ? '🎯 Lead' :
-               contact?.status === 'qualified' ? '✅ Qualificado' :
-               contact?.status === 'customer' ? '⭐ Cliente' :
-               contact?.status === 'inactive' ? '😴 Inativo' : '❌ Churned'}
+              {contact.status === 'lead' ? '🎯 Lead' :
+               contact.status === 'qualified' ? '✅ Qualificado' :
+               contact.status === 'customer' ? '⭐ Cliente' :
+               contact.status === 'inactive' ? '😴 Inativo' : '❌ Churned'}
             </Badge>
-            {contact?.total_ltv && contact.total_ltv > 0 && (
+            {contact.total_ltv && contact.total_ltv > 0 && (
               <div className="mt-3 text-center">
                 <p className="text-xs text-muted-foreground uppercase mb-1">Lifetime Value</p>
                 <p className="text-lg font-bold text-success">
@@ -237,39 +148,21 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
               <p className="text-xs font-medium text-muted-foreground uppercase mb-2">
                 Informações de Contato
               </p>
-            {contact?.email && (
-              <div className="flex items-center gap-2 text-sm mb-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <a 
-                  href={`mailto:${contact.email}`}
-                  className="text-foreground hover:text-primary hover:underline transition-colors"
-                >
-                  {contact.email}
-                </a>
-              </div>
-            )}
-            {contact?.phone ? (
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <a 
-                  href={`https://wa.me/${contact.phone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-foreground hover:text-primary hover:underline transition-colors"
-                  title="Abrir no WhatsApp"
-                >
-                  {formatPhoneNumber(contact.phone)}
-                </a>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground italic">Telefone não cadastrado</span>
-              </div>
-            )}
+              {contact.email && (
+                <div className="flex items-center gap-2 text-sm mb-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground">{contact.email}</span>
+                </div>
+              )}
+              {contact.phone && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground">{contact.phone}</span>
+                </div>
+              )}
             </div>
 
-            {contact?.organizations && (
+            {contact.organizations && (
               <>
                 <Separator />
                 <div>
@@ -373,7 +266,7 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
                     Negócios ({contactDeals?.length || 0})
                   </p>
                   <DealDialog
-                    prefilledContactId={contact?.id || ''}
+                    prefilledContactId={contact.id}
                     trigger={
                       <Button variant="ghost" size="sm" className="h-7 gap-1">
                         <Plus className="h-3 w-3" />

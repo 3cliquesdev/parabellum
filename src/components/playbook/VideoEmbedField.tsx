@@ -47,6 +47,11 @@ export function VideoEmbedField({ url, onChange }: VideoEmbedFieldProps) {
               height: '100%',
               controls: true,
               light: true,
+              onError: (e: any) => {
+                console.error('❌ Erro no preview:', e);
+                setIsValid(false);
+              },
+              onReady: () => console.log('✅ Preview pronto')
             })}
           </div>
           <div className="bg-muted/50 px-3 py-2 text-xs text-muted-foreground">

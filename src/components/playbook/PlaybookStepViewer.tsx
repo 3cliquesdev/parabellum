@@ -124,15 +124,19 @@ export function PlaybookStepViewer({
             Abrir vídeo em nova aba
           </button>
         </div>
-      ) : !videoReady && hasValidVideo ? (
-        <div className="aspect-video bg-muted rounded-xl flex items-center justify-center border border-border">
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm text-muted-foreground">Carregando vídeo...</span>
-          </div>
-        </div>
       ) : hasValidVideo ? (
         <div className="relative rounded-xl overflow-hidden shadow-2xl border border-border/50 bg-gradient-to-b from-background/80 to-muted">
+          {/* Loading overlay - aparece POR CIMA do player */}
+          {!videoReady && (
+            <div className="absolute inset-0 flex items-center justify-center bg-muted z-10 rounded-xl">
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-muted-foreground">Carregando vídeo...</span>
+              </div>
+            </div>
+          )}
+          
+          {/* Player SEMPRE renderizado (para disparar onReady) */}
           <div className="aspect-video relative bg-black">
             {React.createElement(ReactPlayer as any, {
               url: trimmedUrl,

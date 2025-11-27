@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, FileSpreadsheet, File as FileIcon, ImageIcon, Download } from 'lucide-react';
+import { FileText, FileSpreadsheet, File as FileIcon, ImageIcon, Download, AlertCircle } from 'lucide-react';
 import ReactPlayer from 'react-player';
 import confetti from 'canvas-confetti';
 import { QuizComponent } from './QuizComponent';
@@ -52,6 +52,8 @@ export function PlaybookStepViewer({
   const [videoCompleted, setVideoCompleted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [quizPassedLocal, setQuizPassedLocal] = useState(quiz_passed || false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
   const { toast } = useToast();
 
   const trimmedUrl = video_url?.trim() || '';
@@ -110,16 +112,43 @@ export function PlaybookStepViewer({
       </div>
 
       {/* Premium Cinema Video Player */}
-      {hasValidVideo ? (
+      {videoError ? (
+        <div className="aspect-video bg-destructive/10 rounded-xl flex flex-col items-center justify-center border border-destructive/20">
+          <AlertCircle className="h-12 w-12 text-destructive mb-2" />
+          <p className="text-sm text-destructive font-medium">{videoError}</p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-md truncate px-4">URL: {trimmedUrl}</p>
+          <button 
+            className="mt-3 px-4 py-2 bg-background border border-border rounded-lg text-sm hover:bg-muted transition-colors"
+            onClick={() => window.open(trimmedUrl, '_blank')}
+          >
+            Abrir vídeo em nova aba
+          </button>
+        </div>
+      ) : !videoReady && hasValidVideo ? (
+        <div className="aspect-video bg-muted rounded-xl flex items-center justify-center border border-border">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-muted-foreground">Carregando vídeo...</span>
+          </div>
+        </div>
+      ) : hasValidVideo ? (
         <div className="relative rounded-xl overflow-hidden shadow-2xl border border-border/50 bg-gradient-to-b from-background/80 to-muted">
           <div className="aspect-video relative bg-black">
             {React.createElement(ReactPlayer as any, {
-              url: video_url,
+              url: trimmedUrl,
               width: '100%',
               height: '100%',
               controls: true,
               playing: false,
               light: false,
+              onReady: () => {
+                console.log('✅ ReactPlayer pronto para:', trimmedUrl);
+                setVideoReady(true);
+              },
+              onError: (e: any) => {
+                console.error('❌ Erro no ReactPlayer:', e);
+                setVideoError('Não foi possível carregar o vídeo');
+              },
               onEnded: handleVideoEnd,
               onPlay: () => setIsPlaying(true),
               onPause: () => setIsPlaying(false),
@@ -127,7 +156,8 @@ export function PlaybookStepViewer({
                 youtube: { 
                   playerVars: { 
                     modestbranding: 1, 
-                    rel: 0 
+                    rel: 0,
+                    origin: window.location.origin
                   } 
                 },
                 vimeo: { 

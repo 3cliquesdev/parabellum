@@ -68,16 +68,19 @@ serve(async (req) => {
       );
     }
 
-    // 🔧 SANITIZAÇÃO ROBUSTA: Limpar número para envio
+    // 🔧 SANITIZAÇÃO OBRIGATÓRIA: Limpar número para Evolution API v2.2.2
     function sanitizePhoneNumber(phone?: string, whatsappId?: string): string {
-      // 1. PRIORIDADE: Usar whatsapp_id se disponível (já validado pela Evolution)
+      // 1. PRIORIDADE: Extrair dígitos do whatsapp_id se disponível
       if (whatsappId) {
-        // Se já tem sufixo JID, usar direto
-        if (whatsappId.includes('@')) {
-          return whatsappId;
+        // Remover qualquer sufixo JID (@s.whatsapp.net, @lid, @c.us, @g.us)
+        const digitsOnly = whatsappId.replace(/\D/g, '');
+        
+        // Adicionar DDI 55 se necessário (números brasileiros com 10-11 dígitos)
+        if (digitsOnly.length === 10 || digitsOnly.length === 11) {
+          return digitsOnly.startsWith('55') ? digitsOnly : `55${digitsOnly}`;
         }
-        // Caso contrário, adicionar sufixo padrão
-        return `${whatsappId}@s.whatsapp.net`;
+        
+        return digitsOnly;
       }
       
       // 2. FALLBACK: Normalizar phone_number
@@ -95,25 +98,25 @@ serve(async (req) => {
         }
       }
       
-      console.log('[send-whatsapp-message] Sanitized phone:', sanitized);
-      return sanitized; // ✅ Retornar APENAS NÚMEROS (sem sufixo)
+      console.log('[send-whatsapp-message] Sanitized phone (digits only):', sanitized);
+      return sanitized; // ✅ APENAS NÚMEROS (Ex: 5511999998888)
     }
 
     const cleanNumber = sanitizePhoneNumber(body.phone_number, body.whatsapp_id);
     console.log('[send-whatsapp-message] Clean number for Evolution API:', cleanNumber);
 
-    // Enviar para Evolution API v2 (Formato Texto Simples - Mais Compatível)
+    // 🚀 ENVIO: Evolution API v2.2.2 - Formato Exato
     const evolutionUrl = `${instance.api_url}/message/sendText/${instance.instance_name}`;
-    console.log('[send-whatsapp-message] Sending to Evolution API:', evolutionUrl);
+    console.log('[send-whatsapp-message] 📡 Sending to Evolution API v2.2.2:', evolutionUrl);
 
     const evolutionPayload = {
-      number: cleanNumber, // ✅ String pura: "5511999999999"
+      number: cleanNumber, // ✅ APENAS DÍGITOS: "5511999998888"
       text: body.message,
-      delay: body.delay || 1000,
+      delay: body.delay || 1200,
       linkPreview: false
     };
     
-    console.log('[send-whatsapp-message] Payload:', JSON.stringify(evolutionPayload, null, 2));
+    console.log('[send-whatsapp-message] 📦 Payload v2.2.2:', JSON.stringify(evolutionPayload, null, 2));
 
     const response = await fetch(evolutionUrl, {
       method: 'POST',

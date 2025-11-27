@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -75,15 +75,7 @@ export function WhatsAppInstanceDialog({
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: instance ? {
-      name: instance.name,
-      instance_name: instance.instance_name,
-      api_url: instance.api_url,
-      api_token: instance.api_token,
-      ai_mode: instance.ai_mode,
-      department_id: instance.department_id || "__none__",
-      user_id: instance.user_id || "__none__",
-    } : {
+    defaultValues: {
       name: "",
       instance_name: "",
       api_url: "",
@@ -94,7 +86,35 @@ export function WhatsAppInstanceDialog({
     },
   });
 
+  // Reinicializar formulário quando instance ou open mudar
+  useEffect(() => {
+    if (open && instance) {
+      console.log('[WhatsAppInstanceDialog] Reinicializando form com instance:', instance);
+      form.reset({
+        name: instance.name,
+        instance_name: instance.instance_name,
+        api_url: instance.api_url,
+        api_token: instance.api_token,
+        ai_mode: instance.ai_mode,
+        department_id: instance.department_id || "__none__",
+        user_id: instance.user_id || "__none__",
+      });
+    } else if (open && !instance) {
+      console.log('[WhatsAppInstanceDialog] Reinicializando form para nova instância');
+      form.reset({
+        name: "",
+        instance_name: "",
+        api_url: "",
+        api_token: "",
+        ai_mode: "autopilot",
+        department_id: "__none__",
+        user_id: "__none__",
+      });
+    }
+  }, [open, instance, form]);
+
   const onSubmit = async (data: FormData) => {
+    console.log('[WhatsAppInstanceDialog] Submitting data:', data);
     try {
       const payload = {
         ...data,

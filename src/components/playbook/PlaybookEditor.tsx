@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -10,6 +10,9 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   MarkerType,
+  ReactFlowInstance,
+  ReactFlowProvider,
+  BackgroundVariant,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -30,6 +33,8 @@ import { TaskNode } from "./TaskNode";
 import { CallNode } from "./CallNode";
 import { ConditionNode } from "./ConditionNode";
 import { ApprovalNode } from "./ApprovalNode";
+import { ButtonEdge } from "./ButtonEdge";
+import { DraggableBlock } from "./DraggableBlock";
 import { RichTextEditor } from "./RichTextEditor";
 import { VideoEmbedField } from "./VideoEmbedField";
 import { AttachmentsUploader } from "./AttachmentsUploader";
@@ -45,6 +50,10 @@ const nodeTypes = {
   approval: ApprovalNode,
 };
 
+const edgeTypes = {
+  buttonEdge: ButtonEdge,
+};
+
 interface PlaybookEditorProps {
   initialFlow?: { nodes: Node[]; edges: Edge[] };
   onSave: (flow: { nodes: Node[]; edges: Edge[] }) => void;
@@ -52,16 +61,19 @@ interface PlaybookEditorProps {
   isSaving?: boolean;
 }
 
-export default function PlaybookEditor({ initialFlow, onSave, onCancel, isSaving }: PlaybookEditorProps) {
+function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: PlaybookEditorProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialFlow?.nodes || []);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialFlow?.edges || []);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [previewNode, setPreviewNode] = useState<Node | null>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { data: emailTemplates } = useEmailTemplates();
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge({
       ...params,
+      type: 'buttonEdge',
       style: { strokeWidth: 2 },
       markerEnd: { type: MarkerType.ArrowClosed },
     }, eds)),
@@ -69,16 +81,17 @@ export default function PlaybookEditor({ initialFlow, onSave, onCancel, isSaving
   );
 
   const defaultEdgeOptions = {
+    type: 'buttonEdge',
     style: { strokeWidth: 2, stroke: 'hsl(var(--primary))' },
     markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' },
     animated: false,
   };
 
-  const addNode = (type: string) => {
+  const addNode = (type: string, position?: { x: number; y: number }) => {
     const newNode: Node = {
       id: `${Date.now()}`,
       type,
-      position: { x: Math.random() * 400, y: Math.random() * 300 },
+      position: position || { x: Math.random() * 400, y: Math.random() * 300 },
       data: {
         label: `Novo ${type}`,
         ...(type === "email" && { subject: "Assunto do email" }),
@@ -97,6 +110,29 @@ export default function PlaybookEditor({ initialFlow, onSave, onCancel, isSaving
     };
     setNodes((nds) => [...nds, newNode]);
   };
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const type = event.dataTransfer.getData('application/reactflow');
+      if (!type || !reactFlowInstance || !reactFlowWrapper.current) return;
+
+      const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+      const position = reactFlowInstance.project({
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      });
+
+      addNode(type, position);
+    },
+    [reactFlowInstance]
+  );
 
   const updateNodeData = (field: string, value: any) => {
     if (!selectedNode) return;
@@ -162,56 +198,23 @@ export default function PlaybookEditor({ initialFlow, onSave, onCancel, isSaving
     <>
       <div className="flex h-[600px] gap-4">
       {/* Sidebar de blocos */}
-      <Card className="w-64 p-4 space-y-2">
-        <h3 className="font-semibold mb-3">Blocos Disponíveis</h3>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => addNode("email")}
-        >
-          <Mail className="h-4 w-4" />
-          Email
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => addNode("delay")}
-        >
-          <Clock className="h-4 w-4" />
-          Esperar
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => addNode("task")}
-        >
-          <CheckSquare className="h-4 w-4" />
-          Tarefa
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => addNode("call")}
-        >
-          <Phone className="h-4 w-4" />
-          Ligação
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => addNode("condition")}
-        >
-          <GitBranch className="h-4 w-4" />
-          Condição (Se/Então)
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => addNode("approval")}
-        >
-          <UserCheck className="h-4 w-4" />
-          Aprovação Humana
-        </Button>
+      <Card className="w-72 p-4 flex flex-col">
+        <div className="space-y-3">
+          <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+            🧱 Blocos
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Arraste e solte no canvas
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <DraggableBlock type="email" icon={Mail} label="Email" />
+            <DraggableBlock type="delay" icon={Clock} label="Esperar" />
+            <DraggableBlock type="task" icon={CheckSquare} label="Tarefa" />
+            <DraggableBlock type="call" icon={Phone} label="Ligação" />
+            <DraggableBlock type="condition" icon={GitBranch} label="Condição" />
+            <DraggableBlock type="approval" icon={UserCheck} label="Aprovação" />
+          </div>
+        </div>
 
         {/* Painel de propriedades */}
         {selectedNode && (
@@ -489,7 +492,7 @@ export default function PlaybookEditor({ initialFlow, onSave, onCancel, isSaving
       </Card>
 
       {/* Canvas React Flow */}
-      <div className="flex-1 border rounded-lg">
+      <div ref={reactFlowWrapper} className="flex-1 border rounded-lg overflow-hidden group">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -497,14 +500,41 @@ export default function PlaybookEditor({ initialFlow, onSave, onCancel, isSaving
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onInit={setReactFlowInstance}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           deleteKeyCode={['Backspace', 'Delete']}
           fitView
+          className="bg-background"
         >
-          <Background />
-          <Controls />
-          <MiniMap />
+          <Background 
+            variant={BackgroundVariant.Dots}
+            gap={20} 
+            size={1}
+            className="opacity-30"
+          />
+          <Controls 
+            className="!bg-card !border !shadow-lg !rounded-lg"
+            showInteractive={false}
+          />
+          <MiniMap
+            nodeColor={(node) => {
+              switch (node.type) {
+                case 'email': return '#2563eb';
+                case 'delay': return '#d97706';
+                case 'task': return '#059669';
+                case 'call': return '#7c3aed';
+                case 'condition': return '#9333ea';
+                case 'approval': return '#ea580c';
+                default: return 'hsl(var(--primary))';
+              }
+            }}
+            maskColor="hsl(var(--background) / 0.2)"
+            className="!bg-card !border !rounded-lg !shadow-lg"
+          />
         </ReactFlow>
       </div>
     </div>
@@ -532,5 +562,13 @@ export default function PlaybookEditor({ initialFlow, onSave, onCancel, isSaving
       </DialogContent>
     </Dialog>
     </>
+  );
+}
+
+export default function PlaybookEditor(props: PlaybookEditorProps) {
+  return (
+    <ReactFlowProvider>
+      <PlaybookEditorInner {...props} />
+    </ReactFlowProvider>
   );
 }

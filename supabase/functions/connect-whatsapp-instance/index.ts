@@ -47,15 +47,21 @@ Deno.serve(async (req) => {
     // Garantir que não tem trailing slash
     baseUrl = baseUrl.replace(/\/$/, '');
 
+    // Limpar o token (remover espaços em branco)
+    const apiToken = instance.api_token.trim();
+    
+    console.log('[connect-whatsapp-instance] Base URL normalizada:', baseUrl);
+    console.log('[connect-whatsapp-instance] Token length:', apiToken.length);
+    console.log('[connect-whatsapp-instance] Token prefix:', apiToken.substring(0, 8) + '...');
+
     // Chamar Evolution API (server-side, sem CORS)
     const evolutionUrl = `${baseUrl}/instance/create`;
-    console.log('[connect-whatsapp-instance] Base URL normalizada:', baseUrl);
     console.log('[connect-whatsapp-instance] Calling Evolution API:', evolutionUrl);
 
     const response = await fetch(evolutionUrl, {
       method: "POST",
       headers: {
-        "apikey": instance.api_token,
+        "apikey": apiToken,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

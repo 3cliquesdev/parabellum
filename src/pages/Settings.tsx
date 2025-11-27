@@ -161,7 +161,9 @@ export default function Settings() {
             <CardDescription>Gerencie integrações externas</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline">Ver Webhooks</Button>
+            <Button variant="outline" onClick={() => navigate('/settings/webhooks')}>
+              Ver Webhooks
+            </Button>
           </CardContent>
         </Card>
 

@@ -342,15 +342,17 @@ serve(async (req) => {
     }
 
     // 5. FASE 1: Identity Wall - Verificar se contato tem email
-    const contactHasEmail = !!(customer_context?.email || contact.email);
+    const contactEmail = customer_context?.email || contact.email;
+    const contactHasEmail = !!contactEmail;
     const contactName = customer_context?.name || `${contact.first_name} ${contact.last_name}`.trim();
     const contactCompany = contact.company ? ` da empresa ${contact.company}` : '';
     const contactStatus = contact.status || 'lead';
     
     console.log('[ai-autopilot-chat] 🔐 Identity Wall Check:', {
       hasEmail: contactHasEmail,
-      email: customer_context?.email || contact.email,
-      channel
+      email: contactEmail,
+      channel,
+      isKnownCustomer: contactHasEmail
     });
     
     let knowledgeContext = '';
@@ -360,10 +362,22 @@ serve(async (req) => {
       ).join('\n\n---\n\n')}`;
     }
     
-    // FASE 1: Identity Wall - Se não tem email, pedir PRIMEIRO
+    // FASE 1: Identity Wall - Cliente Conhecido vs Cliente Novo
     let identityWallNote = '';
-    if (!contactHasEmail && channel === 'whatsapp') {
-      identityWallNote = `\n\n**🚨 REGRA CRÍTICA DE IDENTIFICAÇÃO (Identity Wall) - OBRIGATÓRIO:**
+    
+    if (contactHasEmail && channel === 'whatsapp') {
+      // Cliente conhecido - já tem email cadastrado, dar boas vindas
+      identityWallNote = `\n\n**✅ CLIENTE CONHECIDO:**
+Este cliente JÁ está verificado no sistema.
+Nome: ${contactName}${contactCompany}
+Email: ${contactEmail}
+
+**IMPORTANTE:** NÃO peça email novamente! Dê boas vindas de forma calorosa reconhecendo que ele já é cliente.
+Exemplo: "Olá ${contactName}! Que bom ter você de volta! Como posso ajudar hoje?"`;
+      
+    } else if (!contactHasEmail && channel === 'whatsapp') {
+      // Cliente novo - não tem email, seguir Identity Wall
+      identityWallNote = `\n\n**🚨 CLIENTE NOVO - Identity Wall OBRIGATÓRIO:**
 Este cliente NÃO tem email cadastrado no sistema.
 
 **FLUXO OBRIGATÓRIO DE IDENTIFICAÇÃO:**

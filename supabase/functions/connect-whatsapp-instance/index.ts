@@ -153,6 +153,40 @@ Deno.serve(async (req) => {
       console.log('[connect-whatsapp-instance] Evolution API create response:', result);
     }
 
+    // Configurar webhook automaticamente (após criar ou conectar)
+    try {
+      const webhookUrl = `${baseUrl}/webhook/set/${encodeURIComponent(instance.instance_name)}`;
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      
+      console.log('[connect-whatsapp-instance] Configuring webhook:', webhookUrl);
+      
+      const webhookResponse = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "apikey": apiToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: `${supabaseUrl}/functions/v1/handle-whatsapp-event`,
+          enabled: true,
+          events: ["CONNECTION_UPDATE", "MESSAGES_UPSERT", "QRCODE_UPDATED"],
+        }),
+      });
+
+      if (webhookResponse.ok) {
+        console.log('[connect-whatsapp-instance] Webhook configured successfully');
+      } else {
+        const errorText = await webhookResponse.text();
+        console.error('[connect-whatsapp-instance] Webhook configuration failed:', {
+          status: webhookResponse.status,
+          body: errorText,
+        });
+      }
+    } catch (webhookError) {
+      console.error('[connect-whatsapp-instance] Error configuring webhook:', webhookError);
+      // Não falhar a operação se o webhook der erro
+    }
+
     // Atualizar QR Code no banco (se disponível)
     // Evolution API retorna QR Code em formatos diferentes:
     // - /instance/create: result.qrcode.base64

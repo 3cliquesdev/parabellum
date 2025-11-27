@@ -87,18 +87,23 @@ serve(async (req) => {
     });
 
     if (emailError) {
-      console.error('[send-verification-code] Erro ao enviar email:', emailError);
+      console.error('[send-verification-code] ❌ ERRO ao enviar email:', emailError);
+      console.error('[send-verification-code] Detalhes do erro:', JSON.stringify(emailError));
       
       // Detectar erro 403 do Resend (modo teste/desenvolvimento)
       const errorMessage = emailError.message || JSON.stringify(emailError);
       if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
-        console.log('[send-verification-code] ⚠️ Modo Desenvolvimento: Resend em modo teste');
-        console.log('[send-verification-code] 🔑 Código OTP para testes:', code);
+        console.log('[send-verification-code] ⚠️⚠️⚠️ MODO DESENVOLVIMENTO DETECTADO ⚠️⚠️⚠️');
+        console.log('[send-verification-code] Resend API em modo teste ou sem domínio verificado');
+        console.log('[send-verification-code] 🔑 CÓDIGO OTP PARA TESTES:', code);
+        console.log('[send-verification-code] Email destino:', email);
+        console.log('[send-verification-code] ⚠️ Configure o Resend em https://resend.com/domains para produção');
         
         return new Response(JSON.stringify({ 
           success: true,
           dev_mode: true,
-          code: code // Incluir código na resposta apenas em dev
+          code: code, // Incluir código na resposta apenas em dev
+          warning: 'Email não enviado - Resend em modo teste. Configure domínio verificado.'
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -107,7 +112,9 @@ serve(async (req) => {
       throw emailError;
     }
 
-    console.log('[send-verification-code] ✅ Código enviado com sucesso');
+    console.log('[send-verification-code] ✅ Email enviado com SUCESSO via Resend');
+    console.log('[send-verification-code] Destinatário:', email);
+    console.log('[send-verification-code] ID do email:', emailData?.id);
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

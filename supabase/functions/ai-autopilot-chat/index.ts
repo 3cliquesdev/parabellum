@@ -240,7 +240,7 @@ serve(async (req) => {
       return await fallbackResponse.json();
     }
 
-    // OTIMIZAÇÃO 1: Classificar intenção ANTES da busca pesada
+    // FASE 2: Classificar intenção ANTES da busca pesada (com categoria "confirmation")
     console.log('[ai-autopilot-chat] Classificando intenção da mensagem...');
     
     let intentType = 'technical'; // Default
@@ -251,7 +251,7 @@ serve(async (req) => {
         messages: [
           { 
             role: 'system', 
-            content: 'Classifique a mensagem em uma categoria: "greeting" (saudações, oi, bom dia, obrigado, elogios), "technical" (dúvidas, problemas, pedidos de ajuda), ou "other". Responda APENAS com uma palavra: greeting, technical ou other.'
+            content: 'Classifique a mensagem em uma categoria:\n- "greeting" (saudações: oi, olá, bom dia, obrigado, valeu, elogios)\n- "confirmation" (confirmações casuais: ok, certo, entendi, perfeito, blz, beleza, sim)\n- "technical" (dúvidas reais, problemas, pedidos de ajuda, perguntas sobre produtos/serviços)\n- "other" (resto)\n\nResponda APENAS com uma palavra: greeting, confirmation, technical ou other.'
           },
           { role: 'user', content: customerMessage }
         ],
@@ -266,11 +266,12 @@ serve(async (req) => {
       // Fallback para busca técnica em caso de erro
     }
     
-    // OTIMIZAÇÃO 2: Se for greeting, pular busca vetorial e responder direto
-    if (intentType === 'greeting') {
-      console.log('[ai-autopilot-chat] ⚡ Greeting detectado - pulando busca na base');
-    } else {
-      // OTIMIZAÇÃO 3: Buscar na base APENAS para dúvidas técnicas
+    // FASE 1 & 2: Lógica refinada de busca e handoff
+    if (intentType === 'greeting' || intentType === 'confirmation') {
+      // Saudações e confirmações: pular busca na base, responder naturalmente
+      console.log('[ai-autopilot-chat] ⚡ Greeting/Confirmation detectado - pulando busca na base');
+    } else if (intentType === 'technical') {
+      // APENAS para dúvidas técnicas: buscar na base de conhecimento
       console.log('[ai-autopilot-chat] 🔍 Busca técnica - consultando base de conhecimento...');
       
       const removeAccents = (str: string) => 
@@ -311,7 +312,8 @@ serve(async (req) => {
             knowledgeArticles = relevantArticles;
             console.log(`[ai-autopilot-chat] ✅ ${relevantArticles.length} artigos encontrados`);
           } else {
-            console.log('[ai-autopilot-chat] ⚠️ Nenhum artigo encontrado - transbordo automático');
+            // FASE 1: Só fazer handoff automático quando intent=technical E não encontrar artigos
+            console.log('[ai-autopilot-chat] ⚠️ Nenhum artigo encontrado para dúvida técnica - transbordo automático');
             
             const fallbackMessage = "Não encontrei essa informação na nossa base de conhecimento. Vou chamar um atendente humano para te ajudar! 🤝";
             
@@ -339,6 +341,10 @@ serve(async (req) => {
       } catch (error) {
         console.error('[ai-autopilot-chat] Erro na busca de conhecimento:', error);
       }
+    } else {
+      // intentType === 'other': NÃO fazer handoff automático
+      // Deixar o AI responder naturalmente usando conhecimento geral
+      console.log('[ai-autopilot-chat] 💬 Intent "other" - resposta natural sem handoff forçado');
     }
 
     // 5. FASE 1: Identity Wall - Verificar se contato tem email
@@ -362,23 +368,29 @@ serve(async (req) => {
       ).join('\n\n---\n\n')}`;
     }
     
-    // FASE 1: Identity Wall - Cliente Conhecido vs Cliente Novo
+    // FASE 3 & 4: Identity Wall + Diferenciação Cliente vs Lead
     let identityWallNote = '';
     
+    // Detectar se é a primeira mensagem pós-verificação (FASE 3)
+    const isRecentlyVerified = customer_context?.isVerified === true;
+    
     if (contactHasEmail && channel === 'whatsapp') {
-      // Cliente conhecido - já tem email cadastrado, dar boas vindas
+      // FASE 4: Cliente conhecido (tem email) - dar boas-vindas
       identityWallNote = `\n\n**✅ CLIENTE CONHECIDO:**
 Este cliente JÁ está verificado no sistema.
 Nome: ${contactName}${contactCompany}
 Email: ${contactEmail}
+Status: ${contactStatus}
 
 **IMPORTANTE:** NÃO peça email novamente! Dê boas vindas de forma calorosa reconhecendo que ele já é cliente.
-Exemplo: "Olá ${contactName}! Que bom ter você de volta! Como posso ajudar hoje?"`;
+Exemplo: "Olá ${contactName}! Que bom ter você de volta! Como posso ajudar hoje?"
+
+${isRecentlyVerified ? '**⚠️ CLIENTE RECÉM-VERIFICADO:** Esta é a primeira mensagem pós-verificação. Não fazer handoff automático. Ofereça ajuda e pergunte "Como posso te ajudar?".' : ''}`;
       
     } else if (!contactHasEmail && channel === 'whatsapp') {
-      // Cliente novo - não tem email, seguir Identity Wall
-      identityWallNote = `\n\n**🚨 CLIENTE NOVO - Identity Wall OBRIGATÓRIO:**
-Este cliente NÃO tem email cadastrado no sistema.
+      // FASE 4: Lead (não tem email) - seguir Identity Wall e direcionar para comercial após verificação
+      identityWallNote = `\n\n**🚨 LEAD NOVO - Identity Wall OBRIGATÓRIO:**
+Este cliente NÃO tem email cadastrado no sistema (é um LEAD, não um cliente existente).
 
 **FLUXO OBRIGATÓRIO DE IDENTIFICAÇÃO:**
 1. PRIMEIRA MENSAGEM: Cumprimente "${contactName}" e solicite o email de forma educada e direta:
@@ -395,12 +407,16 @@ Este cliente NÃO tem email cadastrado no sistema.
 
 6. QUANDO cliente enviar código: Use a ferramenta verify_otp_code para validar
 
-7. SÓ APÓS verificação bem-sucedida: Prossiga com atendimento normal
+7. APÓS verificação bem-sucedida: Informe que ele será direcionado para o time comercial:
+   "✅ Identidade verificada! Vou te conectar com nosso time de vendas para te ajudar da melhor forma. Um consultor vai entrar em contato em breve!"
+   E então faça handoff para copilot e chame route-conversation.
 
 **IMPORTANTE:** NÃO atenda dúvidas técnicas, NÃO crie tickets, NÃO responda perguntas até o email estar verificado.
 Se o cliente insistir em pular a verificação, explique que é uma política de segurança obrigatória.`;
     } else if (customer_context?.isVerified || contactHasEmail) {
-      identityWallNote = `\n\n**IMPORTANTE:** Este é um cliente já verificado. Cumprimente-o pelo nome (${contactName}) de forma calorosa. NÃO peça email ou validação.`;
+      identityWallNote = `\n\n**IMPORTANTE:** Este é um cliente já verificado. Cumprimente-o pelo nome (${contactName}) de forma calorosa. NÃO peça email ou validação.
+
+${isRecentlyVerified ? '**⚠️ CLIENTE RECÉM-VERIFICADO:** Esta é a primeira mensagem pós-verificação. Não fazer handoff automático. Seja acolhedor e pergunte "Como posso te ajudar?".' : ''}`;
     }
     
     const contextualizedSystemPrompt = `Você é o assistente virtual da empresa.

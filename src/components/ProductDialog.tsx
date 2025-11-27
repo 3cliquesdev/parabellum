@@ -52,6 +52,12 @@ interface ProductDialogProps {
     external_id: string | null;
     requires_account_manager: boolean;
     is_active: boolean;
+    onboarding_playbooks?: Array<{
+      id: string;
+      name: string;
+      is_active: boolean;
+    }>;
+    // Compatibilidade com versões antigas
     playbook?: Array<{
       id: string;
       name: string;
@@ -71,7 +77,10 @@ export function ProductDialog({ open, onOpenChange, product }: ProductDialogProp
       name: product?.name || "",
       description: product?.description || "",
       external_id: product?.external_id || "",
-      playbook_id: product?.playbook?.[0]?.id || "",
+      playbook_id:
+        product?.onboarding_playbooks?.[0]?.id ||
+        product?.playbook?.[0]?.id ||
+        "",
       requires_account_manager: product?.requires_account_manager || false,
       is_active: product?.is_active ?? true,
     },

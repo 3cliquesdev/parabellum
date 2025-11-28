@@ -139,14 +139,6 @@ export function SimulatorStepRenderer({
   if (node.type === "task") {
     const hasVideo = node.data.video_url?.trim();
     
-    // DEBUG: Log estado do botão
-    console.log('🎯 SimulatorStepRenderer - Estado do Botão:', {
-      nodeId: node.id,
-      hasVideo,
-      isVideoLocked,
-      video_url: node.data.video_url,
-    });
-    
     return (
       <div className="space-y-4">
         <PlaybookStepViewer

@@ -25,7 +25,8 @@ import {
   DollarSign,
   CheckSquare,
   Workflow,
-  Receipt
+  Receipt,
+  RefreshCw
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -88,7 +89,8 @@ const salesRepSalesItems = [
   { title: "Organizações", href: "/organizations", icon: Building2 },
 ];
 
-const salesRepMetricsItems = [
+const salesRepProductivityItems = [
+  { title: "Cadências", href: "/cadences", icon: RefreshCw },
   { title: "Minhas Metas", href: "/goals", icon: Target },
 ];
 
@@ -112,6 +114,7 @@ const adminCrmItems = [
 ];
 
   const adminStrategyItems = [
+    { title: "Cadências", href: "/cadences", icon: RefreshCw },
     { title: "Automações", href: "/automations", icon: Zap },
     { title: "AI Studio", href: "/ai-studio/personas", icon: Brain },
     { title: "Templates de Email", href: "/email-templates", icon: Mail },
@@ -294,10 +297,10 @@ export function AppSidebar() {
                 </SidebarGroup>
 
                 <SidebarGroup>
-                  {!collapsed && <SidebarGroupLabel>Métricas</SidebarGroupLabel>}
+                  {!collapsed && <SidebarGroupLabel>Produtividade</SidebarGroupLabel>}
                   <SidebarGroupContent>
                     <SidebarMenu>
-                      {salesRepMetricsItems.map(renderMenuItem)}
+                      {salesRepProductivityItems.map(renderMenuItem)}
                     </SidebarMenu>
                   </SidebarGroupContent>
                 </SidebarGroup>

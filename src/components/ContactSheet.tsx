@@ -20,7 +20,7 @@ import { useCustomerTags } from "@/hooks/useCustomerTags";
 import TimelineItem from "@/components/TimelineItem";
 import { Phone, Mail, MessageSquare, Save, Loader2 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface ContactSheetProps {
@@ -71,6 +71,11 @@ export default function ContactSheet({ contact, open, onOpenChange }: ContactShe
 
   const statusInfo = contact.status ? statusConfig[contact.status] : null;
 
+  const createdAtDate = contact.created_at ? new Date(contact.created_at) : null;
+  const createdAtFormatted = createdAtDate && isValid(createdAtDate)
+    ? format(createdAtDate, "dd/MM/yyyy", { locale: ptBR })
+    : "Data desconhecida";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-2xl overflow-hidden flex flex-col">
@@ -105,7 +110,7 @@ export default function ContactSheet({ contact, open, onOpenChange }: ContactShe
           </div>
           <SheetDescription>
             {contact.organizations?.name && `${contact.organizations.name} • `}
-            Cliente desde {format(new Date(contact.created_at), "dd/MM/yyyy", { locale: ptBR })}
+            Cliente desde {createdAtFormatted}
           </SheetDescription>
         </SheetHeader>
 

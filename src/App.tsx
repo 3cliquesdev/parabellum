@@ -48,6 +48,7 @@ import NotFound from "./pages/NotFound";
 import AuditLogs from "./pages/AuditLogs";
 import WhatsAppSettings from "./pages/WhatsAppSettings";
 import WebhooksSettings from "./pages/WebhooksSettings";
+import Reports from "./pages/Reports";
 
 const queryClient = new QueryClient();
 
@@ -130,6 +131,7 @@ const App = () => {
             <Route path="/onboarding-builder" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><Layout><OnboardingBuilder /></Layout></ProtectedRoute>} />
             <Route path="/playbook-executions" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><Layout><PlaybookExecutions /></Layout></ProtectedRoute>} />
             <Route path="/analytics" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><Layout><Analytics /></Layout></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><Layout><Reports /></Layout></ProtectedRoute>} />
             <Route path="/goals" element={<ProtectedRoute allowedRoles={["sales_rep", "admin", "manager"]}><Layout><Goals /></Layout></ProtectedRoute>} />
             <Route path="/cadences" element={<ProtectedRoute allowedRoles={["sales_rep", "admin", "manager"]}><Layout><Cadences /></Layout></ProtectedRoute>} />
             <Route path="/sales-tasks" element={<ProtectedRoute allowedRoles={["sales_rep"]}><Layout><SalesTasks /></Layout></ProtectedRoute>} />

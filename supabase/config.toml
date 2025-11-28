@@ -84,3 +84,13 @@ verify_jwt = true
 
 [functions.send-quote-email]
 verify_jwt = true
+
+[functions.generate-report]
+verify_jwt = true
+
+[functions.send-scheduled-reports]
+verify_jwt = false
+
+[functions.send-scheduled-reports.cron]
+schedule = "1 0 * * *"
+region = "us-east-1"

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, ArrowRight, Save, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, Save, Send, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProducts } from "@/hooks/useProducts";
 import { useCreateQuote, useUpdateQuote } from "@/hooks/useQuotes";
@@ -218,6 +218,30 @@ export default function QuoteBuilder() {
             <div className="flex justify-center mt-4">
               <Button onClick={() => navigate("/deals")}>Voltar para Deals</Button>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Validar se o contato tem email
+  if (!deal?.contacts?.email) {
+    return (
+      <div className="container max-w-4xl mx-auto py-8">
+        <Card>
+          <CardContent className="p-6 text-center space-y-4">
+            <AlertTriangle className="h-12 w-12 mx-auto text-yellow-500" />
+            <div>
+              <p className="text-lg font-medium text-foreground mb-2">
+                Contato sem email cadastrado
+              </p>
+              <p className="text-sm text-muted-foreground">
+                O contato deste deal não possui email. Por favor, atualize o contato antes de criar uma proposta.
+              </p>
+            </div>
+            <Button onClick={() => navigate("/deals")}>
+              Voltar para Deals
+            </Button>
           </CardContent>
         </Card>
       </div>

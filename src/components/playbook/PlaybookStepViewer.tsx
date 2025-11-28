@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, FileSpreadsheet, File as FileIcon, ImageIcon, Download, AlertCircle, Lock, CheckCircle } from 'lucide-react';
+import { FileText, FileSpreadsheet, File as FileIcon, ImageIcon, Download, Lock, CheckCircle } from 'lucide-react';
 import ReactPlayer from 'react-player';
 import confetti from 'canvas-confetti';
 import { QuizComponent } from './QuizComponent';
-import { useToast } from '@/hooks/use-toast';
 
 /**
  * Extrai URL de vídeo de diferentes formatos
@@ -58,61 +57,74 @@ interface PlaybookStepViewerProps {
   video_url?: string;
   rich_content?: string;
   attachments?: Attachment[];
+  min_view_seconds?: number;
   quiz_enabled?: boolean;
   quiz_question?: string;
   quiz_options?: QuizOption[];
   quiz_correct_option?: string;
-  quiz_passed?: boolean;
-  alreadyCompleted?: boolean;
-  onVideoEnded?: () => void;
-  onQuizPassed?: () => void;
   onLockStateChange?: (isLocked: boolean) => void;
+  onQuizPassed?: () => void;
 }
 
 /**
- * PlaybookStepViewer
- *
- * Responsável por renderizar a "aula": vídeo, conteúdo rico, quiz e materiais.
- * Este componente **sempre** prioriza o vídeo real configurado pelo usuário.
+ * PlaybookStepViewer - TIMER-BASED LOCK
+ * 
+ * Simplificado: ao invés de detectar fim do vídeo, usa contador regressivo
+ * para desbloquear o botão "Próximo" após X segundos.
  */
 export function PlaybookStepViewer({
   label,
   video_url,
   rich_content,
   attachments,
+  min_view_seconds = 10,
   quiz_enabled,
   quiz_question,
   quiz_options,
   quiz_correct_option,
-  quiz_passed,
-  alreadyCompleted,
-  onVideoEnded,
-  onQuizPassed,
   onLockStateChange,
+  onQuizPassed
 }: PlaybookStepViewerProps) {
-  const [videoCompleted, setVideoCompleted] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [quizPassedLocal, setQuizPassedLocal] = useState(quiz_passed || false);
-  const [videoError, setVideoError] = useState<string | null>(null);
-  const [errorTimeout, setErrorTimeout] = useState(false);
-  const { toast } = useToast();
+  const [secondsRemaining, setSecondsRemaining] = useState(min_view_seconds);
+  const [timerComplete, setTimerComplete] = useState(min_view_seconds === 0);
+  const [quizPassed, setQuizPassed] = useState(false);
 
-  // Smart Parser: extrai URL de iframe ou URL direta
-  const extractedUrl = extractVideoUrl(video_url || '');
-  const trimmedUrl = extractedUrl || '';
-  const hasValidVideo = !!trimmedUrl;
+  const videoUrl = extractVideoUrl(video_url || "");
 
-  // Video Lock State
-  const videoLocked = hasValidVideo && !videoCompleted && !errorTimeout && !alreadyCompleted;
-
-  const [contentConsumed, setContentConsumed] = useState(
-    alreadyCompleted || quiz_passed || !hasValidVideo
-  );
-
-  // Comunicar estado de trava ao parent
+  // Timer countdown effect
   useEffect(() => {
-    onLockStateChange?.(videoLocked);
-  }, [videoLocked, onLockStateChange]);
+    if (timerComplete || secondsRemaining <= 0) return;
+    
+    const interval = setInterval(() => {
+      setSecondsRemaining(prev => {
+        if (prev <= 1) {
+          setTimerComplete(true);
+          clearInterval(interval);
+          confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 }
+          });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [timerComplete, secondsRemaining]);
+
+  // Determine lock state based on timer and quiz
+  const isLocked = !timerComplete || (quiz_enabled && !quizPassed);
+
+  useEffect(() => {
+    onLockStateChange?.(isLocked);
+  }, [isLocked, onLockStateChange]);
+
+  const handleQuizPassed = () => {
+    setQuizPassed(true);
+    onQuizPassed?.();
+  };
 
   const getFileIcon = (type: string) => {
     if (type.includes('pdf')) return <FileText className="h-5 w-5 text-red-500" />;
@@ -122,155 +134,54 @@ export function PlaybookStepViewer({
     return <FileIcon className="h-5 w-5 text-gray-500" />;
   };
 
-  const handleVideoEnd = () => {
-    setVideoCompleted(true);
-    setContentConsumed(true);
-
-    toast({
-      title: '🎬 Vídeo Concluído!',
-      description: quiz_enabled
-        ? 'Responda a pergunta para avançar.'
-        : 'Você pode marcar esta etapa como concluída.',
-    });
-
-    if (!quiz_enabled) {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#2563EB', '#3B82F6', '#60A5FA'],
-      });
-    }
-
-    onVideoEnded?.();
-  };
-
-  const handleQuizPassed = () => {
-    setQuizPassedLocal(true);
-    onQuizPassed?.();
-  };
-
   return (
     <Card className="p-6 space-y-6">
       {/* Title */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-foreground">{label}</h2>
-        {videoCompleted && (
-          <Badge className="bg-green-500 text-white animate-pulse">
-            🎉 Vídeo Concluído!
+        {timerComplete && (
+          <Badge className="bg-green-500 text-white">
+            ✅ Desbloqueado
           </Badge>
         )}
       </div>
 
-      {/* Premium Cinema Video Player */}
-      {videoError ? (
-        <div className="aspect-video bg-destructive/10 rounded-xl flex flex-col items-center justify-center border border-destructive/20">
-          <AlertCircle className="h-12 w-12 text-destructive mb-2" />
-          <p className="text-sm text-destructive font-medium">{videoError}</p>
-          {trimmedUrl && (
-            <>
-              <p className="text-xs text-muted-foreground mt-1 max-w-md truncate px-4">URL: {trimmedUrl}</p>
-              <button
-                className="mt-3 px-4 py-2 bg-background border border-border rounded-lg text-sm hover:bg-muted transition-colors"
-                onClick={() => window.open(trimmedUrl, '_blank')}
-              >
-                Abrir vídeo em nova aba
-              </button>
-            </>
+      {/* Video Player - Universal Rendering */}
+      {videoUrl && (
+        <div className="aspect-video rounded-xl overflow-hidden bg-black border-2 border-border mb-6">
+          {video_url?.includes('<iframe') ? (
+            // Direct iframe embed
+            <div 
+              className="w-full h-full"
+              dangerouslySetInnerHTML={{ __html: video_url }} 
+            />
+          ) : (
+            // URL-based player (no event listeners)
+            React.createElement(ReactPlayer as any, {
+              url: videoUrl,
+              width: '100%',
+              height: '100%',
+              controls: true
+            })
           )}
         </div>
-      ) : hasValidVideo ? (
-        <div className="relative rounded-xl overflow-hidden shadow-2xl border border-border/50 bg-gradient-to-b from-background/80 to-muted">
-          {/* Player SEMPRE renderizado com o link real do usuário */}
-          <div className="aspect-video relative bg-black">
-          {React.createElement(ReactPlayer as any, {
-            url: trimmedUrl,
-            width: '100%',
-            height: '100%',
-            controls: true,
-            playing: false,
-            light: false,
-              onReady: () => {
-                console.log('✅ ReactPlayer pronto para:', trimmedUrl);
-              },
-              onError: (e: any) => {
-                console.error('❌ Erro no ReactPlayer:', e);
-                setVideoError('Não foi possível carregar o vídeo');
-                
-                // Safety Net: liberar após 5 segundos
-                toast({
-                  title: '⚠️ Problema com o vídeo',
-                  description: 'Liberando avanço em 5 segundos...',
-                  variant: 'destructive',
-                });
-                
-                setTimeout(() => {
-                  setErrorTimeout(true);
-                  toast({
-                    title: '🔓 Avanço Liberado',
-                    description: 'Não foi possível rastrear o vídeo.',
-                  });
-                }, 5000);
-              },
-              onEnded: handleVideoEnd,
-              onPlay: () => setIsPlaying(true),
-              onPause: () => setIsPlaying(false),
-              config: {
-                youtube: {
-                  playerVars: {
-                    modestbranding: 1,
-                    rel: 0,
-                    origin: window.location.origin,
-                  },
-                },
-                vimeo: {
-                  playerOptions: {
-                    byline: false,
-                    portrait: false,
-                  },
-                },
-              },
-            })}
-          </div>
+      )}
 
-          {/* Status Badge */}
-          {isPlaying && (
-            <div className="absolute top-4 right-4 z-10">
-              <Badge className="bg-red-500 text-white animate-pulse shadow-lg">
-                🔴 Assistindo...
-              </Badge>
-            </div>
-          )}
-
-          {videoCompleted && !quiz_enabled && (
-            <div className="absolute top-4 left-4 z-10">
-              <Badge className="bg-green-500 text-white shadow-lg">✅ Vídeo Concluído!</Badge>
-            </div>
-          )}
-        </div>
-      ) : video_url !== undefined ? (
-        <div className="aspect-video bg-muted rounded-xl flex items-center justify-center border border-border">
-          <div className="text-center text-muted-foreground">
-            <p className="text-sm">Nenhum vídeo configurado para esta etapa</p>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Indicadores de Trava/Desbloqueio */}
-      {videoLocked && (
-        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-lg border border-amber-200">
+      {/* Timer Status */}
+      {!timerComplete && secondsRemaining > 0 && (
+        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-lg border border-amber-200 mb-4">
           <Lock className="h-4 w-4" />
-          <span className="text-sm font-medium">
-            🔒 Assista o vídeo completo para desbloquear o próximo passo
+          <span className="font-medium">
+            🔒 Aguarde {secondsRemaining}s para avançar...
           </span>
         </div>
       )}
 
-      {videoCompleted && (
-        <div className="flex items-center gap-2 text-green-600 bg-green-50 dark:bg-green-950/30 p-3 rounded-lg border border-green-200 animate-fade-in">
+      {timerComplete && (
+        <div className="flex items-center gap-2 text-green-600 bg-green-50 dark:bg-green-950/30 p-3 rounded-lg border border-green-200 mb-4 animate-pulse">
           <CheckCircle className="h-4 w-4" />
-          <span className="text-sm font-medium">
-            ✅ Vídeo concluído! Você pode avançar.
+          <span className="font-medium">
+            ✅ Tempo concluído! Você pode avançar.
           </span>
         </div>
       )}
@@ -283,21 +194,21 @@ export function PlaybookStepViewer({
         />
       )}
 
-      {/* Quiz Gatekeeper - Only show after video ends */}
-      {contentConsumed && quiz_enabled && quiz_question && quiz_options && quiz_correct_option && (
+      {/* Quiz Gatekeeper - Only show after timer completes */}
+      {timerComplete && quiz_enabled && quiz_question && quiz_options && quiz_correct_option && (
         <div className="animate-fade-in">
           <QuizComponent
             question={quiz_question}
             options={quiz_options}
             correctOption={quiz_correct_option}
             onPass={handleQuizPassed}
-            passed={quizPassedLocal}
+            passed={quizPassed}
           />
         </div>
       )}
 
-      {/* Attachments - Only show after video ends */}
-      {contentConsumed && attachments && attachments.length > 0 && (
+      {/* Attachments - Only show after timer completes */}
+      {timerComplete && attachments && attachments.length > 0 && (
         <div className="animate-fade-in">
           <div className="space-y-3">
             <h3 className="text-lg font-semibold text-foreground">📎 Materiais Complementares</h3>

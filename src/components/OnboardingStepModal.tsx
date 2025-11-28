@@ -167,13 +167,11 @@ export function OnboardingStepModal({ step, onClose, allSteps, onNavigateToStep 
           video_url={step.video_url}
           rich_content={step.rich_content}
           attachments={step.attachments}
+          min_view_seconds={10}
           quiz_enabled={step.quiz_enabled}
           quiz_question={step.quiz_question}
           quiz_options={step.quiz_options}
           quiz_correct_option={step.quiz_correct_option}
-          quiz_passed={quizPassed}
-          alreadyCompleted={step.completed || step.video_completed || step.quiz_passed}
-          onVideoEnded={handleVideoEnded}
           onQuizPassed={handleQuizPassed}
         />
 

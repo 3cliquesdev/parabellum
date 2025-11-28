@@ -146,11 +146,11 @@ export function SimulatorStepRenderer({
           video_url={hasVideo ? node.data.video_url : undefined}
           rich_content={node.data.rich_content}
           attachments={node.data.attachments}
+          min_view_seconds={node.data.min_view_seconds ?? 10}
           quiz_enabled={node.data.quiz_enabled}
           quiz_question={node.data.quiz_question}
           quiz_options={node.data.quiz_options}
           quiz_correct_option={node.data.quiz_correct_option}
-          onVideoEnded={() => setIsVideoLocked(false)}
           onLockStateChange={setIsVideoLocked}
           onQuizPassed={() => {
             toast({

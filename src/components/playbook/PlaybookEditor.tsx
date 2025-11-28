@@ -103,7 +103,8 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
           description: "Descrição da tarefa",
           rich_content: "",
           video_url: "",
-          attachments: []
+          attachments: [],
+          min_view_seconds: 10
         }),
         ...(type === "call" && { description: "Descrição da ligação" }),
         ...(type === "condition" && { condition_type: "email_opened", condition_value: "" }),
@@ -306,6 +307,23 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
             {selectedNode.type === "task" && (
               <>
                 <div className="space-y-4 pt-4 border-t">
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      ⏱️ Tempo Mínimo de Permanência (segundos)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={selectedNode.data.min_view_seconds ?? 10}
+                      onChange={(e) => updateNodeData("min_view_seconds", parseInt(e.target.value) || 0)}
+                      placeholder="10"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      0 = Sem trava. O botão "Avançar" só libera após este tempo.
+                    </p>
+                  </div>
+
                   <VideoEmbedField
                     url={selectedNode.data.video_url || ""}
                     onChange={(value) => updateNodeData("video_url", value)}

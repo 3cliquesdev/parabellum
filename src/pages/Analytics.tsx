@@ -5,12 +5,18 @@ import { ChannelQualityWidget } from "@/components/widgets/ChannelQualityWidget"
 import { SalesLeaderboard } from "@/components/widgets/SalesLeaderboard";
 import { AIUsageWidget } from "@/components/widgets/AIUsageWidget";
 import { SentimentDistributionWidget } from "@/components/widgets/SentimentDistributionWidget";
+import { SupportKPIsWidget } from "@/components/widgets/SupportKPIsWidget";
+import { VolumeResolutionWidget } from "@/components/widgets/VolumeResolutionWidget";
+import { BusyHoursHeatmap } from "@/components/widgets/BusyHoursHeatmap";
+import { ChatConversionFunnel } from "@/components/widgets/ChatConversionFunnel";
+import { RevenueByChannelWidget } from "@/components/widgets/RevenueByChannelWidget";
+import { TeamPerformanceTable } from "@/components/widgets/TeamPerformanceTable";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
-import { BarChart3, Sparkles, CalendarIcon } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BarChart3, Sparkles, CalendarIcon, Headphones, TrendingUp } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -33,7 +39,7 @@ export default function Analytics() {
     daysBack: 90
   });
 
-  // CRITICAL: Calcular período ANTES de qualquer conditional return (React Hooks Rule)
+  // Calculate period BEFORE any conditional return (React Hooks Rule)
   const { startDate, endDate, daysBack } = useMemo(() => {
     if (periodFilter.type === 'custom' && periodFilter.dateRange?.from && periodFilter.dateRange?.to) {
       return {
@@ -53,7 +59,7 @@ export default function Analytics() {
     }
   }, [periodFilter]);
 
-  // Validação de permissões - apenas admin e manager podem acessar Analytics
+  // Permission validation - only admin and manager can access Analytics
   useEffect(() => {
     if (!roleLoading && role !== null && role === 'sales_rep') {
       navigate('/dashboard');
@@ -97,12 +103,12 @@ export default function Analytics() {
                   <Sparkles className="h-6 w-6 text-primary" />
                 </h1>
                 <p className="text-muted-foreground">
-                  Análises profundas e Business Intelligence
+                  Business Intelligence com Métricas Operacionais Avançadas
                 </p>
               </div>
             </div>
 
-            {/* Filtro de Período */}
+            {/* Period Filter */}
             <div className="flex items-center gap-4">
               <Tabs 
                 value={periodFilter.type === 'preset' ? String(periodFilter.daysBack) : 'custom'}
@@ -152,37 +158,67 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* AI Insights - Full Width Destaque */}
-        <div className="w-full">
-          <AIInsightsWidget startDate={startDate} endDate={endDate} />
-        </div>
+        {/* Main Tabs: Support vs Sales Performance */}
+        <Tabs defaultValue="support" className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="support" className="flex items-center gap-2">
+              <Headphones className="h-4 w-4" />
+              Performance de Atendimento
+            </TabsTrigger>
+            <TabsTrigger value="sales" className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Performance Comercial
+            </TabsTrigger>
+          </TabsList>
 
-        {/* YoY Comparison + Channel Quality - 2 Columns */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <YoYComparisonWidget startDate={startDate} endDate={endDate} />
-          <ChannelQualityWidget startDate={startDate} endDate={endDate} />
-        </div>
+          {/* TAB 1: Support Performance */}
+          <TabsContent value="support" className="space-y-6">
+            {/* The 3 Clocks: FRT, MTTR, CSAT */}
+            <SupportKPIsWidget startDate={startDate} endDate={endDate} />
 
-        {/* Conversion Rate Trend - Full Width */}
-        <div className="w-full">
-          <ConversionRateWidget daysBack={daysBack} />
-        </div>
+            {/* Volume vs Resolution + Busy Hours Heatmap */}
+            <div className="grid gap-6 md:grid-cols-2">
+              <VolumeResolutionWidget startDate={startDate} endDate={endDate} />
+              <BusyHoursHeatmap startDate={startDate} endDate={endDate} />
+            </div>
 
-        {/* Sales Leaderboard - Full Width */}
-        <div className="w-full">
-          <SalesLeaderboard />
-        </div>
+            {/* AI Insights + Sentiment Distribution */}
+            <div className="grid gap-6 md:grid-cols-2">
+              <AIInsightsWidget startDate={startDate} endDate={endDate} />
+              <SentimentDistributionWidget startDate={startDate} endDate={endDate} />
+            </div>
 
-        {/* AI Metrics Section - 2 Columns */}
-        <div className="w-full border-t pt-6 mt-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Sparkles className="h-6 w-6 text-primary" />
-            <h2 className="text-2xl font-bold">Métricas de Inteligência Artificial</h2>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <AIUsageWidget startDate={startDate} endDate={endDate} />
-            <SentimentDistributionWidget startDate={startDate} endDate={endDate} />
-          </div>
+            {/* AI Usage */}
+            <div className="w-full">
+              <AIUsageWidget startDate={startDate} endDate={endDate} />
+            </div>
+          </TabsContent>
+
+          {/* TAB 2: Sales Performance */}
+          <TabsContent value="sales" className="space-y-6">
+            {/* Chat Conversion Funnel - Full Width */}
+            <ChatConversionFunnel startDate={startDate} endDate={endDate} />
+
+            {/* Revenue by Channel + Channel Quality */}
+            <div className="grid gap-6 md:grid-cols-2">
+              <RevenueByChannelWidget startDate={startDate} endDate={endDate} />
+              <ChannelQualityWidget startDate={startDate} endDate={endDate} />
+            </div>
+
+            {/* Conversion Rate Trend */}
+            <ConversionRateWidget daysBack={daysBack} />
+
+            {/* YoY Comparison */}
+            <YoYComparisonWidget startDate={startDate} endDate={endDate} />
+
+            {/* Sales Leaderboard */}
+            <SalesLeaderboard />
+          </TabsContent>
+        </Tabs>
+
+        {/* Team Performance Table - Always Visible */}
+        <div className="w-full border-t pt-6">
+          <TeamPerformanceTable startDate={startDate} endDate={endDate} />
         </div>
       </div>
     </div>

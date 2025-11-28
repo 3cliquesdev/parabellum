@@ -681,6 +681,7 @@ export type Database = {
           created_at: string
           customer_metadata: Json | null
           department: string | null
+          first_response_at: string | null
           id: string
           last_message_at: string
           related_ticket_id: string | null
@@ -698,6 +699,7 @@ export type Database = {
           created_at?: string
           customer_metadata?: Json | null
           department?: string | null
+          first_response_at?: string | null
           id?: string
           last_message_at?: string
           related_ticket_id?: string | null
@@ -715,6 +717,7 @@ export type Database = {
           created_at?: string
           customer_metadata?: Json | null
           department?: string | null
+          first_response_at?: string | null
           id?: string
           last_message_at?: string
           related_ticket_id?: string | null
@@ -2050,6 +2053,7 @@ export type Database = {
           customer_id: string
           description: string
           due_date: string | null
+          first_response_at: string | null
           id: string
           internal_note: string | null
           priority: Database["public"]["Enums"]["ticket_priority"]
@@ -2067,6 +2071,7 @@ export type Database = {
           customer_id: string
           description: string
           due_date?: string | null
+          first_response_at?: string | null
           id?: string
           internal_note?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]
@@ -2084,6 +2089,7 @@ export type Database = {
           customer_id?: string
           description?: string
           due_date?: string | null
+          first_response_at?: string | null
           id?: string
           internal_note?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]
@@ -2230,6 +2236,22 @@ export type Database = {
           sentiment_breakdown: Json
           unique_users: number
           usage_count: number
+        }[]
+      }
+      get_avg_first_response_time: {
+        Args: { p_end: string; p_start: string }
+        Returns: number
+      }
+      get_avg_resolution_time: {
+        Args: { p_end: string; p_start: string }
+        Returns: number
+      }
+      get_conversation_heatmap: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          count: number
+          day_of_week: number
+          hour_of_day: number
         }[]
       }
       get_conversion_rate_timeline: {

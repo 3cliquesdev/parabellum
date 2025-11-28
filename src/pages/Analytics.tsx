@@ -12,6 +12,7 @@ import { ChatConversionFunnel } from "@/components/widgets/ChatConversionFunnel"
 import { RevenueByChannelWidget } from "@/components/widgets/RevenueByChannelWidget";
 import { TeamPerformanceTable } from "@/components/widgets/TeamPerformanceTable";
 import { ChurnAnalyticsWidget } from "@/components/widgets/ChurnAnalyticsWidget";
+import { CadencePerformanceWidget } from "@/components/widgets/CadencePerformanceWidget";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
@@ -200,6 +201,9 @@ export default function Analytics() {
 
           {/* TAB 2: Sales Performance */}
           <TabsContent value="sales" className="space-y-6">
+            {/* Cadence Performance - Full Width */}
+            <CadencePerformanceWidget />
+            
             {/* Chat Conversion Funnel - Full Width */}
             <ChatConversionFunnel startDate={startDate} endDate={endDate} />
 

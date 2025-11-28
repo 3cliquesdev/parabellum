@@ -2335,6 +2335,60 @@ export type Database = {
           },
         ]
       }
+      scheduled_reports: {
+        Row: {
+          created_at: string | null
+          day_of_month: number | null
+          day_of_week: number | null
+          email: string
+          filters: Json | null
+          format: string | null
+          frequency: string
+          hour: number | null
+          id: string
+          is_active: boolean | null
+          last_sent_at: string | null
+          report_name: string
+          report_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          email: string
+          filters?: Json | null
+          format?: string | null
+          frequency: string
+          hour?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          report_name: string
+          report_type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          email?: string
+          filters?: Json | null
+          format?: string | null
+          frequency?: string
+          hour?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          report_name?: string
+          report_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       stages: {
         Row: {
           created_at: string

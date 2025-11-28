@@ -21,7 +21,7 @@ export function useDeals(pipelineId?: string) {
         .select(
           `
           *,
-          contacts (first_name, last_name),
+          contacts (id, first_name, last_name, email, phone, company),
           organizations (name),
           assigned_user:profiles!deals_assigned_to_fkey (id, full_name, avatar_url)
         `

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, ShieldCheck, Mail, Lock } from "lucide-react";
+import { Loader2, ShieldCheck, Mail, Lock, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import logoLight from "@/assets/logo-parabellum-light.png";
@@ -16,7 +16,7 @@ type Step = "send_code" | "verify_otp" | "set_password";
 
 export default function SetupPassword() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [step, setStep] = useState<Step>("send_code");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -26,6 +26,11 @@ export default function SetupPassword() {
 
   const userEmail = user?.email || "";
   const userName = user?.user_metadata?.full_name || "Usuário";
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/auth");
+  };
 
   const handleSendCode = async () => {
     if (!userEmail) {
@@ -320,6 +325,18 @@ export default function SetupPassword() {
               </Button>
             </div>
           )}
+
+          {/* Botão de Logout - sempre visível */}
+          <div className="pt-4 border-t">
+            <Button
+              variant="ghost"
+              onClick={handleLogout}
+              className="w-full text-muted-foreground hover:text-destructive"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair e voltar ao login
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

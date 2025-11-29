@@ -23,7 +23,7 @@ export default function Goals() {
   // Redirect sales_rep users - only admin and manager can access
   useEffect(() => {
     if (!roleLoading && role !== null && role === 'sales_rep') {
-      navigate('/dashboard');
+      navigate('/');
     }
   }, [roleLoading, role, navigate]);
 

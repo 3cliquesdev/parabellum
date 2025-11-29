@@ -181,7 +181,7 @@ export default function GoalsManagement() {
                             {user.full_name?.[0] || user.email?.[0] || '?'}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">{user.full_name || user.email}</span>
+                        <span className="font-medium text-foreground">{user.full_name || user.email}</span>
                       </div>
                     </TableCell>
                     <TableCell>

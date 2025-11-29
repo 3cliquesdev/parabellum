@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useUsers } from "@/hooks/useUsers";
 import { useGoals } from "@/hooks/useGoals";
 import { useCSGoals } from "@/hooks/useCSGoals";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useUpsertGoal } from "@/hooks/useUpsertGoal";
 import { useUpsertCSGoal } from "@/hooks/useUpsertCSGoal";
 import { useCopyGoalsFromPreviousMonth } from "@/hooks/useCopyGoalsFromPreviousMonth";
@@ -24,10 +25,10 @@ export default function GoalsManagement() {
   const { data: salesGoals } = useGoals(selectedMonth, selectedYear);
   const formattedMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
   const { data: csGoals } = useCSGoals(undefined, formattedMonth);
-
   const upsertGoal = useUpsertGoal();
   const upsertCSGoal = useUpsertCSGoal();
   const copyGoals = useCopyGoalsFromPreviousMonth();
+  const { role: currentUserRole } = useUserRole();
 
   // Local state for form inputs
   const [goalValues, setGoalValues] = useState<Record<string, { primary: string; secondary: string }>>({});
@@ -37,9 +38,12 @@ export default function GoalsManagement() {
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
 
-  const eligibleUsers = users?.filter(u => 
-    u.role === "sales_rep" || u.role === "consultant"
-  ) || [];
+  const eligibleUsers = (users || []).filter((u) => {
+    if (currentUserRole === "cs_manager") {
+      return u.role === "consultant";
+    }
+    return u.role === "sales_rep" || u.role === "consultant";
+  });
 
   const handleCopyPreviousMonth = async () => {
     const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;

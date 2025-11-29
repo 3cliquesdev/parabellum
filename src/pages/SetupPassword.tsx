@@ -140,7 +140,7 @@ export default function SetupPassword() {
       
       // Pequeno delay para garantir que a atualização foi processada
       setTimeout(() => {
-        navigate("/dashboard");
+        navigate("/");
       }, 500);
     } catch (err: any) {
       console.error("Erro ao definir senha:", err);

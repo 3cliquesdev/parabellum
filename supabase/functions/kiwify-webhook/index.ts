@@ -18,6 +18,7 @@ interface KiwifyCustomer {
 interface KiwifyProduct {
   product_id: string;
   product_name: string;
+  offer_id?: string;  // Novo campo para offer_id
 }
 
 interface KiwifyCommissions {
@@ -189,17 +190,56 @@ async function handlePaidOrder(
     console.warn('[kiwify-webhook] Auth error:', authErr);
   }
 
-  // 3. Buscar produto por external_id (Kiwify product_id)
-  const { data: product } = await supabase
-    .from('products')
-    .select('id, name, external_id, delivery_group_id')
-    .eq('external_id', Product.product_id)
-    .single();
+  // 3. Buscar produto por offer_id PRIMEIRO (se disponível), fallback para external_id
+  let product = null;
+  let offer = null;
+  
+  if (Product.offer_id) {
+    // NOVA LÓGICA: Buscar por offer_id em product_offers
+    const { data: offerData } = await supabase
+      .from('product_offers')
+      .select(`
+        id,
+        offer_id,
+        offer_name,
+        price,
+        products:product_id (
+          id,
+          name,
+          external_id,
+          delivery_group_id
+        )
+      `)
+      .eq('offer_id', Product.offer_id)
+      .eq('is_active', true)
+      .single();
+    
+    if (offerData) {
+      offer = offerData;
+      product = offerData.products;
+      console.log('[kiwify-webhook] ✅ Produto encontrado via offer_id:', Product.offer_id);
+    }
+  }
+  
+  // FALLBACK: Buscar por external_id (compatibilidade com sistema antigo)
+  if (!product) {
+    const { data: productData } = await supabase
+      .from('products')
+      .select('id, name, external_id, delivery_group_id')
+      .eq('external_id', Product.product_id)
+      .single();
+    
+    product = productData;
+    
+    if (product) {
+      console.log('[kiwify-webhook] ⚠️ Produto encontrado via external_id (fallback):', Product.product_id);
+    }
+  }
 
   let playbook_ids: string[] = [];
   
   if (!product) {
-    console.warn(`[kiwify-webhook] ⚠️ Produto não mapeado - ID Kiwify: ${Product.product_id}`);
+    console.warn(`[kiwify-webhook] ⚠️ Produto não mapeado - Offer ID: ${Product.offer_id || 'N/A'}, Product ID: ${Product.product_id}`);
     
     await supabase
       .from('interactions')
@@ -207,10 +247,11 @@ async function handlePaidOrder(
         customer_id: contact.id,
         type: 'note',
         channel: 'other',
-        content: `⚠️ Produto não mapeado no sistema - ID Kiwify: ${Product.product_id}`,
+        content: `⚠️ Produto/Oferta não mapeado - Offer: ${Product.offer_id || 'N/A'}, Product: ${Product.product_id}`,
         metadata: {
           product_name: Product.product_name,
           product_id: Product.product_id,
+          offer_id: Product.offer_id,
           unmapped: true
         }
       });
@@ -260,6 +301,9 @@ async function handlePaidOrder(
       content: `✅ Venda aprovada via Kiwify: ${Product.product_name} (Novo Cliente)`,
       metadata: {
         product: Product.product_name,
+        product_id: Product.product_id,
+        offer_id: Product.offer_id || null,
+        offer_name: offer?.offer_name || null,
         value: Commissions.product_base_price,
         order_id,
         kiwify_customer_id: Customer.id,
@@ -305,12 +349,44 @@ async function handleUpsellOrder(
     })
     .eq('id', existingContact.id);
 
-  // 3. Buscar produto e playbooks via grupo de entrega
-  const { data: product } = await supabase
-    .from('products')
-    .select('id, name, external_id, delivery_group_id')
-    .eq('external_id', Product.product_id)
-    .single();
+  // 3. Buscar produto e playbooks (NOVA LÓGICA: offer_id primeiro)
+  let product = null;
+  let offer = null;
+  
+  if (Product.offer_id) {
+    const { data: offerData } = await supabase
+      .from('product_offers')
+      .select(`
+        id,
+        offer_id,
+        offer_name,
+        price,
+        products:product_id (
+          id,
+          name,
+          external_id,
+          delivery_group_id
+        )
+      `)
+      .eq('offer_id', Product.offer_id)
+      .eq('is_active', true)
+      .single();
+    
+    if (offerData) {
+      offer = offerData;
+      product = offerData.products;
+    }
+  }
+  
+  if (!product) {
+    const { data: productData } = await supabase
+      .from('products')
+      .select('id, name, external_id, delivery_group_id')
+      .eq('external_id', Product.product_id)
+      .single();
+    
+    product = productData;
+  }
 
   // 4. Iniciar playbook(s) do novo produto (pular etapa de login)
   let playbook_ids: string[] = [];
@@ -378,6 +454,9 @@ async function handleUpsellOrder(
       content: `💰 UPSELL: ${Product.product_name} adicionado à conta - LTV: R$ ${newLtv.toFixed(2)}`,
       metadata: {
         product: Product.product_name,
+        product_id: Product.product_id,
+        offer_id: Product.offer_id || null,
+        offer_name: offer?.offer_name || null,
         value: Commissions.product_base_price,
         order_id,
         upsell: true,

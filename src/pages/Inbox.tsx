@@ -120,7 +120,7 @@ export default function Inbox() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden min-w-0">
       <div className="flex-none border-b-2 border-slate-200 dark:border-border px-4 py-3 bg-card">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Caixa de Entrada</h2>

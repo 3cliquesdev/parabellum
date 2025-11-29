@@ -30,7 +30,16 @@ serve(async (req) => {
     );
 
     const { report_type, filters, format }: ReportRequest = await req.json();
-    console.log('Generating report:', { report_type, filters, format });
+    console.log('[generate-report] Starting:', { report_type, filters, format });
+
+    // Validação de inputs
+    if (!report_type) {
+      throw new Error('report_type é obrigatório');
+    }
+
+    if (!format || !['csv', 'pdf'].includes(format)) {
+      throw new Error('format deve ser "csv" ou "pdf"');
+    }
 
     let data: any[] = [];
     let fileName = '';
@@ -91,6 +100,14 @@ serve(async (req) => {
         throw new Error(`Unknown report type: ${report_type}`);
     }
 
+    console.log('[generate-report] Data fetched:', data?.length || 0, 'rows');
+
+    // Fallback para dados vazios
+    if (!data || data.length === 0) {
+      console.warn('[generate-report] No data found for filters:', filters);
+      data = [];
+    }
+
     if (format === 'csv') {
       const csv = convertToCSV(data);
       return new Response(csv, {
@@ -111,9 +128,17 @@ serve(async (req) => {
     }
 
   } catch (error: any) {
-    console.error('Error generating report:', error);
+    console.error('[generate-report] ERROR:', error);
+    console.error('[generate-report] Stack:', error.stack);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao gerar relatório';
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: errorMessage,
+        details: error.stack,
+        timestamp: new Date().toISOString()
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

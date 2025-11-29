@@ -194,7 +194,7 @@ export default function ConversationList({
   onSelectConversation,
 }: ConversationListProps) {
   return (
-    <div className="w-80 flex-none border-r bg-card border-border flex flex-col h-full overflow-hidden">
+    <div className="w-72 lg:w-80 shrink-0 border-r bg-card border-border flex flex-col h-full overflow-hidden">
       <div className="flex-none p-4 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground">Conversas</h2>
       </div>

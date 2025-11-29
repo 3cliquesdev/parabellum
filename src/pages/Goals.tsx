@@ -1,6 +1,5 @@
 import { useUserRole } from "@/hooks/useUserRole";
-import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Target, Calendar } from "lucide-react";
 import { GoalDialog } from "@/components/GoalDialog";
@@ -13,19 +12,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function Goals() {
   const { role, loading: roleLoading } = useUserRole();
-  const navigate = useNavigate();
   
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   const { data: goals, isLoading } = useGoals(selectedMonth, selectedYear);
-
-  // Redirect sales_rep users - only admin and manager can access
-  useEffect(() => {
-    if (!roleLoading && role !== null && role === 'sales_rep') {
-      navigate('/');
-    }
-  }, [roleLoading, role, navigate]);
 
   if (roleLoading) {
     return (
@@ -37,10 +28,6 @@ export default function Goals() {
         <Skeleton className="h-64 w-full" />
       </div>
     );
-  }
-
-  if (role === 'sales_rep') {
-    return null;
   }
 
   const monthNames = [

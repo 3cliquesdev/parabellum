@@ -39,6 +39,32 @@ serve(async (req) => {
     }
 
     console.log('[send-email] Sending email via Resend API...');
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); padding: 30px; text-align: center;">
+              <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png" 
+                   alt="PARABELLUM" 
+                   style="max-width: 200px; height: auto;" />
+            </div>
+            <div style="padding: 30px; background: #f8fafc;">
+              ${html}
+            </div>
+            <div style="background: #1e3a5f; padding: 20px; text-align: center;">
+              <p style="color: #94a3b8; margin: 0; font-size: 12px;">
+                Equipe - Parabellum
+              </p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
     const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -49,7 +75,7 @@ serve(async (req) => {
         from: 'Seu Armazém Drop <contato@parabellum.work>',
         to: [`${to_name} <${to}>`],
         subject,
-        html,
+        html: emailHtml,
         tags: [
           { name: 'customer_id', value: customer_id }
         ]

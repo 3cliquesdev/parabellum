@@ -111,16 +111,33 @@ serve(async (req) => {
             to: [report.email],
             subject: `📊 ${report.report_name} - ${formatDate(now)}`,
             html: `
-              <h2>Relatório Automático</h2>
-              <p>Olá,</p>
-              <p>Segue em anexo o relatório <strong>${report.report_name}</strong> gerado automaticamente.</p>
-              <p><strong>Período:</strong> ${formatDate(now)}</p>
-              <p><strong>Frequência:</strong> ${translateFrequency(report.frequency)}</p>
-              <p>Este relatório é enviado automaticamente conforme sua configuração na Central de Relatórios.</p>
-              <hr />
-              <p style="color: #666; font-size: 12px;">
-                Para gerenciar seus relatórios agendados, acesse a Central de Relatórios no CRM.
-              </p>
+              <!DOCTYPE html>
+              <html>
+                <head><meta charset="utf-8"></head>
+                <body style="font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
+                  <div style="max-width: 600px; margin: 0 auto; background: white;">
+                    <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); padding: 30px; text-align: center;">
+                      <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png" 
+                           alt="PARABELLUM" 
+                           style="max-width: 200px; height: auto;" />
+                    </div>
+                    <div style="padding: 30px; background: #f8fafc;">
+                      <h2 style="color: #2563EB; margin-bottom: 20px;">📊 Relatório Agendado</h2>
+                      <p>Segue anexo o relatório <strong>${report.report_name}</strong> gerado automaticamente.</p>
+                      <p style="color: #64748b; font-size: 14px; margin-top: 30px;">
+                        Data de geração: ${formatDate(now)}<br>
+                        Frequência: ${translateFrequency(report.frequency)}<br>
+                        Período: ${report.days_back} dias
+                      </p>
+                    </div>
+                    <div style="background: #1e3a5f; padding: 20px; text-align: center;">
+                      <p style="color: #94a3b8; margin: 0; font-size: 12px;">
+                        Relatórios Automatizados - Parabellum
+                      </p>
+                    </div>
+                  </div>
+                </body>
+              </html>
             `,
             attachments: [
               {

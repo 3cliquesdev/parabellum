@@ -159,7 +159,11 @@ function ConversationItem({
                 conversation.ai_mode === 'copilot' ? "outline" : 
                 "secondary"
               }
-              className="text-xs"
+              className={cn(
+                "text-xs",
+                conversation.ai_mode === 'copilot' && "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900 dark:text-blue-200",
+                conversation.ai_mode === 'disabled' && "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+              )}
             >
               {conversation.ai_mode === 'autopilot' && "🤖"}
               {conversation.ai_mode === 'copilot' && "🧠"}
@@ -168,7 +172,7 @@ function ConversationItem({
           )}
           {sentiment && <SentimentBadge sentiment={sentiment} className="text-xs" />}
           {conversation.assigned_user && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
               {conversation.assigned_user.full_name}
             </Badge>
           )}

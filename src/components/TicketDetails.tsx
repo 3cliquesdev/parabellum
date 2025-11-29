@@ -116,8 +116,8 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
       <div className="border-b p-6 space-y-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <h2 className="text-2xl font-bold mb-2">{ticket.subject}</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">{ticket.subject}</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Criado {formatDistanceToNow(new Date(ticket.created_at), { 
                 addSuffix: true, 
                 locale: ptBR 
@@ -138,12 +138,12 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
           )}
         </div>
 
-        <p className="text-muted-foreground">{ticket.description}</p>
+        <p className="text-slate-600 dark:text-slate-400">{ticket.description}</p>
 
         {/* Controles */}
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="text-xs font-medium mb-2 block">Status</label>
+            <label className="text-xs font-medium mb-2 block text-slate-700 dark:text-slate-300">Status</label>
             <Select value={ticket.status} onValueChange={handleStatusChange}>
               <SelectTrigger>
                 <SelectValue />
@@ -159,7 +159,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
           </div>
 
           <div>
-            <label className="text-xs font-medium mb-2 block">Prioridade</label>
+            <label className="text-xs font-medium mb-2 block text-slate-700 dark:text-slate-300">Prioridade</label>
             <Select value={ticket.priority} onValueChange={handlePriorityChange}>
               <SelectTrigger>
                 <SelectValue />
@@ -174,7 +174,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
           </div>
 
           <div>
-            <label className="text-xs font-medium mb-2 block">Atribuído a</label>
+            <label className="text-xs font-medium mb-2 block text-slate-700 dark:text-slate-300">Atribuído a</label>
             <Select 
               value={ticket.assigned_to || 'unassigned'} 
               onValueChange={handleAssignChange}

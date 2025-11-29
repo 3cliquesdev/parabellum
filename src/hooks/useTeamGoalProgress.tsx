@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { useOperationalUsers } from "./useOperationalUsers";
+import { useUserRole } from "./useUserRole";
 
 export interface TeamMemberProgress {
   id: string;
@@ -24,15 +25,61 @@ export interface TeamGoalProgress {
 export function useTeamGoalProgress(month: number, year: number) {
   const { user } = useAuth();
   const { data: operationalUsers } = useOperationalUsers();
+  const { role } = useUserRole();
 
   return useQuery({
-    queryKey: ["team-goal-progress", month, year, user?.id],
+    queryKey: ["team-goal-progress", month, year, user?.id, role],
     queryFn: async () => {
       if (!user || !operationalUsers) {
         return null;
       }
 
-      console.log("📊 useTeamGoalProgress: Calculating team goals", { month, year });
+      console.log("📊 useTeamGoalProgress: Calculating team goals", { month, year, role });
+
+      // Determine team members based on manager role/department
+      let teamMemberIds: string[] = operationalUsers.map(u => u.id);
+
+      // For managers and CS managers, restrict to same department
+      if (role === "manager" || role === "cs_manager") {
+        // Get manager department
+        const { data: managerProfile, error: managerProfileError } = await supabase
+          .from("profiles")
+          .select("id, department")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (managerProfileError) throw managerProfileError;
+
+        const managerDepartment = managerProfile?.department;
+
+        if (managerDepartment) {
+          const { data: teamProfiles, error: teamProfilesError } = await supabase
+            .from("profiles")
+            .select("id, department")
+            .in(
+              "id",
+              operationalUsers.map(u => u.id)
+            );
+
+          if (teamProfilesError) throw teamProfilesError;
+
+          teamMemberIds = teamProfiles
+            .filter((profile) => profile.department === managerDepartment)
+            .map((profile) => profile.id);
+        }
+      }
+
+      const teamMemberIdSet = new Set(teamMemberIds);
+
+      // If manager has no team members, return empty progress
+      if (teamMemberIds.length === 0) {
+        return {
+          teamTargetValue: 0,
+          teamCurrentValue: 0,
+          teamPercentage: 0,
+          members: [],
+        } as TeamGoalProgress;
+      }
 
       // Fetch all sales goals for the period
       const { data: salesGoals, error: salesGoalsError } = await supabase
@@ -45,7 +92,7 @@ export function useTeamGoalProgress(month: number, year: number) {
       if (salesGoalsError) throw salesGoalsError;
 
       // Fetch all CS goals for the period
-      const formattedMonth = `${year}-${String(month).padStart(2, '0')}-01`;
+      const formattedMonth = `${year}-${String(month).padStart(2, "0")}-01`;
       const { data: csGoals, error: csGoalsError } = await supabase
         .from("cs_goals")
         .select("*")
@@ -58,8 +105,10 @@ export function useTeamGoalProgress(month: number, year: number) {
       let teamCurrentValue = 0;
       const members: TeamMemberProgress[] = [];
 
-      // Process sales goals
+      // Process sales goals only for team members
       for (const goal of salesGoals || []) {
+        if (!teamMemberIdSet.has(goal.assigned_to)) continue;
+
         teamTargetValue += goal.target_value || 0;
 
         // Calculate current value (deals won in the period)
@@ -76,14 +125,16 @@ export function useTeamGoalProgress(month: number, year: number) {
 
         if (dealsError) throw dealsError;
 
-        const currentValue = deals?.reduce((sum, deal) => sum + (deal.value || 0), 0) || 0;
+        const currentValue =
+          deals?.reduce((sum, deal) => sum + (deal.value || 0), 0) || 0;
         teamCurrentValue += currentValue;
 
-        const percentage = goal.target_value > 0 ? (currentValue / goal.target_value) * 100 : 0;
-        
-        let status: 'ahead' | 'on_track' | 'behind' = 'behind';
-        if (percentage >= 100) status = 'ahead';
-        else if (percentage >= 75) status = 'on_track';
+        const percentage =
+          goal.target_value > 0 ? (currentValue / goal.target_value) * 100 : 0;
+
+        let status: "ahead" | "on_track" | "behind" = "behind";
+        if (percentage >= 100) status = "ahead";
+        else if (percentage >= 75) status = "on_track";
 
         members.push({
           id: goal.assigned_to,
@@ -97,8 +148,10 @@ export function useTeamGoalProgress(month: number, year: number) {
         });
       }
 
-      // Process CS goals (GMV target)
+      // Process CS goals (GMV target) only for team members
       for (const goal of csGoals || []) {
+        if (!teamMemberIdSet.has(goal.consultant_id)) continue;
+
         teamTargetValue += goal.target_gmv || 0;
 
         // Calculate current GMV (total LTV of consultant's active clients)
@@ -110,17 +163,24 @@ export function useTeamGoalProgress(month: number, year: number) {
 
         if (contactsError) throw contactsError;
 
-        const currentValue = contacts?.reduce((sum, contact) => sum + (contact.total_ltv || 0), 0) || 0;
+        const currentValue =
+          contacts?.reduce(
+            (sum, contact) => sum + (contact.total_ltv || 0),
+            0
+          ) || 0;
         teamCurrentValue += currentValue;
 
-        const percentage = goal.target_gmv > 0 ? (currentValue / goal.target_gmv) * 100 : 0;
-        
-        let status: 'ahead' | 'on_track' | 'behind' = 'behind';
-        if (percentage >= 100) status = 'ahead';
-        else if (percentage >= 75) status = 'on_track';
+        const percentage =
+          goal.target_gmv > 0 ? (currentValue / goal.target_gmv) * 100 : 0;
 
-        // Get consultant profile
-        const consultant = operationalUsers?.find(u => u.id === goal.consultant_id);
+        let status: "ahead" | "on_track" | "behind" = "behind";
+        if (percentage >= 100) status = "ahead";
+        else if (percentage >= 75) status = "on_track";
+
+        // Get consultant profile from operationalUsers
+        const consultant = operationalUsers.find(
+          (u) => u.id === goal.consultant_id
+        );
 
         members.push({
           id: goal.consultant_id,
@@ -134,12 +194,18 @@ export function useTeamGoalProgress(month: number, year: number) {
         });
       }
 
-      const teamPercentage = teamTargetValue > 0 ? (teamCurrentValue / teamTargetValue) * 100 : 0;
+      const teamPercentage =
+        teamTargetValue > 0 ? (teamCurrentValue / teamTargetValue) * 100 : 0;
 
       // Sort members by percentage descending (closest to goal first)
       members.sort((a, b) => b.percentage - a.percentage);
 
-      console.log("✅ Team goal progress calculated:", { teamTargetValue, teamCurrentValue, teamPercentage, membersCount: members.length });
+      console.log("✅ Team goal progress calculated:", {
+        teamTargetValue,
+        teamCurrentValue,
+        teamPercentage,
+        membersCount: members.length,
+      });
 
       return {
         teamTargetValue,

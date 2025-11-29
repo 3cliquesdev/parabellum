@@ -33,6 +33,9 @@ import { NavLink } from "@/components/NavLink";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "next-themes";
+import logoLight from "@/assets/logo-parabellum-light.png";
+import logoDark from "@/assets/logo-parabellum-dark.png";
 import { useAvailabilityStatus } from "@/hooks/useAvailabilityStatus";
 import { useNavigate } from "react-router-dom";
 import { useSLAAlerts } from "@/hooks/useSLAAlerts";
@@ -226,11 +229,12 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { isAdmin, isManager, isSalesRep, isConsultant, isSupportAgent, isSupportManager, isFinancialManager, isCSManager, isGeneralManager, loading } = useUserRole();
-  const { signOut, user } = useAuth();
+  const { signOut, user, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { status: availabilityStatus } = useAvailabilityStatus();
   const { data: slaAlerts = [] } = useSLAAlerts();
+  const { theme } = useTheme();
 
   // Determine mode label and color
   const getModeInfo = () => {
@@ -313,14 +317,12 @@ export function AppSidebar() {
       <SidebarHeader className="border-b-2 border-slate-200 dark:border-border p-4">
         {!collapsed ? (
           <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary">
-                <span className="text-xl font-bold text-primary-foreground">C</span>
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-foreground">CRM</h2>
-                <p className="text-xs text-muted-foreground">Sistema de Vendas</p>
-              </div>
+            <div className="flex items-center justify-center">
+              <img 
+                src={theme === "dark" ? logoDark : logoLight} 
+                alt="Parabellum Logo" 
+                className="h-12 w-auto object-contain"
+              />
             </div>
             <Badge variant="secondary" className="w-full justify-center text-xs font-medium">
               {modeInfo.label}
@@ -328,8 +330,12 @@ export function AppSidebar() {
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary mx-auto">
-              <span className="text-xl font-bold text-primary-foreground">C</span>
+            <div className="flex items-center justify-center mx-auto">
+              <img 
+                src={theme === "dark" ? logoDark : logoLight} 
+                alt="Parabellum Logo" 
+                className="h-10 w-auto object-contain"
+              />
             </div>
             <div className={`h-1 w-8 rounded mx-auto ${modeInfo.color}`} />
           </div>
@@ -637,7 +643,7 @@ export function AppSidebar() {
               <div className="relative">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
-                    {user?.email?.[0].toUpperCase() || "U"}
+                    {profile?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || "U"}
                   </AvatarFallback>
                 </Avatar>
                 {/* Status indicator dot */}
@@ -647,7 +653,7 @@ export function AppSidebar() {
               </div>
               <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-medium text-foreground truncate">
-                  {user?.email?.split("@")[0] || "Usuário"}
+                  {profile?.full_name || "Usuário"}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
                   {user?.email || ""}
@@ -688,7 +694,7 @@ export function AppSidebar() {
               <div className="relative">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
-                    {user?.email?.[0].toUpperCase() || "U"}
+                    {profile?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || "U"}
                   </AvatarFallback>
                 </Avatar>
                 {/* Status indicator dot */}

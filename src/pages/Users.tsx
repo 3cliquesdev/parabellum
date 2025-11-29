@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { UserPlus, Edit, MoreVertical, Ban, CheckCircle, Archive, ArchiveRestore } from "lucide-react";
+import { UserPlus, Edit, MoreVertical, Ban, CheckCircle, Archive, ArchiveRestore, Mail } from "lucide-react";
 import UserDialog from "@/components/UserDialog";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { ArchiveUserDialog } from "@/components/ArchiveUserDialog";
@@ -21,6 +21,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 import { useUsers } from "@/hooks/useUsers";
 import { useManageUserStatus } from "@/hooks/useManageUserStatus";
+import { useResendWelcomeEmail } from "@/hooks/useResendWelcomeEmail";
 
 // Import type from useUsers hook
 type UserWithRole = NonNullable<ReturnType<typeof useUsers>['data']>[number];
@@ -38,6 +39,7 @@ export default function Users() {
   const { role, isAdmin, loading: roleLoading } = useUserRole();
   const { data: users, isLoading } = useUsers();
   const manageUserStatus = useManageUserStatus();
+  const resendWelcomeEmail = useResendWelcomeEmail();
 
   // Redirect if not admin - only after role is loaded and confirmed not admin
   useEffect(() => {
@@ -83,6 +85,10 @@ export default function Users() {
 
   const handleUnarchive = (user: UserWithRole) => {
     manageUserStatus.mutate({ user_id: user.id, action: 'unarchive' });
+  };
+
+  const handleResendEmail = (user: UserWithRole) => {
+    resendWelcomeEmail.mutate({ user_id: user.id });
   };
 
   const handleBlockConfirm = (reason: string) => {
@@ -231,6 +237,9 @@ export default function Users() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleEditClick(user)}>
                           <Edit className="mr-2 h-4 w-4" /> Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleResendEmail(user)}>
+                          <Mail className="mr-2 h-4 w-4 text-blue-500" /> Reenviar Email
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {user.is_blocked ? (

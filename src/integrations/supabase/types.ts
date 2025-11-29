@@ -2019,34 +2019,55 @@ export type Database = {
       }
       profiles: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
           availability_status: Database["public"]["Enums"]["availability_status"]
           avatar_url: string | null
+          block_reason: string | null
+          blocked_at: string | null
+          blocked_by: string | null
           created_at: string | null
           department: string
           full_name: string
           id: string
+          is_archived: boolean | null
+          is_blocked: boolean | null
           job_title: string | null
           last_status_change: string | null
           updated_at: string | null
         }
         Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
           availability_status?: Database["public"]["Enums"]["availability_status"]
           avatar_url?: string | null
+          block_reason?: string | null
+          blocked_at?: string | null
+          blocked_by?: string | null
           created_at?: string | null
           department: string
           full_name: string
           id: string
+          is_archived?: boolean | null
+          is_blocked?: boolean | null
           job_title?: string | null
           last_status_change?: string | null
           updated_at?: string | null
         }
         Update: {
+          archived_at?: string | null
+          archived_by?: string | null
           availability_status?: Database["public"]["Enums"]["availability_status"]
           avatar_url?: string | null
+          block_reason?: string | null
+          blocked_at?: string | null
+          blocked_by?: string | null
           created_at?: string | null
           department?: string
           full_name?: string
           id?: string
+          is_archived?: boolean | null
+          is_blocked?: boolean | null
           job_title?: string | null
           last_status_change?: string | null
           updated_at?: string | null

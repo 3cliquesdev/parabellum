@@ -9,6 +9,11 @@ interface UserWithRole {
   full_name?: string;
   job_title?: string;
   avatar_url?: string;
+  is_blocked?: boolean;
+  blocked_at?: string;
+  block_reason?: string;
+  is_archived?: boolean;
+  archived_at?: string;
 }
 
 export function useUsers() {

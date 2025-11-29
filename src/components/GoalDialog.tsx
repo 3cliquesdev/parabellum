@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { useCreateGoal } from "@/hooks/useCreateGoal";
 import { useCreateCSGoal } from "@/hooks/useCreateCSGoal";
-import { useUsers } from "@/hooks/useUsers";
+import { useOperationalUsers } from "@/hooks/useOperationalUsers";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useState } from "react";
 import { Plus } from "lucide-react";
@@ -48,17 +48,18 @@ export function GoalDialog() {
     },
   });
 
-  const { data: users } = useUsers();
+  const { data: operationalUsers, isLoading: isLoadingUsers } = useOperationalUsers();
   const { role: currentUserRole } = useUserRole();
   const createGoal = useCreateGoal();
   const createCSGoal = useCreateCSGoal();
 
-  // Filter users based on current user's role
-  // CS Manager sees only consultants, other managers see both sales_rep and consultant
-  const eligibleUsers = users?.filter(u => {
+  // Filtrar usuários baseado no role do gestor logado
+  // CS Manager vê apenas consultores, outros gestores veem vendedores e consultores
+  const eligibleUsers = operationalUsers?.filter(u => {
     if (currentUserRole === "cs_manager") {
       return u.role === "consultant";
     }
+    // Admin/Manager veem sales_rep e consultant (support_agent opcional)
     return u.role === "sales_rep" || u.role === "consultant";
   });
 
@@ -126,16 +127,22 @@ export function GoalDialog() {
           {/* Seleção de Colaborador */}
           <div>
             <Label htmlFor="assigned_to">Colaborador *</Label>
-            <Select onValueChange={handleUserSelect} required>
+            <Select onValueChange={handleUserSelect} required disabled={isLoadingUsers}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o colaborador" />
+                <SelectValue placeholder={isLoadingUsers ? "Carregando..." : "Selecione o colaborador"} />
               </SelectTrigger>
               <SelectContent>
-                {eligibleUsers?.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.full_name} ({user.role === "sales_rep" ? "Vendedor" : "Consultor CS"})
+                {eligibleUsers && eligibleUsers.length > 0 ? (
+                  eligibleUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.full_name} ({user.role === "sales_rep" ? "Vendedor" : user.role === "consultant" ? "Consultor CS" : "Suporte"})
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-users" disabled>
+                    Nenhum colaborador operacional encontrado
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>

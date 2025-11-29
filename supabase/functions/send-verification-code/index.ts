@@ -70,36 +70,98 @@ serve(async (req) => {
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'Parabellum Security <sistema@parabellum.work>',
       to: [email],
-      subject: '🔐 Código de Verificação - Primeiro Acesso Parabellum',
+      subject: '🔐 CÓDIGO DE VERIFICAÇÃO: Acesso ao Sistema Parabellum',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb;">
+          
+          <!-- HEADER COM LOGO -->
           <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); padding: 30px; text-align: center;">
             <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png" 
                  alt="PARABELLUM" 
                  style="max-width: 200px; height: auto;" />
           </div>
           
-          <div style="padding: 30px; background: #f8fafc;">
-            <h2 style="color: #1e3a5f;">Código de Verificação</h2>
-            <p>Olá! Você está ativando sua conta no Sistema Parabellum.</p>
-            <p>Use o código abaixo para confirmar sua identidade:</p>
+          <!-- CONTAINER PRINCIPAL -->
+          <div style="background: #ffffff; border: 1px solid #e5e7eb; margin: 0; padding: 40px 30px;">
             
-            <div style="background: white; border-radius: 8px; padding: 30px; text-align: center; margin: 20px 0; border: 2px solid #2563EB;">
-              <h1 style="font-size: 48px; letter-spacing: 12px; margin: 0; color: #2563EB; font-weight: bold;">${code}</h1>
+            <!-- SAUDAÇÃO -->
+            <p style="color: #1f2937; font-size: 16px; margin: 0 0 20px 0;">
+              Prezado(a) Colaborador(a),
+            </p>
+            
+            <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+              Recebemos uma solicitação de acesso à sua conta no <strong>Ecossistema Parabellum</strong>.
+            </p>
+            
+            <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+              Para garantir a segurança dos seus dados, utilize o código de verificação única (OTP) abaixo para completar o login:
+            </p>
+            
+            <!-- CÓDIGO OTP - DESTAQUE PRINCIPAL -->
+            <div style="background: #f3f4f6; border-radius: 12px; padding: 30px; text-align: center; margin: 30px 0; border: 2px solid #d1d5db;">
+              <p style="color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 15px 0;">
+                Seu Código de Verificação
+              </p>
+              <h1 style="font-family: 'Courier New', Consolas, monospace; font-size: 42px; letter-spacing: 16px; margin: 0; color: #111827; font-weight: bold;">
+                ${code.split('').join(' ')}
+              </h1>
+              <p style="color: #dc2626; font-size: 13px; margin: 15px 0 0 0; font-weight: 500;">
+                ⏱️ Código válido por 10 minutos
+              </p>
             </div>
             
-            <p style="color: #dc2626; font-weight: bold;">⏱️ Este código expira em 10 minutos.</p>
+            <!-- ALERTA DE SEGURANÇA -->
+            <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 30px 0; border-radius: 0 8px 8px 0;">
+              <h3 style="color: #92400e; font-size: 14px; margin: 0 0 12px 0;">
+                ⚠️ ALERTA DE SEGURANÇA
+              </h3>
+              <p style="color: #78350f; font-size: 13px; line-height: 1.6; margin: 0 0 10px 0;">
+                <strong>Nunca compartilhe:</strong> A equipe Parabellum <u>jamais</u> solicitará este código por telefone, WhatsApp ou SMS.
+              </p>
+              <p style="color: #78350f; font-size: 13px; line-height: 1.6; margin: 0;">
+                <strong>Não foi você?</strong> Se você não solicitou este código, sua credencial pode estar comprometida. 
+                Altere sua senha imediatamente e notifique o departamento de segurança.
+              </p>
+            </div>
             
-            <p style="color: #64748b; font-size: 14px;">
-              Se você não solicitou este código, entre em contato com o suporte imediatamente.
+            <!-- DETALHES DA SOLICITAÇÃO -->
+            <div style="background: #f9fafb; border-radius: 8px; padding: 20px; margin: 30px 0; border: 1px solid #e5e7eb;">
+              <h4 style="color: #374151; font-size: 13px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;">
+                📋 Detalhes da Solicitação
+              </h4>
+              <table style="width: 100%; font-size: 13px; color: #4b5563;">
+                <tr>
+                  <td style="padding: 5px 0; color: #6b7280;">Sistema:</td>
+                  <td style="padding: 5px 0; font-weight: 500;">Parabellum CRM</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; color: #6b7280;">Data/Hora:</td>
+                  <td style="padding: 5px 0; font-weight: 500;">${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; color: #6b7280;">Tipo:</td>
+                  <td style="padding: 5px 0; font-weight: 500;">Verificação de Identidade</td>
+                </tr>
+              </table>
+            </div>
+            
+            <!-- AVISO FINAL -->
+            <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 30px 0 0 0; font-style: italic;">
+              Esta é uma mensagem automática de segurança. Por favor, não responda.
+            </p>
+            
+          </div>
+          
+          <!-- FOOTER -->
+          <div style="background: #1e3a5f; padding: 25px; text-align: center;">
+            <p style="color: #94a3b8; margin: 0 0 5px 0; font-size: 13px; font-weight: 500;">
+              🛡️ Departamento de Segurança da Informação
+            </p>
+            <p style="color: #64748b; margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">
+              PARABELLUM SECURITY
             </p>
           </div>
           
-          <div style="background: #1e3a5f; padding: 20px; text-align: center;">
-            <p style="color: #94a3b8; margin: 0; font-size: 12px;">
-              Equipe de Segurança - Parabellum
-            </p>
-          </div>
         </div>
       `,
     });

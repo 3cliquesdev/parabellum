@@ -42,19 +42,34 @@ export default function SetupPassword() {
     setError("");
 
     try {
-      const { data, error } = await supabase.functions.invoke('send-verification-code', {
+      const response = await supabase.functions.invoke('send-verification-code', {
         body: { email: userEmail }
       });
 
-      if (error) throw error;
-      if (!data.success && data.error) throw new Error(data.error);
+      if (response.error) {
+        // Handle rate limit error (429)
+        if (response.error.message?.includes("Edge Function returned a non-2xx status code")) {
+          throw new Error("Limite de códigos atingido. Aguarde 1 hora antes de tentar novamente.");
+        }
+        throw response.error;
+      }
+      
+      if (!response.data?.success && response.data?.error) {
+        throw new Error(response.data.error);
+      }
 
       toast.success("Código enviado para seu email!");
       setStep("verify_otp");
     } catch (err: any) {
       console.error("Erro ao enviar código:", err);
-      setError(err.message || "Erro ao enviar código de verificação");
-      toast.error("Falha ao enviar código");
+      const errorMessage = err.message || "Erro ao enviar código de verificação";
+      setError(errorMessage);
+      
+      if (errorMessage.includes("Limite de códigos atingido")) {
+        toast.error("⏱️ Limite atingido! Aguarde 1 hora.", { duration: 5000 });
+      } else {
+        toast.error("Falha ao enviar código");
+      }
     } finally {
       setLoading(false);
     }

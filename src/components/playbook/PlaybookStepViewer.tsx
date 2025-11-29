@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, FileSpreadsheet, File as FileIcon, ImageIcon, Download, Lock, CheckCircle } from 'lucide-react';
 import ReactPlayer from 'react-player';
 import confetti from 'canvas-confetti';
+import DOMPurify from 'dompurify';
 import { QuizComponent } from './QuizComponent';
 
 /**
@@ -91,9 +92,41 @@ export function PlaybookStepViewer({
 
   const videoUrl = extractVideoUrl(video_url || "");
 
-  // Normalize iframe HTML to force 100% dimensions
+  // SECURITY: Sanitize rich_content to prevent XSS attacks
+  const sanitizedContent = useMemo(() => {
+    if (!rich_content) return '';
+    
+    return DOMPurify.sanitize(rich_content, {
+      ALLOWED_TAGS: [
+        'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li',
+        'a', 'img',
+        'blockquote',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'div', 'span'
+      ],
+      ALLOWED_ATTR: [
+        'href', 'target', 'rel',
+        'src', 'alt', 'width', 'height',
+        'class'
+      ],
+      ALLOW_DATA_ATTR: false,
+      ALLOW_UNKNOWN_PROTOCOLS: false
+    });
+  }, [rich_content]);
+
+  // SECURITY: Normalize and sanitize iframe HTML to force 100% dimensions
   const normalizeIframe = (iframeHtml: string): string => {
-    return iframeHtml
+    // First sanitize the iframe to allow only trusted video domains
+    const sanitized = DOMPurify.sanitize(iframeHtml, {
+      ALLOWED_TAGS: ['iframe'],
+      ALLOWED_ATTR: ['src', 'width', 'height', 'frameborder', 'allowfullscreen', 'allow'],
+      ALLOWED_URI_REGEXP: /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com|player\.vimeo\.com|dailymotion\.com|wistia\.com)/i
+    });
+    
+    // Then normalize dimensions
+    return sanitized
       .replace(/width=["']\d+["']/gi, 'width="100%"')
       .replace(/height=["']\d+["']/gi, 'height="100%"')
       .replace(/<iframe/gi, '<iframe style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"');
@@ -195,11 +228,11 @@ export function PlaybookStepViewer({
         </div>
       )}
 
-      {/* Rich Content */}
-      {rich_content && (
+      {/* Rich Content - SANITIZED */}
+      {sanitizedContent && (
         <div
           className="prose prose-sm max-w-none prose-headings:text-foreground prose-p:text-foreground prose-li:text-foreground prose-strong:text-foreground prose-a:text-primary"
-          dangerouslySetInnerHTML={{ __html: rich_content }}
+          dangerouslySetInnerHTML={{ __html: sanitizedContent }}
         />
       )}
 

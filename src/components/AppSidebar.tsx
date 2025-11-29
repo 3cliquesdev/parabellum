@@ -106,6 +106,7 @@ const csManagerAnalysisItems = [
 const consultantMainItems = [
   { title: "Minha Carteira", href: "/my-portfolio", icon: Briefcase },
   { title: "Inbox", href: "/inbox", icon: MessageCircle },
+  { title: "Minhas Metas", href: "/goals", icon: Target },
 ];
 
 const consultantClientItems = [

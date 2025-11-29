@@ -134,7 +134,7 @@ export default function ContactDialog({ contact, trigger, onOpenChange }: Contac
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
             {contact ? "Editar Contato" : "Novo Contato"}
           </DialogTitle>
         </DialogHeader>
@@ -145,7 +145,9 @@ export default function ContactDialog({ contact, trigger, onOpenChange }: Contac
               name="first_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome</FormLabel>
+                  <FormLabel className="text-sm font-medium">
+                    Nome <span className="text-destructive">*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="João" {...field} />
                   </FormControl>
@@ -158,7 +160,9 @@ export default function ContactDialog({ contact, trigger, onOpenChange }: Contac
               name="last_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Sobrenome</FormLabel>
+                  <FormLabel className="text-sm font-medium">
+                    Sobrenome <span className="text-destructive">*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="Silva" {...field} />
                   </FormControl>

@@ -63,7 +63,7 @@ export function GoalDialog() {
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Criar Nova Meta de Vendas</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">Criar Nova Meta de Vendas</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>

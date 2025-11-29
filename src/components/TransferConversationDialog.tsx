@@ -104,13 +104,13 @@ export default function TransferConversationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
             <ArrowRightLeft className="h-5 w-5" />
             Transferir Conversa
           </DialogTitle>
-          <DialogDescription>
-            Selecione o usuário que ficará responsável por esta conversa com{" "}
-            <strong>{conversation.contacts.first_name} {conversation.contacts.last_name}</strong>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Selecione o departamento e o agente que ficará responsável por esta conversa com{" "}
+            <strong className="text-foreground">{conversation.contacts.first_name} {conversation.contacts.last_name}</strong>
           </DialogDescription>
         </DialogHeader>
 

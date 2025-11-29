@@ -74,7 +74,9 @@ serve(async (req) => {
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); padding: 30px; text-align: center;">
-            <h1 style="color: white; margin: 0;">🔐 Sistema Parabellum</h1>
+            <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png" 
+                 alt="PARABELLUM" 
+                 style="max-width: 200px; height: auto;" />
           </div>
           
           <div style="padding: 30px; background: #f8fafc;">

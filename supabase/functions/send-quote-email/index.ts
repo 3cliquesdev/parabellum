@@ -88,9 +88,14 @@ serve(async (req) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
       </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(135deg, #2563EB 0%, #1e40af 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 28px;">📄 Nova Proposta Comercial</h1>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 650px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); padding: 30px; text-align: center;">
+          <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png" 
+               alt="PARABELLUM" 
+               style="max-width: 200px; height: auto;" />
+        </div>
+        <div style="background: #2563EB; color: white; padding: 20px; text-align: center;">
+          <h1 style="margin: 0; font-size: 24px;">💼 Nova Proposta Comercial</h1>
           <p style="margin: 10px 0 0 0; opacity: 0.9;">Proposta #${quote.quote_number}</p>
         </div>
 
@@ -162,9 +167,10 @@ serve(async (req) => {
           </div>
         </div>
 
-        <div style="text-align: center; margin-top: 20px; padding: 20px; color: #6b7280; font-size: 12px;">
-          <p style="margin: 5px 0;">Este é um email automático, por favor não responda.</p>
-          <p style="margin: 5px 0;">© ${new Date().getFullYear()} Todos os direitos reservados.</p>
+        <div style="background: #1e3a5f; padding: 20px; text-align: center;">
+          <p style="color: #94a3b8; margin: 0; font-size: 12px;">
+            Equipe Comercial - Parabellum
+          </p>
         </div>
       </body>
       </html>

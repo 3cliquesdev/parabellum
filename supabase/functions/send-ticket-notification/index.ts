@@ -59,13 +59,20 @@ function generateTicketEmailHTML(
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f6f9fc; padding: 40px 0;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          <!-- Header -->
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <!-- Logo Header -->
           <tr>
-            <td style="padding: 40px 48px 20px;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #333;">
-                🎫 Ticket Criado com Sucesso!
-              </h1>
+            <td style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); padding: 30px; text-align: center;">
+              <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png" 
+                   alt="PARABELLUM" 
+                   style="max-width: 200px; height: auto;" />
+            </td>
+          </tr>
+          
+          <!-- Ticket Header -->
+          <tr>
+            <td style="background: ${priorityColor}; padding: 20px; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">🎫 Ticket Criado</h1>
             </td>
           </tr>
           
@@ -158,10 +165,9 @@ function generateTicketEmailHTML(
 
           <!-- Footer -->
           <tr>
-            <td style="padding: 32px 48px 48px;">
-              <p style="margin: 0; font-size: 14px; line-height: 24px; color: #6b7280;">
-                Atenciosamente,<br>
-                <strong>Equipe de Suporte</strong>
+            <td style="background: #1e3a5f; padding: 20px; text-align: center;">
+              <p style="color: #94a3b8; margin: 0; font-size: 12px;">
+                Equipe de Suporte - Parabellum
               </p>
             </td>
           </tr>

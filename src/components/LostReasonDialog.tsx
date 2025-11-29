@@ -62,12 +62,14 @@ export default function LostReasonDialog({
     <Dialog open={open} onOpenChange={handleCancel}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-destructive">⚠️ Marcar Negócio como Perdido</DialogTitle>
-          <DialogDescription>
-            Você está marcando <strong>"{dealTitle}"</strong> como perdido.
+          <DialogTitle className="text-lg font-semibold text-destructive">
+            ⚠️ Marcar Negócio como Perdido
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Você está marcando <strong className="text-foreground">"{dealTitle}"</strong> como perdido.
             <br />
-            <span className="text-muted-foreground text-xs">
-              Por favor, informe o motivo para análise futura.
+            <span className="text-xs">
+              Por favor, informe o motivo para análise e melhoria contínua.
             </span>
           </DialogDescription>
         </DialogHeader>

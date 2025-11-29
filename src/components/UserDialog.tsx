@@ -204,11 +204,13 @@ export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditMode ? "Editar Usuário" : "Criar Novo Usuário"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg font-semibold">
+            {isEditMode ? "Editar Usuário" : "Criar Novo Usuário"}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
             {isEditMode 
-              ? "Atualize as informações do usuário. Email não pode ser alterado."
-              : "Adicione um novo usuário ao sistema. A senha será temporária e o usuário poderá alterá-la após o primeiro login."
+              ? "Atualize as informações do usuário. O email não pode ser alterado."
+              : "Adicione um novo usuário ao sistema. A senha será temporária e deverá ser alterada no primeiro acesso."
             }
           </DialogDescription>
         </DialogHeader>

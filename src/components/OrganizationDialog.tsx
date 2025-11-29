@@ -79,7 +79,7 @@ export default function OrganizationDialog({ organization, trigger, onOpenChange
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
             {organization ? "Editar Organização" : "Nova Organização"}
           </DialogTitle>
         </DialogHeader>
@@ -90,7 +90,9 @@ export default function OrganizationDialog({ organization, trigger, onOpenChange
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome</FormLabel>
+                  <FormLabel className="text-sm font-medium">
+                    Nome <span className="text-destructive">*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="Acme Corp" {...field} />
                   </FormControl>

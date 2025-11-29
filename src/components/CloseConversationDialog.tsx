@@ -64,13 +64,13 @@ export default function CloseConversationDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
+          <AlertDialogTitle className="flex items-center gap-2 text-lg font-semibold">
             <CheckCircle className="h-5 w-5 text-green-600" />
             Encerrar Conversa
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-4">
+          <AlertDialogDescription className="space-y-4 text-sm text-muted-foreground">
             <p>
-              Você está encerrando a conversa com <strong>{customerName}</strong>.
+              Você está encerrando a conversa com <strong className="text-foreground">{customerName}</strong>.
             </p>
             
             <div className="flex items-start space-x-2 rounded-lg border border-border bg-muted/50 p-3">

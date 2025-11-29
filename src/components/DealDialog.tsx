@@ -196,7 +196,7 @@ export default function DealDialog({ deal, trigger, onOpenChange, prefilledConta
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
             {deal ? "Editar Negócio" : "Novo Negócio"}
           </DialogTitle>
         </DialogHeader>
@@ -207,9 +207,11 @@ export default function DealDialog({ deal, trigger, onOpenChange, prefilledConta
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Título</FormLabel>
+                  <FormLabel className="text-sm font-medium">
+                    Título <span className="text-destructive">*</span>
+                  </FormLabel>
                   <FormControl>
-                    <Input placeholder="Nome do negócio" {...field} />
+                    <Input placeholder="Ex: Proposta de consultoria para ABC Corp" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

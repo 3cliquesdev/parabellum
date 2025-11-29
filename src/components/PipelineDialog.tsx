@@ -110,7 +110,7 @@ export default function PipelineDialog({ trigger }: PipelineDialogProps) {
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
             {editingPipeline ? "Editar Pipeline" : "Gerenciar Pipelines"}
           </DialogTitle>
         </DialogHeader>
@@ -119,7 +119,7 @@ export default function PipelineDialog({ trigger }: PipelineDialogProps) {
           {/* Lista de pipelines existentes */}
           {!editingPipeline && (
             <div className="space-y-2">
-              <h3 className="text-sm font-medium">Pipelines Existentes:</h3>
+              <h3 className="text-sm font-semibold text-foreground">Pipelines Existentes</h3>
               <div className="space-y-2">
                 {pipelines?.map((pipeline) => (
                   <div
@@ -167,7 +167,9 @@ export default function PipelineDialog({ trigger }: PipelineDialogProps) {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome do Pipeline</FormLabel>
+                    <FormLabel className="text-sm font-medium">
+                      Nome do Pipeline <span className="text-destructive">*</span>
+                    </FormLabel>
                     <FormControl>
                       <Input placeholder="Ex: Vendas B2B, Pós-Vendas..." {...field} />
                     </FormControl>

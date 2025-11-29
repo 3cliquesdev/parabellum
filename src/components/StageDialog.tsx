@@ -71,7 +71,7 @@ export default function StageDialog({ trigger, pipelineId, stage }: StageDialogP
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
             {stage ? "Editar Etapa" : "Nova Etapa"}
           </DialogTitle>
         </DialogHeader>
@@ -83,7 +83,9 @@ export default function StageDialog({ trigger, pipelineId, stage }: StageDialogP
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nome da Etapa</FormLabel>
+                  <FormLabel className="text-sm font-medium">
+                    Nome da Etapa <span className="text-destructive">*</span>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="Ex: Qualificação, Proposta..." {...field} />
                   </FormControl>

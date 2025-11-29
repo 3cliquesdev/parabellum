@@ -154,7 +154,7 @@ export function ProductDialog({ open, onOpenChange, product }: ProductDialogProp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
             {product ? "Editar Produto" : "Novo Produto"}
           </DialogTitle>
         </DialogHeader>
@@ -167,7 +167,9 @@ export function ProductDialog({ open, onOpenChange, product }: ProductDialogProp
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome do Produto</FormLabel>
+                    <FormLabel className="text-sm font-medium">
+                      Nome do Produto <span className="text-destructive">*</span>
+                    </FormLabel>
                     <FormControl>
                       <Input placeholder="Ex: Mentoria High Ticket" {...field} />
                     </FormControl>
@@ -181,7 +183,7 @@ export function ProductDialog({ open, onOpenChange, product }: ProductDialogProp
                 name="price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Preço (R$)</FormLabel>
+                    <FormLabel className="text-sm font-medium">Preço (R$)</FormLabel>
                     <FormControl>
                       <Input
                         type="number"

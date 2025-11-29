@@ -111,7 +111,9 @@ export default function ActivityDialog({ trigger, contactId, dealId, activity, o
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{activity ? "Editar Atividade" : "Nova Atividade"}</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
+            {activity ? "Editar Atividade" : "Nova Atividade"}
+          </DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

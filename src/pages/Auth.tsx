@@ -11,21 +11,31 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
 import logoLight from "@/assets/logo-parabellum-light.png";
-
 const authSchema = z.object({
-  email: z.string().email({ message: "E-mail inválido" }),
-  password: z.string().min(6, { message: "Senha deve ter no mínimo 6 caracteres" }),
+  email: z.string().email({
+    message: "E-mail inválido"
+  }),
+  password: z.string().min(6, {
+    message: "Senha deve ter no mínimo 6 caracteres"
+  })
 });
-
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user, loading: authLoading } = useAuth();
-  const { role, loading: roleLoading } = useUserRole();
+  const {
+    toast
+  } = useToast();
+  const {
+    user,
+    loading: authLoading
+  } = useAuth();
+  const {
+    role,
+    loading: roleLoading
+  } = useUserRole();
 
   // Redirect based on role after authentication
   useEffect(() => {
@@ -52,44 +62,38 @@ export default function Auth() {
       }
     }
   }, [user, role, authLoading, roleLoading, navigate]);
-
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    
-    const validation = authSchema.safeParse({ email, password });
+    const validation = authSchema.safeParse({
+      email,
+      password
+    });
     if (!validation.success) {
       setError(validation.error.errors[0].message);
       return;
     }
-
     setLoading(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const {
+      error: signInError
+    } = await supabase.auth.signInWithPassword({
       email,
-      password,
+      password
     });
-
     setLoading(false);
-
     if (signInError) {
-      setError(
-        signInError.message === "Invalid login credentials" 
-          ? "E-mail ou senha incorretos" 
-          : signInError.message
-      );
+      setError(signInError.message === "Invalid login credentials" ? "E-mail ou senha incorretos" : signInError.message);
     } else {
       toast({
         title: "Login realizado!",
-        description: "Bem-vindo de volta.",
+        description: "Bem-vindo de volta."
       });
       // Redirection will be handled by useEffect based on role
     }
   };
-
-  return (
-    <div className="min-h-screen flex">
+  return <div className="min-h-screen flex">
       {/* Left Column - Brand (Hidden on Mobile) */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-slate-900 via-slate-800 to-primary/20 p-12 flex-col justify-between overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-slate-900 via-slate-800 to-primary/20 p-12 flex-col justify-between overflow-hidden px-[4px]">
         {/* Decorative grid pattern */}
         <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:50px_50px]" />
         
@@ -97,20 +101,14 @@ export default function Auth() {
         <div className="relative z-10 flex flex-col justify-center flex-1">
           {/* Logo */}
           <div className="mb-12">
-            <img 
-              src={logoLight} 
-              alt="PARABELLUM" 
-              className="h-20 w-auto mb-8"
-            />
+            <img src={logoLight} alt="PARABELLUM" className="h-20 w-auto mb-8" />
             <div className="h-1 w-24 bg-primary/60 rounded-full" />
           </div>
 
           {/* Epic Quote */}
           <div className="space-y-6">
-            <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
-              Acelere suas vendas
-              <br />
-              <span className="text-primary/90">com inteligência.</span>
+            <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">Para os concorrentes, uma equipe grande é um custo, e eles cortam. Para nós, a minha equipe é a minha força, e nós temos um mercado para dominar.".<br />
+              <span className="text-primary/90 text-justify">Para os concorrentes, uma equipe grande é um custo, e eles cortam. Para nós, a minha equipe é a minha força, e nós temos um mercado para dominar.".</span>
             </h1>
             
             <p className="text-xl italic text-slate-300 font-light">
@@ -132,29 +130,19 @@ export default function Auth() {
         <div className="w-full max-w-md space-y-8">
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8 text-center">
-            <img 
-              src={logoLight} 
-              alt="PARABELLUM" 
-              className="h-16 w-auto mx-auto mb-4"
-            />
+            <img src={logoLight} alt="PARABELLUM" className="h-16 w-auto mx-auto mb-4" />
           </div>
 
           {/* Header */}
           <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-foreground mb-2">
-              Bem-vindo de volta
-            </h2>
-            <p className="text-muted-foreground">
-              Insira suas credenciais para acessar o painel de comando.
-            </p>
+            <h2 className="text-3xl font-bold text-foreground mb-2">Bem-vindo de ao Q.G</h2>
+            <p className="text-muted-foreground">Insira suas credenciais </p>
           </div>
 
           {/* Error Alert */}
-          {error && (
-            <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2">
+          {error && <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2">
               <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+            </Alert>}
 
           {/* Form */}
           <form onSubmit={handleSignIn} className="space-y-6">
@@ -162,58 +150,29 @@ export default function Auth() {
               <Label htmlFor="email" className="text-foreground font-medium">
                 Email
               </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-                className="h-12 rounded-xl text-base transition-all"
-              />
+              <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} className="h-12 rounded-xl text-base transition-all" />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password" className="text-foreground font-medium">
                 Senha
               </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                className="h-12 rounded-xl text-base transition-all"
-              />
+              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required disabled={loading} className="h-12 rounded-xl text-base transition-all" />
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full h-11 text-base font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all" 
-              disabled={loading}
-            >
-              {loading ? (
-                <>
+            <Button type="submit" className="w-full h-11 text-base font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all" disabled={loading}>
+              {loading ? <>
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   Entrando...
-                </>
-              ) : (
-                "Entrar no Sistema"
-              )}
+                </> : "Entrar no Sistema"}
             </Button>
           </form>
 
           {/* Footer */}
           <div className="text-center text-sm text-muted-foreground pt-4 border-t border-border">
-            <p>
-              Acesso restrito. Entre em contato com o administrador.
-            </p>
+            <p>Acesso restrito a convidados</p>
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 }

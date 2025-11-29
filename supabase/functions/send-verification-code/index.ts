@@ -76,7 +76,7 @@ serve(async (req) => {
           
         <!-- HEADER COM LOGO -->
         <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); padding: 30px; text-align: center;">
-          <img src="https://parabellum.work/images/logo-parabellum-email.png" 
+          <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png" 
                alt="PARABELLUM" 
                style="max-width: 200px; height: auto;" />
         </div>
@@ -158,7 +158,7 @@ serve(async (req) => {
             <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto 15px auto;">
               <tr>
                 <td style="padding: 0; text-align: right;">
-                  <img src="https://parabellum.work/images/logo-parabellum-email.png" 
+                  <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png" 
                        alt="PARABELLUM" 
                        style="display: block; max-width: 110px; height: auto;" />
                 </td>
@@ -166,7 +166,7 @@ serve(async (req) => {
                   <span style="color: #64748b; font-size: 20px; line-height: 1;">/</span>
                 </td>
                 <td style="padding: 0; text-align: left;">
-                  <img src="https://parabellum.work/images/logo-3cliques-email.png" 
+                  <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-3cliques-email.png" 
                        alt="3 CLIQUES" 
                        style="display: block; max-width: 90px; height: auto;" />
                 </td>

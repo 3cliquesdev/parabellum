@@ -1923,6 +1923,50 @@ export type Database = {
           },
         ]
       }
+      product_offers: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          offer_id: string
+          offer_name: string
+          price: number | null
+          product_id: string
+          source: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          offer_id: string
+          offer_name: string
+          price?: number | null
+          product_id: string
+          source?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          offer_id?: string
+          offer_name?: string
+          price?: number | null
+          product_id?: string
+          source?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_offers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           created_at: string

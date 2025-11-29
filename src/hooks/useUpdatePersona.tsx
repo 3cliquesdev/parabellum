@@ -22,6 +22,8 @@ export const useUpdatePersona = () => {
         is_active?: boolean;
       };
     }) => {
+      console.log('[useUpdatePersona] Updating persona:', id, data);
+      
       const { data: persona, error } = await supabase
         .from("ai_personas")
         .update(data)
@@ -29,7 +31,12 @@ export const useUpdatePersona = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useUpdatePersona] Error:', error);
+        throw error;
+      }
+      
+      console.log('[useUpdatePersona] Success:', persona);
       return persona;
     },
     onSuccess: () => {
@@ -40,9 +47,10 @@ export const useUpdatePersona = () => {
       });
     },
     onError: (error) => {
+      console.error('[useUpdatePersona] onError:', error);
       toast({
         title: "Erro ao atualizar persona",
-        description: error.message,
+        description: error.message || "Erro desconhecido. Verifique as permissões RLS.",
         variant: "destructive",
       });
     },

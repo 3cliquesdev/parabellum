@@ -373,15 +373,17 @@ export default function Deals() {
       </div>
 
       <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <ScrollArea className="w-full whitespace-nowrap rounded-lg">
-          <div className="flex gap-4 pb-4">
-            {stages.map((stage) => {
-              const stageDeals = filteredDeals?.filter((deal) => deal.stage_id === stage.id) || [];
-              return <KanbanColumn key={stage.id} stage={stage} deals={stageDeals as Deal[]} />;
-            })}
-          </div>
-          <ScrollBar orientation="horizontal" className="h-3" />
-        </ScrollArea>
+        <div className="overflow-x-auto pb-4">
+          <ScrollArea className="w-full">
+            <div className="flex gap-4 min-w-max">
+              {stages.map((stage) => {
+                const stageDeals = filteredDeals?.filter((deal) => deal.stage_id === stage.id) || [];
+                return <KanbanColumn key={stage.id} stage={stage} deals={stageDeals as Deal[]} />;
+              })}
+            </div>
+            <ScrollBar orientation="horizontal" className="h-3 !visible" />
+          </ScrollArea>
+        </div>
 
         <DragOverlay>
           {activeDeal ? <KanbanCard deal={activeDeal} /> : null}

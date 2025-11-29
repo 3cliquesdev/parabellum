@@ -215,7 +215,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
       
       {conversation ? (
         <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-950">
-          <div className="flex-none border-b border-slate-200 dark:border-slate-800 px-4 py-3 bg-white dark:bg-slate-900/95 backdrop-blur flex items-center gap-3 justify-between">
+          <div className="flex-none border-b border-slate-200 dark:border-slate-800 px-4 py-3 !bg-white dark:!bg-slate-900/95 backdrop-blur flex items-center gap-3 justify-between">
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 shrink-0">
                 {contact?.avatar_url ? (

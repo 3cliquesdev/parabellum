@@ -1,4 +1,5 @@
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Target, Calendar, Users } from "lucide-react";
@@ -15,9 +16,11 @@ import { CSGoalDialog } from "@/components/CSGoalDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { CSGoalsWidget } from "@/components/widgets/CSGoalsWidget";
 
 export default function Goals() {
-  const { role, loading: roleLoading } = useUserRole();
+  const { role, isConsultant, loading: roleLoading } = useUserRole();
+  const { user } = useAuth();
   
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -113,28 +116,36 @@ export default function Goals() {
 
           {/* Tab: Minhas Metas */}
           <TabsContent value="goals" className="mt-6">
-            {isLoading ? (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-96" />
-                ))}
-              </div>
-            ) : goals && goals.length > 0 ? (
-              <div className="space-y-8">
-                {goals.map((goal) => (
-                  <GoalCard key={goal.id} goal={goal} />
-                ))}
-              </div>
+            {isConsultant && !role?.includes('admin') && !role?.includes('manager') ? (
+              // Consultant view: CS Goals Widget
+              <CSGoalsWidget />
             ) : (
-              <div className="text-center py-12">
-                <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Nenhuma meta encontrada</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {role === "admin" 
-                    ? "Crie uma nova meta para começar a acompanhar o progresso da equipe." 
-                    : "Aguardando definição de metas pelo administrador."}
-                </p>
-              </div>
+              // Sales Rep/Admin view: Sales Goals Cards
+              <>
+                {isLoading ? (
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-96" />
+                    ))}
+                  </div>
+                ) : goals && goals.length > 0 ? (
+                  <div className="space-y-8">
+                    {goals.map((goal) => (
+                      <GoalCard key={goal.id} goal={goal} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhuma meta encontrada</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {role === "admin" 
+                        ? "Crie uma nova meta para começar a acompanhar o progresso da equipe." 
+                        : "Aguardando definição de metas pelo administrador."}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
 

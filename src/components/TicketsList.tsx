@@ -94,7 +94,7 @@ export function TicketsList({ tickets, selectedTicketId, onSelectTicket }: Ticke
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <p className="font-medium text-sm truncate">
+                  <p className="font-medium text-sm truncate text-slate-900 dark:text-white">
                     {ticket.customer.first_name} {ticket.customer.last_name}
                   </p>
                   <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -105,7 +105,7 @@ export function TicketsList({ tickets, selectedTicketId, onSelectTicket }: Ticke
                   </span>
                 </div>
 
-                <h4 className="font-semibold text-sm mb-1 truncate">{ticket.subject}</h4>
+                <h4 className="font-semibold text-sm mb-1 truncate text-slate-900 dark:text-white">{ticket.subject}</h4>
                 
                 <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mb-2">
                   {ticket.description}
@@ -127,7 +127,7 @@ export function TicketsList({ tickets, selectedTicketId, onSelectTicket }: Ticke
                   </Badge>
 
                   {ticket.assigned_user && (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-slate-600 dark:text-slate-400">
                       → {ticket.assigned_user.full_name}
                     </span>
                   )}

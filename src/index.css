@@ -24,8 +24,8 @@
     --primary: 221.2 83.2% 53.3%;      /* Tech Blue */
     --primary-foreground: 210 40% 98%; /* Texto Branco */
     
-    --secondary: 210 40% 96.1%;        /* Cinza muito suave */
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 210 40% 93%;          /* Cinza levemente mais escuro */
+    --secondary-foreground: 222.2 47.4% 15%; /* Texto MAIS escuro */
     
     --border: 214.3 31.8% 83%;         /* Bordas Enterprise */
     --input: 214.3 31.8% 83%;

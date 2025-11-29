@@ -240,7 +240,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
                     </Badge>
                   )}
                   {conversation.assigned_user && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
                       {conversation.assigned_user.full_name}
                     </Badge>
                   )}
@@ -248,14 +248,18 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
                     <>
                       <Badge 
                         variant={isAutopilot ? "default" : isCopilot ? "outline" : "secondary"}
-                        className="text-xs"
+                        className={cn(
+                          "text-xs",
+                          isCopilot && "border-blue-500 text-blue-700 dark:text-blue-300",
+                          isDisabled && "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                        )}
                       >
                         {isAutopilot && "🤖 Autopilot"}
                         {isCopilot && "🧠 Copilot"}
                         {isDisabled && "👤 Manual"}
                       </Badge>
                       {activePersona && isAutopilot && (
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-xs bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
                           {activePersona.name}
                         </Badge>
                   )}

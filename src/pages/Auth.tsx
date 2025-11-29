@@ -107,7 +107,7 @@ export default function Auth() {
 
           {/* Epic Quote */}
           <div className="space-y-6">
-            <h1 className="text-4xl font-bold text-white leading-tight md:text-4xl font-sans">Para os concorrentes, uma equipe grande é um custo, e eles cortam. Para nós, TIME é uma força, e nós temos um mercado para dominar.".<br />
+            <h1 className="text-4xl font-bold text-white leading-tight md:text-4xl font-sans">Para os concorrentes, uma equipe grande é um custo, e eles cortam. Para nós, a minha equipe haa minhauipe é a nós inha força, e nós temos um mercado para dominar.".<br />
               <span className="text-primary/90 text-justify">Para nós, a minha equipe é a minha força, e nós temos um mercado para dominar.".</span>
             </h1>
             

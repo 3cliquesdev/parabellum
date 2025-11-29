@@ -127,7 +127,7 @@ export default function PipelineDialog({ trigger }: PipelineDialogProps) {
                     className="flex items-center justify-between p-3 border-2 border-border rounded-lg bg-card"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{pipeline.name}</span>
+                      <span className="font-medium text-foreground">{pipeline.name}</span>
                       {pipeline.is_default && (
                         <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
                           Padrão

@@ -101,14 +101,14 @@ export default function Auth() {
         <div className="relative z-10 flex flex-col justify-center flex-1">
           {/* Logo */}
           <div className="mb-12">
-            <img src={logoLight} alt="PARABELLUM" className="h-20 w-auto mb-8" />
+            <img src={logoLight} alt="PARABELLUM" className="h-20 w-auto mb-8 object-contain" />
             <div className="h-1 w-24 bg-primary/60 rounded-full" />
           </div>
 
           {/* Epic Quote */}
           <div className="space-y-6">
-            <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">Para os concorrentes, uma equipe grande é um custo, e eles cortam. Para nós, a minha equipe é a minha força, e nós temos um mercado para dominar.".<br />
-              <span className="text-primary/90 text-justify">Para os concorrentes, uma equipe grande é um custo, e eles cortam. Para nós, a minha equipe é a minha força, e nós temos um mercado para dominar.".</span>
+            <h1 className="text-4xl font-bold text-white leading-tight md:text-4xl font-sans">Para os concorrentes, uma equipe grande é um custo, e eles cortam. Para nós, TIME é uma força, e nós temos um mercado para dominar.".<br />
+              <span className="text-primary/90 text-justify">Para nós, a minha equipe é a minha força, e nós temos um mercado para dominar.".</span>
             </h1>
             
             <p className="text-xl italic text-slate-300 font-light">

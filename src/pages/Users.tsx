@@ -5,11 +5,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { UserPlus, Edit } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { UserPlus, Edit, MoreVertical, Ban, CheckCircle, Archive, ArchiveRestore } from "lucide-react";
 import UserDialog from "@/components/UserDialog";
+import { BlockUserDialog } from "@/components/BlockUserDialog";
+import { ArchiveUserDialog } from "@/components/ArchiveUserDialog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 import { useUsers } from "@/hooks/useUsers";
+import { useManageUserStatus } from "@/hooks/useManageUserStatus";
 
 // Import type from useUsers hook
 type UserWithRole = NonNullable<ReturnType<typeof useUsers>['data']>[number];
@@ -17,10 +28,16 @@ type UserWithRole = NonNullable<ReturnType<typeof useUsers>['data']>[number];
 export default function Users() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'blocked' | 'archived'>('all');
+  
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { role, isAdmin, loading: roleLoading } = useUserRole();
   const { data: users, isLoading } = useUsers();
+  const manageUserStatus = useManageUserStatus();
 
   // Redirect if not admin - only after role is loaded and confirmed not admin
   useEffect(() => {
@@ -49,6 +66,43 @@ export default function Users() {
       setEditingUser(null);
     }
   };
+
+  const handleBlock = (user: UserWithRole) => {
+    setSelectedUser(user);
+    setBlockDialogOpen(true);
+  };
+
+  const handleUnblock = (user: UserWithRole) => {
+    manageUserStatus.mutate({ user_id: user.id, action: 'unblock' });
+  };
+
+  const handleArchive = (user: UserWithRole) => {
+    setSelectedUser(user);
+    setArchiveDialogOpen(true);
+  };
+
+  const handleUnarchive = (user: UserWithRole) => {
+    manageUserStatus.mutate({ user_id: user.id, action: 'unarchive' });
+  };
+
+  const handleBlockConfirm = (reason: string) => {
+    if (selectedUser) {
+      manageUserStatus.mutate({ user_id: selectedUser.id, action: 'block', reason });
+    }
+  };
+
+  const handleArchiveConfirm = () => {
+    if (selectedUser) {
+      manageUserStatus.mutate({ user_id: selectedUser.id, action: 'archive' });
+    }
+  };
+
+  const filteredUsers = users?.filter(user => {
+    if (statusFilter === 'blocked') return user.is_blocked;
+    if (statusFilter === 'archived') return user.is_archived;
+    if (statusFilter === 'active') return !user.is_blocked && !user.is_archived;
+    return true;
+  });
 
   if (roleLoading || isLoading) {
     return (
@@ -94,10 +148,22 @@ export default function Users() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Usuários Cadastrados</CardTitle>
-          <CardDescription>
-            Lista de todos os usuários com acesso ao sistema
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Usuários Cadastrados</CardTitle>
+              <CardDescription>
+                Lista de todos os usuários com acesso ao sistema
+              </CardDescription>
+            </div>
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+              <TabsList>
+                <TabsTrigger value="all">Todos</TabsTrigger>
+                <TabsTrigger value="active">Ativos</TabsTrigger>
+                <TabsTrigger value="blocked">Bloqueados</TabsTrigger>
+                <TabsTrigger value="archived">Arquivados</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -111,8 +177,8 @@ export default function Users() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users?.map((user) => (
-                <TableRow key={user.id}>
+              {filteredUsers?.map((user) => (
+                <TableRow key={user.id} className={user.is_blocked || user.is_archived ? 'opacity-60' : ''}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="h-12 w-12 border-2 border-primary/20 transition-all hover:border-primary hover:scale-105">
@@ -127,7 +193,19 @@ export default function Users() {
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <span className="font-medium block">{user.full_name || "Sem nome"}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{user.full_name || "Sem nome"}</span>
+                          {user.is_blocked && (
+                            <Badge variant="destructive" className="text-xs">
+                              🚫 Bloqueado
+                            </Badge>
+                          )}
+                          {user.is_archived && (
+                            <Badge variant="secondary" className="text-xs">
+                              📦 Arquivado
+                            </Badge>
+                          )}
+                        </div>
                         <span className="text-xs text-muted-foreground">{user.email}</span>
                       </div>
                     </div>
@@ -144,19 +222,44 @@ export default function Users() {
                     {new Date(user.created_at).toLocaleDateString("pt-BR")}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleEditClick(user)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditClick(user)}>
+                          <Edit className="mr-2 h-4 w-4" /> Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {user.is_blocked ? (
+                          <DropdownMenuItem onClick={() => handleUnblock(user)}>
+                            <CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Desbloquear
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={() => handleBlock(user)} className="text-destructive">
+                            <Ban className="mr-2 h-4 w-4" /> Bloquear
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        {user.is_archived ? (
+                          <DropdownMenuItem onClick={() => handleUnarchive(user)}>
+                            <ArchiveRestore className="mr-2 h-4 w-4" /> Desarquivar
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={() => handleArchive(user)}>
+                            <Archive className="mr-2 h-4 w-4" /> Arquivar
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
-              {(!users || users.length === 0) && (
+              {(!filteredUsers || filteredUsers.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
                     Nenhum usuário encontrado
                   </TableCell>
                 </TableRow>
@@ -171,6 +274,20 @@ export default function Users() {
         onOpenChange={handleDialogClose} 
         onSuccess={handleSuccess}
         editUser={editingUser}
+      />
+
+      <BlockUserDialog
+        open={blockDialogOpen}
+        onOpenChange={setBlockDialogOpen}
+        userName={selectedUser?.full_name || selectedUser?.email || ''}
+        onConfirm={handleBlockConfirm}
+      />
+
+      <ArchiveUserDialog
+        open={archiveDialogOpen}
+        onOpenChange={setArchiveDialogOpen}
+        userName={selectedUser?.full_name || selectedUser?.email || ''}
+        onConfirm={handleArchiveConfirm}
       />
     </div>
   );

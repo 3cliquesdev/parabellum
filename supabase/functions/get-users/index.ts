@@ -90,6 +90,11 @@ Deno.serve(async (req) => {
           job_title: profile?.job_title,
           avatar_url: profile?.avatar_url,
           department: profile?.department,
+          is_blocked: profile?.is_blocked || false,
+          blocked_at: profile?.blocked_at,
+          block_reason: profile?.block_reason,
+          is_archived: profile?.is_archived || false,
+          archived_at: profile?.archived_at,
         };
       })
     );

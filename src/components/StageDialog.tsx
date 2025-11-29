@@ -21,6 +21,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useCreateStage } from "@/hooks/useCreateStage";
 import { useUpdateStage } from "@/hooks/useUpdateStage";
+import { useDeleteStage } from "@/hooks/useDeleteStage";
+import { Trash2 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 const stageSchema = z.object({
@@ -40,6 +42,7 @@ export default function StageDialog({ trigger, pipelineId, stage }: StageDialogP
   
   const createStage = useCreateStage();
   const updateStage = useUpdateStage();
+  const deleteStage = useDeleteStage();
 
   const form = useForm<StageFormData>({
     resolver: zodResolver(stageSchema),
@@ -62,6 +65,14 @@ export default function StageDialog({ trigger, pipelineId, stage }: StageDialogP
     }
     form.reset();
     setOpen(false);
+  };
+
+  const handleDelete = async () => {
+    if (!stage) return;
+    if (confirm("Tem certeza que deseja deletar esta etapa? Negócios vinculados não poderão ser deletados.")) {
+      await deleteStage.mutateAsync(stage.id);
+      setOpen(false);
+    }
   };
 
   return (
@@ -94,9 +105,23 @@ export default function StageDialog({ trigger, pipelineId, stage }: StageDialogP
               )}
             />
 
-            <Button type="submit" disabled={createStage.isPending || updateStage.isPending}>
-              {stage ? "Salvar Alterações" : "Criar Etapa"}
-            </Button>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={createStage.isPending || updateStage.isPending}>
+                {stage ? "Salvar Alterações" : "Criar Etapa"}
+              </Button>
+              
+              {stage && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  onClick={handleDelete}
+                  disabled={deleteStage.isPending}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </form>
         </Form>
       </DialogContent>

@@ -74,12 +74,18 @@ serve(async (req) => {
       html: `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb;">
           
-          <!-- HEADER COM LOGO -->
-          <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); padding: 30px; text-align: center;">
-            <img src="https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png" 
-                 alt="PARABELLUM" 
-                 style="max-width: 200px; height: auto;" />
-          </div>
+        <!-- HEADER COM LOGO -->
+        <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); padding: 30px; text-align: center;">
+          <p style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 3px; margin: 0 0 15px 0;">
+            ECOSSISTEMA PARABELLUM
+          </p>
+          <img src="https://parabellum.work/images/logo-parabellum-email.png" 
+               alt="PARABELLUM" 
+               style="max-width: 180px; height: auto;" />
+          <p style="color: #64748b; font-size: 11px; margin: 15px 0 0 0;">
+            operado por <strong style="color: #94a3b8;">3 Cliques</strong>
+          </p>
+        </div>
           
           <!-- CONTAINER PRINCIPAL -->
           <div style="background: #ffffff; border: 1px solid #e5e7eb; margin: 0; padding: 40px 30px;">
@@ -153,12 +159,12 @@ serve(async (req) => {
           </div>
           
           <!-- FOOTER -->
-          <div style="background: #1e3a5f; padding: 25px; text-align: center;">
-            <p style="color: #94a3b8; margin: 0 0 5px 0; font-size: 13px; font-weight: 500;">
-              🛡️ Departamento de Segurança da Informação
+          <div style="background: #1e3a5f; padding: 20px; text-align: center;">
+            <p style="color: #94a3b8; margin: 0 0 5px 0; font-size: 12px;">
+              Departamento de Segurança - PARABELLUM
             </p>
-            <p style="color: #64748b; margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">
-              PARABELLUM SECURITY
+            <p style="color: #64748b; margin: 0; font-size: 11px;">
+              Ambiente Seguro. Operado por 3 Cliques.
             </p>
           </div>
           

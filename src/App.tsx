@@ -26,6 +26,7 @@ import PublicForm from "./pages/PublicForm";
 import PublicChat from "./pages/PublicChat";
 import PublicChatWindow from "./pages/PublicChatWindow";
 import ChatLinksSettings from "./pages/ChatLinksSettings";
+import WidgetBuilder from "./pages/WidgetBuilder";
 import Auth from "./pages/Auth";
 import Automations from "./pages/Automations";
 import Analytics from "./pages/Analytics";
@@ -156,6 +157,7 @@ const App = () => {
             <Route path="/settings/delivery-groups" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><Layout><DeliveryGroups /></Layout></ProtectedRoute>} />
             <Route path="/settings/departments" element={<ProtectedRoute allowedRoles={["admin", "general_manager"]}><Layout><Departments /></Layout></ProtectedRoute>} />
             <Route path="/settings/chat-links" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><Layout><ChatLinksSettings /></Layout></ProtectedRoute>} />
+            <Route path="/settings/widget-builder" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><Layout><WidgetBuilder /></Layout></ProtectedRoute>} />
             <Route path="/settings/knowledge-import" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><Layout><KnowledgeImport /></Layout></ProtectedRoute>} />
             <Route path="/settings/audit-logs" element={<ProtectedRoute allowedRoles={["admin", "general_manager"]}><Layout><AuditLogs /></Layout></ProtectedRoute>} />
             <Route path="/settings/whatsapp" element={<ProtectedRoute allowedRoles={["admin", "consultant"]}><WhatsAppSettings /></ProtectedRoute>} />

@@ -228,13 +228,16 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MessageCircle className="h-5 w-5" />
-              Links de Chat Público
+              Widget Builder
             </CardTitle>
-            <CardDescription>Gere links diretos para departamentos</CardDescription>
+            <CardDescription>Personalize e gere código do chat para seu site</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button variant="outline" onClick={() => navigate('/settings/chat-links')}>
-              Gerenciar Links
+          <CardContent className="space-y-2">
+            <Button variant="outline" onClick={() => navigate('/settings/widget-builder')} className="w-full">
+              Widget Builder
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/settings/chat-links')} className="w-full">
+              Links Diretos
             </Button>
           </CardContent>
         </Card>

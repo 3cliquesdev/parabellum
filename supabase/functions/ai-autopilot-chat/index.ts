@@ -876,12 +876,29 @@ Responda APENAS: skip ou search`
         ? `Status atual: ${contact.status} - ainda não é cliente`
         : null;
     
-    // 🚨 BARREIRA DE ENTRADA FINANCEIRA
+    // 🚨 PORTEIRO FINANCEIRO - Exige OTP SEMPRE para transações financeiras
     const isFinancialRequest = FINANCIAL_BARRIER_KEYWORDS.some(keyword =>
       customerMessage.toLowerCase().includes(keyword)
     );
-    const isClientIdentified = !!contactEmail || !!contactCPF;
-    const financialBarrierActive = isFinancialRequest && !isClientIdentified;
+
+    // Verificar se tem verificação OTP recente (últimas 24h) para ESTE contato
+    const { data: recentVerification } = await supabaseClient
+      .from('email_verifications')
+      .select('*')
+      .eq('email', contactEmail)
+      .eq('verified', true)
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const hasRecentOTPVerification = !!recentVerification;
+
+    // BARREIRA FINANCEIRA: Pedido financeiro SEM verificação OTP recente
+    const financialBarrierActive = isFinancialRequest && !hasRecentOTPVerification;
+
+    // Flag para mostrar dados sensíveis (só após OTP verificado)
+    const canShowFinancialData = hasRecentOTPVerification && isRealCustomer;
     
     // FASE 3 & 4: Identity Wall + Diferenciação Cliente vs Lead
     let identityWallNote = '';
@@ -930,19 +947,36 @@ Este cliente NÃO tem email cadastrado no sistema (é um LEAD, não um cliente e
 Se o cliente insistir em pular a verificação, explique que é uma política de segurança obrigatória.`;
     }
     
-    // 🚨 BARREIRA FINANCEIRA ATIVADA
+    // 🔐 PORTEIRO FINANCEIRO ATIVADO
     if (financialBarrierActive) {
-      identityWallNote += `\n\n**🚨🚨🚨 BARREIRA FINANCEIRA ATIVADA 🚨🚨🚨**
-O cliente fez uma solicitação financeira MAS NÃO ESTÁ IDENTIFICADO.
+      if (contactHasEmail) {
+        // Cenário: Tem email mas não tem OTP recente → Pedir verificação
+        identityWallNote += `\n\n**🔐🔐🔐 PORTEIRO FINANCEIRO - VERIFICAÇÃO OBRIGATÓRIA 🔐🔐🔐**
+O cliente pediu uma operação FINANCEIRA (${customerMessage}).
+Ele TEM email cadastrado (${contactEmail}), MAS precisa verificar identidade via OTP.
 
 **RESPOSTA OBRIGATÓRIA:**
-"Para tratar de assuntos financeiros, preciso localizar seu cadastro. 
-Qual o seu **email de compra**?"
+"Para sua segurança, preciso confirmar sua identidade antes de prosseguir com operações financeiras. 
+Vou enviar um código de verificação para ${contactEmail}. Aguarde..."
 
-→ Use a tool update_customer_email quando ele fornecer
+→ Use a tool update_customer_email com o email ${contactEmail} para disparar o OTP
+→ NÃO mostre CPF, Nome, Saldo ou qualquer dado sensível
+→ NÃO permita criar ticket de saque
+→ AGUARDE o cliente digitar o código de 6 dígitos`;
+      } else {
+        // Cenário: Não tem email → Pedir email primeiro
+        identityWallNote += `\n\n**🚨🚨🚨 PORTEIRO FINANCEIRO - IDENTIFICAÇÃO OBRIGATÓRIA 🚨🚨🚨**
+O cliente fez uma solicitação FINANCEIRA MAS NÃO ESTÁ IDENTIFICADO.
+
+**RESPOSTA OBRIGATÓRIA:**
+"Para sua segurança, preciso validar seu cadastro antes de falar sobre valores. 
+Qual é o seu **email de compra**?"
+
+→ AGUARDE o cliente informar o email
 → NÃO fale de valores, prazos ou processos
 → NÃO crie ticket
-→ PARE AQUI até identificação completa (email + OTP)`;
+→ PARE AQUI até identificação completa`;
+      }
     }
     
     if (!identityWallNote) {
@@ -1020,13 +1054,16 @@ Você quer:
 
 **CENÁRIO B: SAQUE DE SALDO (Carteira Interna - Seu Armazém Drop)**
 
-${canRequestWithdrawal 
-  ? `✅ Cliente VERIFICADO para saque (CPF: ${maskedCPF})`
-  : `❌ BLOQUEIO: ${withdrawalBlockReason}
-     → Informe: "Para solicitar saque, você precisa ser cliente verificado com CPF cadastrado."
-     → NÃO crie ticket de saque`}
+${canShowFinancialData 
+  ? `✅ Cliente VERIFICADO via OTP - Pode prosseguir com saque
+     CPF: ${maskedCPF}
+     Saldo: ${formattedBalance}`
+  : `❌ BLOQUEIO: Cliente NÃO verificou identidade via OTP nesta sessão.
+     → NÃO mostre CPF, Nome completo ou Saldo
+     → NÃO permita criar ticket de saque
+     → Informe: "Para sua segurança, preciso verificar sua identidade primeiro. Qual seu email de compra?"`}
 
-**SE CLIENTE VERIFICADO, seguir passos:**
+**SE CLIENTE VERIFICADO via OTP, seguir passos:**
 
 1. **CONFIRMAÇÃO OBRIGATÓRIA DE DADOS:**
    Apresente os dados do cliente e peça confirmação:
@@ -1229,61 +1266,116 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
         if (toolCall.function.name === 'update_customer_email') {
           try {
             const args = JSON.parse(toolCall.function.arguments);
-            console.log('[ai-autopilot-chat] 📧 Capturando email e enviando OTP:', args.email);
+            const emailInformado = args.email.toLowerCase().trim();
+            console.log('[ai-autopilot-chat] 📧 Verificando email na base:', emailInformado);
 
-            // Validar formato do email
+            // FASE 1: Validar formato do email
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(args.email)) {
-              console.error('[ai-autopilot-chat] ❌ Email inválido:', args.email);
+            if (!emailRegex.test(emailInformado)) {
               assistantMessage = 'O email informado parece estar incorreto. Poderia verificar e me enviar novamente?';
               continue;
             }
 
-            // Update contact email (temporarily)
-            const { error: updateError } = await supabaseClient
+            // FASE 2: BUSCAR EMAIL NA BASE DE CLIENTES
+            const { data: existingCustomer, error: searchError } = await supabaseClient
               .from('contacts')
-              .update({ email: args.email })
-              .eq('id', contact.id);
+              .select('id, first_name, email, status, document')
+              .eq('email', emailInformado)
+              .single();
 
-            if (updateError) {
-              console.error('[ai-autopilot-chat] ❌ Erro ao atualizar email:', updateError);
-              assistantMessage = 'Não consegui registrar o email. Por favor, tente novamente.';
+            // CENÁRIO A: EMAIL NÃO ENCONTRADO (Não é cliente)
+            if (searchError || !existingCustomer) {
+              console.log('[ai-autopilot-chat] ❌ Email não encontrado na base:', emailInformado);
+              
+              // Registrar tentativa
+              await supabaseClient.from('interactions').insert({
+                customer_id: contact.id,
+                type: 'internal_note',
+                content: `⚠️ Tentativa de acesso financeiro com email não cadastrado: ${emailInformado}`,
+                channel: responseChannel,
+                metadata: { source: 'financial_barrier', email_not_found: true }
+              });
+
+              // TENTAR HANDOFF PARA HUMANO
+              const { data: routeResult, error: routeError } = await supabaseClient.functions.invoke('route-conversation', {
+                body: { conversationId }
+              });
+
+              if (routeError || !routeResult?.assigned_to) {
+                // Nenhum agente disponível
+                assistantMessage = `Verifiquei aqui e este email (${emailInformado}) não consta na nossa base de clientes ativos.
+
+Nossos atendentes estão offline no momento.
+⏰ **Horário de atendimento:** Segunda a Sexta, 09h às 18h.
+
+Sua conversa está na **fila prioritária** e será respondida assim que retornarmos. 🙏`;
+                
+                // Mudar para copilot (fila humana)
+                await supabaseClient
+                  .from('conversations')
+                  .update({ ai_mode: 'copilot' })
+                  .eq('id', conversationId);
+              } else {
+                assistantMessage = `Verifiquei aqui e este email não consta na nossa base de clientes ativos.
+
+Vou transferir você para um atendente que pode te ajudar a verificar seu cadastro. Aguarde um momento! 🙏`;
+              }
               continue;
             }
 
-            // Send OTP code via Edge Function
+            // CENÁRIO B: EMAIL ENCONTRADO (É cliente)
+            console.log('[ai-autopilot-chat] ✅ Cliente encontrado:', existingCustomer.first_name);
+
+            // Vincular ao contato atual (se for diferente)
+            if (existingCustomer.id !== contact.id) {
+              // Atualizar o contato da conversa para o cliente real
+              await supabaseClient
+                .from('conversations')
+                .update({ contact_id: existingCustomer.id })
+                .eq('id', conversationId);
+            }
+
+            // Enviar OTP para o email encontrado
             const { data: otpData, error: otpError } = await supabaseClient.functions.invoke('send-verification-code', {
-              body: { email: args.email }
+              body: { email: emailInformado }
             });
 
             if (otpError || !otpData?.success) {
-              console.error('[ai-autopilot-chat] ❌ Erro ao enviar OTP:', otpError);
-              assistantMessage = 'Não consegui enviar o código de verificação. Por favor, verifique o email e tente novamente.';
+              assistantMessage = 'Não consegui enviar o código de verificação. Por favor, tente novamente.';
               continue;
             }
 
-            console.log('[ai-autopilot-chat] ✅ Email registrado e OTP enviado');
+            console.log('[ai-autopilot-chat] ✅ OTP enviado para cliente verificado');
             
-            // Dev mode: include code in message
+            // Dev mode
             if (otpData.dev_mode && otpData.code) {
-              assistantMessage = `📧 Perfeito! Enviamos um código de 6 dígitos para ${args.email}.\n\n🔧 **Modo Desenvolvimento:** Seu código é ${otpData.code}\n\nPor favor, digite o código para confirmar sua identidade.`;
+              assistantMessage = `✅ Encontrei seu cadastro, ${existingCustomer.first_name}!
+
+📧 Enviei um código de 6 dígitos para **${emailInformado}**.
+
+🔧 **Modo Dev:** Seu código é ${otpData.code}
+
+Por favor, digite o código para confirmar sua identidade e prosseguir.`;
             } else {
-              assistantMessage = `📧 Perfeito! Enviamos um código de 6 dígitos para ${args.email}. Por favor, digite o código que você recebeu para confirmar sua identidade.`;
+              assistantMessage = `✅ Encontrei seu cadastro, ${existingCustomer.first_name}!
+
+📧 Enviei um código de 6 dígitos para **${emailInformado}**.
+
+Por favor, digite o código que você recebeu para confirmar sua identidade.`;
             }
             
-            // Log interaction
             await supabaseClient.from('interactions').insert({
-              customer_id: contact.id,
+              customer_id: existingCustomer.id,
               type: 'note',
-              content: `Email capturado via WhatsApp Identity Wall: ${args.email} - OTP enviado`,
-              channel: 'whatsapp',
-              metadata: { source: 'ai_autopilot_identity_wall', otp_sent: true }
+              content: `Verificação financeira iniciada - OTP enviado para ${emailInformado}`,
+              channel: responseChannel,
+              metadata: { source: 'financial_barrier', otp_sent: true }
             });
           } catch (error) {
             console.error('[ai-autopilot-chat] ❌ Erro ao processar email:', error);
             assistantMessage = 'Ocorreu um erro. Poderia me enviar o email novamente?';
           }
-        } 
+        }
         // FASE 2: Handle OTP verification
         else if (toolCall.function.name === 'verify_otp_code') {
           try {
@@ -1331,22 +1423,70 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
               .eq('id', verification.id);
 
             console.log('[ai-autopilot-chat] ✅ OTP verificado com sucesso');
-            
-            assistantMessage = `✅ Identidade verificada com sucesso! Seja bem-vindo de volta, ${contactName}! Agora posso te ajudar com o que precisar. 😊`;
-            
-            // Log interaction
-            await supabaseClient.from('interactions').insert({
-              customer_id: contact.id,
-              type: 'note',
-              content: `Identidade verificada via OTP WhatsApp - Email: ${contactEmail}`,
-              channel: 'whatsapp',
-              metadata: { source: 'ai_autopilot_identity_wall', otp_verified: true }
-            });
+
+            // FASE 4: Verificar se cliente tem CPF cadastrado
+            const { data: verifiedContact } = await supabaseClient
+              .from('contacts')
+              .select('id, first_name, document, status, account_balance')
+              .eq('email', contactEmail)
+              .single();
+
+            if (!verifiedContact?.document) {
+              // CPF NULL - Não permitir saque, transferir para humano
+              console.log('[ai-autopilot-chat] ⚠️ Cliente verificado mas sem CPF');
+              
+              assistantMessage = `✅ Sua identidade foi confirmada, ${verifiedContact?.first_name || contactName}!
+
+⚠️ Porém, seu cadastro está **incompleto** (CPF não cadastrado).
+
+Para liberar operações financeiras como saque, preciso transferir você para um especialista que vai atualizar seus dados. Aguarde um momento! 🔒`;
+
+              // Handoff para humano
+              await supabaseClient
+                .from('conversations')
+                .update({ ai_mode: 'copilot' })
+                .eq('id', conversationId);
+
+              await supabaseClient.functions.invoke('route-conversation', {
+                body: { conversationId }
+              });
+
+              await supabaseClient.from('interactions').insert({
+                customer_id: verifiedContact?.id || contact.id,
+                type: 'internal_note',
+                content: `⚠️ Cliente verificado via OTP mas SEM CPF cadastrado. Requer atualização cadastral antes de operações financeiras.`,
+                channel: responseChannel,
+                metadata: { source: 'financial_barrier', cpf_missing: true }
+              });
+            } else {
+              // CPF OK - Pode prosseguir com fluxo financeiro
+              const maskedCPFVerified = `***.***.***-${verifiedContact.document.slice(-2)}`;
+              const balanceFormatted = `R$ ${(verifiedContact.account_balance || 0).toFixed(2)}`;
+              
+              assistantMessage = `✅ Identidade verificada com sucesso, ${verifiedContact.first_name}! 🔓
+
+Agora posso te ajudar com operações financeiras. Você mencionou algo sobre saque ou reembolso. 
+
+Você quer:
+**A)** Cancelar sua assinatura/curso (comprado na Kiwify)?
+**B)** Sacar o saldo da sua carteira (Seu Armazém Drop)?
+
+Seu saldo disponível: ${balanceFormatted}`;
+              
+              // Log interaction
+              await supabaseClient.from('interactions').insert({
+                customer_id: verifiedContact.id,
+                type: 'note',
+                content: `Identidade verificada via OTP - Acesso financeiro liberado`,
+                channel: responseChannel,
+                metadata: { source: 'financial_barrier', otp_verified: true, financial_access_granted: true }
+              });
+            }
           } catch (error) {
             console.error('[ai-autopilot-chat] ❌ Erro ao verificar OTP:', error);
             assistantMessage = 'Ocorreu um erro ao verificar o código. Por favor, tente novamente.';
           }
-        } 
+        }
         else if (toolCall.function.name === 'create_ticket') {
           try {
             const args = JSON.parse(toolCall.function.arguments);

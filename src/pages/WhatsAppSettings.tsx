@@ -130,16 +130,6 @@ export default function WhatsAppSettings() {
     }
   };
 
-  const getAIModeBadge = (mode: string) => {
-    switch (mode) {
-      case 'autopilot':
-        return <Badge className="bg-blue-500">🤖 Autopilot</Badge>;
-      case 'copilot':
-        return <Badge variant="secondary">🤝 Copilot</Badge>;
-      default:
-        return <Badge variant="outline">⛔ Desabilitado</Badge>;
-    }
-  };
 
   return (
     <Layout>
@@ -274,7 +264,6 @@ export default function WhatsAppSettings() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Número</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Modo IA</TableHead>
                   <TableHead>Vinculação</TableHead>
                   <TableHead className="w-[100px]">Ações</TableHead>
                 </TableRow>
@@ -296,7 +285,6 @@ export default function WhatsAppSettings() {
                       )}
                     </TableCell>
                     <TableCell>{getStatusBadge(instance.status)}</TableCell>
-                    <TableCell>{getAIModeBadge(instance.ai_mode)}</TableCell>
                     <TableCell>
                       <div className="space-y-1">
                         {instance.user ? (

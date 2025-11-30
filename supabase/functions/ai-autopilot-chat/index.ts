@@ -870,7 +870,7 @@ Use essas informações de forma natural e personalizada.`;
       debug: {
         intent: intentType,
         articles_found: knowledgeArticles.map((a: any) => a.title),
-        search_performed: intentType === 'technical'
+        search_performed: knowledgeArticles.length > 0
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -886,6 +886,8 @@ Use essas informações de forma natural e personalizada.`;
     // FASE 3: TOOL CALLING - Execute first to prevent duplicates
     // ============================================================
     // Handle tool calls (Function Calling)
+    let ticketCreatedByToolCall = false; // 🔒 Flag para prevenir duplicação
+    
     if (toolCalls.length > 0) {
       console.log('[ai-autopilot-chat] 🛠️ AI solicitou execução de ferramenta:', toolCalls);
       
@@ -1052,6 +1054,8 @@ Use essas informações de forma natural e personalizada.`;
             } else {
               console.log('[ai-autopilot-chat] ✅ Ticket criado com sucesso:', ticket.id);
               
+              ticketCreatedByToolCall = true; // 🔒 Marcar flag para prevenir duplicação
+              
               // Link conversation to ticket
               await supabaseClient
                 .from('conversations')
@@ -1118,14 +1122,8 @@ Use essas informações de forma natural e personalizada.`;
         customerMessage.toLowerCase().includes(keyword)
       );
       
-      // Check if ticket was already created by tool call
-      const { data: existingTicket } = await supabaseClient
-        .from('conversations')
-        .select('related_ticket_id')
-        .eq('id', conversationId)
-        .single();
-      
-      if (isFinancialRequest && !existingTicket?.related_ticket_id) {
+      // 🔒 Check flag instead of querying database (prevents race condition)
+      if (isFinancialRequest && !ticketCreatedByToolCall) {
         console.log('[ai-autopilot-chat] 💰 Solicitação financeira detectada - Criando ticket de segurança');
         
         const { data: ticket, error: ticketError } = await supabaseClient

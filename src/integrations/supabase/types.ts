@@ -2889,6 +2889,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_duplicate_articles: {
+        Args: {
+          p_article_id?: string
+          p_content: string
+          similarity_threshold?: number
+        }
+        Returns: {
+          similar_count: number
+          top_similar_id: string
+          top_similar_title: string
+          top_similarity: number
+        }[]
+      }
       check_rate_limit: {
         Args: {
           p_action_type: string
@@ -2902,6 +2915,19 @@ export type Database = {
       distribute_client_to_consultant: {
         Args: { p_contact_id: string }
         Returns: Json
+      }
+      find_similar_articles: {
+        Args: {
+          article_id: string
+          max_results?: number
+          similarity_threshold?: number
+        }
+        Returns: {
+          category: string
+          id: string
+          similarity: number
+          title: string
+        }[]
       }
       generate_quote_number: { Args: never; Returns: string }
       generate_session_token: { Args: never; Returns: string }

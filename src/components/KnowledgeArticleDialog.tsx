@@ -8,6 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import { useCreateKnowledgeArticle } from "@/hooks/useCreateKnowledgeArticle";
 import { useUpdateKnowledgeArticle } from "@/hooks/useUpdateKnowledgeArticle";
 import { useGenerateEmbedding } from "@/hooks/useGenerateEmbedding";
+import { useFindSimilarArticles } from "@/hooks/useFindSimilarArticles";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 interface KnowledgeArticle {
   id: string;
@@ -34,6 +37,12 @@ export default function KnowledgeArticleDialog({ open, onOpenChange, article }: 
   const createArticle = useCreateKnowledgeArticle();
   const updateArticle = useUpdateKnowledgeArticle();
   const generateEmbedding = useGenerateEmbedding();
+  
+  // Check for similar articles after editing
+  const { data: similarArticles } = useFindSimilarArticles(
+    article?.id || null,
+    0.90
+  );
 
   useEffect(() => {
     if (article) {
@@ -92,6 +101,25 @@ export default function KnowledgeArticleDialog({ open, onOpenChange, article }: 
         <DialogHeader>
           <DialogTitle>{article ? "Editar Artigo" : "Novo Artigo"}</DialogTitle>
         </DialogHeader>
+
+        {similarArticles && similarArticles.length > 0 && (
+          <Alert className="bg-amber-50 border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800">
+              <strong>⚠️ Artigos similares detectados:</strong>
+              <ul className="mt-2 space-y-1 text-sm">
+                {similarArticles.map((similar) => (
+                  <li key={similar.id}>
+                    • {similar.title} ({Math.round(similar.similarity * 100)}% similar)
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs">
+                Considere mesclar ou atualizar o artigo existente ao invés de criar duplicatas.
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

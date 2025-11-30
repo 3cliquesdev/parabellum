@@ -1062,17 +1062,11 @@ Use essas informações de forma natural e personalizada.`;
                 .update({ related_ticket_id: ticket.id })
                 .eq('id', conversationId);
 
-              // 🎯 COMPLEMENTAR mensagem da IA (não sobrescrever) para preservar personalização
+              // 🎯 SEMPRE complementar (nunca sobrescrever) para preservar fallback detection
               const ticketIcon = args.issue_type === 'financeiro' ? '💰' : '📦';
-              const ticketConfirmation = `\n\n✅ **Protocolo registrado com sucesso!**\n\n📋 **Número do Ticket:** #${ticket.id.slice(0, 8).toUpperCase()}\n${args.order_id ? `🔢 **Pedido:** ${args.order_id}\n` : ''}${ticketIcon} **Tipo:** ${args.issue_type.charAt(0).toUpperCase() + args.issue_type.slice(1)}\n\nNossa equipe vai analisar seu caso e retornar em breve. Você pode acompanhar o status através deste chat.`;
+              const ticketConfirmation = `\n\n✅ **Protocolo registrado com sucesso!**\n\n📋 **Número do Ticket:** #${ticket.id.slice(0, 8).toUpperCase()}\n${args.order_id ? `🔢 **Pedido:** ${args.order_id}\n` : ''}${ticketIcon} **Tipo:** ${args.issue_type.charAt(0).toUpperCase() + args.issue_type.slice(1)}\n\nNossa equipe vai analisar seu caso e retornar em breve.`;
               
-              // Se AI já escreveu algo útil (não é só fallback), manter e complementar
-              if (assistantMessage && assistantMessage.length > 20 && !assistantMessage.toLowerCase().includes('vou chamar')) {
-                assistantMessage = assistantMessage + ticketConfirmation;
-              } else {
-                // Se AI não escreveu nada útil ou é fallback, usar só a confirmação
-                assistantMessage = ticketConfirmation.trim();
-              }
+              assistantMessage = assistantMessage + ticketConfirmation;
             }
           } catch (error) {
             console.error('[ai-autopilot-chat] ❌ Erro ao processar tool call (ignorando):', error);
@@ -1161,8 +1155,11 @@ Use essas informações de forma natural e personalizada.`;
             .update({ related_ticket_id: ticket?.id })
             .eq('id', conversationId);
           
-          // Enriquecer mensagem ao cliente
-          assistantMessage = `${assistantMessage}\n\n📋 Criei o protocolo #${ticket?.id?.slice(0, 8).toUpperCase()} para sua solicitação financeira. Um especialista vai analisar seu caso com prioridade.`;
+          // 🔒 Só enriquecer se ticket NÃO foi criado por tool call (previne duplicação)
+          if (!ticketCreatedSuccessfully) {
+            // Enriquecer mensagem ao cliente
+            assistantMessage = `${assistantMessage}\n\n📋 Criei o protocolo #${ticket?.id?.slice(0, 8).toUpperCase()} para sua solicitação financeira. Um especialista vai analisar seu caso com prioridade.`;
+          }
         }
       }
       

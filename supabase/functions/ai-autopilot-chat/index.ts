@@ -84,7 +84,7 @@ const INFORMATIONAL_PATTERNS = [
   /me\s+explica/i,
 ];
 
-// Template de mensagem de sucesso do ticket (CONTEXTUAL)
+  // Template de mensagem de sucesso do ticket (CONTEXTUAL)
 function createTicketSuccessMessage(
   ticketId: string, 
   issueType: string = 'financeiro', 
@@ -100,9 +100,9 @@ function createTicketSuccessMessage(
 📋 **Protocolo:** #${formattedId}
 💵 **Valor:** R$ ${withdrawalData.amount.toFixed(2)}
 ${withdrawalData.cpf_last4 ? `🔐 **CPF (final):** ...${withdrawalData.cpf_last4}` : ''}
-⏱️ **Prazo:** Até 48h úteis
+⏱️ **Prazo:** 3 a 7 dias úteis
 
-📌 **IMPORTANTE:** O saque será creditado via PIX na chave cadastrada com seu CPF. Não é possível transferir para conta de terceiros.
+📌 **IMPORTANTE:** O saque será creditado via PIX na chave informada. Não é possível transferir para conta de terceiros.
 
 Nossa equipe financeira já iniciou a análise. Você será notificado assim que o pagamento for processado!`;
   }
@@ -905,6 +905,15 @@ ${isRecentlyVerified ? '**⚠️ CLIENTE RECÉM-VERIFICADO:** Esta é a primeira
     const availableBalance = contact.account_balance || 0;
     const formattedBalance = `R$ ${availableBalance.toFixed(2)}`;
     
+    // FASE 1: Validação de Cliente Real para Saque
+    const isRealCustomer = !!contactCPF && contact.status === 'customer';
+    const canRequestWithdrawal = isRealCustomer;
+    const withdrawalBlockReason = !contactCPF 
+      ? 'CPF não cadastrado - não é cliente verificado'
+      : contact.status !== 'customer'
+        ? `Status atual: ${contact.status} - ainda não é cliente`
+        : null;
+    
     const contextualizedSystemPrompt = `Você é a Lais, assistente virtual inteligente da Parabellum / 3Cliques.
 Sua missão é AJUDAR o cliente, não se livrar dele.
 
@@ -933,48 +942,75 @@ Sua missão é AJUDAR o cliente, não se livrar dele.
 
 ---
 
-**🚨 FLUXO ESPECIAL - SOLICITAÇÃO DE SAQUE:**
+**🚨 FLUXO ESPECIAL - SOLICITAÇÃO DE SAQUE/CANCELAMENTO:**
 
-Quando cliente solicitar SAQUE/RETIRADA de valores, siga RIGOROSAMENTE este roteiro ANTES de criar o ticket:
+⚠️ **IMPORTANTE:** Saque = Cliente querendo SAIR! Você deve tentar RETER antes de processar.
 
-**PASSO 1 - INFORMAR REGRAS (OBRIGATÓRIO):**
-"Entendi que você quer realizar um saque! 😊
+**VERIFICAÇÃO OBRIGATÓRIA (ANTES DE TUDO):**
+${canRequestWithdrawal 
+  ? '✅ Cliente VERIFICADO - CPF cadastrado, pode solicitar saque após tentativa de retenção.'
+  : `❌ BLOQUEIO: ${withdrawalBlockReason}
+     → Informe: "Para solicitar saque, você precisa ser cliente cadastrado conosco com CPF verificado."
+     → Se for lead, transfira para o time Comercial.
+     → NÃO crie ticket de saque para não-clientes!`}
+
+**PASSO 1 - RETENÇÃO (OBRIGATÓRIO):**
+Quando cliente pedir saque/cancelamento, PRIMEIRO tente entender e reter:
+
+"Entendi que você quer encerrar sua conta. 😔
+Posso saber o que aconteceu? Gostaria de entender melhor para ver se consigo te ajudar antes de prosseguir."
+
+→ Ouça o motivo do cliente
+→ Tente oferecer soluções/alternativas
+→ Seja empático, não robótico
+→ Só prossiga para o saque se o cliente INSISTIR
+
+**PASSO 2 - INFORMAR REGRAS (se cliente insistir):**
+"Entendi. Vou dar início ao processo de criação da sua solicitação de saque.
 
 📌 **Informações importantes:**
-- ✅ O saque será enviado via **PIX** para a conta vinculada ao seu CPF (${maskedCPF})
-- ⏱️ Processamento em até **48 horas úteis**
-- 🔒 Por segurança, **não é possível** sacar para conta de terceiros ou outro CPF
-- 💰 Seu saldo disponível atual: **${formattedBalance}**
+- ⏱️ O saque levará de **3 a 7 dias úteis** para ser processado
+- 📋 Nossa equipe vai analisar todo o cenário antes de concluir
+- 🔒 O saque será enviado **única e exclusivamente** para a conta cadastrada no sistema
+- ❌ **NÃO** é possível enviar para PIX de terceiros - somente para os dados da sua conta
 
-Vamos confirmar os dados para processar sua solicitação?"
+Entendido? Posso prosseguir com algumas perguntas?"
 
-**PASSO 2 - CONFIRMAR DADOS (OBRIGATÓRIO):**
-Faça as seguintes perguntas (uma de cada vez, aguardando resposta):
+**PASSO 3 - COLETAR DADOS (após confirmação):**
+Pergunte uma de cada vez:
 
-1. "Confirma que o saque deve ser enviado para a chave PIX do seu CPF ${maskedCPF}?" 
-   → Aguarde resposta afirmativa (sim/confirmo/correto)
+1. "Para criar sua solicitação, preciso da sua **chave PIX** para receber o valor.
+   ⚠️ Importante: O valor só pode ser enviado ao dono da carteira. Se for PIX de terceiros, sua solicitação será cancelada."
+   → Aguarde a chave PIX
 
-2. "Qual valor você deseja sacar? (Saldo disponível: ${formattedBalance})"
+2. "Qual o **valor** que você deseja sacar?"
    → Aguarde valor numérico
 
-3. "Perfeito! Confirma o saque de R$ [VALOR] para o CPF ${maskedCPF}?"
-   → Aguarde confirmação final (sim/confirmo/pode processar)
+3. "Para confirmar:
+   - Chave PIX informada: [CHAVE]
+   - Valor solicitado: R$ [VALOR]
+   - Destino: Conta vinculada ao seu CPF (${maskedCPF})
+   
+   Confirma esses dados?"
+   → Aguarde confirmação (sim/confirmo)
 
-**PASSO 3 - CRIAR TICKET (SOMENTE APÓS CONFIRMAÇÃO):**
-Após confirmar TODOS os dados acima, use create_ticket com:
-- issue_type: "saque" (novo tipo!)
+**PASSO 4 - CRIAR TICKET (SOMENTE após TUDO confirmado):**
+Use create_ticket com:
+- issue_type: "saque"
 - subject: "Solicitação de Saque - R$ [VALOR]"
-- description: "[VALOR] solicitado pelo cliente ${contactName} - CPF ${maskedCPF}"
+- description: "Cliente ${contactName} solicita saque de R$ [VALOR]. Chave PIX: [CHAVE]. Destino: CPF ${maskedCPF}"
 - withdrawal_amount: [VALOR_NUMERICO]
 - confirmed_cpf_last4: "${cpfLast4}"
-- available_balance: ${availableBalance}
+- pix_key: [CHAVE_PIX_INFORMADA]
 - customer_confirmation: true
 
-**IMPORTANTE:**
-- ❌ NÃO crie ticket imediatamente quando cliente pedir saque
-- ✅ SEMPRE siga os 3 passos acima
-- ✅ Confirme CADA informação antes de prosseguir
-- ✅ Seja educado e paciente - saque é sensível!
+**REGRAS CRÍTICAS:**
+- ❌ NÃO crie ticket para leads ou não-clientes
+- ❌ NÃO pule a etapa de retenção
+- ❌ NÃO mostre saldo (financeiro vai verificar)
+- ✅ SEMPRE valide se tem CPF cadastrado antes
+- ✅ SEMPRE tente reter primeiro
+- ✅ SEMPRE colete chave PIX
 
 ---
 
@@ -1042,9 +1078,9 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
                 type: 'string',
                 description: '[APENAS PARA SAQUE] Últimos 4 dígitos do CPF confirmados pelo cliente.'
               },
-              available_balance: {
-                type: 'number',
-                description: '[APENAS PARA SAQUE] Saldo disponível do cliente no momento da solicitação.'
+              pix_key: {
+                type: 'string',
+                description: '[APENAS PARA SAQUE] Chave PIX informada pelo cliente para receber o saque.'
               },
               customer_confirmation: {
                 type: 'boolean',
@@ -1254,27 +1290,25 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
             if (args.issue_type === 'saque' && args.withdrawal_amount) {
               internalNote = `🤖 **TICKET DE SAQUE CRIADO VIA IA**
 
-**✅ DADOS COLETADOS E CONFIRMADOS:**
+**🔐 DADOS DO CLIENTE:**
+- Nome: ${contactName}
+- CPF: ${maskedCPF}
 
-💵 **Valor Solicitado:** R$ ${args.withdrawal_amount.toFixed(2)}
-${args.confirmed_cpf_last4 ? `🔐 **CPF Confirmado (final):** ...${args.confirmed_cpf_last4}` : ''}
-💰 **Saldo Disponível:** R$ ${args.available_balance ? args.available_balance.toFixed(2) : '0.00'}
-${args.customer_confirmation ? '✅ **Cliente Confirmou:** SIM - Dados verificados' : '⚠️ **Cliente Confirmou:** Não confirmado'}
+**💰 DADOS DO SAQUE:**
+- Valor Solicitado: R$ ${args.withdrawal_amount.toFixed(2)}
+- Chave PIX Informada: ${args.pix_key || 'Não informada'}
+- Confirmação do Cliente: ${args.customer_confirmation ? '✅ Sim' : '⚠️ Não confirmado'}
 
----
+**⚠️ REGRAS:**
+- Prazo: 3-7 dias úteis
+- Destino: APENAS conta do titular (CPF do cliente)
+- PIX terceiros: CANCELAR solicitação
 
-**📋 CHECKLIST FINANCEIRO:**
-- [ ] Validar CPF do cliente no sistema
-- [ ] Verificar saldo disponível atual
-- [ ] Confirmar chave PIX cadastrada (CPF)
-- [ ] Processar transferência via PIX
-- [ ] Atualizar saldo do cliente
-- [ ] Notificar cliente sobre conclusão
-
----
-
-**⏱️ PRAZO:** Até 48h úteis
-**🔒 REGRA:** Saque APENAS para conta do próprio CPF (não transferir para terceiros)`;
+**📝 CHECKLIST FINANCEIRO:**
+- [ ] Verificar saldo disponível
+- [ ] Confirmar titularidade da chave PIX
+- [ ] Processar transferência
+- [ ] Notificar cliente`;
             }
 
             const { data: ticket, error: ticketError } = await supabaseClient

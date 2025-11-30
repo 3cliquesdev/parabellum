@@ -5,10 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { usePersonas } from "@/hooks/usePersonas";
 import { useSandboxChat, SandboxMessage } from "@/hooks/useSandboxChat";
 import { useCreateRLHFFeedback } from "@/hooks/useCreateRLHFFeedback";
-import { Bot, Send, Trash2, Activity, Zap, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Bot, Send, Trash2, Activity, Zap, ThumbsUp, ThumbsDown, Database, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -19,7 +21,17 @@ export function SandboxTest() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: personas } = usePersonas();
-  const { messages, isLoading, debugInfo, sendMessage, clearChat } = useSandboxChat();
+  const { 
+    messages, 
+    isLoading, 
+    debugInfo, 
+    sendMessage, 
+    clearChat,
+    useKnowledgeBase,
+    setUseKnowledgeBase,
+    aiProvider,
+    setAiProvider 
+  } = useSandboxChat();
   const createFeedback = useCreateRLHFFeedback();
 
   const selectedPersona = personas?.find(p => p.id === selectedPersonaId);
@@ -97,6 +109,48 @@ export function SandboxTest() {
                   {persona.name}
                 </Button>
               ))}
+            </div>
+            
+            <Separator />
+            
+            {/* Configuration Options */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="kb-toggle" className="cursor-pointer">
+                    Usar Base de Conhecimento
+                  </Label>
+                </div>
+                <Switch
+                  id="kb-toggle"
+                  checked={useKnowledgeBase}
+                  onCheckedChange={setUseKnowledgeBase}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-muted-foreground" />
+                  <Label className="cursor-pointer">Provider de IA</Label>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={aiProvider === 'lovable' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setAiProvider('lovable')}
+                  >
+                    Lovable AI
+                  </Button>
+                  <Button
+                    variant={aiProvider === 'openai' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setAiProvider('openai')}
+                  >
+                    OpenAI
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </Card>
@@ -298,11 +352,58 @@ export function SandboxTest() {
               <h3 className="font-semibold">Debug Info</h3>
             </div>
             <Separator />
-            <div className="space-y-2 text-sm">
+            <div className="space-y-3 text-sm">
               <div>
                 <p className="text-muted-foreground">Model:</p>
                 <p className="font-medium text-xs">{debugInfo.model}</p>
               </div>
+              
+              <div>
+                <p className="text-muted-foreground">Provider:</p>
+                <Badge variant={debugInfo.ai_provider === 'openai' ? 'default' : 'secondary'}>
+                  {debugInfo.ai_provider === 'openai' ? 'OpenAI' : 'Lovable AI'}
+                </Badge>
+              </div>
+              
+              {debugInfo.knowledge_search_performed && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-green-500" />
+                    <p className="text-muted-foreground">
+                      Base de Conhecimento: <span className="font-medium text-green-500">Ativa</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Artigos Encontrados:</p>
+                    <p className="font-medium">{debugInfo.articles_found}</p>
+                  </div>
+                  {debugInfo.articles && debugInfo.articles.length > 0 && (
+                    <div className="bg-muted p-2 rounded">
+                      <p className="text-xs font-medium mb-1">Artigos Usados:</p>
+                      <ul className="text-xs space-y-1">
+                        {debugInfo.articles.map((article: any) => (
+                          <li key={article.id} className="truncate">
+                            • {article.title} <span className="text-muted-foreground">({article.category})</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {debugInfo.persona_categories && debugInfo.persona_categories.length > 0 && (
+                    <div>
+                      <p className="text-muted-foreground text-xs">Categorias da Persona:</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {debugInfo.persona_categories.map((cat: string) => (
+                          <Badge key={cat} variant="outline" className="text-xs">
+                            {cat}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div>
                 <p className="text-muted-foreground">Tokens:</p>
                 <div className="grid grid-cols-3 gap-2 mt-1">

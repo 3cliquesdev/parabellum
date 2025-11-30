@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -12,9 +13,10 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, personaId } = await req.json();
+    const { messages, personaId, useKnowledgeBase = false, aiProvider = 'lovable' } = await req.json();
     
     console.log('[sandbox-chat] Processing request for persona:', personaId);
+    console.log('[sandbox-chat] Knowledge Base:', useKnowledgeBase, '| Provider:', aiProvider);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -58,39 +60,114 @@ serve(async (req) => {
 
     console.log('[sandbox-chat] Available tools:', tools.length);
 
-    // Call Lovable AI
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    // Knowledge Base Search
+    let knowledgeArticles: any[] = [];
+    let systemPrompt = persona.system_prompt;
+
+    if (useKnowledgeBase && persona.knowledge_base_paths?.length > 0) {
+      console.log('[sandbox-chat] Searching knowledge base with categories:', persona.knowledge_base_paths);
+      
+      // Get last user message for keyword extraction
+      const lastUserMessage = messages.filter((m: any) => m.role === 'user').pop();
+      
+      if (lastUserMessage) {
+        const { data: articles } = await supabase
+          .from('knowledge_articles')
+          .select('id, title, content, category')
+          .eq('is_published', true)
+          .in('category', persona.knowledge_base_paths)
+          .limit(5);
+
+        knowledgeArticles = articles || [];
+        console.log('[sandbox-chat] Found', knowledgeArticles.length, 'knowledge articles');
+
+        if (knowledgeArticles.length > 0) {
+          const kbContext = knowledgeArticles.map(a => 
+            `[Artigo: ${a.title}]\n${a.content}`
+          ).join('\n\n---\n\n');
+
+          systemPrompt = `${persona.system_prompt}\n\n## BASE DE CONHECIMENTO DISPONÍVEL:\n\n${kbContext}\n\nUSE estas informações da base de conhecimento para responder quando relevante.`;
+        }
+      }
     }
 
     const aiMessages = [
-      { role: "system", content: persona.system_prompt },
+      { role: "system", content: systemPrompt },
       ...messages
     ];
 
-    const aiPayload: any = {
-      model: "google/gemini-2.5-flash",
-      messages: aiMessages,
-      temperature: persona.temperature || 0.7,
-      max_tokens: persona.max_tokens || 500,
-    };
+    // Prepare AI call based on provider
+    let actualProvider = aiProvider;
+    let aiResponse: Response | null = null;
 
-    // Only add tools if persona has any
-    if (tools.length > 0) {
-      aiPayload.tools = tools;
+    if (aiProvider === 'openai') {
+      const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+      
+      if (!OPENAI_API_KEY) {
+        console.log('[sandbox-chat] OpenAI key not found, falling back to Lovable AI');
+        actualProvider = 'lovable';
+      } else {
+        console.log('[sandbox-chat] Calling OpenAI (gpt-4o-mini)');
+        
+        const openaiPayload: any = {
+          model: "gpt-4o-mini",
+          messages: aiMessages,
+          temperature: persona.temperature || 0.7,
+          max_tokens: persona.max_tokens || 500,
+        };
+
+        if (tools.length > 0) {
+          openaiPayload.tools = tools;
+        }
+
+        aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(openaiPayload),
+        });
+
+        if (!aiResponse.ok) {
+          console.log('[sandbox-chat] OpenAI failed, falling back to Lovable AI');
+          actualProvider = 'lovable';
+        }
+      }
     }
 
-    console.log('[sandbox-chat] Calling Lovable AI with', aiMessages.length, 'messages');
+    if (actualProvider === 'lovable' || !aiResponse) {
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (!LOVABLE_API_KEY) {
+        throw new Error('LOVABLE_API_KEY not configured');
+      }
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(aiPayload),
-    });
+      console.log('[sandbox-chat] Calling Lovable AI (Gemini)');
+
+      const aiPayload: any = {
+        model: "google/gemini-2.5-flash",
+        messages: aiMessages,
+        temperature: persona.temperature || 0.7,
+        max_tokens: persona.max_tokens || 500,
+      };
+
+      if (tools.length > 0) {
+        aiPayload.tools = tools;
+      }
+
+      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(aiPayload),
+      });
+    }
+
+    if (!aiResponse) {
+      throw new Error('No AI response received from any provider');
+    }
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
@@ -133,7 +210,12 @@ serve(async (req) => {
           temperature: persona.temperature,
         },
         debug: {
-          model: "google/gemini-2.5-flash",
+          model: actualProvider === 'openai' ? 'gpt-4o-mini' : 'google/gemini-2.5-flash',
+          ai_provider: actualProvider,
+          knowledge_search_performed: useKnowledgeBase,
+          articles_found: knowledgeArticles.length,
+          articles: knowledgeArticles.map(a => ({ id: a.id, title: a.title, category: a.category })),
+          persona_categories: persona.knowledge_base_paths || [],
           prompt_tokens: aiData.usage?.prompt_tokens || 0,
           completion_tokens: aiData.usage?.completion_tokens || 0,
           total_tokens: aiData.usage?.total_tokens || 0,

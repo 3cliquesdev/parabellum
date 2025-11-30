@@ -19,6 +19,11 @@ export interface SandboxResponse {
   };
   debug: {
     model: string;
+    ai_provider: string;
+    knowledge_search_performed: boolean;
+    articles_found: number;
+    articles: Array<{ id: string; title: string; category: string }>;
+    persona_categories: string[];
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
@@ -29,6 +34,8 @@ export const useSandboxChat = () => {
   const [messages, setMessages] = useState<SandboxMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [useKnowledgeBase, setUseKnowledgeBase] = useState(false);
+  const [aiProvider, setAiProvider] = useState<'lovable' | 'openai'>('lovable');
 
   const sendMessage = async (content: string, personaId: string) => {
     if (!content.trim() || !personaId) return;
@@ -51,6 +58,8 @@ export const useSandboxChat = () => {
             content: m.content
           })),
           personaId,
+          useKnowledgeBase,
+          aiProvider,
         },
       });
 
@@ -88,5 +97,9 @@ export const useSandboxChat = () => {
     debugInfo,
     sendMessage,
     clearChat,
+    useKnowledgeBase,
+    setUseKnowledgeBase,
+    aiProvider,
+    setAiProvider,
   };
 };

@@ -32,7 +32,7 @@ serve(async (req) => {
     // Define branding based on type
     const branding = type === 'customer' ? {
       name: 'Seu Armazém Drop',
-      from: 'Seu Armazém Drop <suporte@seuarmazemdrop.com.br>',
+      from: 'Seu Armazém Drop <contato@parabellum.work>',
       subject: '🔐 Código de Verificação - Seu Armazém Drop',
       logo: 'https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-seuarmazemdrop.png',
       greeting: 'Olá!',

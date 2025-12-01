@@ -1116,27 +1116,75 @@ Responda APENAS: skip ou search`
         console.log('[ai-autopilot-chat] 🔐 Contexto financeiro detectado - Disparando OTP para segurança');
         
         try {
+          // Enviar OTP automaticamente
           await supabaseClient.functions.invoke('send-verification-code', {
-            body: { email: contactEmail }
+            body: { email: contactEmail, type: 'customer' }
           });
           
-          priorityInstruction = `🚨🚨🚨 INSTRUÇÃO PRIORITÁRIA - IGNORE TUDO ABAIXO ATÉ SEGUIR ISSO 🚨🚨🚨
+          // 🔐 BYPASS DIRETO - NÃO CHAMAR A IA
+          const safeEmail = maskEmail(contactEmail);
+          const directOTPResponse = `🔐 **Verificação de Segurança**
 
-A PRIMEIRA coisa que você DEVE falar é EXATAMENTE:
-"Olá ${contactName}! Você é nosso cliente, mas questões financeiras são delicadas. Para sua segurança, vou confirmar que é você mesmo. Enviei um código de 6 dígitos para ${maskedEmail}. Por favor, digite o código que você recebeu."
+Olá ${contactName}! Você é nosso cliente, mas questões financeiras são delicadas.
 
-→ PARE AQUI. NÃO responda mais nada até o cliente digitar o código.
-🚨🚨🚨 FIM DA INSTRUÇÃO PRIORITÁRIA 🚨🚨🚨
+Para sua segurança, vou confirmar que é você mesmo.
 
-`;
+📧 Enviei um código de **6 dígitos** para **${safeEmail}**.
+
+Por favor, **digite o código** que você recebeu para continuar.`;
+
+          // Salvar mensagem no banco
+          const { data: savedMsg } = await supabaseClient
+            .from('messages')
+            .insert({
+              conversation_id: conversationId,
+              content: directOTPResponse,
+              sender_type: 'user',
+              is_ai_generated: true,
+              channel: responseChannel
+            })
+            .select()
+            .single();
           
-          identityWallNote = `\n\n**🔐 VERIFICAÇÃO DE SEGURANÇA (CONTEXTO FINANCEIRO):**
-Cliente: ${contactName}
-Status: ${contactStatus}
-
-**⚠️ AGUARDE o código antes de processar a solicitação financeira.**`;
+          // Enviar via WhatsApp se necessário
+          if (responseChannel === 'whatsapp') {
+            const { data: whatsappInstance } = await supabaseClient
+              .from('whatsapp_instances')
+              .select('*')
+              .eq('status', 'connected')
+              .limit(1)
+              .maybeSingle();
+            
+            if (whatsappInstance && contact?.phone) {
+              await supabaseClient.functions.invoke('send-whatsapp-message', {
+                body: {
+                  instance_id: whatsappInstance.id,
+                  phone_number: contact.phone,
+                  whatsapp_id: contact.whatsapp_id,
+                  message: directOTPResponse
+                }
+              });
+            }
+          }
+          
+          // ⚡ RETURN EARLY - NÃO CONTINUAR PARA A IA
+          return new Response(JSON.stringify({
+            response: directOTPResponse,
+            messageId: savedMsg?.id,
+            awaitingOTP: true,
+            debug: { 
+              reason: 'financial_barrier_auto_otp_bypass',
+              email_sent_to: safeEmail,
+              bypassed_ai: true,
+              contact_name: contactName
+            }
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+          
         } catch (error) {
           console.error('[ai-autopilot-chat] ❌ Erro ao disparar OTP financeiro:', error);
+          // Se falhar, continua para IA tentar lidar
         }
       }
       // CASO 2: Contexto NORMAL - Apenas boas-vindas (CORRIGIDO: removido !hasRecentOTPVerification)

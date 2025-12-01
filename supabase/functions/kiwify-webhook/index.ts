@@ -56,9 +56,9 @@ interface KiwifyWebhookPayload {
 }
 
 /**
- * Verifies HMAC SHA-256 signature from Kiwify webhook
+ * Verifies HMAC SHA-1 signature from Kiwify webhook
  * @param body - Raw request body string
- * @param signature - Signature from x-kiwify-signature header
+ * @param signature - Signature from x-kiwify-signature header or query param
  * @param secret - Webhook secret from environment
  * @returns true if signature is valid, false otherwise
  */
@@ -77,10 +77,11 @@ async function verifyKiwifySignature(
     const keyData = encoder.encode(secret);
     const messageData = encoder.encode(body);
 
+    // ✅ CORREÇÃO: Kiwify usa SHA-1, não SHA-256
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
       keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
+      { name: 'HMAC', hash: 'SHA-1' },
       false,
       ['sign']
     );

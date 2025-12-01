@@ -56,6 +56,7 @@ import SkillsSettings from "./pages/SkillsSettings";
 import WhatsAppSettings from "./pages/WhatsAppSettings";
 import WebhooksSettings from "./pages/WebhooksSettings";
 import Reports from "./pages/Reports";
+import IntegrationsSettings from "./pages/IntegrationsSettings";
 
 import ConsultantDetail from "./pages/ConsultantDetail";
 
@@ -154,6 +155,7 @@ const App = () => {
             <Route path="/ai-studio/personas" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><Layout><AIStudio /></Layout></ProtectedRoute>} />
             <Route path="/import-clients" element={<ProtectedRoute allowedRoles={["admin", "general_manager"]}><Layout><ImportClients /></Layout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin", "general_manager"]}><Layout><Settings /></Layout></ProtectedRoute>} />
+            <Route path="/settings/integrations" element={<ProtectedRoute allowedRoles={["admin"]}><Layout><IntegrationsSettings /></Layout></ProtectedRoute>} />
             <Route path="/settings/email-templates" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><EmailTemplates /></ProtectedRoute>} />
             <Route path="/settings/products" element={<ProtectedRoute allowedRoles={["admin", "general_manager"]}><Layout><Products /></Layout></ProtectedRoute>} />
             <Route path="/settings/delivery-groups" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><Layout><DeliveryGroups /></Layout></ProtectedRoute>} />

@@ -1560,17 +1560,74 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
               .eq('email', emailInformado)
               .single();
 
-            // CENÁRIO A: EMAIL NÃO ENCONTRADO (Não é cliente - rotear para COMERCIAL)
+            // CENÁRIO A: EMAIL NÃO ENCONTRADO (Não é cliente - CRIAR LEAD + DEAL)
             if (searchError || !existingCustomer) {
-              console.log('[ai-autopilot-chat] ❌ FASE 2: Email não encontrado - routing para Comercial');
+              console.log('[ai-autopilot-chat] ❌ FASE 2: Email não encontrado - Criando Lead');
               
-              // Registrar tentativa
+              // 🆕 FASE 1: CRIAR/ATUALIZAR CONTATO COMO LEAD
+              const { data: newLead, error: leadError } = await supabaseClient
+                .from('contacts')
+                .upsert({
+                  id: contact.id, // Usa ID do contato temporário
+                  email: emailInformado,
+                  first_name: contact.first_name || 'Lead',
+                  last_name: contact.last_name || 'Chat',
+                  phone: contact.phone,
+                  whatsapp_id: contact.whatsapp_id,
+                  status: 'lead',
+                  source: responseChannel === 'whatsapp' ? 'whatsapp' : 'web_chat'
+                }, {
+                  onConflict: 'id'
+                })
+                .select()
+                .single();
+              
+              if (leadError) {
+                console.error('[ai-autopilot-chat] ❌ Erro ao criar lead:', leadError);
+              }
+              
+              const leadId = newLead?.id || contact.id;
+              console.log('[ai-autopilot-chat] ✅ Lead criado:', leadId);
+
+              // 🆕 FASE 2: CRIAR DEAL NO PIPELINE DE VENDAS
+              let dealId: string | null = null;
+              const PIPELINE_VENDAS_ID = '00000000-0000-0000-0000-000000000001';
+              const STAGE_LEAD_ID = '11111111-1111-1111-1111-111111111111';
+              
+              const { data: deal, error: dealError } = await supabaseClient
+                .from('deals')
+                .insert({
+                  title: `Lead via Chat - ${emailInformado}`,
+                  contact_id: leadId,
+                  stage_id: STAGE_LEAD_ID,
+                  pipeline_id: PIPELINE_VENDAS_ID,
+                  status: 'open',
+                  value: 0,
+                  currency: 'BRL',
+                  source: responseChannel === 'whatsapp' ? 'WhatsApp' : 'Web Chat'
+                  // assigned_to será definido pelo route-conversation
+                })
+                .select()
+                .single();
+              
+              if (!dealError && deal) {
+                dealId = deal.id;
+                console.log('[ai-autopilot-chat] 💰 Deal criado:', dealId);
+              } else {
+                console.error('[ai-autopilot-chat] ❌ Erro ao criar deal:', dealError);
+              }
+
+              // Registrar interação
               await supabaseClient.from('interactions').insert({
-                customer_id: contact.id,
+                customer_id: leadId,
                 type: 'internal_note',
-                content: `⚠️ Email não cadastrado (Lead): ${emailInformado} - Routing para Comercial`,
+                content: `💰 Lead criado via ${responseChannel} - Deal ID: ${dealId || 'N/A'}`,
                 channel: responseChannel,
-                metadata: { source: 'lead_routing', email_not_found: true }
+                metadata: { 
+                  source: 'lead_creation', 
+                  email: emailInformado,
+                  deal_id: dealId
+                }
               });
 
               // Buscar departamento COMERCIAL
@@ -1590,7 +1647,7 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
                 .from('conversations')
                 .update({ 
                   ai_mode: 'copilot',
-                  department: comercialDept?.id // Forçar departamento Comercial
+                  department: comercialDept?.id
                 })
                 .eq('id', conversationId);
 
@@ -1602,18 +1659,79 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
                 }
               });
 
-              if (routeError || !routeResult?.assigned_to) {
-                // Nenhum agente do Comercial disponível
-                assistantMessage = `Este email não consta na nossa base de clientes.
+              // 🆕 FASE 3: ATRIBUIR DEAL AO VENDEDOR E NOTIFICAR
+              if (routeResult?.assigned_to) {
+                // Atribuir deal ao vendedor designado
+                if (dealId) {
+                  await supabaseClient
+                    .from('deals')
+                    .update({ assigned_to: routeResult.assigned_to })
+                    .eq('id', dealId);
+                  
+                  console.log('[ai-autopilot-chat] 💼 Deal atribuído ao vendedor:', routeResult.assigned_to);
+                }
+                
+                // 🆕 NOTIFICAR VENDEDOR VIA REALTIME
+                await supabaseClient.from('notifications').insert({
+                  user_id: routeResult.assigned_to,
+                  type: 'new_lead',
+                  title: '💰 Nova oportunidade no chat!',
+                  message: `Lead ${emailInformado} está aguardando atendimento`,
+                  metadata: {
+                    conversation_id: conversationId,
+                    deal_id: dealId,
+                    email: emailInformado,
+                    source: responseChannel
+                  },
+                  read: false
+                });
+                
+                console.log('[ai-autopilot-chat] 🔔 Notificação enviada ao vendedor');
+                
+                // 🆕 MENSAGEM COMERCIAL OTIMIZADA
+                assistantMessage = `Não encontrei uma compra ativa com esse email, mas vi que você tem interesse! 🎯
+
+Estou chamando um **especialista comercial** para te atender agora. Aguarde um momento!`;
+              } else {
+                // Nenhum vendedor online - broadcast para todos
+                const { data: onlineSalesReps } = await supabaseClient
+                  .from('profiles')
+                  .select('id')
+                  .eq('availability_status', 'online');
+                
+                // Filtrar apenas vendedores do departamento Comercial
+                const { data: comercialUsers } = await supabaseClient
+                  .from('profiles')
+                  .select('id')
+                  .eq('department', comercialDept?.id)
+                  .in('id', (onlineSalesReps || []).map(u => u.id));
+                
+                // Notificar todos vendedores online do Comercial
+                if (comercialUsers && comercialUsers.length > 0) {
+                  for (const rep of comercialUsers) {
+                    await supabaseClient.from('notifications').insert({
+                      user_id: rep.id,
+                      type: 'new_lead',
+                      title: '💰 Nova oportunidade no chat!',
+                      message: `Lead ${emailInformado} na fila do Comercial`,
+                      metadata: { 
+                        conversation_id: conversationId, 
+                        deal_id: dealId,
+                        email: emailInformado
+                      },
+                      read: false
+                    });
+                  }
+                  console.log('[ai-autopilot-chat] 🔔 Notificações broadcast enviadas');
+                }
+                
+                // Vendedores offline
+                assistantMessage = `Não encontrei uma compra ativa com esse email.
 
 Nosso **time de vendas** está offline no momento.
-⏰ **Horário de atendimento Comercial:** Segunda a Sexta, 09h às 18h.
+⏰ **Horário:** Segunda a Sexta, 09h às 18h.
 
-Quando retornarmos, um consultor vai te ajudar! 🙏`;
-              } else {
-                assistantMessage = `Este email não consta na nossa base de clientes.
-
-Vou te transferir para nosso **time de vendas** que pode te ajudar. Aguarde um momento! 🙏`;
+Assim que retornarmos, um consultor vai te ajudar! 🙏`;
               }
               continue;
             }

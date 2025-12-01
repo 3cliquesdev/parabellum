@@ -103,6 +103,31 @@ export default function Reports() {
         },
       ],
     },
+    {
+      id: 'financial',
+      name: '💰 Financeiro Kiwify',
+      icon: DollarSign,
+      reports: [
+        {
+          id: 'kiwify_detailed_sales',
+          name: 'Vendas Detalhadas Kiwify',
+          description: 'Todas as vendas com breakdown completo de valores',
+          icon: FileSpreadsheet,
+        },
+        {
+          id: 'affiliate_commissions',
+          name: 'Comissões de Afiliados',
+          description: 'Vendas agrupadas por afiliado com total de comissões',
+          icon: Users,
+        },
+        {
+          id: 'margin_analysis',
+          name: 'Análise de Margens',
+          description: 'Margem líquida por produto e oferta',
+          icon: TrendingUp,
+        },
+      ],
+    },
   ];
 
   return (
@@ -118,7 +143,7 @@ export default function Reports() {
       </div>
 
       <Tabs defaultValue="support" className="space-y-6">
-        <TabsList className="grid grid-cols-4 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-5 w-full max-w-3xl">
           {reportCategories.map((category) => (
             <TabsTrigger key={category.id} value={category.id}>
               {category.name}

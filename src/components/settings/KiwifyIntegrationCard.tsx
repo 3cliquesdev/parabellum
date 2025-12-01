@@ -1,13 +1,21 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Copy, ExternalLink, CheckCircle2, AlertTriangle, Loader2, Plus, Trash2, Key } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ShoppingCart, Copy, ExternalLink, CheckCircle2, AlertTriangle, Loader2, Plus, Trash2, Key, RefreshCw, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import AddKiwifyTokenDialog from "./AddKiwifyTokenDialog";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 export default function KiwifyIntegrationCard() {
   const { toast } = useToast();
@@ -15,6 +23,14 @@ export default function KiwifyIntegrationCard() {
   const [copying, setCopying] = useState(false);
   const [addTokenDialogOpen, setAddTokenDialogOpen] = useState(false);
   const [testingWebhook, setTestingWebhook] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [apiConfigOpen, setApiConfigOpen] = useState(false);
+  
+  const [apiCredentials, setApiCredentials] = useState({
+    client_id: "",
+    client_secret: "",
+    account_id: "",
+  });
 
   // Buscar tokens cadastrados
   const { data: tokens, isLoading: tokensLoading } = useQuery({
@@ -27,6 +43,28 @@ export default function KiwifyIntegrationCard() {
       
       if (error) throw error;
       return data || [];
+    },
+  });
+
+  // Buscar credenciais da API
+  const { data: apiConfigs } = useQuery({
+    queryKey: ["kiwify-api-configs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("system_configurations")
+        .select("key, value")
+        .in("key", ["kiwify_client_id", "kiwify_client_secret", "kiwify_account_id"]);
+      
+      if (error) throw error;
+      
+      const configs: any = {};
+      data?.forEach(c => {
+        const key = c.key.replace("kiwify_", "");
+        configs[key] = c.value;
+      });
+      
+      setApiCredentials(configs);
+      return configs;
     },
   });
 
@@ -70,6 +108,70 @@ export default function KiwifyIntegrationCard() {
       });
     },
   });
+
+  const saveApiConfigsMutation = useMutation({
+    mutationFn: async () => {
+      const updates = [
+        { key: "kiwify_client_id", value: apiCredentials.client_id },
+        { key: "kiwify_client_secret", value: apiCredentials.client_secret },
+        { key: "kiwify_account_id", value: apiCredentials.account_id },
+      ];
+
+      for (const config of updates) {
+        const { error } = await supabase
+          .from("system_configurations")
+          .upsert(
+            {
+              key: config.key,
+              value: config.value,
+              category: "integration",
+              description: `Kiwify API ${config.key.replace("kiwify_", "")}`,
+            },
+            { onConflict: "key" }
+          );
+
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kiwify-api-configs"] });
+      toast({
+        title: "✅ Configurações salvas",
+        description: "Credenciais da API Kiwify atualizadas com sucesso",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao salvar configurações",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSyncKiwifySales = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-kiwify-sales");
+
+      if (error) throw error;
+
+      toast({
+        title: "✅ Sincronização concluída",
+        description: `${data.stats.updated} atualizados, ${data.stats.created} criados, ${data.stats.errors} erros`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["kiwify-financials"] });
+    } catch (error: any) {
+      toast({
+        title: "❌ Erro na sincronização",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/kiwify-webhook`;
 
@@ -416,6 +518,121 @@ export default function KiwifyIntegrationCard() {
                 </div>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Card Separado para API Kiwify */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5 text-blue-600" />
+            API Kiwify (Sincronização)
+          </CardTitle>
+          <CardDescription>
+            Configure credenciais da API para sincronizar vendas históricas
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Collapsible open={apiConfigOpen} onOpenChange={setApiConfigOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <span className="flex items-center gap-2">
+                  <Key className="h-4 w-4" />
+                  {apiConfigs?.client_id ? "Credenciais Configuradas ✅" : "Configurar Credenciais"}
+                </span>
+                <Settings className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label htmlFor="client_id">Client ID</Label>
+                <Input
+                  id="client_id"
+                  type="text"
+                  value={apiCredentials.client_id}
+                  onChange={(e) => setApiCredentials({ ...apiCredentials, client_id: e.target.value })}
+                  placeholder="Seu Client ID da Kiwify"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client_secret">Client Secret</Label>
+                <Input
+                  id="client_secret"
+                  type="password"
+                  value={apiCredentials.client_secret}
+                  onChange={(e) => setApiCredentials({ ...apiCredentials, client_secret: e.target.value })}
+                  placeholder="Seu Client Secret da Kiwify"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="account_id">Account ID</Label>
+                <Input
+                  id="account_id"
+                  type="text"
+                  value={apiCredentials.account_id}
+                  onChange={(e) => setApiCredentials({ ...apiCredentials, account_id: e.target.value })}
+                  placeholder="Seu Account ID da Kiwify"
+                />
+              </div>
+              <Button
+                onClick={() => saveApiConfigsMutation.mutate()}
+                disabled={saveApiConfigsMutation.isPending}
+                className="w-full"
+              >
+                {saveApiConfigsMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar Credenciais"
+                )}
+              </Button>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Separator />
+
+          {/* Botão de Sincronização */}
+          <div className="space-y-3">
+            <Button
+              onClick={handleSyncKiwifySales}
+              disabled={syncing || !apiConfigs?.client_id}
+              className="w-full gap-2"
+              size="lg"
+            >
+              {syncing ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Sincronizando vendas...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-5 w-5" />
+                  🔄 Sincronizar Vendas Kiwify
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              {!apiConfigs?.client_id
+                ? "⚠️ Configure as credenciais da API antes de sincronizar"
+                : "Importa todas as vendas históricas da Kiwify e atualiza valores financeiros"}
+            </p>
+          </div>
+
+          {/* Instruções */}
+          <div className="space-y-3 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
+            <h4 className="font-semibold text-sm text-blue-900 dark:text-blue-100">
+              📋 Como obter as credenciais:
+            </h4>
+            <ol className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+              <li>1. Acesse <strong>kiwify.com.br/painel</strong> → Configurações</li>
+              <li>2. Vá em <strong>API</strong> → <strong>Gerar Credenciais OAuth</strong></li>
+              <li>3. Copie o <strong>Client ID</strong>, <strong>Client Secret</strong> e <strong>Account ID</strong></li>
+              <li>4. Cole os valores acima e clique em "Salvar Credenciais"</li>
+              <li>5. Clique em "Sincronizar Vendas" para importar histórico</li>
+            </ol>
           </div>
         </CardContent>
       </Card>

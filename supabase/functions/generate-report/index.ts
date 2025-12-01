@@ -101,6 +101,21 @@ serve(async (req) => {
         fileName = `team_goals_${Date.now()}`;
         break;
       
+      case 'kiwify_detailed_sales':
+        data = await generateKiwifyDetailedSalesReport(supabaseClient, filters);
+        fileName = `kiwify_sales_${Date.now()}`;
+        break;
+      
+      case 'affiliate_commissions':
+        data = await generateAffiliateCommissionsReport(supabaseClient, filters);
+        fileName = `affiliate_commissions_${Date.now()}`;
+        break;
+      
+      case 'margin_analysis':
+        data = await generateMarginAnalysisReport(supabaseClient, filters);
+        fileName = `margin_analysis_${Date.now()}`;
+        break;
+      
       default:
         throw new Error(`Unknown report type: ${report_type}`);
     }
@@ -598,6 +613,124 @@ async function generateTeamGoalsPerformanceReport(supabase: any, filters: any) {
 
   console.log(`[team_goals_performance] Generated ${performanceData.length} rows`);
   return performanceData;
+}
+
+async function generateKiwifyDetailedSalesReport(supabase: any, filters: any) {
+  const { startDate, endDate } = filters;
+  
+  let query = supabase
+    .from('deals')
+    .select(`
+      id, title, value, gross_value, net_value, kiwify_fee, affiliate_commission,
+      status, currency, created_at, closed_at,
+      contacts:contact_id (first_name, last_name, email, document),
+      products:product_id (name)
+    `)
+    .in('status', ['won', 'lost'])
+    .or('title.ilike.%Kiwify%,title.ilike.%Upsell%');
+
+  if (startDate) query = query.gte('created_at', startDate);
+  if (endDate) query = query.lte('created_at', endDate);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return data.map((d: any) => ({
+    id: d.id,
+    data: d.created_at,
+    cliente: `${d.contacts?.first_name || ''} ${d.contacts?.last_name || ''}`.trim(),
+    email: d.contacts?.email || '',
+    cpf_cnpj: d.contacts?.document || '',
+    produto: d.products?.name || 'Produto não identificado',
+    valor_bruto: d.gross_value || d.value || 0,
+    valor_liquido: d.net_value || (d.value * 0.7) || 0,
+    taxa_kiwify: d.kiwify_fee || 0,
+    comissao_afiliado: d.affiliate_commission || 0,
+    status: d.status,
+  }));
+}
+
+async function generateAffiliateCommissionsReport(supabase: any, filters: any) {
+  const { startDate, endDate } = filters;
+  
+  let query = supabase
+    .from('deals')
+    .select('affiliate_commission, title, created_at')
+    .eq('status', 'won')
+    .gt('affiliate_commission', 0);
+
+  if (startDate) query = query.gte('created_at', startDate);
+  if (endDate) query = query.lte('created_at', endDate);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  // Group by affiliate (extracted from title or metadata)
+  const affiliateMap = new Map<string, any>();
+  
+  data.forEach((d: any) => {
+    const affiliate = 'Afiliado'; // Placeholder - pode ser extraído do title ou metadata
+    if (!affiliateMap.has(affiliate)) {
+      affiliateMap.set(affiliate, {
+        afiliado: affiliate,
+        email: 'N/A',
+        total_vendas: 0,
+        comissao_total: 0,
+      });
+    }
+    const aff = affiliateMap.get(affiliate);
+    aff.total_vendas++;
+    aff.comissao_total += d.affiliate_commission || 0;
+  });
+
+  return Array.from(affiliateMap.values());
+}
+
+async function generateMarginAnalysisReport(supabase: any, filters: any) {
+  const { startDate, endDate } = filters;
+  
+  let query = supabase
+    .from('deals')
+    .select(`
+      gross_value, net_value, kiwify_fee, affiliate_commission,
+      products:product_id (name)
+    `)
+    .eq('status', 'won');
+
+  if (startDate) query = query.gte('closed_at', startDate);
+  if (endDate) query = query.lte('closed_at', endDate);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  // Group by product
+  const productMap = new Map<string, any>();
+  
+  data.forEach((d: any) => {
+    const productName = d.products?.name || 'Produto não identificado';
+    if (!productMap.has(productName)) {
+      productMap.set(productName, {
+        produto: productName,
+        total_vendas: 0,
+        valor_bruto: 0,
+        valor_liquido: 0,
+        taxas: 0,
+        comissoes: 0,
+      });
+    }
+    const product = productMap.get(productName);
+    product.total_vendas++;
+    product.valor_bruto += d.gross_value || 0;
+    product.valor_liquido += d.net_value || 0;
+    product.taxas += d.kiwify_fee || 0;
+    product.comissoes += d.affiliate_commission || 0;
+  });
+
+  return Array.from(productMap.values()).map(p => ({
+    ...p,
+    margem_percentual: p.valor_bruto > 0 ? ((p.valor_liquido / p.valor_bruto) * 100).toFixed(1) + '%' : '0%',
+    taxa_media: p.total_vendas > 0 ? (p.taxas / p.total_vendas).toFixed(2) : 0,
+  }));
 }
 
 function convertToCSV(data: any[]): string {

@@ -1560,36 +1560,13 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
               .eq('email', emailInformado)
               .single();
 
-            // CENÁRIO A: EMAIL NÃO ENCONTRADO (Não é cliente - CRIAR LEAD + DEAL)
+            // CENÁRIO A: EMAIL NÃO ENCONTRADO (Não é cliente - CRIAR APENAS DEAL)
             if (searchError || !existingCustomer) {
-              console.log('[ai-autopilot-chat] ❌ FASE 2: Email não encontrado - Criando Lead');
+              console.log('[ai-autopilot-chat] ❌ FASE 2: Email não encontrado - Criando APENAS Deal (sem contato)');
               
-              // 🆕 FASE 1: CRIAR/ATUALIZAR CONTATO COMO LEAD
-              const { data: newLead, error: leadError } = await supabaseClient
-                .from('contacts')
-                .upsert({
-                  id: contact.id, // Usa ID do contato temporário
-                  email: emailInformado,
-                  first_name: contact.first_name || 'Lead',
-                  last_name: contact.last_name || 'Chat',
-                  phone: contact.phone,
-                  whatsapp_id: contact.whatsapp_id,
-                  status: 'lead',
-                  source: responseChannel === 'whatsapp' ? 'whatsapp' : 'web_chat'
-                }, {
-                  onConflict: 'id'
-                })
-                .select()
-                .single();
+              // 🚫 NÃO CRIAR CONTATO! Tabela contacts é só para quem PAGOU via Kiwify
               
-              if (leadError) {
-                console.error('[ai-autopilot-chat] ❌ Erro ao criar lead:', leadError);
-              }
-              
-              const leadId = newLead?.id || contact.id;
-              console.log('[ai-autopilot-chat] ✅ Lead criado:', leadId);
-
-              // 🆕 FASE 2: CRIAR DEAL NO PIPELINE DE VENDAS
+              // ✅ CRIAR DEAL COM DADOS DO LEAD (contact_id = NULL)
               let dealId: string | null = null;
               const PIPELINE_VENDAS_ID = '00000000-0000-0000-0000-000000000001';
               const STAGE_LEAD_ID = '11111111-1111-1111-1111-111111111111';
@@ -1598,13 +1575,16 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
                 .from('deals')
                 .insert({
                   title: `Lead via Chat - ${emailInformado}`,
-                  contact_id: leadId,
+                  contact_id: null, // ⚠️ NULL - não é cliente pagante!
+                  lead_email: emailInformado,
+                  lead_phone: contact.phone,
+                  lead_whatsapp_id: contact.whatsapp_id,
+                  lead_source: responseChannel,
                   stage_id: STAGE_LEAD_ID,
                   pipeline_id: PIPELINE_VENDAS_ID,
                   status: 'open',
                   value: 0,
-                  currency: 'BRL',
-                  source: responseChannel === 'whatsapp' ? 'WhatsApp' : 'Web Chat'
+                  currency: 'BRL'
                   // assigned_to será definido pelo route-conversation
                 })
                 .select()
@@ -1612,23 +1592,12 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
               
               if (!dealError && deal) {
                 dealId = deal.id;
-                console.log('[ai-autopilot-chat] 💰 Deal criado:', dealId);
+                console.log('[ai-autopilot-chat] 💰 Deal (Lead) criado:', dealId);
               } else {
                 console.error('[ai-autopilot-chat] ❌ Erro ao criar deal:', dealError);
               }
 
-              // Registrar interação
-              await supabaseClient.from('interactions').insert({
-                customer_id: leadId,
-                type: 'internal_note',
-                content: `💰 Lead criado via ${responseChannel} - Deal ID: ${dealId || 'N/A'}`,
-                channel: responseChannel,
-                metadata: { 
-                  source: 'lead_creation', 
-                  email: emailInformado,
-                  deal_id: dealId
-                }
-              });
+              // Não criar interaction - lead não tem customer_id válido
 
               // Buscar departamento COMERCIAL
               const { data: comercialDept } = await supabaseClient
@@ -1689,9 +1658,9 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
                 console.log('[ai-autopilot-chat] 🔔 Notificação enviada ao vendedor');
                 
                 // 🆕 MENSAGEM COMERCIAL OTIMIZADA
-                assistantMessage = `Não encontrei uma compra ativa com esse email, mas vi que você tem interesse! 🎯
+                assistantMessage = `Não localizei uma assinatura ativa com este e-mail.
 
-Estou chamando um **especialista comercial** para te atender agora. Aguarde um momento!`;
+Vou chamar um **especialista comercial** para te apresentar nossos planos! 🎯 Aguarde um momento.`;
               } else {
                 // Nenhum vendedor online - broadcast para todos
                 const { data: onlineSalesReps } = await supabaseClient
@@ -1726,7 +1695,7 @@ Estou chamando um **especialista comercial** para te atender agora. Aguarde um m
                 }
                 
                 // Vendedores offline
-                assistantMessage = `Não encontrei uma compra ativa com esse email.
+                assistantMessage = `Não localizei uma assinatura ativa com este e-mail.
 
 Nosso **time de vendas** está offline no momento.
 ⏰ **Horário:** Segunda a Sexta, 09h às 18h.

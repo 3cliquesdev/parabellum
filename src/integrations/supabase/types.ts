@@ -1408,6 +1408,10 @@ export type Database = {
           expected_close_date: string | null
           expected_revenue: number | null
           id: string
+          lead_email: string | null
+          lead_phone: string | null
+          lead_source: string | null
+          lead_whatsapp_id: string | null
           lost_reason: string | null
           organization_id: string | null
           pain_points: string | null
@@ -1431,6 +1435,10 @@ export type Database = {
           expected_close_date?: string | null
           expected_revenue?: number | null
           id?: string
+          lead_email?: string | null
+          lead_phone?: string | null
+          lead_source?: string | null
+          lead_whatsapp_id?: string | null
           lost_reason?: string | null
           organization_id?: string | null
           pain_points?: string | null
@@ -1454,6 +1462,10 @@ export type Database = {
           expected_close_date?: string | null
           expected_revenue?: number | null
           id?: string
+          lead_email?: string | null
+          lead_phone?: string | null
+          lead_source?: string | null
+          lead_whatsapp_id?: string | null
           lost_reason?: string | null
           organization_id?: string | null
           pain_points?: string | null

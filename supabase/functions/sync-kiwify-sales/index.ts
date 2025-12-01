@@ -152,7 +152,7 @@ serve(async (req) => {
 
     while (hasMore) {
       const salesResponse = await fetch(
-        `https://public-api.kiwify.com/v1/sales?page_number=${page}&page_size=100&start_date=${startDate}&end_date=${endDate}`,
+        `https://public-api.kiwify.com/v1/sales?page_number=${page}&page_size=100&updated_at_start_date=${startDate}&updated_at_end_date=${endDate}`,
         {
           headers: {
             'Authorization': `Bearer ${access_token}`,

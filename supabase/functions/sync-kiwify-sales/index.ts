@@ -161,6 +161,10 @@ serve(async (req) => {
 
       const startDateStr = windowStart.toISOString().split('T')[0];
       const endDateStr = windowEnd.toISOString().split('T')[0];
+      
+      console.log(`[sync-kiwify-sales] 📅 Janela: ${startDateStr} até ${endDateStr}`);
+      const dayDiff = Math.round((windowEnd.getTime() - windowStart.getTime()) / dayMs);
+      console.log(`[sync-kiwify-sales] 📊 Dias na janela: ${dayDiff}`);
 
       let page = 1;
       let hasMoreInWindow = true;

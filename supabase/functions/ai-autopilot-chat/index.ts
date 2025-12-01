@@ -139,13 +139,14 @@ function createTicketSuccessMessage(
     return `✅ **Solicitação de saque registrada!**
 
 📋 **Protocolo:** #${formattedId}
-💵 **Valor:** R$ ${withdrawalData.amount.toFixed(2)}
+💵 **Valor Solicitado:** R$ ${withdrawalData.amount.toFixed(2)}
 ${withdrawalData.cpf_last4 ? `🔐 **CPF (final):** ...${withdrawalData.cpf_last4}` : ''}
 ⏱️ **Prazo:** 3 a 7 dias úteis
 
-📌 **IMPORTANTE:** O saque será creditado via PIX na chave informada. Não é possível transferir para conta de terceiros.
+📧 **Você receberá um email confirmando a abertura do chamado.**
+🔔 **Quando o saque for processado, você será notificado por email também.**
 
-Nossa equipe financeira já iniciou a análise. Você será notificado assim que o pagamento for processado!`;
+📌 **IMPORTANTE:** O saque será creditado via PIX na chave informada, vinculada ao seu CPF. Não é possível transferir para conta de terceiros.`;
   }
   
   const ticketMessages: Record<string, string> = {
@@ -215,7 +216,7 @@ serve(async (req) => {
         .select(`
           *,
           contacts!inner(
-            id, first_name, last_name, email, phone, whatsapp_id, company, status
+            id, first_name, last_name, email, phone, whatsapp_id, company, status, document
           )
         `)
         .eq('id', conversationId)
@@ -934,12 +935,10 @@ Responda APENAS: skip ou search`
       ).join('\n\n---\n\n')}`;
     }
     
-    // FASE 2: Preparar contexto financeiro (CPF mascarado e saldo)
+    // FASE 2: Preparar contexto financeiro (CPF mascarado)
     const contactCPF = contact.document || ''; // CPF completo
     const maskedCPF = contactCPF.length >= 4 ? `***.***.***-${contactCPF.slice(-2)}` : 'Não cadastrado';
     const cpfLast4 = contactCPF.length >= 4 ? contactCPF.slice(-4) : '';
-    const availableBalance = contact.account_balance || 0;
-    const formattedBalance = `R$ ${availableBalance.toFixed(2)}`;
     
     // ============================================================
     // 🔒 DEFINIÇÕES UNIFICADAS DE CLIENTE (evita inconsistências)
@@ -1503,10 +1502,9 @@ Você quer:
 
 ${canShowFinancialData 
   ? `✅ Cliente VERIFICADO via OTP - Pode prosseguir com saque
-     CPF: ${maskedCPF}
-     Saldo: ${formattedBalance}`
+     CPF: ${maskedCPF}`
   : `❌ BLOQUEIO: Cliente NÃO verificou identidade via OTP nesta sessão.
-     → NÃO mostre CPF, Nome completo ou Saldo
+     → NÃO mostre CPF ou Nome completo
      → NÃO permita criar ticket de saque
      → Informe: "Para sua segurança, preciso verificar sua identidade primeiro. Qual seu email de compra?"`}
 
@@ -1571,7 +1569,6 @@ ${knowledgeContext}${identityWallNote}
 ${contactEmail ? `- Email: ${safeEmail}` : '- Email: NÃO CADASTRADO - SOLICITAR'}
 ${contact.phone ? `- Telefone: ${safePhone}` : ''}
 - CPF: ${maskedCPF}
-- Saldo Disponível: ${formattedBalance}
 
 Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
 

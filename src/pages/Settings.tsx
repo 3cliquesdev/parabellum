@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Database, Mail, Webhook, Loader2, FileText, MessageCircle, Brain, Smartphone, Package, Key, Zap } from "lucide-react";
+import { Shield, Database, Mail, Webhook, Loader2, FileText, MessageCircle, Brain, Smartphone, Package, Key, Zap, Settings as SettingsIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -92,6 +92,21 @@ export default function Settings() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="md:col-span-2 border-2 border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <SettingsIcon className="h-5 w-5 text-primary" />
+              Central de Integrações
+            </CardTitle>
+            <CardDescription>Configure email, API keys, webhooks e integrações em um só lugar</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => navigate('/settings/integrations')} className="w-full md:w-auto">
+              Abrir Central de Integrações
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

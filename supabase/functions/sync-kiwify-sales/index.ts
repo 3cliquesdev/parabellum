@@ -117,14 +117,13 @@ serve(async (req) => {
 
     // 3. Autenticar via OAuth
     console.log('[sync-kiwify-sales] 🔐 Autenticando...');
-    const authResponse = await fetch('https://api.kiwify.com/auth/oauth', {
+    const authResponse = await fetch('https://public-api.kiwify.com/v1/oauth/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
-        grant_type: 'client_credentials',
-      }),
+      }).toString(),
     });
 
     if (!authResponse.ok) {
@@ -146,7 +145,7 @@ serve(async (req) => {
 
     while (hasMore) {
       const salesResponse = await fetch(
-        `https://api.kiwify.com/v1/sales?account_id=${accountId}&page=${page}&per_page=100`,
+        `https://public-api.kiwify.com/v1/sales?account_id=${accountId}&page=${page}&per_page=100`,
         {
           headers: {
             'Authorization': `Bearer ${access_token}`,

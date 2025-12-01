@@ -123,12 +123,12 @@ Deno.serve(async (req) => {
 
     console.log(`[Reprocess] Found ${groupPlaybooks.length} playbooks`);
 
-    // STEP 4: Identify affected contacts via interactions.metadata->>'unmapped' = 'true'
+    // STEP 4: Identify affected contacts via interactions.metadata->>'unmapped' = true
     const { data: unmappedInteractions, error: interactionsError } = await supabaseClient
       .from('interactions')
       .select('customer_id, metadata')
       .eq('type', 'note')
-      .contains('metadata', { unmapped: 'true' });
+      .contains('metadata', { unmapped: true });
 
     if (interactionsError) throw interactionsError;
 

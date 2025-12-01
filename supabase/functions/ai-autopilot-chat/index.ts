@@ -22,6 +22,25 @@ async function generateQuestionHash(message: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// ========== SECURITY HELPERS - LGPD DATA MASKING ==========
+
+function maskEmail(email: string | null | undefined): string {
+  if (!email) return 'Não identificado';
+  const [user, domain] = email.split('@');
+  if (!domain) return 'Email inválido';
+  const maskedUser = user.length > 3 
+    ? user.slice(0, 2) + '***' 
+    : user.slice(0, 1) + '***';
+  return `${maskedUser}@${domain}`;
+}
+
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return 'Não cadastrado';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 4) return '***';
+  return `***-${digits.slice(-4)}`;
+}
+
 // ============================================================
 // 🔒 CONSTANTES GLOBAIS - Unificadas para prevenir inconsistências
 // ============================================================
@@ -862,9 +881,13 @@ Responda APENAS: skip ou search`
     const contactCompany = contact.company ? ` da empresa ${contact.company}` : '';
     const contactStatus = contact.status || 'lead';
     
+    // 🔐 LGPD: Dados mascarados para exposição à IA
+    const safeEmail = maskEmail(contactEmail);
+    const safePhone = maskPhone(contact.phone);
+    
     console.log('[ai-autopilot-chat] 🔐 Identity Wall Check:', {
       hasEmail: contactHasEmail,
-      email: contactEmail,
+      email: safeEmail,
       channel: responseChannel,
       isKnownCustomer: contactHasEmail
     });
@@ -1031,13 +1054,13 @@ Se o cliente insistir em pular a verificação, explique que é uma política de
         // Cenário: Tem email mas não tem OTP recente → Pedir verificação
         identityWallNote += `\n\n**🔐🔐🔐 PORTEIRO FINANCEIRO - VERIFICAÇÃO OBRIGATÓRIA 🔐🔐🔐**
 O cliente pediu uma operação FINANCEIRA (${customerMessage}).
-Ele TEM email cadastrado (${contactEmail}), MAS precisa verificar identidade via OTP.
+Ele TEM email cadastrado (${safeEmail}), MAS precisa verificar identidade via OTP.
 
 **RESPOSTA OBRIGATÓRIA:**
 "Para sua segurança, preciso confirmar sua identidade antes de prosseguir com operações financeiras. 
-Vou enviar um código de verificação para ${contactEmail}. Aguarde..."
+Vou enviar um código de verificação para ${safeEmail}. Aguarde..."
 
-→ Use a tool update_customer_email com o email ${contactEmail} para disparar o OTP
+→ Use a tool update_customer_email para disparar o OTP (sistema já conhece o email)
 → NÃO mostre CPF, Nome, Saldo ou qualquer dado sensível
 → NÃO permita criar ticket de saque
 → AGUARDE o cliente digitar o código de 6 dígitos`;
@@ -1063,7 +1086,15 @@ Qual é o seu **email de compra**?"
 ${isRecentlyVerified ? '**⚠️ CLIENTE RECÉM-VERIFICADO:** Esta é a primeira mensagem pós-verificação. Não fazer handoff automático. Seja acolhedor e pergunte "Como posso te ajudar?".' : ''}`;
     }
     
-    const contextualizedSystemPrompt = `Você é a Lais, assistente virtual inteligente da Parabellum / 3Cliques.
+    const contextualizedSystemPrompt = `🚨 **DIRETRIZ DE SEGURANÇA E PRIVACIDADE (LGPD - IMPORTANTE):**
+- NUNCA escreva o e-mail completo, telefone ou CPF do cliente na resposta
+- Se precisar confirmar a conta, use APENAS o formato mascarado fornecido (ex: ro***@gmail.com)
+- Proteja os dados do cliente como se fossem seus
+- O nome do cliente (${contactName}) é seguro para usar
+
+---
+
+Você é a Lais, assistente virtual inteligente da Parabellum / 3Cliques.
 Sua missão é AJUDAR o cliente, não se livrar dele.
 
 **COMO RESPONDER:**
@@ -1198,8 +1229,8 @@ ${priorityInstruction}${knowledgeContext}${identityWallNote}
 - Nome: ${contactName}${contactCompany}
 - Status: ${contactStatus}
 - Canal: ${responseChannel}
-${customer_context?.email || contact.email ? `- Email: ${customer_context?.email || contact.email}` : '- Email: NÃO CADASTRADO - SOLICITAR'}
-${contact.phone ? `- Telefone: ${contact.phone}` : ''}
+${contactEmail ? `- Email: ${safeEmail}` : '- Email: NÃO CADASTRADO - SOLICITAR'}
+${contact.phone ? `- Telefone: ${safePhone}` : ''}
 - CPF: ${maskedCPF}
 - Saldo Disponível: ${formattedBalance}
 

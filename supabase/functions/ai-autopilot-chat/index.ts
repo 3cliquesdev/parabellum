@@ -1752,22 +1752,17 @@ Assim que retornarmos, um consultor vai te ajudar! 🙏`;
 
             console.log('[ai-autopilot-chat] ✅ OTP enviado para cliente verificado');
             
-            // Dev mode
+            // Build response message (NEVER show code to client)
             const safeEmail = maskEmail(emailInformado);
-            if (otpData.dev_mode && otpData.code) {
-              assistantMessage = `✅ Encontrei seu cadastro, ${existingCustomer.first_name}!
-
-📧 Enviei um código de 6 dígitos para **${safeEmail}**.
-
-🔧 **Modo Dev:** Seu código é ${otpData.code}
-
-Por favor, digite o código para confirmar sua identidade e prosseguir.`;
-            } else {
-              assistantMessage = `✅ Encontrei seu cadastro, ${existingCustomer.first_name}!
+            assistantMessage = `✅ Encontrei seu cadastro, ${existingCustomer.first_name}!
 
 📧 Enviei um código de 6 dígitos para **${safeEmail}**.
 
 Por favor, digite o código que você recebeu para confirmar sua identidade.`;
+
+            // Log dev mode internally (never show code to client)
+            if (otpData.dev_mode) {
+              console.log('[ai-autopilot-chat] ⚠️ DEV MODE: Código OTP não foi enviado por email - verifique configuração do Resend');
             }
             
             await supabaseClient.from('interactions').insert({
@@ -1804,23 +1799,17 @@ Por favor, digite o código que você recebeu para confirmar sua identidade.`;
               continue;
             }
 
+            // Build response message (NEVER show code to client)
             const safeEmail = maskEmail(contactEmail);
-            
-            // Dev mode
-            if (otpData.dev_mode && otpData.code) {
-              assistantMessage = `✅ Código reenviado com sucesso!
-
-📧 Enviei um novo código de 6 dígitos para **${safeEmail}**.
-
-🔧 **Modo Dev:** Seu código é ${otpData.code}
-
-Por favor, digite o código para prosseguir.`;
-            } else {
-              assistantMessage = `✅ Código reenviado com sucesso!
+            assistantMessage = `✅ Código reenviado com sucesso!
 
 📧 Enviei um novo código de 6 dígitos para **${safeEmail}**.
 
 Por favor, verifique sua caixa de entrada (e spam) e digite o código que você recebeu.`;
+
+            // Log dev mode internally (never show code to client)
+            if (otpData.dev_mode) {
+              console.log('[ai-autopilot-chat] ⚠️ DEV MODE: Código OTP não enviado - verifique configuração do Resend');
             }
 
             console.log('[ai-autopilot-chat] ✅ OTP reenviado para email cadastrado:', safeEmail);

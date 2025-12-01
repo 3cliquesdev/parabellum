@@ -474,11 +474,7 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
       // FASE 2 & 3: Mensagem WhatsApp adaptada ao contexto
       let whatsappMessage: string;
       
-      if (devMode && otpCode) {
-        // FASE 2: DEV MODE - incluir código na mensagem
-        whatsappMessage = `🔐 *Verificação de Identidade*\n\nLocalizei um cadastro com este e-mail.\n\n📧 Código enviado para *${claimedEmail}*\n\n🔧 **MODO DEV:** Seu código é *${otpCode}*\n\nDigite o código aqui para confirmar sua identidade.`;
-        console.log('[handle-whatsapp-event] 🔧 DEV MODE: Incluindo código no WhatsApp');
-      } else if (!otpSentViaEmail && otpCode) {
+      if (!otpSentViaEmail && otpCode) {
         // FASE 3: Email falhou - enviar código via WhatsApp como fallback
         whatsappMessage = `🔐 *Verificação de Identidade*\n\nLocalizei um cadastro com este e-mail.\n\n⚠️ O envio por email falhou.\n\n🔑 Seu código de verificação é: *${otpCode}*\n\nDigite o código aqui para confirmar sua identidade.`;
         console.log('[handle-whatsapp-event] 📱 FALLBACK: Enviando OTP via WhatsApp porque email falhou');
@@ -490,6 +486,11 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
         // Erro crítico: nem email nem código disponível
         whatsappMessage = `🔐 *Verificação de Identidade*\n\n❌ Houve um erro ao gerar o código de verificação. Por favor, tente novamente em alguns minutos.`;
         console.error('[handle-whatsapp-event] ❌ ERRO CRÍTICO: Nem email nem código disponível');
+      }
+      
+      // Log dev mode internally (never show code to client)
+      if (devMode) {
+        console.log('[handle-whatsapp-event] ⚠️ DEV MODE: Código OTP não enviado por email - verifique logs do servidor');
       }
       
       await sendWhatsAppMessage(

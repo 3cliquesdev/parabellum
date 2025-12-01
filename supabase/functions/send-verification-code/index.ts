@@ -251,8 +251,9 @@ serve(async (req) => {
         return new Response(JSON.stringify({ 
           success: true,
           dev_mode: true,
-          code: code, // Incluir código na resposta apenas em dev
-          warning: 'Email não enviado - Resend em modo teste. Configure domínio verificado.'
+          // ❌ NEVER return code in API response for security
+          // Code is logged in server console for debugging only
+          warning: 'Email não enviado - Resend em modo teste. Verifique logs do servidor para código de teste.'
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

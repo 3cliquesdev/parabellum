@@ -20,6 +20,7 @@ import DealDialog from "@/components/DealDialog";
 import PipelineDialog from "@/components/PipelineDialog";
 import DragDropActionBar from "@/components/DragDropActionBar";
 import LostReasonDialog from "@/components/LostReasonDialog";
+import { PendingDealsQueue } from "@/components/deals/PendingDealsQueue";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Deal = Tables<"deals"> & {
@@ -255,6 +256,13 @@ export default function Deals() {
             />
           </div>
         </div>
+
+        {/* Fila de Deals Pendentes (apenas para gerentes) */}
+        {isManagerOrAdmin && (
+          <div className="mb-6">
+            <PendingDealsQueue />
+          </div>
+        )}
 
         {/* Pipeline Metrics Bar */}
         {pipelineMetrics && (

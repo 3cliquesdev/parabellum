@@ -27,9 +27,12 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
-import { BarChart3, Sparkles, Headphones, TrendingUp, Brain, Rocket, MessageCircle } from "lucide-react";
+import { BarChart3, Sparkles, Headphones, TrendingUp, Brain, Rocket, MessageCircle, DollarSign } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRange } from "react-day-picker";
+import { FinancialKPIsWidget } from "@/components/widgets/FinancialKPIsWidget";
+import { RevenueBreakdownWidget } from "@/components/widgets/RevenueBreakdownWidget";
+import { ProductMarginTable } from "@/components/widgets/ProductMarginTable";
 
 export default function Analytics() {
   const { role, loading: roleLoading } = useUserRole();
@@ -122,9 +125,9 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* Main Tabs: Support, AI, Onboarding, WhatsApp, Sales */}
+        {/* Main Tabs: Support, AI, Onboarding, WhatsApp, Sales, Financeiro */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="support" className="flex items-center gap-2">
               <Headphones className="h-4 w-4" />
               Suporte
@@ -144,6 +147,10 @@ export default function Analytics() {
             <TabsTrigger value="sales" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
               Vendas
+            </TabsTrigger>
+            <TabsTrigger value="financial" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Financeiro
             </TabsTrigger>
           </TabsList>
 
@@ -279,6 +286,29 @@ export default function Analytics() {
 
             {/* Sales Leaderboard */}
             <SalesLeaderboard />
+          </TabsContent>
+
+          {/* TAB 6: Financeiro Kiwify */}
+          <TabsContent value="financial" className="space-y-6">
+            {/* AI Executive Summary */}
+            <AIExecutiveSummary 
+              data={{ 
+                context: 'financial',
+                message: 'Aguardando coleta de dados financeiros Kiwify para análise. Clique em "Gerar Análise" para processar.',
+              }}
+              context="financial"
+              startDate={startDate}
+              endDate={endDate}
+            />
+
+            {/* KPIs Financeiros */}
+            <FinancialKPIsWidget startDate={startDate} endDate={endDate} />
+
+            {/* Evolução de Receita */}
+            <RevenueBreakdownWidget startDate={startDate} endDate={endDate} />
+
+            {/* Tabela por Produto */}
+            <ProductMarginTable startDate={startDate} endDate={endDate} />
           </TabsContent>
         </Tabs>
 

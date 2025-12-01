@@ -8,6 +8,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import AddKiwifyTokenDialog from "./AddKiwifyTokenDialog";
+import SyncOptionsDialog, { SyncOptions } from "./SyncOptionsDialog";
+import SyncProgressWidget from "./SyncProgressWidget";
+import SyncReportDialog from "./SyncReportDialog";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Separator } from "@/components/ui/separator";
@@ -23,7 +26,10 @@ export default function KiwifyIntegrationCard() {
   const [copying, setCopying] = useState(false);
   const [addTokenDialogOpen, setAddTokenDialogOpen] = useState(false);
   const [testingWebhook, setTestingWebhook] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [syncOptionsOpen, setSyncOptionsOpen] = useState(false);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [syncReportOpen, setSyncReportOpen] = useState(false);
+  const [syncStats, setSyncStats] = useState<any>(null);
   const [apiConfigOpen, setApiConfigOpen] = useState(false);
   
   const [apiCredentials, setApiCredentials] = useState({
@@ -149,27 +155,64 @@ export default function KiwifyIntegrationCard() {
     },
   });
 
-  const handleSyncKiwifySales = async () => {
-    setSyncing(true);
+  const handleSyncKiwifySales = async (options: SyncOptions) => {
+    setSyncOptionsOpen(false);
+    
     try {
-      const { data, error } = await supabase.functions.invoke("sync-kiwify-sales");
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { data, error } = await supabase.functions.invoke("sync-kiwify-sales", {
+        body: {
+          ...options,
+          user_id: user?.id,
+        },
+      });
 
       if (error) throw error;
 
-      toast({
-        title: "✅ Sincronização concluída",
-        description: `${data.stats.updated} atualizados, ${data.stats.created} criados, ${data.stats.errors} erros`,
-      });
+      // Iniciar tracking do job
+      setCurrentJobId(data.job_id);
 
-      queryClient.invalidateQueries({ queryKey: ["kiwify-financials"] });
+      // Quando job completar, mostrar relatório
+      const checkJobCompletion = setInterval(async () => {
+        const { data: job } = await supabase
+          .from("sync_jobs")
+          .select("*")
+          .eq("id", data.job_id)
+          .single();
+
+        if (job && (job.status === "completed" || job.status === "failed")) {
+          clearInterval(checkJobCompletion);
+          setCurrentJobId(null);
+          
+          if (job.status === "completed") {
+            setSyncStats({
+              total_sales: job.processed_items,
+              contacts_created: job.contacts_created,
+              contacts_updated: job.updated_items,
+              auth_users_created: job.auth_users_created,
+              deals_created: job.deals_created,
+              deals_updated: job.deals_updated,
+              errors: Array.isArray(job.errors) ? job.errors.length : 0,
+            });
+            setSyncReportOpen(true);
+            queryClient.invalidateQueries({ queryKey: ["kiwify-financials"] });
+          } else {
+            toast({
+              title: "❌ Sincronização falhou",
+              description: "Verifique os logs para mais detalhes",
+              variant: "destructive",
+            });
+          }
+        }
+      }, 2000);
+
     } catch (error: any) {
       toast({
-        title: "❌ Erro na sincronização",
+        title: "❌ Erro ao iniciar sincronização",
         description: error.message,
         variant: "destructive",
       });
-    } finally {
-      setSyncing(false);
     }
   };
 
@@ -596,28 +639,23 @@ export default function KiwifyIntegrationCard() {
 
           {/* Botão de Sincronização */}
           <div className="space-y-3">
-            <Button
-              onClick={handleSyncKiwifySales}
-              disabled={syncing || !apiConfigs?.client_id}
-              className="w-full gap-2"
-              size="lg"
-            >
-              {syncing ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Sincronizando vendas...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-5 w-5" />
-                  🔄 Sincronizar Vendas Kiwify
-                </>
-              )}
-            </Button>
+            {currentJobId ? (
+              <SyncProgressWidget jobId={currentJobId} />
+            ) : (
+              <Button
+                onClick={() => setSyncOptionsOpen(true)}
+                disabled={!apiConfigs?.client_id}
+                className="w-full gap-2"
+                size="lg"
+              >
+                <RefreshCw className="h-5 w-5" />
+                🔄 Importar Todas as Vendas
+              </Button>
+            )}
             <p className="text-xs text-muted-foreground text-center">
               {!apiConfigs?.client_id
                 ? "⚠️ Configure as credenciais da API antes de sincronizar"
-                : "Importa todas as vendas históricas da Kiwify e atualiza valores financeiros"}
+                : "Importa todas as vendas históricas da Kiwify para o CRM"}
             </p>
           </div>
 
@@ -640,6 +678,27 @@ export default function KiwifyIntegrationCard() {
       <AddKiwifyTokenDialog
         open={addTokenDialogOpen}
         onOpenChange={setAddTokenDialogOpen}
+      />
+
+      <SyncOptionsDialog
+        open={syncOptionsOpen}
+        onOpenChange={setSyncOptionsOpen}
+        onConfirm={handleSyncKiwifySales}
+        isLoading={!!currentJobId}
+      />
+
+      <SyncReportDialog
+        open={syncReportOpen}
+        onOpenChange={setSyncReportOpen}
+        stats={syncStats || {
+          total_sales: 0,
+          contacts_created: 0,
+          contacts_updated: 0,
+          auth_users_created: 0,
+          deals_created: 0,
+          deals_updated: 0,
+          errors: 0,
+        }}
       />
     </>
   );

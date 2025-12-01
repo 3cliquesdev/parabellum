@@ -3146,6 +3146,74 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_jobs: {
+        Row: {
+          auth_users_created: number | null
+          completed_at: string | null
+          contacts_created: number | null
+          created_at: string | null
+          created_by: string | null
+          created_items: number | null
+          deals_created: number | null
+          deals_updated: number | null
+          errors: Json | null
+          id: string
+          job_type: string
+          options: Json | null
+          processed_items: number | null
+          started_at: string | null
+          status: string | null
+          total_items: number | null
+          updated_items: number | null
+        }
+        Insert: {
+          auth_users_created?: number | null
+          completed_at?: string | null
+          contacts_created?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          created_items?: number | null
+          deals_created?: number | null
+          deals_updated?: number | null
+          errors?: Json | null
+          id?: string
+          job_type: string
+          options?: Json | null
+          processed_items?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_items?: number | null
+          updated_items?: number | null
+        }
+        Update: {
+          auth_users_created?: number | null
+          completed_at?: string | null
+          contacts_created?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          created_items?: number | null
+          deals_created?: number | null
+          deals_updated?: number | null
+          errors?: Json | null
+          id?: string
+          job_type?: string
+          options?: Json | null
+          processed_items?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_items?: number | null
+          updated_items?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_configurations: {
         Row: {
           category: string

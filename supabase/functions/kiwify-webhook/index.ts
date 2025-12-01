@@ -24,6 +24,7 @@ interface KiwifyCustomer {
   email: string;
   mobile_phone?: string;
   CPF?: string;
+  cnpj?: string;
   birth_date?: string;
   Address?: KiwifyAddress;
 }
@@ -322,6 +323,16 @@ async function handlePaidOrder(
   order_id: string
 ) {
   console.log('[kiwify-webhook] 💚 PAID - Verificando existência:', Customer.email);
+  console.log('[kiwify-webhook] 📊 Customer document:', {
+    CPF: Customer.CPF,
+    cnpj: Customer.cnpj,
+    selected: Customer.CPF || Customer.cnpj || 'NONE'
+  });
+  console.log('[kiwify-webhook] 💰 Price conversion:', {
+    raw: Commissions.product_base_price,
+    converted: Commissions.product_base_price / 100,
+    unit: 'BRL'
+  });
 
   // 🔍 DIVISOR DE ÁGUAS: Verificar se cliente já existe
   const { data: existingContact } = await supabase
@@ -398,7 +409,7 @@ async function handlePaidOrder(
       first_name: nameParts[0],
       last_name: nameParts.slice(1).join(' ') || nameParts[0],
       phone: Customer.mobile_phone,
-      document: Customer.CPF,
+      document: Customer.CPF || Customer.cnpj || null,
       birth_date: Customer.birth_date || null,
       address: Customer.Address?.street || null,
       address_number: Customer.Address?.number || null,
@@ -918,7 +929,7 @@ async function handleRecoveryOrder(
       first_name: nameParts[0],
       last_name: nameParts.slice(1).join(' ') || nameParts[0],
       phone: Customer.mobile_phone,
-      document: Customer.CPF,
+      document: Customer.CPF || Customer.cnpj || null,
       birth_date: Customer.birth_date || null,
       address: Customer.Address?.street || null,
       address_number: Customer.Address?.number || null,

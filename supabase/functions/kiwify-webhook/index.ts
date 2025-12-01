@@ -105,39 +105,71 @@ serve(async (req) => {
   try {
     // ============================================
     // SECURITY: Verify webhook signature (HMAC)
+    // MULTI-TOKEN SUPPORT
     // ============================================
-    const webhookSecret = Deno.env.get('KIWIFY_WEBHOOK_SECRET');
-    
-    if (!webhookSecret) {
-      console.error('[kiwify-webhook] ❌ KIWIFY_WEBHOOK_SECRET not configured');
-      return new Response(
-        JSON.stringify({ error: 'Webhook secret not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { persistSession: false } }
+    );
 
     // Read body as text for signature verification
     const bodyText = await req.text();
     const signature = req.headers.get('x-kiwify-signature');
 
-    // Verify signature before processing
-    const isValid = await verifyKiwifySignature(bodyText, signature, webhookSecret);
-    
+    // 1️⃣ Tentar validar contra tokens cadastrados na tabela
+    const { data: tokens } = await supabase
+      .from('kiwify_webhook_tokens')
+      .select('id, token')
+      .eq('is_active', true);
+
+    let isValid = false;
+    let matchedTokenId: string | null = null;
+
+    console.log(`[kiwify-webhook] 🔍 Testing ${tokens?.length || 0} active tokens`);
+
+    for (const tokenRecord of tokens || []) {
+      if (await verifyKiwifySignature(bodyText, signature, tokenRecord.token)) {
+        isValid = true;
+        matchedTokenId = tokenRecord.id;
+        console.log(`[kiwify-webhook] ✅ Token matched: ${tokenRecord.id}`);
+        break;
+      }
+    }
+
+    // 2️⃣ Fallback: Tentar KIWIFY_WEBHOOK_SECRET (compatibilidade retroativa)
+    if (!isValid) {
+      const envSecret = Deno.env.get('KIWIFY_WEBHOOK_SECRET');
+      if (envSecret) {
+        console.log('[kiwify-webhook] 🔄 Trying fallback env secret');
+        isValid = await verifyKiwifySignature(bodyText, signature, envSecret);
+        if (isValid) {
+          console.log('[kiwify-webhook] ✅ Fallback env secret validated');
+        }
+      }
+    }
+
+    // 3️⃣ Se nenhum token validou, rejeitar
     if (!isValid) {
       console.error('[kiwify-webhook] ❌ SECURITY: Invalid webhook signature - possible attack');
+      console.error('[kiwify-webhook] Tested tokens from DB:', tokens?.length || 0);
+      console.error('[kiwify-webhook] Env secret available:', !!Deno.env.get('KIWIFY_WEBHOOK_SECRET'));
       return new Response(
         JSON.stringify({ error: 'Invalid signature' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[kiwify-webhook] ✅ Signature verified');
+    // 4️⃣ Se token da tabela foi usado, atualizar last_used_at
+    if (matchedTokenId) {
+      await supabase
+        .from('kiwify_webhook_tokens')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('id', matchedTokenId);
+      console.log('[kiwify-webhook] 📝 Token last_used_at updated');
+    }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      { auth: { persistSession: false } }
-    );
+    console.log('[kiwify-webhook] ✅ Signature verified');
 
     const payload: KiwifyWebhookPayload = JSON.parse(bodyText);
     console.log('[kiwify-webhook] Received:', payload.order_status, payload.order_id);

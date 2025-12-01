@@ -145,18 +145,19 @@ serve(async (req) => {
 
     while (hasMore) {
       const salesResponse = await fetch(
-        `https://public-api.kiwify.com/v1/sales?page=${page}&per_page=100`,
+        `https://public-api.kiwify.com/v1/sales?page_number=${page}&page_size=100`,
         {
           headers: {
             'Authorization': `Bearer ${access_token}`,
-            'X-Kiwify-Account-Id': accountId,
+            'x-kiwify-account-id': accountId,
             'Content-Type': 'application/json',
           },
         }
       );
 
       if (!salesResponse.ok) {
-        throw new Error(`Falha ao buscar vendas: ${salesResponse.status}`);
+        const errorText = await salesResponse.text().catch(() => '');
+        throw new Error(`Falha ao buscar vendas: ${salesResponse.status} - ${errorText}`);
       }
 
       const salesData = await salesResponse.json();

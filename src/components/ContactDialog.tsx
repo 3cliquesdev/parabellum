@@ -132,7 +132,7 @@ export default function ContactDialog({ contact, trigger, onOpenChange }: Contac
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
             {contact ? "Editar Contato" : "Novo Contato"}

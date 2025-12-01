@@ -194,7 +194,7 @@ export default function DealDialog({ deal, trigger, onOpenChange, prefilledConta
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
             {deal ? "Editar Negócio" : "Novo Negócio"}

@@ -27,7 +27,8 @@ import {
   Workflow,
   Receipt,
   RefreshCw,
-  CheckCircle2
+  CheckCircle2,
+  Tags
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -219,6 +220,7 @@ const adminReportsItems = [
 
 const adminSystemItems = [
   { title: "Produtos", href: "/settings/products", icon: Package },
+  { title: "Tags", href: "/settings/tags", icon: Tags },
   { title: "Usuários", href: "/users", icon: UserCog },
   { title: "Importar Clientes", href: "/import-clients", icon: Upload },
   { title: "Configurações", href: "/settings", icon: Settings },

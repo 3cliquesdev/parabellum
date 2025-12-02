@@ -8,20 +8,52 @@ export function useSalesReps() {
     queryKey: ["sales-reps"],
     queryFn: async () => {
       console.log("[useSalesReps] Fetching sales reps...");
-      // SOLUÇÃO SIMPLIFICADA: Query direta na tabela profiles
-      // Evita erro PGRST200 com join implícito em user_roles
+      
+      // Filtrar apenas funcionários internos (excluir clientes com role="user")
+      const employeeRoles = [
+        'admin',
+        'general_manager',
+        'manager',
+        'sales_rep',
+        'consultant',
+        'support_agent',
+        'support_manager',
+        'financial_manager',
+        'cs_manager'
+      ] as const;
+      
+      // Primeiro buscar user_ids com roles de funcionários
+      const { data: userRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("role", employeeRoles);
+
+      if (rolesError) {
+        console.error("[useSalesReps] Error fetching user roles:", rolesError);
+        throw rolesError;
+      }
+      
+      // Extrair user_ids únicos
+      const userIds = [...new Set(userRoles?.map(r => r.user_id) || [])];
+      
+      if (userIds.length === 0) {
+        return [];
+      }
+      
+      // Buscar profiles correspondentes
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, job_title, avatar_url")
+        .in("id", userIds)
         .order("full_name");
 
       if (error) {
-        console.error("[useSalesReps] Error fetching sales reps:", error);
+        console.error("[useSalesReps] Error fetching profiles:", error);
         throw error;
       }
       
-      console.log("[useSalesReps] Data fetched:", data);
-      return data;
+      console.log("[useSalesReps] Employees fetched:", data);
+      return data || [];
     },
   });
 }

@@ -50,6 +50,7 @@ export default function Deals() {
   
   const isManagerOrAdmin = role && (role === "admin" || role === "manager");
   const isAdmin = role === "admin";
+  const canManagePipelines = role && ['admin', 'manager', 'general_manager'].includes(role);
 
   // Selecionar pipeline default ao carregar
   useEffect(() => {
@@ -245,7 +246,7 @@ export default function Deals() {
             </p>
           </div>
           <div className="flex gap-2">
-            {isAdmin && <PipelineDialog />}
+            {canManagePipelines && <PipelineDialog />}
             <DealDialog
               trigger={
                 <Button className="gap-2">

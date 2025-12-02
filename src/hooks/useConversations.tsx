@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import type { Tables } from "@/integrations/supabase/types";
+import type { DateRange } from "react-day-picker";
 
 type Contact = Tables<"contacts"> & {
   organizations: Tables<"organizations"> | null;
@@ -25,12 +26,24 @@ type Conversation = Tables<"conversations"> & {
   } | null;
 };
 
-export function useConversations() {
+export interface ConversationFilters {
+  dateRange?: DateRange;
+  channels: string[];
+  status: string[];
+  assignedTo?: string;
+  tags: string[];
+  search: string;
+  slaExpired: boolean;
+}
+
+const SLA_HOURS = 4; // Configurable SLA threshold
+
+export function useConversations(filters?: ConversationFilters) {
   const { user } = useAuth();
   const { role } = useUserRole();
 
   return useQuery({
-    queryKey: ["conversations", user?.id, role],
+    queryKey: ["conversations", user?.id, role, filters],
     queryFn: async () => {
       let query = supabase
         .from("conversations")
@@ -41,15 +54,86 @@ export function useConversations() {
           assigned_user:profiles!assigned_to(id, full_name, avatar_url, job_title, department)
         `);
 
-      // Filtrar por assigned_to se for sales_rep
+      // Role-based filtering for sales_rep
       if (role && (role as string) === "sales_rep" && user?.id) {
         query = query.eq("assigned_to", user.id);
+      }
+
+      // Apply filters if provided
+      if (filters) {
+        // Date range filter
+        if (filters.dateRange?.from) {
+          query = query.gte("created_at", filters.dateRange.from.toISOString());
+        }
+        if (filters.dateRange?.to) {
+          const endOfDay = new Date(filters.dateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          query = query.lte("created_at", endOfDay.toISOString());
+        }
+
+        // Channel filter
+        if (filters.channels.length > 0) {
+          query = query.in("channel", filters.channels as ("email" | "web_chat" | "whatsapp")[]);
+        }
+
+        // Status filter
+        if (filters.status.length > 0) {
+          query = query.in("status", filters.status as ("open" | "closed")[]);
+        }
+
+        // Assigned to filter
+        if (filters.assignedTo) {
+          if (filters.assignedTo === "unassigned") {
+            query = query.is("assigned_to", null);
+          } else {
+            query = query.eq("assigned_to", filters.assignedTo);
+          }
+        }
+
+        // Search filter (name, email, or ID)
+        if (filters.search) {
+          // We'll filter client-side for contact name/email since it's a joined table
+        }
       }
 
       const { data, error } = await query.order("last_message_at", { ascending: false });
 
       if (error) throw error;
-      return data as Conversation[];
+
+      let result = data as Conversation[];
+
+      // Client-side filtering for search and SLA expired
+      if (filters) {
+        // Search filter (applied client-side for joined data)
+        if (filters.search) {
+          const searchLower = filters.search.toLowerCase();
+          result = result.filter(conv => {
+            const contact = conv.contacts;
+            if (!contact) return false;
+            return (
+              contact.first_name?.toLowerCase().includes(searchLower) ||
+              contact.last_name?.toLowerCase().includes(searchLower) ||
+              contact.email?.toLowerCase().includes(searchLower) ||
+              contact.phone?.includes(filters.search) ||
+              conv.id.toLowerCase().includes(searchLower)
+            );
+          });
+        }
+
+        // SLA expired filter
+        if (filters.slaExpired) {
+          const now = new Date();
+          const slaThreshold = new Date(now.getTime() - SLA_HOURS * 60 * 60 * 1000);
+          result = result.filter(conv => {
+            // Only open conversations with no first response yet
+            if (conv.status !== "open" || conv.first_response_at) return false;
+            const lastMessage = new Date(conv.last_message_at);
+            return lastMessage < slaThreshold;
+          });
+        }
+      }
+
+      return result;
     },
   });
 }
@@ -88,4 +172,13 @@ export function useCreateConversation() {
       });
     },
   });
+}
+
+// Helper to check if a conversation has SLA expired
+export function isSlaCritical(conversation: Conversation, thresholdHours = SLA_HOURS): boolean {
+  if (conversation.status !== "open" || conversation.first_response_at) return false;
+  const now = new Date();
+  const lastMessage = new Date(conversation.last_message_at);
+  const hoursAgo = (now.getTime() - lastMessage.getTime()) / (1000 * 60 * 60);
+  return hoursAgo >= thresholdHours;
 }

@@ -1,12 +1,14 @@
 import { useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useConversations } from "@/hooks/useConversations";
+import { useConversations, type ConversationFilters } from "@/hooks/useConversations";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useTeams, useUserTeams } from "@/hooks/useTeams";
 import ConversationList from "@/components/ConversationList";
 import ChatWindow from "@/components/ChatWindow";
 import ContactDetailsSidebar from "@/components/ContactDetailsSidebar";
+import InboxFilterPopover, { type InboxFilters } from "@/components/inbox/InboxFilterPopover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,25 +28,50 @@ type Conversation = Tables<"conversations"> & {
   } | null;
 };
 
+const DEFAULT_FILTERS: InboxFilters = {
+  dateRange: undefined,
+  channels: [],
+  status: [],
+  assignedTo: undefined,
+  tags: [],
+  search: "",
+  slaExpired: false,
+};
+
 export default function Inbox() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { role } = useUserRole();
   
-  // Filtro padrão inteligente baseado em role
+  // Filter state
+  const [filters, setFilters] = useState<InboxFilters>(DEFAULT_FILTERS);
+  
+  // Smart default filter based on role
   const defaultFilter = (role === 'admin' || role === 'manager') ? 'all' : 'human_queue';
   const filter = searchParams.get("filter") || defaultFilter;
   
   const departmentFilter = searchParams.get("dept");
+  const teamFilter = searchParams.get("team");
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
-  const { data: conversations, isLoading } = useConversations();
+  
+  // Convert InboxFilters to ConversationFilters for the hook
+  const conversationFilters: ConversationFilters = {
+    ...filters,
+    channels: filters.channels,
+    status: filters.status,
+  };
+  
+  const { data: conversations, isLoading } = useConversations(conversationFilters);
   const { data: departments } = useDepartments();
+  const { data: teams } = useTeams();
+  const { data: userTeams } = useUserTeams(user?.id);
 
   const handleFilterChange = (value: string) => {
     const params = new URLSearchParams(searchParams);
     params.set("filter", value);
-    params.delete("dept"); // Remove department filter when changing main filter
+    params.delete("dept");
+    params.delete("team");
     navigate(`/inbox?${params.toString()}`);
   };
 
@@ -52,8 +79,20 @@ export default function Inbox() {
     const params = new URLSearchParams(searchParams);
     if (deptId) {
       params.set("dept", deptId);
+      params.delete("team");
     } else {
       params.delete("dept");
+    }
+    navigate(`/inbox?${params.toString()}`);
+  };
+
+  const handleTeamFilter = (teamId: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    if (teamId) {
+      params.set("team", teamId);
+      params.delete("dept");
+    } else {
+      params.delete("team");
     }
     navigate(`/inbox?${params.toString()}`);
   };
@@ -63,21 +102,23 @@ export default function Inbox() {
     
     let result = conversations;
 
-    // Aplicar filtro de departamento primeiro (se houver)
+    // Apply department filter
     if (departmentFilter) {
       result = result.filter(c => c.department === departmentFilter);
     }
 
-    // Depois aplicar filtro de modo AI
+    // Apply team filter (if user is manager of a team or member)
+    if (teamFilter) {
+      // For now, team filter would need team_members lookup
+      // This is a placeholder for team-based filtering
+    }
+
+    // Apply AI mode filter
     switch (filter) {
       case "ai_queue":
-        // Fila IA: conversas em autopilot (IA respondendo sozinha)
         return result.filter(c => c.ai_mode === 'autopilot');
       
       case "human_queue":
-        // Fila Humana: conversas em copilot ou disabled
-        // Admin/Manager: vê TODAS as conversas em modo humano
-        // Outros: vê apenas as atribuídas a eles
         if (role === 'admin' || role === 'manager' || role === 'support_manager' || role === 'cs_manager') {
           return result.filter(c => c.ai_mode === 'copilot' || c.ai_mode === 'disabled');
         }
@@ -86,14 +127,21 @@ export default function Inbox() {
           c.assigned_to === user?.id
         );
       
+      case "my_team":
+        // Show conversations from team members
+        if (userTeams && userTeams.length > 0) {
+          // Filter by team members - need to implement
+          return result.filter(c => c.status !== 'closed');
+        }
+        return [];
+      
       case "archived":
         return result.filter(c => c.status === "closed");
       
       default:
-        // Mostrar todas EXCETO arquivadas (status !== 'closed')
         return result.filter(c => c.status !== 'closed');
     }
-  }, [conversations, filter, departmentFilter, user?.id]);
+  }, [conversations, filter, departmentFilter, teamFilter, user?.id, role, userTeams]);
 
   const aiQueueCount = conversations?.filter(c => 
     c.ai_mode === 'autopilot' && 
@@ -104,12 +152,10 @@ export default function Inbox() {
     const isHumanMode = c.ai_mode === 'copilot' || c.ai_mode === 'disabled';
     const matchesDept = !departmentFilter || c.department === departmentFilter;
     
-    // Admin/Manager vê todas as conversas em modo humano
     if (role === 'admin' || role === 'manager' || role === 'support_manager' || role === 'cs_manager') {
       return isHumanMode && matchesDept;
     }
     
-    // Outros vê apenas as atribuídas a eles
     return isHumanMode && c.assigned_to === user?.id && matchesDept;
   }).length || 0;
 
@@ -122,6 +168,10 @@ export default function Inbox() {
   const hasHiddenConversations = currentFilterCount === 0 && totalActiveCount > 0;
 
   const activeDepartments = departments?.filter((d) => d.is_active) || [];
+  
+  // Check if user is a team manager
+  const isTeamManager = teams?.some(t => t.manager_id === user?.id);
+  const showTeamTab = isTeamManager || (userTeams && userTeams.length > 0);
 
   if (isLoading) {
     return (
@@ -135,10 +185,15 @@ export default function Inbox() {
     <div className="flex flex-col h-full overflow-hidden min-w-0">
       <div className="flex-none border-b-2 border-slate-200 dark:border-border px-4 py-3 bg-card">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Caixa de Entrada</h2>
-          <div className="text-sm text-slate-500">
+          <h2 className="text-lg font-semibold text-foreground">Caixa de Entrada</h2>
+          <div className="text-sm text-muted-foreground">
             {totalActiveCount} {totalActiveCount === 1 ? 'conversa ativa' : 'conversas ativas'}
           </div>
+        </div>
+        
+        {/* Advanced Filters */}
+        <div className="mb-3">
+          <InboxFilterPopover filters={filters} onFiltersChange={setFilters} />
         </div>
         
         {hasHiddenConversations && (
@@ -149,7 +204,7 @@ export default function Inbox() {
           </div>
         )}
         
-        {/* Filtros de Modo AI */}
+        {/* AI Mode Tabs */}
         <Tabs value={filter} onValueChange={handleFilterChange} className="mb-3">
           <TabsList>
             <TabsTrigger value="ai_queue" className="gap-2">
@@ -168,17 +223,25 @@ export default function Inbox() {
                 </Badge>
               )}
             </TabsTrigger>
+            {showTeamTab && (
+              <TabsTrigger value="my_team" className="gap-2">
+                👥 Meu Time
+              </TabsTrigger>
+            )}
             <TabsTrigger value="all">Todas</TabsTrigger>
             <TabsTrigger value="archived">Arquivadas</TabsTrigger>
           </TabsList>
         </Tabs>
 
-        {/* Filtros de Departamento */}
+        {/* Department & Team Filters */}
         <div className="flex gap-2 flex-wrap">
           <Button
             size="sm"
-            variant={!departmentFilter ? "default" : "outline"}
-            onClick={() => handleDepartmentFilter(null)}
+            variant={!departmentFilter && !teamFilter ? "default" : "outline"}
+            onClick={() => {
+              handleDepartmentFilter(null);
+              handleTeamFilter(null);
+            }}
           >
             🏢 Todos
           </Button>
@@ -195,6 +258,24 @@ export default function Inbox() {
               {dept.name}
             </Button>
           ))}
+          {teams && teams.length > 0 && (
+            <>
+              <div className="w-px bg-border mx-1" />
+              {teams.slice(0, 3).map((team) => (
+                <Button
+                  key={team.id}
+                  size="sm"
+                  variant={teamFilter === team.id ? "default" : "outline"}
+                  onClick={() => handleTeamFilter(team.id)}
+                  style={{
+                    borderColor: teamFilter === team.id ? team.color || undefined : undefined,
+                  }}
+                >
+                  👥 {team.name}
+                </Button>
+              ))}
+            </>
+          )}
         </div>
       </div>
       

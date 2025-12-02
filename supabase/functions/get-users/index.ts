@@ -58,7 +58,18 @@ Deno.serve(async (req) => {
     // Buscar todos os usuários com roles e profiles
     const { data: rolesData, error: rolesError } = await supabaseAdmin
       .from('user_roles')
-      .select('user_id, role, created_at');
+      .select('user_id, role, created_at')
+      .in('role', [
+        'admin',
+        'general_manager',
+        'manager',
+        'sales_rep',
+        'consultant',
+        'support_agent',
+        'support_manager',
+        'financial_manager',
+        'cs_manager'
+      ]);
 
     if (rolesError) throw rolesError;
 

@@ -5,7 +5,16 @@ interface UserWithRole {
   id: string;
   email: string;
   created_at: string;
-  role: "admin" | "manager" | "sales_rep" | "consultant" | "support_agent" | "support_manager" | "financial_manager";
+  role:
+    | "admin"
+    | "general_manager"
+    | "manager"
+    | "sales_rep"
+    | "consultant"
+    | "support_agent"
+    | "support_manager"
+    | "financial_manager"
+    | "cs_manager";
   full_name?: string;
   job_title?: string;
   avatar_url?: string;

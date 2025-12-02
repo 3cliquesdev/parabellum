@@ -32,8 +32,8 @@ import {
   Inbox, 
   Wand2, 
   ChevronDown,
+  ChevronUp,
   User,
-  ExternalLink
 } from "lucide-react";
 import { formatDistanceToNow, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -136,11 +136,14 @@ function KPICard({
   );
 }
 
+const INITIAL_LIMIT = 5;
+
 export function PendingDealsQueue() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedDeals, setSelectedDeals] = useState<string[]>([]);
   const [bulkAssignTo, setBulkAssignTo] = useState<string>("");
+  const [isExpanded, setIsExpanded] = useState(false);
   const { data: salesReps } = useSalesReps();
 
   const { data: pendingDeals, isLoading } = useQuery({
@@ -383,7 +386,7 @@ export function PendingDealsQueue() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pendingDeals.map((deal) => (
+              {(isExpanded ? pendingDeals : pendingDeals.slice(0, INITIAL_LIMIT)).map((deal) => (
                 <TableRow 
                   key={deal.id}
                   className={cn(
@@ -458,6 +461,30 @@ export function PendingDealsQueue() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Botão Ver mais/Mostrar menos */}
+        {pendingDeals.length > INITIAL_LIMIT && (
+          <div className="flex justify-center py-3 border-t">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronUp className="h-4 w-4" />
+                  Mostrar menos
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4" />
+                  Ver mais ({pendingDeals.length - INITIAL_LIMIT})
+                </>
+              )}
+            </Button>
+          </div>
+        )}
 
         {/* Barra de ações em lote */}
         {selectedDeals.length > 0 && (

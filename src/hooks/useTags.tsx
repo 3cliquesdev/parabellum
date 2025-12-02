@@ -128,3 +128,24 @@ export function useDeleteTag() {
     },
   });
 }
+
+export function useContactTags(contactId?: string) {
+  return useQuery({
+    queryKey: ["contact-tags", contactId],
+    queryFn: async () => {
+      if (!contactId) return [];
+      
+      const { data, error } = await supabase
+        .from("customer_tags")
+        .select(`
+          id,
+          tag:tags(id, name, color)
+        `)
+        .eq("customer_id", contactId);
+
+      if (error) throw error;
+      return data.map(d => d.tag).filter(Boolean);
+    },
+    enabled: !!contactId,
+  });
+}

@@ -8,15 +8,15 @@ import { useAllRolePermissions, useUpdatePermission, RolePermission } from "@/ho
 import { toast } from "sonner";
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
-  admin: { label: "Administrador", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
+  admin: { label: "Administrador (Super Admin)", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
   general_manager: { label: "Gerente Geral", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400" },
-  manager: { label: "Gerente", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
+  manager: { label: "Gerente de Vendas", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
   sales_rep: { label: "Vendedor", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
-  consultant: { label: "Consultor", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" },
-  support_agent: { label: "Agente Suporte", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400" },
-  support_manager: { label: "Gerente Suporte", color: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400" },
-  financial_manager: { label: "Gerente Financeiro", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
-  cs_manager: { label: "Gerente CS", color: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400" },
+  consultant: { label: "Consultor / Account Manager", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" },
+  support_agent: { label: "Atendente / Solver", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400" },
+  support_manager: { label: "Gerente de Suporte", color: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400" },
+  financial_manager: { label: "Gestor Financeiro", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
+  cs_manager: { label: "Gerente de CS", color: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400" },
 };
 
 const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {

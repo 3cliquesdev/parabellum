@@ -124,6 +124,99 @@ async function verifyKiwifySignature(
   }
 }
 
+/**
+ * Inicia um playbook corretamente:
+ * 1. Busca o playbook e flow_definition
+ * 2. Cria registro em playbook_executions com current_node_id
+ * 3. Enfileira o primeiro node em playbook_execution_queue
+ */
+async function initiatePlaybook(
+  supabase: any,
+  playbook_id: string,
+  contact_id: string
+): Promise<string | null> {
+  try {
+    // 1. Buscar playbook e seu flow_definition
+    const { data: playbook, error: playbookError } = await supabase
+      .from('onboarding_playbooks')
+      .select('id, name, flow_definition')
+      .eq('id', playbook_id)
+      .single();
+    
+    if (playbookError || !playbook) {
+      console.error(`[initiatePlaybook] ❌ Playbook ${playbook_id} não encontrado:`, playbookError);
+      return null;
+    }
+    
+    const flow = playbook.flow_definition;
+    const nodes = flow?.nodes || [];
+    
+    if (nodes.length === 0) {
+      console.warn(`[initiatePlaybook] ⚠️ Playbook "${playbook.name}" não tem nodes`);
+      return null;
+    }
+    
+    // Encontrar o primeiro node (start ou o primeiro da lista)
+    const startNode = nodes.find((n: any) => n.type === 'start') || nodes[0];
+    
+    // 2. Criar execução com dados completos
+    const { data: execution, error: execError } = await supabase
+      .from('playbook_executions')
+      .insert({
+        playbook_id,
+        contact_id,
+        status: 'running',
+        current_node_id: startNode.id,
+        nodes_executed: [],
+        errors: [],
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    
+    if (execError || !execution) {
+      console.error(`[initiatePlaybook] ❌ Erro ao criar execução:`, execError);
+      return null;
+    }
+    
+    console.log(`[initiatePlaybook] ✅ Execução criada: ${execution.id} para playbook "${playbook.name}"`);
+    
+    // 3. CRÍTICO: Adicionar primeiro node na fila de processamento
+    const { error: queueError } = await supabase
+      .from('playbook_execution_queue')
+      .insert({
+        execution_id: execution.id,
+        node_id: startNode.id,
+        node_type: startNode.type || 'unknown',
+        node_data: startNode.data || {},
+        scheduled_for: new Date().toISOString(),
+        status: 'pending',
+        retry_count: 0,
+        max_retries: 3,
+      });
+    
+    if (queueError) {
+      console.error(`[initiatePlaybook] ❌ Erro ao enfileirar node:`, queueError);
+      // Marcar execução como falha
+      await supabase
+        .from('playbook_executions')
+        .update({ 
+          status: 'failed',
+          errors: [{ message: 'Failed to queue first node', error: queueError.message }]
+        })
+        .eq('id', execution.id);
+      return null;
+    }
+    
+    console.log(`[initiatePlaybook] ✅ Node "${startNode.id}" (${startNode.type}) enfileirado`);
+    return execution.id;
+    
+  } catch (error) {
+    console.error(`[initiatePlaybook] ❌ Erro inesperado:`, error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -634,18 +727,16 @@ async function handlePaidOrder(
     if (playbook) playbook_ids = [playbook.id];
   }
 
-  // 4. 🎯 Iniciar TODOS os Playbooks
+  // 4. 🎯 Iniciar TODOS os Playbooks (CORRIGIDO - com fila)
+  const started_executions: string[] = [];
   for (const playbook_id of playbook_ids) {
-    await supabase
-      .from('playbook_executions')
-      .insert({
-        playbook_id,
-        contact_id: contact.id,
-        status: 'pending',
-      });
+    const execution_id = await initiatePlaybook(supabase, playbook_id, contact.id);
+    if (execution_id) {
+      started_executions.push(execution_id);
+    }
   }
   
-  console.log(`[kiwify-webhook] 🎯 ${playbook_ids.length} playbook(s) iniciado(s)`);
+  console.log(`[kiwify-webhook] 🎯 ${started_executions.length}/${playbook_ids.length} playbook(s) iniciado(s) corretamente`);
 
   // 5. Registrar interação na timeline
   await supabase
@@ -842,17 +933,15 @@ async function handleUpsellOrder(
           .filter((gp: any) => gp.playbook?.is_active)
           .map((gp: any) => gp.playbook_id);
         
+        const started_upsell_executions: string[] = [];
         for (const playbook_id of playbook_ids) {
-          await supabase
-            .from('playbook_executions')
-            .insert({
-              playbook_id,
-              contact_id: existingContact.id,
-              status: 'pending',
-            });
+          const execution_id = await initiatePlaybook(supabase, playbook_id, existingContact.id);
+          if (execution_id) {
+            started_upsell_executions.push(execution_id);
+          }
         }
         
-        console.log(`[kiwify-webhook] 🎯 ${playbook_ids.length} playbook(s) de upsell iniciado(s)`);
+        console.log(`[kiwify-webhook] 🎯 ${started_upsell_executions.length}/${playbook_ids.length} playbook(s) de upsell iniciado(s)`);
       }
     } else {
       // FALLBACK: Lógica antiga (product_id direto)
@@ -865,15 +954,9 @@ async function handleUpsellOrder(
       
       if (playbook) {
         playbook_ids = [playbook.id];
-        await supabase
-          .from('playbook_executions')
-          .insert({
-            playbook_id: playbook.id,
-            contact_id: existingContact.id,
-            status: 'pending',
-          });
+        const fallback_exec_id = await initiatePlaybook(supabase, playbook.id, existingContact.id);
         
-        console.log('[kiwify-webhook] 🎯 Playbook de upsell iniciado (sem login)');
+        console.log('[kiwify-webhook] 🎯 Playbook de upsell iniciado (sem login):', fallback_exec_id || 'falhou');
       }
     }
   }

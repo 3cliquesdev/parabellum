@@ -81,6 +81,7 @@ const supportManagerMainItems = [
 const supportManagerToolsItems = [
   { title: "Base de Conhecimento", href: "/knowledge", icon: Book },
   { title: "Contatos", href: "/contacts", icon: Users },
+  { title: "Tags", href: "/settings/tags", icon: Tags },
 ];
 
 const supportManagerManagementItems = [
@@ -202,15 +203,16 @@ const adminCrmItems = [
   { title: "Base de Conhecimento", href: "/knowledge", icon: Book },
 ];
 
-  const adminStrategyItems = [
-    { title: "Cadências", href: "/cadences", icon: RefreshCw },
-    { title: "Automações", href: "/automations", icon: Zap },
-    { title: "AI Studio", href: "/ai-studio/personas", icon: Brain },
-    { title: "Templates de Email", href: "/email-templates", icon: Mail },
-    { title: "Formulários", href: "/forms", icon: FileText },
-    { title: "Playbooks de Onboarding", href: "/onboarding-builder", icon: Workflow },
-    { title: "Execuções de Playbooks", href: "/playbook-executions", icon: CheckSquare },
-  ];
+const adminStrategyItems = [
+  { title: "Cadências", href: "/cadences", icon: RefreshCw },
+  { title: "Automações", href: "/automations", icon: Zap },
+  { title: "AI Studio", href: "/ai-studio/personas", icon: Brain },
+  { title: "🤖 AI Trainer", href: "/settings/integrations", icon: Brain },
+  { title: "Templates de Email", href: "/email-templates", icon: Mail },
+  { title: "Formulários", href: "/forms", icon: FileText },
+  { title: "Playbooks de Onboarding", href: "/onboarding-builder", icon: Workflow },
+  { title: "Execuções de Playbooks", href: "/playbook-executions", icon: CheckSquare },
+];
 
 const adminReportsItems = [
   { title: "Metas", href: "/goals", icon: Target },
@@ -218,9 +220,14 @@ const adminReportsItems = [
   { title: "Relatórios", href: "/reports", icon: FileText },
 ];
 
-const adminSystemItems = [
-  { title: "Produtos", href: "/settings/products", icon: Package },
+// Cadastros separados de Sistema
+const adminCadastrosItems = [
   { title: "Tags", href: "/settings/tags", icon: Tags },
+  { title: "Produtos", href: "/settings/products", icon: Package },
+  { title: "Departamentos", href: "/settings/departments", icon: Building2 },
+];
+
+const adminSystemItems = [
   { title: "Usuários", href: "/users", icon: UserCog },
   { title: "Importar Clientes", href: "/import-clients", icon: Upload },
   { title: "Configurações", href: "/settings", icon: Settings },
@@ -616,14 +623,25 @@ export function AppSidebar() {
                 </SidebarGroup>
 
                 {(isAdmin || isGeneralManager) && (
-                  <SidebarGroup>
-                    {!collapsed && <SidebarGroupLabel>Sistema</SidebarGroupLabel>}
-                    <SidebarGroupContent>
-                      <SidebarMenu>
-                        {adminSystemItems.map(renderMenuItem)}
-                      </SidebarMenu>
-                    </SidebarGroupContent>
-                  </SidebarGroup>
+                  <>
+                    <SidebarGroup>
+                      {!collapsed && <SidebarGroupLabel>📦 Cadastros</SidebarGroupLabel>}
+                      <SidebarGroupContent>
+                        <SidebarMenu>
+                          {adminCadastrosItems.map(renderMenuItem)}
+                        </SidebarMenu>
+                      </SidebarGroupContent>
+                    </SidebarGroup>
+
+                    <SidebarGroup>
+                      {!collapsed && <SidebarGroupLabel>⚙️ Sistema</SidebarGroupLabel>}
+                      <SidebarGroupContent>
+                        <SidebarMenu>
+                          {adminSystemItems.map(renderMenuItem)}
+                        </SidebarMenu>
+                      </SidebarGroupContent>
+                    </SidebarGroup>
+                  </>
                 )}
               </>
             ) : null}

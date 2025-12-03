@@ -6,6 +6,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper: Buscar modelo AI configurado no banco
+async function getConfiguredAIModel(supabaseClient: any): Promise<string> {
+  try {
+    const { data } = await supabaseClient
+      .from('system_configurations')
+      .select('value')
+      .eq('key', 'ai_default_model')
+      .maybeSingle();
+    
+    return data?.value || 'google/gemini-2.5-flash';
+  } catch (error) {
+    console.error('[ai-autopilot-chat] Error fetching AI model config:', error);
+    return 'google/gemini-2.5-flash';
+  }
+}
+
 // FASE 2: Função para gerar hash SHA-256 da pergunta normalizada
 async function generateQuestionHash(message: string): Promise<string> {
   const normalized = message
@@ -641,6 +657,10 @@ serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
+    // Buscar modelo AI configurado dinamicamente
+    const configuredAIModel = await getConfiguredAIModel(supabaseClient);
+    console.log(`[ai-autopilot-chat] Using AI model: ${configuredAIModel}`);
+    
     if (!OPENAI_API_KEY && !LOVABLE_API_KEY) {
       throw new Error('Nenhuma API key configurada (OPENAI_API_KEY ou LOVABLE_API_KEY)');
     }
@@ -698,7 +718,7 @@ serve(async (req) => {
           'Authorization': `Bearer ${LOVABLE_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ model: 'google/gemini-2.5-flash', ...payload }),
+        body: JSON.stringify({ model: configuredAIModel, ...payload }),
       }, 60000);
       
       if (!fallbackResponse.ok) {

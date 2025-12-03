@@ -1,10 +1,32 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Helper: Buscar modelo AI configurado no banco
+async function getConfiguredAIModel(): Promise<string> {
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    
+    const { data } = await supabaseClient
+      .from('system_configurations')
+      .select('value')
+      .eq('key', 'ai_default_model')
+      .maybeSingle();
+    
+    return data?.value || 'google/gemini-2.5-flash';
+  } catch (error) {
+    console.error('[analyze-ticket] Error fetching AI model config:', error);
+    return 'google/gemini-2.5-flash';
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,6 +40,10 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY not configured');
     }
+    
+    // Buscar modelo configurado dinamicamente
+    const aiModel = await getConfiguredAIModel();
+    console.log(`[analyze-ticket] Using AI model: ${aiModel}`);
 
     let systemPrompt = '';
     let userPrompt = '';
@@ -107,7 +133,7 @@ Responda apenas com as tags separadas por vírgula (ex: Bug, Técnico, Urgente)`
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: aiModel,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }

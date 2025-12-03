@@ -7,6 +7,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper: Buscar modelo AI configurado no banco
+async function getConfiguredAIModel(supabase: any): Promise<string> {
+  try {
+    const { data } = await supabase
+      .from('system_configurations')
+      .select('value')
+      .eq('key', 'ai_default_model')
+      .maybeSingle();
+    
+    return data?.value || 'google/gemini-2.5-flash';
+  } catch (error) {
+    console.error('[sandbox-chat] Error fetching AI model config:', error);
+    return 'google/gemini-2.5-flash';
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -27,6 +43,10 @@ serve(async (req) => {
 
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    
+    // Buscar modelo configurado dinamicamente
+    const configuredModel = await getConfiguredAIModel(supabase);
+    console.log(`[sandbox-chat] Configured AI model: ${configuredModel}`);
 
     // Fetch persona details
     const { data: persona, error: personaError } = await supabase
@@ -377,10 +397,10 @@ Você está conversando com um cliente identificado. Use essas informações par
         throw new Error('LOVABLE_API_KEY not configured');
       }
 
-      console.log('[sandbox-chat] Calling Lovable AI (Gemini)');
+      console.log(`[sandbox-chat] Calling Lovable AI (${configuredModel})`);
 
       const aiPayload: any = {
-        model: "google/gemini-2.5-flash",
+        model: configuredModel,
         messages: aiMessages,
         temperature: persona.temperature || 0.7,
         max_tokens: persona.max_tokens || 500,
@@ -447,7 +467,7 @@ Você está conversando com um cliente identificado. Use essas informações par
           temperature: persona.temperature,
         },
         debug: {
-          model: actualProvider === 'openai' ? 'gpt-4o-mini' : 'google/gemini-2.5-flash',
+          model: actualProvider === 'openai' ? 'gpt-4o-mini' : configuredModel,
           ai_provider: actualProvider,
           intent_classification: intentType,
           queries_executed: queriesExecuted,

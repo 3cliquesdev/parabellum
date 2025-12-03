@@ -7,6 +7,7 @@ import SecretsConfigCard from "@/components/settings/SecretsConfigCard";
 import WebhooksConfigCard from "@/components/settings/WebhooksConfigCard";
 import IntegrationsConfigCard from "@/components/settings/IntegrationsConfigCard";
 import KiwifyIntegrationCard from "@/components/settings/KiwifyIntegrationCard";
+import AIModelConfigCard from "@/components/settings/AIModelConfigCard";
 
 export default function IntegrationsSettings() {
   const { isAdmin, loading } = useUserRole();
@@ -51,6 +52,7 @@ export default function IntegrationsSettings() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <AIModelConfigCard />
         <KiwifyIntegrationCard />
         <EmailConfigCard />
         <SecretsConfigCard />

@@ -44,14 +44,26 @@ const dealSchema = z.object({
   title: z.string().min(1, "Título é obrigatório").max(100),
   value: z.string().optional().nullable(),
   currency: z.string().optional(),
-  contact_id: z.string().uuid().optional().nullable(),
-  organization_id: z.string().uuid().optional().nullable(),
+  contact_id: z.preprocess(
+    (val) => (val === "" || val === "none" ? null : val),
+    z.string().uuid().nullable().optional()
+  ),
+  organization_id: z.preprocess(
+    (val) => (val === "" || val === "none" ? null : val),
+    z.string().uuid().nullable().optional()
+  ),
   pipeline_id: z.string().uuid(),
   stage_id: z.string().uuid(),
   status: z.enum(["open", "won", "lost"]),
-  assigned_to: z.string().uuid().optional().nullable(),
+  assigned_to: z.preprocess(
+    (val) => (val === "" || val === "none" ? null : val),
+    z.string().uuid().nullable().optional()
+  ),
   lost_reason: z.string().optional().nullable(),
-  product_id: z.string().uuid().optional().nullable(),
+  product_id: z.preprocess(
+    (val) => (val === "" || val === "none" ? null : val),
+    z.string().uuid().nullable().optional()
+  ),
   probability: z.number().min(0).max(100).optional(),
   expected_revenue: z.string().optional().nullable(),
   success_criteria: z.string().optional().nullable(),

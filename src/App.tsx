@@ -171,7 +171,7 @@ const App = () => {
             <Route path="/settings/webhooks" element={<ProtectedRoute allowedRoles={["admin"]}><Layout><WebhooksSettings /></Layout></ProtectedRoute>} />
             <Route path="/settings/macros" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "support_agent", "support_manager", "consultant", "sales_rep"]}><Layout><Macros /></Layout></ProtectedRoute>} />
             <Route path="/settings/teams" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "support_manager"]}><Layout><Teams /></Layout></ProtectedRoute>} />
-            <Route path="/settings/tags" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><Layout><Tags /></Layout></ProtectedRoute>} />
+            <Route path="/settings/tags" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "support_manager"]}><Layout><Tags /></Layout></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

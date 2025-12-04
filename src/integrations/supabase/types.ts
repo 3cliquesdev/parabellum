@@ -1975,7 +1975,7 @@ export type Database = {
           content: string
           created_at: string | null
           created_by: string | null
-          customer_id: string
+          customer_id: string | null
           id: string
           metadata: Json | null
           playbook_execution_id: string | null
@@ -1986,7 +1986,7 @@ export type Database = {
           content: string
           created_at?: string | null
           created_by?: string | null
-          customer_id: string
+          customer_id?: string | null
           id?: string
           metadata?: Json | null
           playbook_execution_id?: string | null
@@ -1997,7 +1997,7 @@ export type Database = {
           content?: string
           created_at?: string | null
           created_by?: string | null
-          customer_id?: string
+          customer_id?: string | null
           id?: string
           metadata?: Json | null
           playbook_execution_id?: string | null
@@ -2661,7 +2661,7 @@ export type Database = {
           blocked_at: string | null
           blocked_by: string | null
           created_at: string | null
-          department: string
+          department: string | null
           full_name: string
           id: string
           is_archived: boolean | null
@@ -2680,7 +2680,7 @@ export type Database = {
           blocked_at?: string | null
           blocked_by?: string | null
           created_at?: string | null
-          department: string
+          department?: string | null
           full_name: string
           id: string
           is_archived?: boolean | null
@@ -2699,7 +2699,7 @@ export type Database = {
           blocked_at?: string | null
           blocked_by?: string | null
           created_at?: string | null
-          department?: string
+          department?: string | null
           full_name?: string
           id?: string
           is_archived?: boolean | null

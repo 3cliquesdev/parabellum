@@ -47,10 +47,8 @@ export function useContacts(filters?: ContactFilters) {
         query = query.eq("subscription_plan", filters.subscriptionPlan);
       }
 
-      // Filtrar por assigned_to se for sales_rep
-      if (role && (role as string) === "sales_rep" && user?.id) {
-        query = query.eq("assigned_to", user.id);
-      }
+      // Nota: RLS já permite sales_rep ver todos os contatos para SELECT
+      // Não aplicamos filtro aqui para permitir seleção no dropdown de deals
 
       const { data, error } = await query;
 

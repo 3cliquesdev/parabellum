@@ -10,6 +10,7 @@ type EmailTemplateUpdate = {
   trigger_type?: string | null;
   variables?: any;
   is_active?: boolean;
+  design_json?: any;
 };
 
 export function useUpdateEmailTemplate() {

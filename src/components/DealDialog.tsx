@@ -294,33 +294,31 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
               />
             </div>
 
-            {isAdminOrManager && (
-              <FormField
-                control={form.control}
-                name="pipeline_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Pipeline</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um pipeline" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {pipelines?.map((pipeline) => (
-                          <SelectItem key={pipeline.id} value={pipeline.id}>
-                            {pipeline.name}
-                            {pipeline.is_default && " (Padrão)"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+            <FormField
+              control={form.control}
+              name="pipeline_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pipeline</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um pipeline" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {pipelines?.map((pipeline) => (
+                        <SelectItem key={pipeline.id} value={pipeline.id}>
+                          {pipeline.name}
+                          {pipeline.is_default && " (Padrão)"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

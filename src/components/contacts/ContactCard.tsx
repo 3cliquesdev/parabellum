@@ -19,8 +19,7 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
     >
       {/* Avatar */}
       <div className="flex-shrink-0 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-        {contact.first_name[0]}
-        {contact.last_name[0]}
+        {contact.first_name?.[0] || ''}{contact.last_name?.[0] || ''}
       </div>
 
       {/* Info */}

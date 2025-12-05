@@ -187,7 +187,7 @@ const App = () => {
             <Route path="/settings/teams" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "support_manager"]}><Layout><Teams /></Layout></ProtectedRoute>} />
             <Route path="/settings/tags" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "support_manager"]}><Layout><Tags /></Layout></ProtectedRoute>} />
             <Route path="/settings/recovery" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><Layout><SalesRecovery /></Layout></ProtectedRoute>} />
-            <Route path="/marketing/broadcast" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "cs_manager"]}><BroadcastPage /></ProtectedRoute>} />
+            <Route path="/marketing/broadcast" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "cs_manager"]}><Layout><BroadcastPage /></Layout></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

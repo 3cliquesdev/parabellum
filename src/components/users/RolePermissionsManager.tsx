@@ -3,17 +3,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Shield, ShieldCheck, ShieldX } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, Shield, ShieldCheck, ShieldX, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { useAllRolePermissions, useUpdatePermission, RolePermission } from "@/hooks/useRolePermissions";
 import { toast } from "sonner";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
-  admin: { label: "Administrador (Super Admin)", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
+  admin: { label: "Administrador", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
   general_manager: { label: "Gerente Geral", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400" },
   manager: { label: "Gerente de Vendas", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
   sales_rep: { label: "Vendedor", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
-  consultant: { label: "Consultor / Account Manager", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" },
-  support_agent: { label: "Atendente / Solver", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400" },
+  consultant: { label: "Consultor CS", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" },
+  support_agent: { label: "Atendente", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400" },
   support_manager: { label: "Gerente de Suporte", color: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400" },
   financial_manager: { label: "Gestor Financeiro", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
   cs_manager: { label: "Gerente de CS", color: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400" },
@@ -27,12 +30,37 @@ const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
   users: { label: "Usuários", icon: "👥" },
   products: { label: "Produtos", icon: "📦" },
   reports: { label: "Relatórios", icon: "📈" },
+  inbox: { label: "Inbox / Suporte", icon: "💬" },
+  contacts: { label: "Contatos", icon: "👤" },
+  tickets: { label: "Tickets", icon: "🎫" },
+  quotes: { label: "Orçamentos", icon: "📝" },
+  forms: { label: "Formulários", icon: "📋" },
+  email: { label: "Email", icon: "✉️" },
+  automations: { label: "Automações", icon: "⚡" },
+  playbooks: { label: "Playbooks", icon: "📖" },
+  ai: { label: "Inteligência Artificial", icon: "🤖" },
+  cs: { label: "Customer Success", icon: "🎯" },
+  sales: { label: "Gestão de Vendas", icon: "📊" },
+  analytics: { label: "Analytics", icon: "📉" },
+  settings: { label: "Configurações", icon: "⚙️" },
+  audit: { label: "Auditoria", icon: "🔍" },
 };
+
+// Define category display order
+const CATEGORY_ORDER = [
+  'inbox', 'contacts', 'deals', 'tickets', 'quotes', 'forms',
+  'playbooks', 'automations', 'email', 'ai', 
+  'cs', 'sales', 'analytics',
+  'knowledge', 'cadences', 'products', 'users',
+  'settings', 'audit', 'dashboard', 'reports'
+];
 
 export function RolePermissionsManager() {
   const { data: permissions, isLoading } = useAllRolePermissions();
   const updatePermission = useUpdatePermission();
   const [activeRole, setActiveRole] = useState("general_manager");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(CATEGORY_ORDER));
 
   if (isLoading) {
     return (
@@ -51,11 +79,31 @@ export function RolePermissionsManager() {
 
   // Group permissions by category for current role
   const currentRolePermissions = permissionsByRole[activeRole] || [];
-  const permissionsByCategory = currentRolePermissions.reduce((acc, perm) => {
+  
+  // Filter by search query
+  const filteredPermissions = searchQuery
+    ? currentRolePermissions.filter(p => 
+        p.permission_label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.permission_key.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (CATEGORY_LABELS[p.permission_category]?.label || p.permission_category).toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : currentRolePermissions;
+
+  const permissionsByCategory = filteredPermissions.reduce((acc, perm) => {
     if (!acc[perm.permission_category]) acc[perm.permission_category] = [];
     acc[perm.permission_category].push(perm);
     return acc;
   }, {} as Record<string, RolePermission[]>);
+
+  // Sort categories by defined order
+  const sortedCategories = Object.keys(permissionsByCategory).sort((a, b) => {
+    const indexA = CATEGORY_ORDER.indexOf(a);
+    const indexB = CATEGORY_ORDER.indexOf(b);
+    if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  });
 
   const handleToggle = async (permission: RolePermission) => {
     if (activeRole === "admin") {
@@ -73,8 +121,35 @@ export function RolePermissionsManager() {
     );
   };
 
+  const toggleCategory = (category: string) => {
+    const newExpanded = new Set(expandedCategories);
+    if (newExpanded.has(category)) {
+      newExpanded.delete(category);
+    } else {
+      newExpanded.add(category);
+    }
+    setExpandedCategories(newExpanded);
+  };
+
   const enabledCount = currentRolePermissions.filter((p) => p.enabled).length;
   const totalCount = currentRolePermissions.length;
+
+  // Enable/disable all in category
+  const toggleAllInCategory = async (category: string, enable: boolean) => {
+    if (activeRole === "admin") {
+      toast.error("Permissões do administrador não podem ser alteradas");
+      return;
+    }
+
+    const categoryPerms = permissionsByCategory[category] || [];
+    const toUpdate = categoryPerms.filter(p => p.enabled !== enable);
+    
+    for (const perm of toUpdate) {
+      await updatePermission.mutateAsync({ id: perm.id, enabled: enable });
+    }
+
+    toast.success(`${enable ? "Ativadas" : "Desativadas"} todas as permissões de ${CATEGORY_LABELS[category]?.label || category}`);
+  };
 
   return (
     <Card>
@@ -84,27 +159,29 @@ export function RolePermissionsManager() {
           <CardTitle>Permissões por Cargo</CardTitle>
         </div>
         <CardDescription>
-          Configure as permissões de acesso para cada cargo do sistema
+          Configure as permissões de acesso para cada cargo do sistema ({totalCount} permissões disponíveis)
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs value={activeRole} onValueChange={setActiveRole}>
-          <TabsList className="flex flex-wrap h-auto gap-1 mb-6">
-            {Object.entries(ROLE_LABELS).map(([role, { label }]) => (
-              <TabsTrigger
-                key={role}
-                value={role}
-                className="text-xs px-3 py-1.5"
-                disabled={role === "admin"}
-              >
-                {label}
-                {role === "admin" && " 🔒"}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <ScrollArea className="w-full">
+            <TabsList className="flex flex-wrap h-auto gap-1 mb-6 w-max min-w-full">
+              {Object.entries(ROLE_LABELS).map(([role, { label }]) => (
+                <TabsTrigger
+                  key={role}
+                  value={role}
+                  className="text-xs px-3 py-1.5 whitespace-nowrap"
+                  disabled={role === "admin"}
+                >
+                  {label}
+                  {role === "admin" && " 🔒"}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </ScrollArea>
 
           {Object.keys(ROLE_LABELS).map((role) => (
-            <TabsContent key={role} value={role} className="space-y-6">
+            <TabsContent key={role} value={role} className="space-y-4">
               {/* Summary */}
               <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                 <div className="flex items-center gap-3">
@@ -135,37 +212,99 @@ export function RolePermissionsManager() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {Object.entries(permissionsByCategory).map(([category, perms]) => (
-                    <div key={category} className="space-y-3">
-                      <h3 className="font-medium flex items-center gap-2 text-sm text-foreground">
-                        <span>{CATEGORY_LABELS[category]?.icon || "⚙️"}</span>
-                        {CATEGORY_LABELS[category]?.label || category}
-                      </h3>
-                      <div className="grid gap-2">
-                        {perms.map((permission) => (
-                          <div
-                            key={permission.id}
-                            className="flex items-center justify-between p-3 bg-background border rounded-lg hover:bg-muted/30 transition-colors"
+                <div className="space-y-4">
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar permissão..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+
+                  <ScrollArea className="h-[500px] pr-4">
+                    <div className="space-y-3">
+                      {sortedCategories.map((category) => {
+                        const perms = permissionsByCategory[category];
+                        const categoryEnabledCount = perms.filter(p => p.enabled).length;
+                        const isExpanded = expandedCategories.has(category);
+
+                        return (
+                          <Collapsible
+                            key={category}
+                            open={isExpanded}
+                            onOpenChange={() => toggleCategory(category)}
                           >
-                            <div className="flex items-center gap-3">
-                              {permission.enabled ? (
-                                <ShieldCheck className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <ShieldX className="h-4 w-4 text-muted-foreground" />
-                              )}
-                              <span className="text-sm">{permission.permission_label}</span>
+                            <div className="border rounded-lg overflow-hidden">
+                              <CollapsibleTrigger className="w-full">
+                                <div className="flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                                  <div className="flex items-center gap-2">
+                                    {isExpanded ? (
+                                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <span className="text-lg">{CATEGORY_LABELS[category]?.icon || "⚙️"}</span>
+                                    <span className="font-medium text-sm">
+                                      {CATEGORY_LABELS[category]?.label || category}
+                                    </span>
+                                  </div>
+                                  <Badge variant={categoryEnabledCount === perms.length ? "default" : categoryEnabledCount === 0 ? "destructive" : "secondary"}>
+                                    {categoryEnabledCount}/{perms.length}
+                                  </Badge>
+                                </div>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <div className="divide-y">
+                                  {/* Quick actions */}
+                                  <div className="flex items-center gap-2 p-2 bg-background border-t">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); toggleAllInCategory(category, true); }}
+                                      className="text-xs text-primary hover:underline"
+                                    >
+                                      Ativar todos
+                                    </button>
+                                    <span className="text-muted-foreground">•</span>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); toggleAllInCategory(category, false); }}
+                                      className="text-xs text-destructive hover:underline"
+                                    >
+                                      Desativar todos
+                                    </button>
+                                  </div>
+                                  {perms.map((permission) => (
+                                    <div
+                                      key={permission.id}
+                                      className="flex items-center justify-between p-3 bg-background hover:bg-muted/20 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        {permission.enabled ? (
+                                          <ShieldCheck className="h-4 w-4 text-green-500 shrink-0" />
+                                        ) : (
+                                          <ShieldX className="h-4 w-4 text-muted-foreground shrink-0" />
+                                        )}
+                                        <div>
+                                          <span className="text-sm">{permission.permission_label}</span>
+                                          <p className="text-xs text-muted-foreground">{permission.permission_key}</p>
+                                        </div>
+                                      </div>
+                                      <Switch
+                                        checked={permission.enabled}
+                                        onCheckedChange={() => handleToggle(permission)}
+                                        disabled={updatePermission.isPending}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </CollapsibleContent>
                             </div>
-                            <Switch
-                              checked={permission.enabled}
-                              onCheckedChange={() => handleToggle(permission)}
-                              disabled={updatePermission.isPending}
-                            />
-                          </div>
-                        ))}
-                      </div>
+                          </Collapsible>
+                        );
+                      })}
                     </div>
-                  ))}
+                  </ScrollArea>
                 </div>
               )}
             </TabsContent>

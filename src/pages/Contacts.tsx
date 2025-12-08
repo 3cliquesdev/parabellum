@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Mail, Phone, Trash2, Eye } from "lucide-react";
+import { Search, Plus, Mail, Phone, Trash2, Eye, UserCog } from "lucide-react";
 import { useContacts, useDeleteContact, ContactFilters } from "@/hooks/useContacts";
 import { useTags } from "@/hooks/useTags";
 import ContactDialog from "@/components/ContactDialog";
@@ -35,6 +35,9 @@ import { useIsMobileBreakpoint } from "@/hooks/useBreakpoint";
 import ContactFilterPopover from "@/components/contacts/ContactFilterPopover";
 import { ActiveFilterChips, generateContactFilterChips } from "@/components/ui/active-filter-chips";
 import { ContactsBulkActions } from "@/components/contacts/ContactsBulkActions";
+import { ChangeConsultantDialog } from "@/components/playbooks/ChangeConsultantDialog";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useProfiles } from "@/hooks/useProfiles";
 import type { Tables } from "@/integrations/supabase/types";
 
 type ContactWithOrg = Tables<"contacts"> & {
@@ -49,6 +52,11 @@ export default function Contacts() {
   const [selectedContact, setSelectedContact] = useState<ContactWithOrg | null>(null);
   const [showContactSheet, setShowContactSheet] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [consultantDialogContact, setConsultantDialogContact] = useState<ContactWithOrg | null>(null);
+  
+  const { isAdmin, isManager, isCSManager } = useUserRole();
+  const canChangeConsultant = isAdmin || isManager || isCSManager;
+  const { data: profiles } = useProfiles();
   
   // Advanced filters state
   const [contactFilters, setContactFilters] = useState<ContactFilters & { search: string; tags: string[] }>({
@@ -239,6 +247,7 @@ export default function Contacts() {
                   <TableHead>Nome</TableHead>
                   <TableHead>E-mail</TableHead>
                   <TableHead>Telefone</TableHead>
+                  <TableHead>Consultor</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Status</TableHead>
@@ -289,6 +298,46 @@ export default function Contacts() {
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const consultant = profiles?.find(p => p.id === contact.consultant_id);
+                        return consultant ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{consultant.full_name}</span>
+                            {canChangeConsultant && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConsultantDialogContact(contact);
+                                }}
+                              >
+                                <UserCog className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground text-sm">Não atribuído</span>
+                            {canChangeConsultant && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConsultantDialogContact(contact);
+                                }}
+                              >
+                                <UserCog className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {contact.customer_type ? (
@@ -375,6 +424,16 @@ export default function Contacts() {
         selectedIds={selectedIds}
         onClearSelection={() => setSelectedIds([])}
       />
+
+      {consultantDialogContact && (
+        <ChangeConsultantDialog
+          open={!!consultantDialogContact}
+          onOpenChange={(open) => !open && setConsultantDialogContact(null)}
+          contactId={consultantDialogContact.id}
+          contactName={`${consultantDialogContact.first_name} ${consultantDialogContact.last_name}`}
+          currentConsultantId={consultantDialogContact.consultant_id}
+        />
+      )}
     </PageContainer>
   );
 }

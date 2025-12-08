@@ -18,11 +18,14 @@ import { useUpdateContact } from "@/hooks/useContacts";
 import { useCustomerTimeline } from "@/hooks/useCustomerTimeline";
 import { useCustomerTags } from "@/hooks/useCustomerTags";
 import TimelineItem from "@/components/TimelineItem";
-import { Phone, Mail, MessageSquare, Save, Loader2, ExternalLink } from "lucide-react";
+import { Phone, Mail, MessageSquare, Save, Loader2, ExternalLink, UserCog } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { useProfiles } from "@/hooks/useProfiles";
+import { useUserRole } from "@/hooks/useUserRole";
+import { ChangeConsultantDialog } from "@/components/playbooks/ChangeConsultantDialog";
 
 interface ContactSheetProps {
   contact: Tables<"contacts"> & { organizations?: { name: string } | null } | null;
@@ -58,6 +61,10 @@ export default function ContactSheet({ contact, open, onOpenChange }: ContactShe
   const { data: timeline } = useCustomerTimeline(contact?.id || null);
   const { data: customerTags } = useCustomerTags(contact?.id || null);
   const navigate = useNavigate();
+  const { data: profiles } = useProfiles();
+  const { isAdmin, isManager, isCSManager } = useUserRole();
+  const canChangeConsultant = isAdmin || isManager || isCSManager;
+  const [showChangeConsultantDialog, setShowChangeConsultantDialog] = useState(false);
 
   const onSubmit = (data: any) => {
     if (!contact) return;
@@ -130,6 +137,30 @@ export default function ContactSheet({ contact, open, onOpenChange }: ContactShe
         </SheetHeader>
 
         <ScrollArea className="flex-1 -mx-6 px-6">
+          {/* Consultant Info */}
+          {(() => {
+            const consultant = profiles?.find(p => p.id === contact.consultant_id);
+            return (
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg mb-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Consultor Responsável</p>
+                  <p className="font-medium">{consultant?.full_name || "Não atribuído"}</p>
+                </div>
+                {canChangeConsultant && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => setShowChangeConsultantDialog(true)}
+                  >
+                    <UserCog className="h-4 w-4" />
+                    Alterar
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Quick Actions */}
           <div className="flex gap-2 mb-6">
             {contact.phone && (
@@ -253,6 +284,16 @@ export default function ContactSheet({ contact, open, onOpenChange }: ContactShe
             )}
           </div>
         </ScrollArea>
+
+        {showChangeConsultantDialog && (
+          <ChangeConsultantDialog
+            open={showChangeConsultantDialog}
+            onOpenChange={setShowChangeConsultantDialog}
+            contactId={contact.id}
+            contactName={fullName}
+            currentConsultantId={contact.consultant_id}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );

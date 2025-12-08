@@ -144,7 +144,7 @@ export default function PlaybookExecutions() {
           purchase_date: deal.created_at,
           product_name: (deal.products as any)?.name || "N/A",
           status: getDisplayStatus(deal.status),
-          is_lead: isLead,
+          is_lead: !deal.products, // Sem produto vinculado = Lead Manual, Com produto = Kiwify
           deal_status: deal.status,
         });
       }

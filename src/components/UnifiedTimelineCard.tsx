@@ -1,14 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StickyNote, Ticket, DollarSign, MessageCircle, CheckCircle, Loader2 } from "lucide-react";
 import { useUnifiedTimeline } from "@/hooks/useUnifiedTimeline";
 import { useCreateInteraction } from "@/hooks/useCreateInteraction";
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useToast } from "@/hooks/use-toast";
 
 interface UnifiedTimelineCardProps {
   contactId: string;
@@ -25,34 +24,21 @@ const TIMELINE_ICONS = {
 export default function UnifiedTimelineCard({ contactId }: UnifiedTimelineCardProps) {
   const { data: timeline, isLoading } = useUnifiedTimeline(contactId);
   const createInteraction = useCreateInteraction();
-  const { toast } = useToast();
   const [newNote, setNewNote] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("all");
 
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
 
-    try {
-      await createInteraction.mutateAsync({
-        customer_id: contactId,
-        type: "note",
-        content: newNote,
-        channel: "other",
-      });
-
-      toast({
-        title: "Nota adicionada",
-        description: "A nota foi registrada com sucesso.",
-      });
-
-      setNewNote("");
-    } catch (error) {
-      toast({
-        title: "Erro ao adicionar nota",
-        description: "Tente novamente.",
-        variant: "destructive",
-      });
-    }
+    // Hook useCreateInteraction já trata erros com toast
+    createInteraction.mutate({
+      customer_id: contactId,
+      type: "note",
+      content: newNote,
+      channel: "other",
+    }, {
+      onSuccess: () => setNewNote("")
+    });
   };
 
   const filteredTimeline = activeFilter === "all" 

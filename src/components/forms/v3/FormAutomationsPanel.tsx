@@ -62,10 +62,10 @@ export default function FormAutomationsPanel({ formId, fields }: FormAutomations
   
   // Fetch related data for action configs
   const { data: playbooks = [] } = useQuery({
-    queryKey: ['playbooks-list'],
-    queryFn: async (): Promise<Array<{ id: string; name: string }>> => {
-      const { data } = await supabase.from('playbooks').select('id, name').eq('is_active', true);
-      return (data || []) as Array<{ id: string; name: string }>;
+    queryKey: ['playbooks-for-automations'],
+    queryFn: async () => {
+      const { data } = await supabase.from('onboarding_playbooks').select('id, name').eq('is_active', true);
+      return (data || []) as { id: string; name: string }[];
     },
   });
   

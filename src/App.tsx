@@ -22,6 +22,7 @@ import Settings from "./pages/Settings";
 import EmailTemplates from "./pages/EmailTemplates";
 import EmailSettingsPage from "./pages/EmailSettingsPage";
 import EmailBuilderPage from "./pages/EmailBuilderPage";
+import EmailBuilderV2Page from "./pages/EmailBuilderV2Page";
 import Products from "./pages/Products";
 import Departments from "./pages/Departments";
 import PublicForm from "./pages/PublicForm";
@@ -157,6 +158,7 @@ const App = () => {
             <Route path="/email-templates" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><Layout><EmailTemplates /></Layout></ProtectedRoute>} />
             <Route path="/email-templates/builder" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><EmailBuilderPage /></ProtectedRoute>} />
             <Route path="/email-templates/builder/:templateId" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><EmailBuilderPage /></ProtectedRoute>} />
+            <Route path="/email-templates/v2/builder/:id" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager"]}><EmailBuilderV2Page /></ProtectedRoute>} />
             <Route path="/onboarding-builder" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "cs_manager"]}><Layout><OnboardingBuilder /></Layout></ProtectedRoute>} />
             <Route path="/playbook-executions" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "cs_manager"]}><Layout><PlaybookExecutions /></Layout></ProtectedRoute>} />
             <Route path="/analytics" element={<ProtectedRoute allowedRoles={["admin", "general_manager", "manager", "cs_manager", "support_manager", "financial_manager"]}><Layout><Analytics /></Layout></ProtectedRoute>} />

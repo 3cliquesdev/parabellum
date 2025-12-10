@@ -2495,6 +2495,202 @@ export type Database = {
         }
         Relationships: []
       }
+      form_automations: {
+        Row: {
+          action_config: Json
+          action_type: string
+          created_at: string | null
+          form_id: string
+          id: string
+          is_active: boolean | null
+          name: string
+          priority: number | null
+          trigger_config: Json | null
+          trigger_type: string
+        }
+        Insert: {
+          action_config: Json
+          action_type: string
+          created_at?: string | null
+          form_id: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          priority?: number | null
+          trigger_config?: Json | null
+          trigger_type?: string
+        }
+        Update: {
+          action_config?: Json
+          action_type?: string
+          created_at?: string | null
+          form_id?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          priority?: number | null
+          trigger_config?: Json | null
+          trigger_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_automations_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_calculations: {
+        Row: {
+          created_at: string | null
+          display_in_results: boolean | null
+          form_id: string
+          formula: string
+          id: string
+          name: string
+          result_type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_in_results?: boolean | null
+          form_id: string
+          formula: string
+          id?: string
+          name: string
+          result_type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_in_results?: boolean | null
+          form_id?: string
+          formula?: string
+          id?: string
+          name?: string
+          result_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_calculations_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_conditions: {
+        Row: {
+          condition_type: string
+          created_at: string | null
+          field_id: string
+          form_id: string
+          id: string
+          logic_group: string | null
+          operator: string
+          parent_condition_id: string | null
+          priority: number | null
+          target_field_id: string | null
+          target_value: Json | null
+          value: Json | null
+        }
+        Insert: {
+          condition_type?: string
+          created_at?: string | null
+          field_id: string
+          form_id: string
+          id?: string
+          logic_group?: string | null
+          operator: string
+          parent_condition_id?: string | null
+          priority?: number | null
+          target_field_id?: string | null
+          target_value?: Json | null
+          value?: Json | null
+        }
+        Update: {
+          condition_type?: string
+          created_at?: string | null
+          field_id?: string
+          form_id?: string
+          id?: string
+          logic_group?: string | null
+          operator?: string
+          parent_condition_id?: string | null
+          priority?: number | null
+          target_field_id?: string | null
+          target_value?: Json | null
+          value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_conditions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_conditions_parent_condition_id_fkey"
+            columns: ["parent_condition_id"]
+            isOneToOne: false
+            referencedRelation: "form_conditions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_submissions: {
+        Row: {
+          answers: Json
+          automations_triggered: Json | null
+          calculated_scores: Json | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string | null
+          form_id: string
+          id: string
+          session_metadata: Json | null
+        }
+        Insert: {
+          answers: Json
+          automations_triggered?: Json | null
+          calculated_scores?: Json | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          form_id: string
+          id?: string
+          session_metadata?: Json | null
+        }
+        Update: {
+          answers?: Json
+          automations_triggered?: Json | null
+          calculated_scores?: Json | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          form_id?: string
+          id?: string
+          session_metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forms: {
         Row: {
           created_at: string | null

@@ -76,6 +76,15 @@
     --shadow-lg: 0 10px 20px rgba(0,0,0,0.07);
     --shadow-card: 0 1px 4px rgba(0,0,0,0.06);
     --shadow-elevated: 0 8px 30px rgba(0,0,0,0.12);
+    
+    /* === Z-INDEX SCALE === */
+    --z-dropdown: 1000;
+    --z-sticky: 1100;
+    --z-overlay: 1300;
+    --z-modal: 1400;
+    --z-popover: 1500;
+    --z-toast: 1600;
+    --z-tooltip: 1700;
   }
 
   .dark {

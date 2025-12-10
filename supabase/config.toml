@@ -172,3 +172,12 @@ verify_jwt = true
 
 [functions.validate-deal-closure]
 verify_jwt = true
+
+[functions.form-submit-v3]
+verify_jwt = false
+
+[functions.form-public-api]
+verify_jwt = false
+
+[functions.form-ai-suggest]
+verify_jwt = false

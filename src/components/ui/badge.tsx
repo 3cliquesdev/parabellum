@@ -9,17 +9,17 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary: "border-transparent bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-600",
+        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600",
-        // Enterprise Subtle Variants
-        success: "border-emerald-200/20 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400",
-        warning: "border-amber-200/20 bg-amber-500/10 text-amber-600 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400",
-        info: "border-blue-200/20 bg-blue-500/10 text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400",
-        error: "border-rose-200/20 bg-rose-500/10 text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400",
+        outline: "text-foreground border-border",
+        // Enterprise Subtle Variants (using semantic tokens)
+        success: "border-success/20 bg-success/10 text-success",
+        warning: "border-warning/20 bg-warning/10 text-warning",
+        info: "border-info/20 bg-info/10 text-info",
+        error: "border-destructive/20 bg-destructive/10 text-destructive",
         // Gamification Subtle
-        hot: "border-orange-200/20 bg-orange-500/10 text-orange-500 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-400",
-        cold: "border-slate-200/20 bg-slate-500/10 text-slate-500 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-400",
+        hot: "border-warning/20 bg-warning/10 text-warning",
+        cold: "border-muted-foreground/20 bg-muted text-muted-foreground",
       },
     },
     defaultVariants: {

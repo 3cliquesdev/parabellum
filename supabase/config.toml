@@ -1,5 +1,11 @@
 project_id = "zaeozfdjhrmblfaxsyuu"
 
+[functions.upload-chat-media]
+verify_jwt = true
+
+[functions.get-media-url]
+verify_jwt = true
+
 [functions.kiwify-webhook]
 verify_jwt = false
 

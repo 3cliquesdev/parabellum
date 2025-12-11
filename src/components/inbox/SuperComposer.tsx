@@ -137,12 +137,7 @@ export function SuperComposer({
             .eq('id', whatsappInstanceId)
             .single();
           
-          let finalMessage = messageContent;
-          
-          if (instance?.user_id && instance.user_id !== user?.id) {
-            const userName = user?.user_metadata?.full_name || 'Agente';
-            finalMessage += `\n\n*^${userName}*`;
-          }
+          const finalMessage = messageContent;
           
           const { error: evolutionError } = await supabase.functions.invoke('send-whatsapp-message', {
             body: {

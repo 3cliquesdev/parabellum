@@ -136,13 +136,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
             .eq('id', conversation.whatsapp_instance_id)
             .single();
           
-          let finalMessage = messageContent;
-          
-          // Se quem envia não é o dono, adicionar assinatura
-          if (instance?.user_id && instance.user_id !== user?.id) {
-            const userName = user?.user_metadata?.full_name || 'Agente';
-            finalMessage += `\n\n*^${userName}*`;
-          }
+          const finalMessage = messageContent;
           
           // 1. FIRST: Send to Evolution API
           const { data: evolutionResponse, error: evolutionError } = await supabase.functions.invoke('send-whatsapp-message', {

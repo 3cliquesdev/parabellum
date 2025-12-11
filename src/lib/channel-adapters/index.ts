@@ -3,13 +3,15 @@
  * Exporta todos os adapters e helpers
  */
 
-export * from './types.ts';
-export { WhatsAppAdapter, createWhatsAppAdapter } from './whatsapp-adapter.ts';
-export { WebChatAdapter, createWebChatAdapter } from './webchat-adapter.ts';
+export * from './types';
+export { WhatsAppAdapter, createWhatsAppAdapter } from './whatsapp-adapter';
+export { WebChatAdapter, createWebChatAdapter } from './webchat-adapter';
+export { EmailAdapter, createEmailAdapter } from './email-adapter';
 
-import type { ChannelAdapter, AdapterConfig } from './types.ts';
-import { createWhatsAppAdapter } from './whatsapp-adapter.ts';
-import { createWebChatAdapter } from './webchat-adapter.ts';
+import type { ChannelAdapter, AdapterConfig } from './types';
+import { createWhatsAppAdapter } from './whatsapp-adapter';
+import { createWebChatAdapter } from './webchat-adapter';
+import { createEmailAdapter } from './email-adapter';
 
 /**
  * Factory para criar adapter baseado no provider
@@ -20,8 +22,8 @@ export function createAdapter(provider: string, config: AdapterConfig): ChannelA
       return createWhatsAppAdapter(config);
     case 'web_chat':
       return createWebChatAdapter(config);
-    // case 'email':
-    //   return createEmailAdapter(config);
+    case 'email':
+      return createEmailAdapter(config);
     // case 'instagram':
     //   return createInstagramAdapter(config);
     default:

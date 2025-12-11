@@ -5,7 +5,7 @@ type Channel = "whatsapp" | "web_chat" | "instagram" | "email";
 
 interface ChannelIconProps {
   channel: Channel | string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   showBackground?: boolean;
   className?: string;
 }
@@ -57,12 +57,14 @@ function WhatsAppIcon({ className }: { className?: string }) {
 }
 
 const sizeClasses = {
+  xs: "h-2.5 w-2.5",
   sm: "h-3 w-3",
   md: "h-4 w-4",
   lg: "h-5 w-5",
 };
 
 const containerSizeClasses = {
+  xs: "h-4 w-4",
   sm: "h-5 w-5",
   md: "h-6 w-6",
   lg: "h-8 w-8",

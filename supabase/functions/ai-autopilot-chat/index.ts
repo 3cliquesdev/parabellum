@@ -103,6 +103,207 @@ const FINANCIAL_BARRIER_KEYWORDS = [
   'meu dinheiro'
 ];
 
+// ============================================================
+// 🎯 SISTEMA ANTI-ALUCINAÇÃO - SCORE DE CONFIANÇA (Sprint 2)
+// ============================================================
+
+interface RetrievedDocument {
+  id: string;
+  title: string;
+  content: string;
+  category?: string;
+  similarity: number;
+  updated_at?: string;
+}
+
+interface ConfidenceResult {
+  score: number;
+  components: {
+    retrieval: number;
+    coverage: number;
+    conflicts: boolean;
+  };
+  action: 'direct' | 'cautious' | 'handoff';
+  reason: string;
+  department?: string;
+}
+
+// Thresholds
+const SCORE_DIRECT = 0.80;
+const SCORE_CAUTIOUS = 0.65;
+
+// Indicadores de conflito
+const CONFLICT_INDICATORS = ['porém', 'entretanto', 'no entanto', 'diferente', 'contrário', 'atualizado', 'novo', 'antigo'];
+
+// Gatilhos de handoff imediato por departamento
+const IMMEDIATE_HANDOFF_TRIGGERS: Record<string, string[]> = {
+  financeiro: ['estorno judicial', 'processo', 'advogado', 'procon', 'reclamação formal', 'cobrança indevida', 'fraude'],
+  juridico: ['contrato', 'termos de uso', 'lgpd', 'dados pessoais', 'indenização'],
+  tecnico: ['sistema fora', 'erro crítico', 'perdi tudo', 'não funciona nada'],
+};
+
+// Helper: Calcular cobertura da query pelos documentos
+function calculateCoverage(query: string, documents: RetrievedDocument[]): number {
+  if (documents.length === 0) return 0;
+  
+  const queryWords = query.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 2);
+  
+  if (queryWords.length === 0) return 0;
+  
+  const allContent = documents.map(d => 
+    `${d.title} ${d.content}`.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  ).join(' ');
+  
+  const coveredWords = queryWords.filter(word => allContent.includes(word));
+  return coveredWords.length / queryWords.length;
+}
+
+// Helper: Detectar conflitos entre documentos
+function detectConflicts(documents: RetrievedDocument[]): boolean {
+  if (documents.length < 2) return false;
+  
+  // Verificar diferença de idade entre documentos (mais de 90 dias)
+  const now = Date.now();
+  const ages = documents
+    .filter(d => d.updated_at)
+    .map(d => now - new Date(d.updated_at!).getTime());
+  
+  if (ages.length >= 2) {
+    const maxAge = Math.max(...ages);
+    const minAge = Math.min(...ages);
+    const ageDiffDays = (maxAge - minAge) / (1000 * 60 * 60 * 24);
+    if (ageDiffDays > 90) return true;
+  }
+  
+  // Verificar indicadores textuais de conflito
+  const contents = documents.map(d => d.content.toLowerCase());
+  return CONFLICT_INDICATORS.some(indicator =>
+    contents.some(c => c.includes(indicator))
+  );
+}
+
+// Helper: Verificar handoff imediato
+function checkImmediateHandoff(query: string): { triggered: boolean; dept?: string; reason?: string } {
+  const queryLower = query.toLowerCase();
+  
+  for (const [dept, triggers] of Object.entries(IMMEDIATE_HANDOFF_TRIGGERS)) {
+    for (const trigger of triggers) {
+      if (queryLower.includes(trigger)) {
+        return { 
+          triggered: true, 
+          dept, 
+          reason: `Gatilho imediato: "${trigger}"` 
+        };
+      }
+    }
+  }
+  return { triggered: false };
+}
+
+// Helper: Determinar departamento por keywords
+function pickDepartment(question: string): string {
+  const q = question.toLowerCase();
+  const deptKeywords: Record<string, string[]> = {
+    financeiro: ['pix', 'reembolso', 'estorno', 'comissão', 'boleto', 'fatura', 'saque', 'pagamento'],
+    tecnico: ['erro', 'bug', 'login', 'acesso', 'integração', 'api', 'token', 'não funciona'],
+    comercial: ['preço', 'proposta', 'plano', 'upgrade', 'desconto', 'assinatura'],
+    logistica: ['envio', 'prazo', 'entrega', 'coleta', 'rastreio', 'transportadora']
+  };
+  
+  for (const [dept, keywords] of Object.entries(deptKeywords)) {
+    if (keywords.some(k => q.includes(k))) return dept;
+  }
+  return 'suporte_n1';
+}
+
+// 🎯 FUNÇÃO PRINCIPAL: Calcular Score de Confiança
+function calculateConfidenceScore(query: string, documents: RetrievedDocument[]): ConfidenceResult {
+  // 1. Verificar gatilhos de handoff imediato
+  const immediateCheck = checkImmediateHandoff(query);
+  if (immediateCheck.triggered) {
+    return {
+      score: 0,
+      components: { retrieval: 0, coverage: 0, conflicts: false },
+      action: 'handoff',
+      reason: immediateCheck.reason!,
+      department: immediateCheck.dept
+    };
+  }
+  
+  // 2. Sem documentos = handoff
+  if (documents.length === 0) {
+    return {
+      score: 0,
+      components: { retrieval: 0, coverage: 0, conflicts: false },
+      action: 'handoff',
+      reason: 'Nenhum documento relevante encontrado na KB',
+      department: pickDepartment(query)
+    };
+  }
+  
+  // 3. Calcular componentes
+  const confRetrieval = Math.max(...documents.map(d => d.similarity || 0));
+  const coverage = calculateCoverage(query, documents);
+  const conflicts = detectConflicts(documents);
+  
+  // 4. FÓRMULA: SCORE = 0.6*retrieval + 0.4*coverage - 0.25*conflicts
+  let score = (0.6 * confRetrieval) + (0.4 * coverage);
+  if (conflicts) score -= 0.25;
+  score = Math.max(0, Math.min(1, score)); // Clamp 0-1
+  
+  // 5. Determinar ação
+  let action: 'direct' | 'cautious' | 'handoff';
+  let reason: string;
+  
+  if (score >= SCORE_DIRECT) {
+    action = 'direct';
+    reason = `Alta confiança (${(score * 100).toFixed(0)}%) - Resposta direta`;
+  } else if (score >= SCORE_CAUTIOUS) {
+    action = 'cautious';
+    reason = `Confiança média (${(score * 100).toFixed(0)}%) - Resposta cautelosa`;
+  } else {
+    action = 'handoff';
+    reason = `Baixa confiança (${(score * 100).toFixed(0)}%) - Handoff recomendado`;
+  }
+  
+  return {
+    score,
+    components: { retrieval: confRetrieval, coverage, conflicts },
+    action,
+    reason,
+    department: action === 'handoff' ? pickDepartment(query) : undefined
+  };
+}
+
+// Helper: Gerar prefixo de resposta baseado na confiança
+function generateResponsePrefix(action: 'direct' | 'cautious' | 'handoff'): string {
+  switch (action) {
+    case 'direct':
+      return ''; // Sem prefixo para respostas diretas
+    case 'cautious':
+      return '📋 **Baseado nas informações disponíveis:**\n\n';
+    case 'handoff':
+      return ''; // Handoff usa mensagem própria
+  }
+}
+
+// Estrutura de log para métricas
+interface ConfidenceLog {
+  conversation_id: string;
+  query_preview: string;
+  score: number;
+  components: { retrieval: number; coverage: number; conflicts: boolean };
+  action: string;
+  reason: string;
+  department?: string;
+  retrieved_docs: string[];
+  timestamp: string;
+}
+
 // 🆕 Padrões de INTENÇÃO financeira (não keyword solta) - Usado globalmente
 const FINANCIAL_ACTION_PATTERNS = [
   // Padrões melhorados para capturar variações naturais

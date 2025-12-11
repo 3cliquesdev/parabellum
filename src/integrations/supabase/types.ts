@@ -3071,6 +3071,97 @@ export type Database = {
         }
         Relationships: []
       }
+      media_attachments: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          file_size: number
+          height: number | null
+          id: string
+          message_id: string | null
+          mime_type: string
+          original_filename: string
+          processing_error: string | null
+          status: string | null
+          storage_bucket: string
+          storage_path: string
+          thumbnail_path: string | null
+          transcoded_mime_type: string | null
+          transcoded_path: string | null
+          updated_at: string | null
+          uploaded_by: string | null
+          waveform_data: Json | null
+          width: number | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size: number
+          height?: number | null
+          id?: string
+          message_id?: string | null
+          mime_type: string
+          original_filename: string
+          processing_error?: string | null
+          status?: string | null
+          storage_bucket?: string
+          storage_path: string
+          thumbnail_path?: string | null
+          transcoded_mime_type?: string | null
+          transcoded_path?: string | null
+          updated_at?: string | null
+          uploaded_by?: string | null
+          waveform_data?: Json | null
+          width?: number | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size?: number
+          height?: number | null
+          id?: string
+          message_id?: string | null
+          mime_type?: string
+          original_filename?: string
+          processing_error?: string | null
+          status?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          thumbnail_path?: string | null
+          transcoded_mime_type?: string | null
+          transcoded_path?: string | null
+          updated_at?: string | null
+          uploaded_by?: string | null
+          waveform_data?: Json | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_attachments_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_attachments_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           attachment_type: string | null

@@ -2,15 +2,21 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import type { TicketFilters } from "@/components/support/TicketFilterPopover";
 
 type TicketStatus = 'open' | 'in_progress' | 'waiting_customer' | 'resolved' | 'closed';
 
-export function useTickets(statusFilter?: TicketStatus, assignedFilter?: 'mine' | 'unassigned' | 'all', agentFilter?: string) {
+export function useTickets(
+  statusFilter?: TicketStatus, 
+  assignedFilter?: 'mine' | 'unassigned' | 'all', 
+  agentFilter?: string,
+  advancedFilters?: TicketFilters
+) {
   const { user } = useAuth();
   const { role } = useUserRole();
 
   return useQuery({
-    queryKey: ["tickets", statusFilter, assignedFilter, agentFilter, user?.id],
+    queryKey: ["tickets", statusFilter, assignedFilter, agentFilter, advancedFilters, user?.id],
     queryFn: async () => {
       if (!user) return [];
 
@@ -44,7 +50,7 @@ export function useTickets(statusFilter?: TicketStatus, assignedFilter?: 'mine' 
         `)
         .order("created_at", { ascending: false });
 
-      // Filtro por status
+      // Filtro por status (legacy)
       if (statusFilter) {
         query = query.eq("status", statusFilter);
       }
@@ -61,15 +67,74 @@ export function useTickets(statusFilter?: TicketStatus, assignedFilter?: 'mine' 
         query = query.eq("assigned_to", agentFilter);
       }
 
-      // Sales rep só vê tickets atribuídos a ele (já filtrado por RLS)
-      // Support Agent só vê tickets atribuídos ou não atribuídos (RLS)
-      // Support Manager vê todos (RLS)
-      // Admin/Manager veem todos (permitido por RLS)
+      // ADVANCED FILTERS
+      if (advancedFilters) {
+        // Status multi-select
+        if (advancedFilters.status.length > 0) {
+          query = query.in("status", advancedFilters.status as any);
+        }
+
+        // Priority multi-select
+        if (advancedFilters.priority.length > 0) {
+          query = query.in("priority", advancedFilters.priority as any);
+        }
+
+        // Category multi-select
+        if (advancedFilters.category.length > 0) {
+          query = query.in("category", advancedFilters.category as any);
+        }
+
+        // Channel multi-select
+        if (advancedFilters.channel.length > 0) {
+          query = query.in("channel", advancedFilters.channel as any);
+        }
+
+        // Date range
+        if (advancedFilters.dateRange?.from) {
+          query = query.gte("created_at", advancedFilters.dateRange.from.toISOString());
+        }
+        if (advancedFilters.dateRange?.to) {
+          // Add 1 day to include the end date
+          const endDate = new Date(advancedFilters.dateRange.to);
+          endDate.setDate(endDate.getDate() + 1);
+          query = query.lt("created_at", endDate.toISOString());
+        }
+
+        // SLA expired (due_date < now and status not resolved/closed)
+        if (advancedFilters.slaExpired) {
+          query = query
+            .lt("due_date", new Date().toISOString())
+            .not("status", "in", '("resolved","closed")');
+        }
+      }
 
       const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      
+      // Client-side search filter
+      let filteredData = data || [];
+      
+      if (advancedFilters?.search) {
+        const searchLower = advancedFilters.search.toLowerCase();
+        filteredData = filteredData.filter(ticket => {
+          const ticketId = ticket.id.toLowerCase();
+          const subject = (ticket.subject || '').toLowerCase();
+          const customerFirstName = (ticket.customer?.first_name || '').toLowerCase();
+          const customerLastName = (ticket.customer?.last_name || '').toLowerCase();
+          const customerEmail = (ticket.customer?.email || '').toLowerCase();
+          
+          return (
+            ticketId.includes(searchLower) ||
+            subject.includes(searchLower) ||
+            customerFirstName.includes(searchLower) ||
+            customerLastName.includes(searchLower) ||
+            customerEmail.includes(searchLower)
+          );
+        });
+      }
+      
+      return filteredData;
     },
     enabled: !!user,
   });

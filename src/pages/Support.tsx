@@ -12,6 +12,7 @@ import { useUsers } from "@/hooks/useUsers";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useIsMobileBreakpoint } from "@/hooks/useBreakpoint";
 import { PageContainer } from "@/components/ui/page-container";
+import { TicketFilterPopover, defaultTicketFilters, type TicketFilters } from "@/components/support/TicketFilterPopover";
 
 type FilterType = 'all' | 'mine' | 'unassigned';
 type MobileView = 'list' | 'details';
@@ -22,12 +23,18 @@ export default function Support() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>('list');
+  const [ticketFilters, setTicketFilters] = useState<TicketFilters>(defaultTicketFilters);
   const { isSupportManager } = useUserRole();
   const { data: allUsers } = useUsers();
   const { data: departments } = useDepartments();
   const isMobile = useIsMobileBreakpoint();
 
-  const { data: allTickets = [], isLoading } = useTickets(undefined, filter, selectedAgentId || undefined);
+  const { data: allTickets = [], isLoading } = useTickets(
+    undefined, 
+    filter, 
+    selectedAgentId || undefined,
+    ticketFilters
+  );
   
   // Filter tickets by department
   const tickets = selectedDepartmentId
@@ -130,22 +137,23 @@ export default function Support() {
           <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Suporte</h1>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterType)} className="flex-1">
+        {/* Assignment Tabs + Filters Row */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterType)}>
             <TabsList>
-              <TabsTrigger value="all">Todos os Tickets</TabsTrigger>
-              <TabsTrigger value="mine">Meus Tickets</TabsTrigger>
+              <TabsTrigger value="all">Todos</TabsTrigger>
+              <TabsTrigger value="mine">Meus</TabsTrigger>
               <TabsTrigger value="unassigned">Não Atribuídos</TabsTrigger>
             </TabsList>
           </Tabs>
 
           {/* Department Filter */}
           <Select value={selectedDepartmentId || "all"} onValueChange={(v) => setSelectedDepartmentId(v === "all" ? null : v)}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Departamento" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">🏢 Todos os Departamentos</SelectItem>
+              <SelectItem value="all">🏢 Todos Departamentos</SelectItem>
               {departments?.filter(d => d.is_active).map(dept => (
                 <SelectItem key={dept.id} value={dept.id}>
                   {dept.name}
@@ -157,11 +165,11 @@ export default function Support() {
           {/* Support Manager: Agent Filter */}
           {isSupportManager && (
             <Select value={selectedAgentId || "all"} onValueChange={(v) => setSelectedAgentId(v === "all" ? null : v)}>
-              <SelectTrigger className="w-[240px]">
+              <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Ver fila de..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">👥 Todos os Agentes</SelectItem>
+                <SelectItem value="all">👥 Todos Agentes</SelectItem>
                 {supportAgents.map(agent => (
                   <SelectItem key={agent.id} value={agent.id}>
                     {agent.role === 'support_manager' ? '👔' : '🛡️'} {agent.full_name || agent.email}
@@ -171,6 +179,12 @@ export default function Support() {
             </Select>
           )}
         </div>
+
+        {/* Advanced Filters Row */}
+        <TicketFilterPopover 
+          filters={ticketFilters}
+          onFiltersChange={setTicketFilters}
+        />
       </div>
 
       {/* Split View */}

@@ -1,4 +1,3 @@
-import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +6,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RealtimeNotifications from "./components/RealtimeNotifications";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
+
+// Pages
 import Dashboard from "./pages/Dashboard";
 import Inbox from "./pages/Inbox";
 import Contacts from "./pages/Contacts";
@@ -67,60 +69,15 @@ import Tags from "./pages/Tags";
 import AITrainer from "./pages/AITrainer";
 import SalesRecovery from "./pages/SalesRecovery";
 import AdminOnboarding from "./pages/AdminOnboarding";
-
 import ConsultantDetail from "./pages/ConsultantDetail";
 import Consultants from "./pages/Consultants";
+import DebugRoutes from "./pages/DebugRoutes";
 
 const queryClient = new QueryClient();
 
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("🔴 App crashed:", error);
-    console.error("🔴 Error stack:", error.stack);
-    console.error("🔴 Component stack:", errorInfo.componentStack);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-foreground mb-2">
-              Algo deu errado
-            </h1>
-            <p className="text-muted-foreground mb-4">
-              Por favor, recarregue a página
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              Recarregar
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
 const App = () => {
   return (
-    <ErrorBoundary>
+    <AppErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toaster />
@@ -138,6 +95,9 @@ const App = () => {
             <Route path="/tv" element={<TVMode />} />
             <Route path="/public-quote/:token" element={<PublicQuote />} />
             <Route path="/f/:formId" element={<PublicFormV2 />} />
+
+            {/* Debug routes - dev only */}
+            <Route path="/debug/routes" element={<DebugRoutes />} />
 
             {/* Protected routes - using requiredPermission for unified access control */}
             <Route path="/" element={<ProtectedRoute requiredPermission="dashboard.view"><Layout><Dashboard /></Layout></ProtectedRoute>} />
@@ -202,7 +162,7 @@ const App = () => {
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
-  </ErrorBoundary>
+  </AppErrorBoundary>
   );
 };
 

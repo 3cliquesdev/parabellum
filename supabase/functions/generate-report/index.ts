@@ -303,10 +303,11 @@ async function generateDealsReport(supabase: any, filters: any) {
     .select(`
       id, title, value, status, currency, lost_reason,
       created_at, closed_at,
-      contacts:contact_id (first_name, last_name, email, kiwify_customer_id),
+      contacts:contact_id (first_name, last_name, email, phone, kiwify_customer_id),
       profiles:assigned_to (full_name),
       stages:stage_id (name),
-      pipelines:pipeline_id (name)
+      pipelines:pipeline_id (name),
+      products:product_id (name)
     `);
 
   if (startDate) query = query.gte('created_at', startDate);
@@ -339,23 +340,28 @@ async function generateDealsReport(supabase: any, filters: any) {
     const commissionRate = 0.10; // 10% comissão
     
     return {
-      id: d.id,
-      title: d.title,
-      value: d.value || 0,
-      currency: d.currency,
+      // Campos na ordem solicitada pelo usuário (PT-BR)
+      email: d.contacts?.email || '',
+      data_criacao: d.created_at,
+      nome: `${d.contacts?.first_name || ''} ${d.contacts?.last_name || ''}`.trim(),
+      valor: d.value || 0,
+      responsavel: d.profiles?.full_name || 'Não atribuído',
+      produto: d.products?.name || 'Sem produto',
+      telefone: d.contacts?.phone || '',
       status: d.status,
-      lost_reason: d.lost_reason || '',
-      customer: `${d.contacts?.first_name || ''} ${d.contacts?.last_name || ''}`.trim(),
-      customer_email: d.contacts?.email || '',
-      sales_rep: d.profiles?.full_name || 'Não atribuído',
-      stage: d.stages?.name || '',
+      
+      // Campos adicionais
+      id: d.id,
+      titulo_deal: d.title,
+      moeda: d.currency || 'BRL',
+      motivo_perda: d.lost_reason || '',
+      etapa: d.stages?.name || '',
       pipeline: d.pipelines?.name || '',
-      created_at: d.created_at,
-      closed_at: d.closed_at,
-      kiwify_status: cancellation ? cancellation.event_type : 'active',
-      cancelled_at: cancellation?.cancelled_at || '',
-      commission: (d.value || 0) * commissionRate,
-      commission_lost: cancellation ? (d.value || 0) * commissionRate : 0,
+      data_fechamento: d.closed_at || '',
+      status_kiwify: cancellation ? cancellation.event_type : 'ativo',
+      data_cancelamento: cancellation?.cancelled_at || '',
+      comissao: (d.value || 0) * commissionRate,
+      comissao_perdida: cancellation ? (d.value || 0) * commissionRate : 0,
     };
   });
 }

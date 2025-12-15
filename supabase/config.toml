@@ -193,3 +193,6 @@ verify_jwt = true
 
 [functions.test-whatsapp-webhook]
 verify_jwt = true
+
+[functions.public-start-playbook]
+verify_jwt = false

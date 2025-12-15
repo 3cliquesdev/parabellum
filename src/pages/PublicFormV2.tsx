@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useForm } from "@/hooks/useForms";
 import { FormField, FormSchema, FieldLogic, DEFAULT_FORM_SETTINGS, FormSettings } from "@/hooks/useForms";
-import { useSubmitForm } from "@/hooks/useForms";
+import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -29,7 +29,6 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
   const formId = propFormId || paramFormId;
   
   const { data: formData, isLoading: isLoadingForm } = useForm(isPreview ? undefined : formId);
-  const submitForm = useSubmitForm();
 
   // Use prop schema for preview, or loaded form data
   const schema = propSchema || formData?.schema;
@@ -131,27 +130,28 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
       return;
     }
 
-    // Extract email and name fields
-    const emailField = fields.find(f => f.type === "email");
-    const nameFields = fields.filter(f => 
-      f.type === "text" && 
-      (f.label.toLowerCase().includes("nome") || f.label.toLowerCase().includes("name"))
-    );
-
-    const email = emailField ? answers[emailField.id] : "";
-    const firstName = nameFields[0] ? answers[nameFields[0].id] : "Lead";
-    const lastName = nameFields[1] ? answers[nameFields[1].id] : "Formulário";
-
-    const phoneField = fields.find(f => f.type === "phone");
-    const phone = phoneField ? answers[phoneField.id] : undefined;
+    if (!formId) {
+      console.error("Form ID not found");
+      return;
+    }
 
     try {
-      await submitForm.mutateAsync({
-        email,
-        first_name: firstName,
-        last_name: lastName,
-        phone,
+      // Build responses object mapping field_id to value
+      const responses: Record<string, any> = {};
+      for (const field of fields) {
+        responses[field.id] = answers[field.id] || null;
+      }
+
+      const { data: result, error } = await supabase.functions.invoke('form-submit-v3', {
+        body: {
+          form_id: formId,
+          responses,
+        },
       });
+
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'Erro ao processar formulário');
+
       setIsSubmitted(true);
 
       if (settings.redirect_url) {
@@ -159,8 +159,8 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
           window.location.href = settings.redirect_url!;
         }, 2000);
       }
-    } catch (error) {
-      // Error handled by mutation
+    } catch (error: any) {
+      console.error("Error submitting form:", error);
     }
   };
 
@@ -214,7 +214,7 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
 
   // Single Page Mode - render all fields at once
   if (displayMode === "single_page" && schema) {
-    return <SinglePageFormView schema={schema} isPreview={isPreview} />;
+    return <SinglePageFormView schema={schema} formId={formId} isPreview={isPreview} />;
   }
 
   // Success screen (for conversational mode)

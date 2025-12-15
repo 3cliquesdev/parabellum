@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { FormField, FormSchema, FormSettings, DEFAULT_FORM_SETTINGS } from "@/hooks/useForms";
-import { useSubmitForm } from "@/hooks/useForms";
+import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Check, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // Helper to convert hex to rgba
 function hexToRgba(hex: string, opacity: number = 1): string {
@@ -16,11 +17,12 @@ function hexToRgba(hex: string, opacity: number = 1): string {
 
 interface SinglePageFormViewProps {
   schema: FormSchema;
+  formId?: string;
   isPreview?: boolean;
 }
 
-export function SinglePageFormView({ schema, isPreview = false }: SinglePageFormViewProps) {
-  const submitForm = useSubmitForm();
+export function SinglePageFormView({ schema, formId, isPreview = false }: SinglePageFormViewProps) {
+  const { toast } = useToast();
   const settings = { ...DEFAULT_FORM_SETTINGS, ...schema?.settings };
   const fields = schema?.fields || [];
 
@@ -54,6 +56,11 @@ export function SinglePageFormView({ schema, isPreview = false }: SinglePageForm
     // Validate required fields
     for (const field of fields) {
       if (field.required && !answers[field.id]) {
+        toast({
+          title: "Campo obrigatório",
+          description: `O campo "${field.label}" é obrigatório.`,
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -63,38 +70,53 @@ export function SinglePageFormView({ schema, isPreview = false }: SinglePageForm
       return;
     }
 
+    if (!formId) {
+      toast({
+        title: "Erro",
+        description: "ID do formulário não encontrado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Extract email and name fields
-    const emailField = fields.find(f => f.type === "email");
-    const nameFields = fields.filter(f => 
-      f.type === "text" && 
-      (f.label.toLowerCase().includes("nome") || f.label.toLowerCase().includes("name"))
-    );
-
-    const email = emailField ? answers[emailField.id] : "";
-    const firstName = nameFields[0] ? answers[nameFields[0].id] : "Lead";
-    const lastName = nameFields[1] ? answers[nameFields[1].id] : "Formulário";
-
-    const phoneField = fields.find(f => f.type === "phone");
-    const phone = phoneField ? answers[phoneField.id] : undefined;
-
     try {
-      await submitForm.mutateAsync({
-        email,
-        first_name: firstName,
-        last_name: lastName,
-        phone,
+      // Build responses object mapping field_id to value
+      const responses: Record<string, any> = {};
+      for (const field of fields) {
+        responses[field.id] = answers[field.id] || null;
+      }
+
+      const { data: result, error } = await supabase.functions.invoke('form-submit-v3', {
+        body: {
+          form_id: formId,
+          responses,
+        },
       });
+
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'Erro ao processar formulário');
+
       setIsSubmitted(true);
+
+      toast({
+        title: "Formulário enviado!",
+        description: "Suas respostas foram recebidas com sucesso.",
+      });
 
       if (settings.redirect_url) {
         setTimeout(() => {
           window.location.href = settings.redirect_url!;
         }, 2000);
       }
-    } catch (error) {
-      // Error handled by mutation
+    } catch (error: any) {
+      console.error("Error submitting form:", error);
+      toast({
+        title: "Erro ao enviar formulário",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }

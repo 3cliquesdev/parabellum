@@ -1,10 +1,14 @@
 import { useState, useEffect } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ThankYouView } from "@/components/public-onboarding/ThankYouView";
 import { WizardView } from "@/components/public-onboarding/WizardView";
 import { WhatsAppFloatingButton } from "@/components/public-onboarding/WhatsAppFloatingButton";
-import { Loader2 } from "lucide-react";
+import { Loader2, Play, Mail, User } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 interface OnboardingData {
   execution: {
@@ -42,12 +46,19 @@ interface OnboardingData {
 export default function PublicOnboarding() {
   const { executionId, playbookId } = useParams<{ executionId?: string; playbookId?: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<OnboardingData | null>(null);
   const [started, setStarted] = useState(false);
   const [playbookInfo, setPlaybookInfo] = useState<{ name: string; description?: string } | null>(null);
+  
+  // Form state for starting playbook
+  const [formEmail, setFormEmail] = useState("");
+  const [formName, setFormName] = useState("");
+  const [isStarting, setIsStarting] = useState(false);
   
   // Query params for personalization
   const customName = searchParams.get("name");
@@ -141,10 +152,61 @@ export default function PublicOnboarding() {
     }
   }
 
+  async function handleStartPlaybook(e: React.FormEvent) {
+    e.preventDefault();
+    
+    if (!playbookId || !formEmail.trim() || !formName.trim()) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Por favor, preencha seu nome e email.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsStarting(true);
+
+    try {
+      // Split name into first and last
+      const nameParts = formName.trim().split(" ");
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(" ") || "";
+
+      const { data: result, error } = await supabase.functions.invoke('public-start-playbook', {
+        body: {
+          playbook_id: playbookId,
+          email: formEmail.trim(),
+          first_name: firstName,
+          last_name: lastName,
+        },
+      });
+
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || "Erro ao iniciar playbook");
+
+      toast({
+        title: "Onboarding iniciado!",
+        description: "Redirecionando para seu onboarding...",
+      });
+
+      // Redirect to execution page
+      navigate(`/public-onboarding/${result.execution_id}`);
+    } catch (err: any) {
+      console.error("Error starting playbook:", err);
+      toast({
+        title: "Erro ao iniciar",
+        description: err.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsStarting(false);
+    }
+  }
+
   const displayName = customName || `${data?.contact?.first_name || ""} ${data?.contact?.last_name || ""}`.trim() || "Cliente";
   const productName = customProduct || playbookInfo?.name || data?.playbook?.name || "nosso produto";
 
-  // Se acessou via playbookId (preview do playbook)
+  // Se acessou via playbookId (link público do playbook)
   if (playbookId && !executionId) {
     if (loading) {
       return (
@@ -171,23 +233,75 @@ export default function PublicOnboarding() {
       );
     }
 
-    // Preview page for playbook (no execution)
+    // Public playbook start page
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-emerald-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl shadow-xl p-8 max-w-lg text-center">
-          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <span className="text-4xl">🎯</span>
+        <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-8 max-w-lg w-full">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Play className="w-10 h-10 text-primary" />
+            </div>
+            <h1 className="text-3xl font-bold text-foreground mb-3">{playbookInfo.name}</h1>
+            {playbookInfo.description && (
+              <p className="text-muted-foreground">{playbookInfo.description}</p>
+            )}
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-3">{playbookInfo.name}</h1>
-          {playbookInfo.description && (
-            <p className="text-muted-foreground mb-6">{playbookInfo.description}</p>
-          )}
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-            <p className="text-sm text-amber-800 dark:text-amber-200">
-              Este é um link de preview do playbook. Para iniciar o onboarding, 
-              o cliente receberá um link personalizado após a compra.
-            </p>
-          </div>
+
+          <form onSubmit={handleStartPlaybook} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-foreground flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Seu Nome Completo
+              </Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Digite seu nome"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                required
+                className="h-12"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-foreground flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                Seu Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Digite seu email"
+                value={formEmail}
+                onChange={(e) => setFormEmail(e.target.value)}
+                required
+                className="h-12"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isStarting}
+              className="w-full h-12 text-lg font-semibold mt-6"
+            >
+              {isStarting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  Iniciando...
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5 mr-2" />
+                  Iniciar Onboarding
+                </>
+              )}
+            </Button>
+          </form>
+
+          <p className="text-xs text-muted-foreground text-center mt-6">
+            Ao continuar, você concorda com nossos termos de uso e política de privacidade.
+          </p>
         </div>
         <WhatsAppFloatingButton phone={supportPhone} customerName="Visitante" />
       </div>

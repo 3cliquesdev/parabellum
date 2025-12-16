@@ -387,14 +387,50 @@ serve(async (req) => {
               break;
 
             case 'create_ticket':
-              await supabase.from('tickets').insert({
+              const ticketSubject = actionConfig?.subject || `Formulário: ${form.name}`;
+              const ticketDescription = JSON.stringify(answers, null, 2);
+              const ticketPriority = actionConfig?.priority || 'medium';
+              const ticketCategory = actionConfig?.category || 'general';
+              
+              const { data: newTicket } = await supabase.from('tickets').insert({
                 contact_id: contactId,
-                subject: actionConfig?.subject || `Formulário: ${form.name}`,
-                description: JSON.stringify(answers, null, 2),
-                priority: actionConfig?.priority || 'medium',
-                category: actionConfig?.category || 'general',
+                subject: ticketSubject,
+                description: ticketDescription,
+                priority: ticketPriority,
+                category: ticketCategory,
                 status: 'open',
-              });
+              }).select().single();
+
+              // Send notification email to customer
+              if (newTicket && email) {
+                try {
+                  // Get customer name from contact
+                  const { data: contact } = await supabase
+                    .from('contacts')
+                    .select('first_name, last_name')
+                    .eq('id', contactId)
+                    .single();
+                  
+                  const customerName = contact 
+                    ? `${contact.first_name} ${contact.last_name}`.trim() 
+                    : 'Cliente';
+                  
+                  await supabase.functions.invoke('send-ticket-notification', {
+                    body: {
+                      ticket_id: newTicket.id,
+                      ticket_number: newTicket.id.substring(0, 8).toUpperCase(),
+                      customer_email: email,
+                      customer_name: customerName,
+                      subject: ticketSubject,
+                      description: ticketDescription,
+                      priority: ticketPriority,
+                    },
+                  });
+                  console.log('[form-submit-v3] Ticket notification email sent');
+                } catch (emailError) {
+                  console.error('[form-submit-v3] Failed to send ticket notification:', emailError);
+                }
+              }
               break;
 
             case 'add_tag':

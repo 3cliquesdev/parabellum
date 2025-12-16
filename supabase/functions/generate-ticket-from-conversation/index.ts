@@ -62,11 +62,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 1. Fetch conversation to get contact_id
+    // 1. Fetch conversation with contact info
     console.log('🔍 Fetching conversation:', conversation_id);
     const { data: conversation, error: conversationError } = await supabase
       .from('conversations')
-      .select('id, contact_id, related_ticket_id')
+      .select(`
+        id, 
+        contact_id, 
+        related_ticket_id,
+        contacts:contact_id (
+          id,
+          first_name,
+          last_name,
+          email
+        )
+      `)
       .eq('id', conversation_id)
       .single();
 
@@ -80,6 +90,8 @@ Deno.serve(async (req) => {
         }
       );
     }
+
+    const contact = conversation.contacts as any;
 
     // Log if conversation already has a ticket (will be updated to newest)
     if (conversation.related_ticket_id) {
@@ -230,7 +242,33 @@ Deno.serve(async (req) => {
       console.log('✅ Interaction created in timeline');
     }
 
-    // 9. Return created ticket
+    // 9. Send email notification to customer
+    if (contact?.email) {
+      console.log('📧 Sending ticket notification email...');
+      try {
+        const customerName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Cliente';
+        
+        await supabase.functions.invoke('send-ticket-notification', {
+          body: {
+            ticket_id: ticket.id,
+            ticket_number: ticket.id.substring(0, 8).toUpperCase(),
+            customer_email: contact.email,
+            customer_name: customerName,
+            subject: subject,
+            description: description || '',
+            priority: priority,
+          },
+        });
+        console.log('✅ Ticket notification email sent');
+      } catch (emailError) {
+        console.error('⚠️ Warning: Failed to send ticket notification email:', emailError);
+        // Don't fail the request, ticket was created successfully
+      }
+    } else {
+      console.log('ℹ️ No email found for contact, skipping notification');
+    }
+
+    // 10. Return created ticket
     console.log('🎉 Ticket generation completed successfully');
     return new Response(
       JSON.stringify({

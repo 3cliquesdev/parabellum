@@ -175,7 +175,8 @@ serve(async (req) => {
       );
     }
 
-    const fields = form.fields as any[];
+    const schema = form.schema as any;
+    const fields = schema?.fields || [];
     const validationErrors: Record<string, string> = {};
 
     // Step 1: Validate all fields
@@ -241,7 +242,7 @@ serve(async (req) => {
 
     // Step 3: Create or update contact
     let contactId: string | null = null;
-    const emailField = fields.find(f => f.type === 'email');
+    const emailField = fields.find((f: any) => f.type === 'email');
     const email = emailField ? answers[emailField.id] : null;
 
     if (email) {
@@ -254,8 +255,8 @@ serve(async (req) => {
       if (existingContact) {
         contactId = existingContact.id;
       } else {
-        const nameField = fields.find(f => f.type === 'text' && f.label?.toLowerCase().includes('nome'));
-        const phoneField = fields.find(f => f.type === 'phone');
+        const nameField = fields.find((f: any) => f.type === 'text' && f.label?.toLowerCase().includes('nome'));
+        const phoneField = fields.find((f: any) => f.type === 'phone');
         
         const { data: newContact } = await supabase
           .from('contacts')

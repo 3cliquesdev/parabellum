@@ -63,8 +63,10 @@ export default function EmailBuilderV2Page() {
   const handleSelectLayout = (layoutBlocks: Omit<EmailBlock, "id" | "template_id">[]) => {
     if (!id) return;
     
-    const blocksWithIds: EmailBlock[] = layoutBlocks.map((block, index) => ({
+    // Mapear 'type' para 'block_type' (layouts no DB usam 'type')
+    const blocksWithIds: EmailBlock[] = layoutBlocks.map((block: any, index) => ({
       ...block,
+      block_type: block.block_type || block.type, // Suportar ambos os formatos
       id: `block-${Date.now()}-${index}`,
       template_id: id,
       position: index,

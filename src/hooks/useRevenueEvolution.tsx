@@ -1,43 +1,65 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "./useAuth";
-import { useUserRole } from "./useUserRole";
 import { format, subMonths, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export function useRevenueEvolution() {
-  const { user } = useAuth();
-  const { role } = useUserRole();
-
   return useQuery({
-    queryKey: ["revenue-evolution", user?.id, role],
+    queryKey: ["revenue-evolution-kiwify"],
     queryFn: async () => {
-      // Buscar deals ganhos nos últimos 6 meses
       const sixMonthsAgo = startOfMonth(subMonths(new Date(), 5));
+      
+      console.log("📊 useRevenueEvolution: Buscando dados de kiwify_events", {
+        desde: sixMonthsAgo.toISOString()
+      });
 
-      let query = supabase
-        .from("deals")
-        .select("value, closed_at")
-        .eq("status", "won")
-        .gte("closed_at", sixMonthsAgo.toISOString())
-        .order("closed_at", { ascending: true });
+      // Buscar eventos pagos dos últimos 6 meses
+      const { data: paidEvents, error: paidError } = await supabase
+        .from("kiwify_events")
+        .select("payload, created_at")
+        .in("event_type", ["paid", "order_approved"])
+        .gte("created_at", sixMonthsAgo.toISOString())
+        .order("created_at", { ascending: true });
 
-      // Sales rep vê apenas seus próprios dados
-      if (role === "sales_rep" && user?.id) {
-        query = query.eq("assigned_to", user.id);
+      if (paidError) {
+        console.error("❌ useRevenueEvolution: Erro ao buscar eventos:", paidError);
+        throw paidError;
       }
 
-      const { data: deals, error } = await query;
+      // Buscar order_ids reembolsados/chargebacks para excluir
+      const { data: refundedEvents } = await supabase
+        .from("kiwify_events")
+        .select("payload")
+        .in("event_type", ["refunded", "chargedback"]);
 
-      if (error) throw error;
+      const refundedOrderIds = new Set<string>();
+      refundedEvents?.forEach(event => {
+        const orderId = (event.payload as any)?.order_id;
+        if (orderId) refundedOrderIds.add(orderId);
+      });
 
-      // Agrupar por mês
+      console.log(`📊 useRevenueEvolution: ${refundedOrderIds.size} pedidos reembolsados excluídos`);
+
+      // Deduplicar por order_id e excluir reembolsos
+      const uniqueOrdersMap = new Map<string, any>();
+      paidEvents?.forEach(event => {
+        const orderId = (event.payload as any)?.order_id;
+        if (!orderId) return;
+        if (refundedOrderIds.has(orderId)) return;
+        if (!uniqueOrdersMap.has(orderId)) {
+          uniqueOrdersMap.set(orderId, event);
+        }
+      });
+
+      const events = Array.from(uniqueOrdersMap.values());
+      console.log(`✅ useRevenueEvolution: ${events.length} pedidos únicos`);
+
+      // Inicializar últimos 6 meses
       const revenueByMonth = new Map<
         string,
         { month: string; revenue: number; dealsCount: number }
       >();
 
-      // Inicializar últimos 6 meses
       for (let i = 5; i >= 0; i--) {
         const monthDate = subMonths(new Date(), i);
         const monthKey = format(monthDate, "yyyy-MM");
@@ -50,20 +72,26 @@ export function useRevenueEvolution() {
         });
       }
 
-      // Adicionar valores dos deals
-      deals?.forEach((deal) => {
-        if (deal.closed_at) {
-          const monthKey = format(new Date(deal.closed_at), "yyyy-MM");
-          const monthData = revenueByMonth.get(monthKey);
+      // Adicionar valores dos eventos kiwify
+      events.forEach((event) => {
+        const monthKey = format(new Date(event.created_at), "yyyy-MM");
+        const monthData = revenueByMonth.get(monthKey);
 
-          if (monthData) {
-            monthData.revenue += deal.value || 0;
-            monthData.dealsCount += 1;
-          }
+        if (monthData) {
+          // Usar my_commission (receita líquida após taxas Kiwify)
+          const commissions = (event.payload as any)?.Commissions;
+          const netValue = (commissions?.my_commission || 0) / 100;
+          
+          monthData.revenue += netValue;
+          monthData.dealsCount += 1;
         }
       });
 
-      return Array.from(revenueByMonth.values());
+      const result = Array.from(revenueByMonth.values());
+      console.log("✅ useRevenueEvolution: Dados calculados", result);
+      
+      return result;
     },
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }

@@ -221,7 +221,8 @@ export function useKiwifyCompleteMetrics(startDate?: Date, endDate?: Date, minVa
         const grossValue = Number(commissions?.product_base_price || 0) / 100;
         const netValue = Number(commissions?.my_commission || 0) / 100;
         const kiwifyFee = Number(commissions?.kiwify_fee || 0) / 100;
-        const affiliateFee = Number(commissions?.affiliate_commission || 0) / 100;
+        // Affiliate commission = gross - my_commission - kiwify_fee (difference goes to affiliate)
+        const affiliateFee = Math.max(0, grossValue - netValue - kiwifyFee);
         
         receitaBruta += grossValue;
         receitaLiquida += netValue;

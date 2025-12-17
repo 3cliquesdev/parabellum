@@ -176,6 +176,41 @@ Deno.serve(async (req) => {
 
     console.log(`[public-start-playbook] Execution created: ${execution.id}`);
 
+    // Create customer_journey_steps from playbook task nodes
+    const taskNodes = nodes.filter(n => n.type === 'task');
+    console.log(`[public-start-playbook] Creating ${taskNodes.length} journey steps from task nodes`);
+
+    for (let i = 0; i < taskNodes.length; i++) {
+      const node = taskNodes[i];
+      const nodeData = node.data || {};
+      
+      const { error: stepError } = await supabaseClient
+        .from('customer_journey_steps')
+        .insert({
+          contact_id: contact.id,
+          step_name: nodeData.label || `Etapa ${i + 1}`,
+          position: i + 1,
+          is_critical: nodeData.quiz_enabled || false,
+          video_url: nodeData.video_url || null,
+          rich_content: nodeData.rich_content || null,
+          attachments: nodeData.attachments || null,
+          quiz_enabled: nodeData.quiz_enabled || false,
+          quiz_question: nodeData.quiz_question || null,
+          quiz_options: nodeData.quiz_options || null,
+          quiz_correct_option: nodeData.quiz_correct_option || null,
+          completed: false,
+          quiz_passed: false,
+        });
+
+      if (stepError) {
+        console.error(`Failed to create journey step ${i + 1}:`, stepError);
+      } else {
+        console.log(`[public-start-playbook] Created journey step: ${nodeData.label}`);
+      }
+    }
+
+    console.log(`[public-start-playbook] All journey steps created for contact ${contact.id}`);
+
     // Queue first node for processing
     const firstNode = nodes[0];
     const { error: queueError } = await supabaseClient

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ThankYouView } from "@/components/public-onboarding/ThankYouView";
 import { WizardView } from "@/components/public-onboarding/WizardView";
 import { WhatsAppFloatingButton } from "@/components/public-onboarding/WhatsAppFloatingButton";
 import { Loader2, Play } from "lucide-react";
@@ -50,10 +49,7 @@ export default function PublicOnboarding() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<OnboardingData | null>(null);
-  const [started, setStarted] = useState(false);
   const [playbookInfo, setPlaybookInfo] = useState<{ name: string; description?: string; support_phone?: string } | null>(null);
-  
-  // Form state for starting playbook - REMOVED email/name requirement
   const [isStarting, setIsStarting] = useState(false);
   
   // Query params for personalization
@@ -125,9 +121,6 @@ export default function PublicOnboarding() {
 
       if (stepsError) throw stepsError;
 
-      // Check if any step is already completed (means user already started)
-      const hasProgress = steps?.some(s => s.completed);
-
       setData({
         execution: {
           id: execution.id,
@@ -138,8 +131,6 @@ export default function PublicOnboarding() {
         steps: steps || [],
         playbook: execution.playbooks as any,
       });
-      
-      setStarted(hasProgress);
     } catch (err: any) {
       console.error("Error loading onboarding data:", err);
       setError(err.message || "Erro ao carregar dados do onboarding");
@@ -344,24 +335,34 @@ export default function PublicOnboarding() {
     );
   }
 
+  // Vai direto para o WizardView se tem steps, senão mostra mensagem de processamento
+  if (data.steps.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-emerald-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl shadow-xl p-8 max-w-md text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-foreground mb-2">Preparando seu onboarding...</h1>
+          <p className="text-muted-foreground mb-4">
+            Estamos configurando sua jornada personalizada.
+          </p>
+          <Button onClick={loadOnboardingData} variant="outline">
+            Atualizar
+          </Button>
+        </div>
+        <WhatsAppFloatingButton phone={supportPhone} customerName={displayName} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-emerald-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      {!started ? (
-        <ThankYouView
-          customerName={displayName}
-          productName={productName}
-          supportPhone={supportPhone}
-          onStart={() => setStarted(true)}
-        />
-      ) : (
-        <WizardView
-          steps={data.steps}
-          customerName={displayName}
-          contactId={data.contact.id}
-          supportPhone={supportPhone}
-          onRefresh={loadOnboardingData}
-        />
-      )}
+      <WizardView
+        steps={data.steps}
+        customerName={displayName}
+        contactId={data.contact.id}
+        supportPhone={supportPhone}
+        onRefresh={loadOnboardingData}
+      />
       
       <WhatsAppFloatingButton
         phone={supportPhone}

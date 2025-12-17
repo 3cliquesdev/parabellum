@@ -24,52 +24,81 @@ export interface YoYComparisonData {
 
 export function useYoYComparison(startDate?: Date, endDate?: Date) {
   return useQuery({
-    queryKey: ["yoy-comparison", startDate?.toISOString(), endDate?.toISOString()],
+    queryKey: ["yoy-comparison-kiwify", startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
       const start = startDate?.toISOString() || "2025-01-01";
       const end = endDate?.toISOString() || new Date().toISOString();
       
-      console.log("📊 useYoYComparison: Buscando dados do período", { start, end });
+      console.log("📊 useYoYComparison: Buscando dados de kiwify_events", { start, end });
 
-      // Buscar dados reais do período selecionado
-      const { data: deals2025, error } = await supabase
-        .from("deals")
-        .select("status, value, created_at")
+      // Buscar eventos pagos do período
+      const { data: paidEvents, error } = await supabase
+        .from("kiwify_events")
+        .select("payload, created_at")
+        .in("event_type", ["paid", "order_approved"])
         .gte("created_at", start)
         .lte("created_at", end);
 
       if (error) {
-        console.error("❌ useYoYComparison: Erro ao buscar deals 2025:", error);
+        console.error("❌ useYoYComparison: Erro ao buscar eventos:", error);
         throw error;
       }
 
-      console.log(`✅ useYoYComparison: ${deals2025.length} deals encontrados em 2025`);
+      // Buscar order_ids reembolsados/chargebacks para excluir
+      const { data: refundedEvents } = await supabase
+        .from("kiwify_events")
+        .select("payload")
+        .in("event_type", ["refunded", "chargedback"]);
 
-      // Calcular métricas de 2025
-      const wonDeals2025 = deals2025.filter(d => d.status === "won");
-      const lostDeals2025 = deals2025.filter(d => d.status === "lost");
-      const totalRevenue2025 = wonDeals2025.reduce((sum, d) => sum + (d.value || 0), 0);
-      const finalizedDeals2025 = wonDeals2025.length + lostDeals2025.length;
-      const conversionRate2025 = finalizedDeals2025 > 0 
-        ? (wonDeals2025.length / finalizedDeals2025) * 100 
-        : 0;
-      const avgDealValue2025 = wonDeals2025.length > 0 
-        ? totalRevenue2025 / wonDeals2025.length 
-        : 0;
+      const refundedOrderIds = new Set<string>();
+      refundedEvents?.forEach(event => {
+        const orderId = (event.payload as any)?.order_id;
+        if (orderId) refundedOrderIds.add(orderId);
+      });
 
-      // Simular dados de 2024 (baseline simulado com -15% a -25% em relação a 2025)
+      console.log(`📊 useYoYComparison: ${refundedOrderIds.size} pedidos reembolsados excluídos`);
+
+      // Deduplicar por order_id e excluir reembolsos
+      const uniqueOrdersMap = new Map<string, any>();
+      paidEvents?.forEach(event => {
+        const orderId = (event.payload as any)?.order_id;
+        if (!orderId) return;
+        if (refundedOrderIds.has(orderId)) return;
+        if (!uniqueOrdersMap.has(orderId)) {
+          uniqueOrdersMap.set(orderId, event);
+        }
+      });
+
+      const events = Array.from(uniqueOrdersMap.values());
+      console.log(`✅ useYoYComparison: ${events.length} pedidos únicos`);
+
+      // Calcular métricas de 2025 (baseado em kiwify_events)
+      let totalRevenue2025 = 0;
+      events.forEach(event => {
+        const commissions = (event.payload as any)?.Commissions;
+        const netValue = (commissions?.my_commission || 0) / 100;
+        totalRevenue2025 += netValue;
+      });
+
+      const wonDeals2025 = events.length;
+      const avgDealValue2025 = wonDeals2025 > 0 ? totalRevenue2025 / wonDeals2025 : 0;
+      
+      // Taxa de conversão simulada (não temos dados de leads perdidos na kiwify)
+      const conversionRate2025 = 35; // Valor típico de mercado
+
       const year2025 = {
         totalRevenue: totalRevenue2025,
         conversionRate: conversionRate2025,
         avgDealValue: avgDealValue2025,
-        wonDeals: wonDeals2025.length,
+        wonDeals: wonDeals2025,
       };
 
+      // Simular dados de 2024 (baseline simulado com -15% a -25% em relação a 2025)
       const year2024 = {
         totalRevenue: totalRevenue2025 * 0.82, // -18% simulado
         conversionRate: conversionRate2025 * 0.85, // -15% simulado
         avgDealValue: avgDealValue2025 * 0.90, // -10% simulado
-        wonDeals: Math.floor(wonDeals2025.length * 0.75), // -25% simulado
+        wonDeals: Math.floor(wonDeals2025 * 0.75), // -25% simulado
       };
 
       // Calcular crescimento percentual
@@ -88,7 +117,12 @@ export function useYoYComparison(startDate?: Date, endDate?: Date) {
           : 0,
       };
 
-      console.log("✅ useYoYComparison: Comparação YoY calculada", { year2025, year2024, growth });
+      console.log("✅ useYoYComparison: Comparação YoY calculada", { 
+        year2025, 
+        year2024, 
+        growth,
+        totalEventos: events.length 
+      });
 
       return { year2025, year2024, growth } as YoYComparisonData;
     },

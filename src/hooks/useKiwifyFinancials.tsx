@@ -57,21 +57,53 @@ export function useKiwifyFinancials(startDate?: Date, endDate?: Date) {
 
       console.log("📊 useKiwifyFinancials: Buscando dados de kiwify_events", { start, end });
 
-      // 🆕 NOVA LÓGICA: Buscar de kiwify_events (fonte real dos dados financeiros)
-      const { data: events, error } = await supabase
+      // Primeiro, buscar a contagem total de eventos para saber quantas páginas precisamos
+      const { count, error: countError } = await supabase
         .from("kiwify_events")
-        .select("*")
+        .select("*", { count: "exact", head: true })
         .in("event_type", ["paid", "order_approved"])
         .gte("created_at", start)
-        .lte("created_at", end)
-        .eq("processed", true);
+        .lte("created_at", end);
 
-      if (error) {
-        console.error("❌ useKiwifyFinancials: Erro ao buscar eventos:", error);
-        throw error;
+      if (countError) {
+        console.error("❌ useKiwifyFinancials: Erro ao contar eventos:", countError);
+        throw countError;
       }
 
-      console.log(`✅ useKiwifyFinancials: ${events?.length || 0} eventos encontrados`);
+      const totalEvents = count || 0;
+      console.log(`📊 useKiwifyFinancials: Total de ${totalEvents} eventos para buscar`);
+
+      // Buscar todos os eventos com paginação (Supabase limita a 1000 por query)
+      const pageSize = 1000;
+      const totalPages = Math.ceil(totalEvents / pageSize);
+      const allEvents: any[] = [];
+
+      for (let page = 0; page < totalPages; page++) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data: pageData, error: pageError } = await supabase
+          .from("kiwify_events")
+          .select("*")
+          .in("event_type", ["paid", "order_approved"])
+          .gte("created_at", start)
+          .lte("created_at", end)
+          .range(from, to);
+
+        if (pageError) {
+          console.error(`❌ useKiwifyFinancials: Erro na página ${page}:`, pageError);
+          throw pageError;
+        }
+
+        if (pageData) {
+          allEvents.push(...pageData);
+        }
+
+        console.log(`📊 useKiwifyFinancials: Página ${page + 1}/${totalPages} - ${pageData?.length || 0} eventos`);
+      }
+
+      const events = allEvents;
+      console.log(`✅ useKiwifyFinancials: ${events.length} eventos carregados (total real)`);
 
       // Calcular totais a partir do payload dos eventos
       let totalGrossRevenue = 0;

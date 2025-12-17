@@ -32,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRange } from "react-day-picker";
 import { KiwifyFinancialReport } from "@/components/widgets/KiwifyFinancialReport";
 import { ChurnWidget } from "@/components/widgets/ChurnWidget";
+import { useKiwifyCompleteMetrics } from "@/hooks/useKiwifyCompleteMetrics";
 
 export default function Analytics() {
   const { role, loading: roleLoading } = useUserRole();
@@ -65,7 +66,9 @@ export default function Analytics() {
     }
   }, [dateRange]);
 
-  // Permission validation - only admin and manager can access Analytics
+  // Kiwify metrics for financial tab
+  const { data: kiwifyMetrics } = useKiwifyCompleteMetrics(startDate, endDate);
+
   useEffect(() => {
   if (!roleLoading && role !== null && role === 'sales_rep') {
     navigate('/');
@@ -291,10 +294,20 @@ export default function Analytics() {
           <TabsContent value="financial" className="space-y-6">
             {/* AI Executive Summary */}
             <AIExecutiveSummary 
-              data={{ 
-                context: 'financial',
-                message: 'Aguardando coleta de dados financeiros Kiwify para análise. Clique em "Gerar Análise" para processar.',
-              }}
+              data={kiwifyMetrics ? {
+                vendasAprovadas: kiwifyMetrics.vendasAprovadas,
+                vendasNovas: kiwifyMetrics.vendasNovas,
+                renovacoes: kiwifyMetrics.renovacoes,
+                receitaBruta: `R$ ${kiwifyMetrics.receitaBruta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                receitaLiquida: `R$ ${kiwifyMetrics.receitaLiquida.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                taxaKiwify: `R$ ${kiwifyMetrics.taxaKiwify.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${kiwifyMetrics.percentualTaxaKiwify.toFixed(1)}%)`,
+                comissaoAfiliados: `R$ ${kiwifyMetrics.comissaoAfiliados.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${kiwifyMetrics.percentualComissao.toFixed(1)}%)`,
+                reembolsos: `${kiwifyMetrics.reembolsos.quantidade} (R$ ${kiwifyMetrics.reembolsos.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`,
+                chargebacks: `${kiwifyMetrics.chargebacks.quantidade} (R$ ${kiwifyMetrics.chargebacks.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`,
+                taxaChurn: `${kiwifyMetrics.taxaChurn.toFixed(1)}%`,
+                topProdutos: kiwifyMetrics.porProduto.slice(0, 5).map(p => `${p.product_name}: ${p.vendas} vendas, R$ ${p.bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`),
+                topAfiliados: kiwifyMetrics.topAffiliates.slice(0, 5).map(a => `${a.affiliateName}: ${a.salesCount} vendas, R$ ${a.totalCommission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`),
+              } : { message: 'Carregando dados financeiros...' }}
               context="financial"
               startDate={startDate}
               endDate={endDate}

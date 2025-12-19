@@ -81,7 +81,10 @@ export function useAuth() {
     } finally {
       // Garantir remoção do token de autenticação do navegador
       try {
-        const storageKey = "sb-zaeozfdjhrmblfaxsyuu-auth-token";
+        // Derive storage key from environment variable instead of hardcoding
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || 
+          new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
+        const storageKey = `sb-${projectId}-auth-token`;
         window.localStorage.removeItem(storageKey);
         window.sessionStorage.removeItem(storageKey);
       } catch (storageError) {

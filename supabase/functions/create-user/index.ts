@@ -78,43 +78,84 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { email, password, role, full_name, department } = await req.json();
+    const body = await req.json();
+    const { email, password, role, full_name, department } = body;
 
-    // Validate required fields
-    if (!email || !password || !role || !full_name || !department) {
+    // ============================================
+    // ENTERPRISE VALIDATION: Validate all inputs
+    // ============================================
+    const validationErrors: string[] = [];
+
+    // Validate required fields presence
+    if (!email) validationErrors.push('email é obrigatório');
+    if (!password) validationErrors.push('password é obrigatório');
+    if (!role) validationErrors.push('role é obrigatório');
+    if (!full_name) validationErrors.push('full_name é obrigatório');
+    if (!department) validationErrors.push('department é obrigatório');
+
+    if (validationErrors.length > 0) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
+        JSON.stringify({ error: 'Campos obrigatórios ausentes', details: validationErrors }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validate email format
+    // Validate email format and length
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (typeof email !== 'string' || email.length > 255 || !emailRegex.test(email)) {
       return new Response(
-        JSON.stringify({ error: 'Email inválido. Por favor, insira um email válido.' }),
+        JSON.stringify({ error: 'Email inválido. Formato incorreto ou excede 255 caracteres.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate password strength
+    if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+      return new Response(
+        JSON.stringify({ error: 'Senha deve ter entre 8 e 128 caracteres.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate full_name length
+    if (typeof full_name !== 'string' || full_name.length < 2 || full_name.length > 200) {
+      return new Response(
+        JSON.stringify({ error: 'Nome completo deve ter entre 2 e 200 caracteres.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate department is UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof department !== 'string' || !uuidRegex.test(department)) {
+      return new Response(
+        JSON.stringify({ error: 'Department ID inválido. Deve ser um UUID válido.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Validate role
     const allowedRoles = ['admin', 'general_manager', 'manager', 'sales_rep', 'consultant', 'support_agent', 'support_manager', 'financial_manager', 'cs_manager'];
-    if (!allowedRoles.includes(role)) {
+    if (typeof role !== 'string' || !allowedRoles.includes(role)) {
       return new Response(
-        JSON.stringify({ error: `Invalid role. Must be one of: ${allowedRoles.join(', ')}` }),
+        JSON.stringify({ error: `Role inválido. Deve ser um de: ${allowedRoles.join(', ')}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Creating user:', { email, role, full_name, department });
+    // Sanitize inputs
+    const sanitizedEmail = email.trim().toLowerCase();
+    const sanitizedFullName = full_name.trim();
+
+    console.log('Creating user:', { email: sanitizedEmail, role, full_name: sanitizedFullName, department });
 
     // Create the new user with admin privileges
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: sanitizedEmail,
       password,
       email_confirm: true,
       user_metadata: {
-        full_name,
+        full_name: sanitizedFullName,
         department,
         must_change_password: true
       }

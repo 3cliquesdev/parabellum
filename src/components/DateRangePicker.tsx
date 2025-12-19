@@ -2,12 +2,17 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, ChevronDown } from "lucide-react";
 import { format, startOfToday, startOfYesterday, endOfYesterday, startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export interface DateRangePickerProps {
   value: DateRange | undefined;
@@ -17,9 +22,10 @@ export interface DateRangePickerProps {
 
 type PresetKey = 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'lastYear' | 'custom';
 
-const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> = {
+const presets: Record<PresetKey, { label: string; icon: string; getRange: () => DateRange }> = {
   today: {
     label: 'Hoje',
+    icon: '📅',
     getRange: () => ({
       from: startOfToday(),
       to: startOfToday(),
@@ -27,6 +33,7 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   },
   yesterday: {
     label: 'Ontem',
+    icon: '📅',
     getRange: () => ({
       from: startOfYesterday(),
       to: endOfYesterday(),
@@ -34,6 +41,7 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   },
   thisWeek: {
     label: 'Esta Semana',
+    icon: '📅',
     getRange: () => ({
       from: startOfWeek(new Date(), { locale: ptBR }),
       to: endOfWeek(new Date(), { locale: ptBR }),
@@ -41,6 +49,7 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   },
   lastWeek: {
     label: 'Semana Passada',
+    icon: '📅',
     getRange: () => ({
       from: startOfWeek(subWeeks(new Date(), 1), { locale: ptBR }),
       to: endOfWeek(subWeeks(new Date(), 1), { locale: ptBR }),
@@ -48,6 +57,7 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   },
   thisMonth: {
     label: 'Este Mês',
+    icon: '📅',
     getRange: () => ({
       from: startOfMonth(new Date()),
       to: endOfMonth(new Date()),
@@ -55,6 +65,7 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   },
   lastMonth: {
     label: 'Mês Passado',
+    icon: '📅',
     getRange: () => ({
       from: startOfMonth(subMonths(new Date(), 1)),
       to: endOfMonth(subMonths(new Date(), 1)),
@@ -62,6 +73,7 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   },
   thisYear: {
     label: 'Este Ano',
+    icon: '📅',
     getRange: () => ({
       from: startOfYear(new Date()),
       to: endOfYear(new Date()),
@@ -69,6 +81,7 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   },
   lastYear: {
     label: 'Ano Passado',
+    icon: '📅',
     getRange: () => ({
       from: startOfYear(subYears(new Date(), 1)),
       to: endOfYear(subYears(new Date(), 1)),
@@ -76,6 +89,7 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   },
   custom: {
     label: 'Personalizado',
+    icon: '🎯',
     getRange: () => ({
       from: undefined,
       to: undefined,
@@ -83,8 +97,11 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   },
 };
 
+const presetOrder: PresetKey[] = ['today', 'yesterday', 'thisWeek', 'lastWeek', 'thisMonth', 'lastMonth', 'thisYear', 'lastYear'];
+
 export function DateRangePicker({ value, onChange, className }: DateRangePickerProps) {
   const [activePreset, setActivePreset] = useState<PresetKey>('thisMonth');
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const handlePresetChange = (preset: PresetKey) => {
     setActivePreset(preset);
@@ -93,53 +110,69 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
     }
   };
 
+  const handleCalendarSelect = (range: DateRange | undefined) => {
+    onChange(range);
+    setActivePreset('custom');
+    if (range?.from && range?.to) {
+      setCalendarOpen(false);
+    }
+  };
+
+  const getDisplayLabel = () => {
+    if (activePreset === 'custom' && value?.from && value?.to) {
+      return `${format(value.from, "dd/MM/yyyy", { locale: ptBR })} - ${format(value.to, "dd/MM/yyyy", { locale: ptBR })}`;
+    }
+    return `${presets[activePreset].icon} ${presets[activePreset].label}`;
+  };
+
   return (
-    <div className={cn("flex flex-col gap-3", className)}>
-      {/* Quick Presets */}
-      <Tabs value={activePreset} onValueChange={(v) => handlePresetChange(v as PresetKey)}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="today" className="text-xs">📅 Hoje</TabsTrigger>
-          <TabsTrigger value="yesterday" className="text-xs">📅 Ontem</TabsTrigger>
-          <TabsTrigger value="thisWeek" className="text-xs">📅 Esta Semana</TabsTrigger>
-          <TabsTrigger value="lastWeek" className="text-xs">📅 Semana Passada</TabsTrigger>
-        </TabsList>
-      </Tabs>
+    <div className={cn("flex items-center gap-2", className)}>
+      {/* Dropdown de Presets */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="min-w-[180px] justify-between">
+            <span>{getDisplayLabel()}</span>
+            <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[200px] bg-background z-50">
+          {presetOrder.map((key) => (
+            <DropdownMenuItem
+              key={key}
+              onClick={() => handlePresetChange(key)}
+              className={cn(
+                "cursor-pointer",
+                activePreset === key && "bg-accent font-medium"
+              )}
+            >
+              {presets[key].icon} {presets[key].label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-      <Tabs value={activePreset} onValueChange={(v) => handlePresetChange(v as PresetKey)}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="thisMonth" className="text-xs">📅 Este Mês</TabsTrigger>
-          <TabsTrigger value="lastMonth" className="text-xs">📅 Mês Passado</TabsTrigger>
-          <TabsTrigger value="thisYear" className="text-xs">📅 Este Ano</TabsTrigger>
-          <TabsTrigger value="lastYear" className="text-xs">📅 Ano Passado</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Custom Date Range Selector */}
-      <Popover>
+      {/* Calendário Personalizado */}
+      <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
         <PopoverTrigger asChild>
           <Button
-            variant="outline"
-            className={cn(
-              "w-full justify-start text-left font-normal",
-              !value?.from && "text-muted-foreground"
-            )}
-            onClick={() => setActivePreset('custom')}
+            variant={activePreset === 'custom' ? "default" : "outline"}
+            className="gap-2"
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {value?.from && value?.to ? (
-              <>
-                {format(value.from, "dd/MM/yyyy", { locale: ptBR })} - {format(value.to, "dd/MM/yyyy", { locale: ptBR })}
-              </>
+            <CalendarIcon className="h-4 w-4" />
+            {activePreset === 'custom' && value?.from && value?.to ? (
+              <span className="hidden sm:inline">
+                {format(value.from, "dd/MM", { locale: ptBR })} - {format(value.to, "dd/MM", { locale: ptBR })}
+              </span>
             ) : (
-              <span>🎯 Personalizado - Selecione o período</span>
+              <span className="hidden sm:inline">Período Personalizado</span>
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0 z-50" align="end">
           <Calendar
             mode="range"
             selected={value}
-            onSelect={onChange}
+            onSelect={handleCalendarSelect}
             numberOfMonths={2}
             locale={ptBR}
             className="pointer-events-auto"

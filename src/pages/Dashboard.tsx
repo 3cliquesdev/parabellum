@@ -35,9 +35,6 @@ import { MyActivitiesWidget } from "@/components/widgets/MyActivitiesWidget";
 import { MyLeadsWidget } from "@/components/widgets/MyLeadsWidget";
 import { MyPerformanceWidget } from "@/components/widgets/MyPerformanceWidget";
 
-// Kiwify Dashboard
-import SalesByOfferDashboard from "@/components/dashboards/SalesByOfferDashboard";
-
 export default function Dashboard() {
   const [searchParams] = useSearchParams();
   const view = searchParams.get("view") || "overview";
@@ -122,17 +119,14 @@ export default function Dashboard() {
     );
   }
 
-  // Visualização Financeira - widgets financeiros + Kiwify por oferta
+  // Visualização Financeira - widgets financeiros
   if (view === "financial") {
     return (
       <PageContainer>
-        <PageHeader title="Dashboard Financeiro" description="Análise de receitas e vendas Kiwify" />
+        <PageHeader title="Dashboard Financeiro" description="Análise de receitas e vendas" />
         <PageContent>
           <div className="space-y-6">
             <FinancialStatusWidget />
-            
-            {/* Dashboard de Vendas por Oferta Kiwify */}
-            <SalesByOfferDashboard />
             
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div className="min-h-[400px]">

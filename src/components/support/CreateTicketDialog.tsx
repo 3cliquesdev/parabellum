@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useCreateTicket } from "@/hooks/useCreateTicket";
 import { useContacts } from "@/hooks/useContacts";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useTicketCategories, useCreateTicketCategory } from "@/hooks/useTicketCategories";
 import { useUsers } from "@/hooks/useUsers";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useTicketAttachmentUpload } from "@/hooks/useTicketAttachmentUpload";
+import { useDropzone } from "react-dropzone";
 import {
   Dialog,
   DialogContent,
@@ -24,8 +26,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Search, Plus } from "lucide-react";
+import { Loader2, Search, Plus, Upload, X, Image as ImageIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 
 interface CreateTicketDialogProps {
   open: boolean;
@@ -48,6 +51,7 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
   const { data: departments = [] } = useDepartments();
   const { data: categories = [] } = useTicketCategories();
   const createCategory = useCreateTicketCategory();
+  const { uploadFile, uploading, progress } = useTicketAttachmentUpload();
 
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
@@ -59,6 +63,11 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>("");
+  
+  // Estado para anexo obrigatório
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [uploadedAttachment, setUploadedAttachment] = useState<{ url: string; type: string; name: string } | null>(null);
 
   // Debounce search to avoid query on every keystroke
   const debouncedSearch = useDebouncedValue(customerSearch, 300);
@@ -82,6 +91,47 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
 
   const selectedContact = contacts.find((c) => c.id === customerId);
 
+  // Dropzone para upload de imagem
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    setAttachmentFile(file);
+    
+    // Criar preview
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAttachmentPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setAttachmentPreview(null);
+    }
+
+    // Fazer upload
+    const result = await uploadFile(file);
+    if (result) {
+      setUploadedAttachment(result);
+    }
+  }, [uploadFile]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png', '.webp'],
+      'application/pdf': ['.pdf'],
+    },
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024, // 10MB
+  });
+
+  const removeAttachment = () => {
+    setAttachmentFile(null);
+    setAttachmentPreview(null);
+    setUploadedAttachment(null);
+  };
+
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
     await createCategory.mutateAsync({ name: newCategoryName.trim().toLowerCase().replace(/\s+/g, '_') });
@@ -92,7 +142,7 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!subject.trim() || !customerId) return;
+    if (!subject.trim() || !customerId || !uploadedAttachment) return;
 
     await createTicket.mutateAsync({
       subject: subject.trim(),
@@ -102,6 +152,7 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
       customer_id: customerId,
       department_id: departmentId || undefined,
       assigned_to: assignedTo || undefined,
+      attachments: [uploadedAttachment],
     });
 
     // Reset form
@@ -113,14 +164,19 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
     setDepartmentId("");
     setAssignedTo("");
     setCustomerSearch("");
+    setAttachmentFile(null);
+    setAttachmentPreview(null);
+    setUploadedAttachment(null);
     onOpenChange(false);
   };
 
   const activeDepartments = departments?.filter((d) => d.is_active) || [];
 
+  const canSubmit = customerId && subject.trim() && uploadedAttachment && !createTicket.isPending;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Criar Novo Ticket</DialogTitle>
           <DialogDescription>
@@ -207,6 +263,86 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
             />
           </div>
 
+          {/* Anexo Obrigatório - Evidência */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1">
+              Evidência (Print/Foto) *
+              <span className="text-xs text-destructive font-normal">(obrigatório)</span>
+            </Label>
+            
+            {!attachmentFile ? (
+              <div
+                {...getRootProps()}
+                className={`
+                  border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
+                  ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
+                `}
+              >
+                <input {...getInputProps()} />
+                <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  {isDragActive ? (
+                    "Solte o arquivo aqui..."
+                  ) : (
+                    <>
+                      Arraste uma imagem ou <span className="text-primary font-medium">clique para selecionar</span>
+                    </>
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  PNG, JPG, WEBP ou PDF até 10MB
+                </p>
+              </div>
+            ) : (
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {attachmentPreview ? (
+                      <img 
+                        src={attachmentPreview} 
+                        alt="Preview" 
+                        className="w-12 h-12 object-cover rounded"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{attachmentFile.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(attachmentFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={removeAttachment}
+                    disabled={uploading}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                {uploading && (
+                  <div className="space-y-1">
+                    <Progress value={progress} className="h-1" />
+                    <p className="text-xs text-muted-foreground text-center">Enviando...</p>
+                  </div>
+                )}
+                
+                {uploadedAttachment && !uploading && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    ✓ Arquivo enviado com sucesso
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Descrição</Label>
@@ -215,7 +351,7 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Descreva o problema em detalhes..."
-              rows={4}
+              rows={3}
             />
           </div>
 
@@ -325,7 +461,7 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={createTicket.isPending || !customerId || !subject.trim()}>
+            <Button type="submit" disabled={!canSubmit}>
               {createTicket.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />

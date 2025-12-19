@@ -33,8 +33,6 @@ import { DateRange } from "react-day-picker";
 import { KiwifyFinancialReport } from "@/components/widgets/KiwifyFinancialReport";
 import { ChurnWidget } from "@/components/widgets/ChurnWidget";
 import { useKiwifyCompleteMetrics } from "@/hooks/useKiwifyCompleteMetrics";
-import SalesByOfferDashboard from "@/components/dashboards/SalesByOfferDashboard";
-
 export default function Analytics() {
   const { role, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
@@ -313,9 +311,6 @@ export default function Analytics() {
               startDate={startDate}
               endDate={endDate}
             />
-
-            {/* Dashboard de Vendas por Oferta */}
-            <SalesByOfferDashboard />
 
             {/* Relatório Financeiro Completo */}
             <KiwifyFinancialReport startDate={startDate} endDate={endDate} />

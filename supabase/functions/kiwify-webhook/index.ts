@@ -7,6 +7,163 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============================================
+// INPUT VALIDATION HELPERS
+// ============================================
+
+/**
+ * Validates string field with optional max length
+ */
+function validateString(value: unknown, fieldName: string, maxLength: number = 500): { valid: boolean; error?: string; sanitized?: string } {
+  if (value === undefined || value === null) {
+    return { valid: true, sanitized: undefined };
+  }
+  if (typeof value !== 'string') {
+    return { valid: false, error: `${fieldName} must be a string` };
+  }
+  if (value.length > maxLength) {
+    return { valid: false, error: `${fieldName} exceeds max length of ${maxLength}` };
+  }
+  return { valid: true, sanitized: value.trim() };
+}
+
+/**
+ * Validates required string field
+ */
+function validateRequiredString(value: unknown, fieldName: string, maxLength: number = 500): { valid: boolean; error?: string; sanitized?: string } {
+  if (value === undefined || value === null || value === '') {
+    return { valid: false, error: `${fieldName} is required` };
+  }
+  return validateString(value, fieldName, maxLength);
+}
+
+/**
+ * Validates email format
+ */
+function validateEmail(value: unknown, fieldName: string): { valid: boolean; error?: string; sanitized?: string } {
+  if (value === undefined || value === null || value === '') {
+    return { valid: true, sanitized: undefined };
+  }
+  if (typeof value !== 'string') {
+    return { valid: false, error: `${fieldName} must be a string` };
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(value) || value.length > 255) {
+    return { valid: false, error: `${fieldName} is not a valid email` };
+  }
+  return { valid: true, sanitized: value.trim().toLowerCase() };
+}
+
+/**
+ * Validates CPF format (11 digits)
+ */
+function validateCPF(value: unknown): { valid: boolean; error?: string; sanitized?: string } {
+  if (value === undefined || value === null || value === '') {
+    return { valid: true, sanitized: undefined };
+  }
+  if (typeof value !== 'string') {
+    return { valid: false, error: 'CPF must be a string' };
+  }
+  const cpf = value.replace(/\D/g, '');
+  if (cpf.length > 0 && cpf.length !== 11) {
+    return { valid: false, error: 'CPF must have 11 digits' };
+  }
+  return { valid: true, sanitized: cpf };
+}
+
+/**
+ * Validates number field
+ */
+function validateNumber(value: unknown, fieldName: string): { valid: boolean; error?: string; sanitized?: number } {
+  if (value === undefined || value === null) {
+    return { valid: true, sanitized: undefined };
+  }
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (typeof num !== 'number' || isNaN(num)) {
+    return { valid: false, error: `${fieldName} must be a number` };
+  }
+  return { valid: true, sanitized: num };
+}
+
+/**
+ * Validates alphanumeric ID with max length
+ */
+function validateId(value: unknown, fieldName: string, maxLength: number = 100): { valid: boolean; error?: string; sanitized?: string } {
+  if (value === undefined || value === null || value === '') {
+    return { valid: true, sanitized: undefined };
+  }
+  if (typeof value !== 'string') {
+    return { valid: false, error: `${fieldName} must be a string` };
+  }
+  if (value.length > maxLength) {
+    return { valid: false, error: `${fieldName} exceeds max length of ${maxLength}` };
+  }
+  // Allow alphanumeric, hyphens, underscores
+  const idRegex = /^[a-zA-Z0-9_-]+$/;
+  if (!idRegex.test(value)) {
+    return { valid: false, error: `${fieldName} contains invalid characters` };
+  }
+  return { valid: true, sanitized: value };
+}
+
+/**
+ * Validates Kiwify webhook payload structure
+ */
+function validateKiwifyPayload(payload: any): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  // Validate order_id
+  const orderIdResult = validateRequiredString(payload.order_id, 'order_id', 100);
+  if (!orderIdResult.valid) errors.push(orderIdResult.error!);
+  
+  // Validate order_status
+  const validStatuses = [
+    'paid', 'order_approved', 'subscription_renewed',
+    'refused', 'cart_abandoned', 'payment_refused',
+    'subscription_late', 'subscription_card_declined',
+    'refunded', 'chargedback', 'subscription_canceled'
+  ];
+  if (!payload.order_status || !validStatuses.includes(payload.order_status)) {
+    errors.push(`order_status must be one of: ${validStatuses.join(', ')}`);
+  }
+  
+  // Validate Customer
+  if (!payload.Customer || typeof payload.Customer !== 'object') {
+    errors.push('Customer object is required');
+  } else {
+    const emailResult = validateEmail(payload.Customer.email, 'Customer.email');
+    if (!emailResult.valid) errors.push(emailResult.error!);
+    
+    const nameResult = validateString(payload.Customer.full_name, 'Customer.full_name', 200);
+    if (!nameResult.valid) errors.push(nameResult.error!);
+    
+    const cpfResult = validateCPF(payload.Customer.CPF);
+    if (!cpfResult.valid) errors.push(cpfResult.error!);
+    
+    const phoneResult = validateString(payload.Customer.mobile || payload.Customer.phone, 'Customer.phone', 20);
+    if (!phoneResult.valid) errors.push(phoneResult.error!);
+  }
+  
+  // Validate Product
+  if (!payload.Product || typeof payload.Product !== 'object') {
+    errors.push('Product object is required');
+  } else {
+    const productIdResult = validateString(payload.Product.product_id, 'Product.product_id', 100);
+    if (!productIdResult.valid) errors.push(productIdResult.error!);
+    
+    const productNameResult = validateString(payload.Product.product_name, 'Product.product_name', 300);
+    if (!productNameResult.valid) errors.push(productNameResult.error!);
+  }
+  
+  // Validate Commissions if present
+  if (payload.Commissions && typeof payload.Commissions === 'object') {
+    const priceResult = validateNumber(payload.Commissions.product_base_price, 'Commissions.product_base_price');
+    if (!priceResult.valid) errors.push(priceResult.error!);
+  }
+  
+  return { valid: errors.length === 0, errors };
+}
+
 interface KiwifyAddress {
   street?: string;
   number?: string;
@@ -313,28 +470,16 @@ serve(async (req) => {
     console.log('[kiwify-webhook] Received:', payload.order_status, payload.order_id);
 
     // ============================================
-    // DEFENSIVE VALIDATION: Check required fields
+    // ENTERPRISE VALIDATION: Validate all fields
     // ============================================
-    if (!payload.order_status) {
-      console.error('[kiwify-webhook] ❌ Missing order_status');
+    const validationResult = validateKiwifyPayload(payload);
+    if (!validationResult.valid) {
+      console.error('[kiwify-webhook] ❌ Validation failed:', validationResult.errors);
       return new Response(
-        JSON.stringify({ error: 'Missing order_status in payload' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!payload.Customer) {
-      console.error('[kiwify-webhook] ❌ Missing Customer data');
-      return new Response(
-        JSON.stringify({ error: 'Missing Customer in payload' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!payload.Product) {
-      console.error('[kiwify-webhook] ❌ Missing Product data');
-      return new Response(
-        JSON.stringify({ error: 'Missing Product in payload' }),
+        JSON.stringify({ 
+          error: 'Payload validation failed', 
+          details: validationResult.errors 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

@@ -174,13 +174,75 @@ serve(async (req) => {
     // Accept both 'answers' and 'responses' for compatibility
     const answers = body.answers || body.responses;
 
-    if (!form_id || !answers) {
-      console.error('[form-submit-v3] Missing required fields:', { form_id: !!form_id, answers: !!answers, body_keys: Object.keys(body) });
+    // ============================================
+    // ENTERPRISE VALIDATION: Validate request structure
+    // ============================================
+    
+    // Validate form_id is UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!form_id || typeof form_id !== 'string' || !uuidRegex.test(form_id)) {
+      console.error('[form-submit-v3] Invalid form_id:', form_id);
       return new Response(
-        JSON.stringify({ error: 'form_id and answers/responses are required' }),
+        JSON.stringify({ error: 'form_id é obrigatório e deve ser um UUID válido' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Validate answers is an object
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+      console.error('[form-submit-v3] Invalid answers format:', typeof answers);
+      return new Response(
+        JSON.stringify({ error: 'answers deve ser um objeto com as respostas do formulário' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate answer values - max length and sanitization
+    const sanitizedAnswers: Record<string, any> = {};
+    const MAX_ANSWER_LENGTH = 10000; // 10KB per answer
+    const MAX_TOTAL_SIZE = 1000000; // 1MB total
+    
+    let totalSize = 0;
+    for (const [key, value] of Object.entries(answers)) {
+      // Validate key format (should be a field ID - alphanumeric/underscore/hyphen)
+      if (!/^[a-zA-Z0-9_-]+$/.test(key) || key.length > 100) {
+        console.warn('[form-submit-v3] Skipping invalid answer key:', key);
+        continue;
+      }
+      
+      // Handle different value types
+      if (value === null || value === undefined) {
+        sanitizedAnswers[key] = null;
+      } else if (typeof value === 'string') {
+        if (value.length > MAX_ANSWER_LENGTH) {
+          return new Response(
+            JSON.stringify({ error: `Resposta para ${key} excede o limite de ${MAX_ANSWER_LENGTH} caracteres` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        sanitizedAnswers[key] = value.trim();
+        totalSize += value.length;
+      } else if (typeof value === 'number' || typeof value === 'boolean') {
+        sanitizedAnswers[key] = value;
+        totalSize += String(value).length;
+      } else if (Array.isArray(value)) {
+        // For multi-select fields
+        sanitizedAnswers[key] = value.map(v => typeof v === 'string' ? v.trim() : v);
+        totalSize += JSON.stringify(value).length;
+      } else {
+        sanitizedAnswers[key] = value;
+        totalSize += JSON.stringify(value).length;
+      }
+      
+      if (totalSize > MAX_TOTAL_SIZE) {
+        return new Response(
+          JSON.stringify({ error: 'Tamanho total das respostas excede o limite permitido' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    console.log(`[form-submit-v3] Validated ${Object.keys(sanitizedAnswers).length} answers, total size: ${totalSize} bytes`);
 
     console.log(`[form-submit-v3] Processing form ${form_id}`);
 
@@ -202,9 +264,9 @@ serve(async (req) => {
     const fields = schema?.fields || [];
     const validationErrors: Record<string, string> = {};
 
-    // Step 1: Validate all fields
+    // Step 1: Validate all fields using sanitized answers
     for (const field of fields) {
-      const value = answers[field.id];
+      const value = sanitizedAnswers[field.id];
       
       // Required validation
       if (field.required && (!value || value === '')) {
@@ -257,7 +319,7 @@ serve(async (req) => {
     
     if (calculations) {
       for (const calc of calculations) {
-        const result = evaluateFormula(calc.formula, answers);
+        const result = evaluateFormula(calc.formula, sanitizedAnswers);
         calculatedScores[calc.name] = result.success ? result.value : null;
         console.log(`[form-submit-v3] Calculation ${calc.name}: ${result.value}`);
       }
@@ -266,7 +328,7 @@ serve(async (req) => {
     // Step 3: Create or update contact
     let contactId: string | null = null;
     const emailField = fields.find((f: any) => f.type === 'email');
-    const email = emailField ? answers[emailField.id] : null;
+    const email = emailField ? sanitizedAnswers[emailField.id] : null;
 
     if (email) {
       const { data: existingContact } = await supabase
@@ -285,9 +347,9 @@ serve(async (req) => {
           .from('contacts')
           .insert({
             email,
-            first_name: nameField ? answers[nameField.id]?.split(' ')[0] || 'Lead' : 'Lead',
-            last_name: nameField ? answers[nameField.id]?.split(' ').slice(1).join(' ') || '' : '',
-            phone: phoneField ? answers[phoneField.id] : null,
+            first_name: nameField ? sanitizedAnswers[nameField.id]?.split(' ')[0] || 'Lead' : 'Lead',
+            last_name: nameField ? sanitizedAnswers[nameField.id]?.split(' ').slice(1).join(' ') || '' : '',
+            phone: phoneField ? sanitizedAnswers[phoneField.id] : null,
             source: 'form',
             status: 'lead',
           })
@@ -306,7 +368,7 @@ serve(async (req) => {
       .insert({
         form_id,
         contact_id: contactId,
-        answers,
+        answers: sanitizedAnswers,
         calculated_scores: calculatedScores,
         session_metadata,
         completed_at: new Date().toISOString(),
@@ -354,7 +416,7 @@ serve(async (req) => {
         } else if (automation.trigger_type === 'on_condition_match') {
           const config = automation.trigger_config as any;
           if (config?.field_id && config?.operator) {
-            shouldTrigger = evaluateCondition(config, answers);
+            shouldTrigger = evaluateCondition(config, sanitizedAnswers);
           }
         }
 
@@ -382,7 +444,7 @@ serve(async (req) => {
                   body: {
                     template_id: actionConfig.template_id,
                     to_email: email,
-                    variables: { ...answers, ...calculatedScores },
+                    variables: { ...sanitizedAnswers, ...calculatedScores },
                   },
                 });
               }

@@ -26,12 +26,11 @@ export function useTicketAttachmentUpload() {
       // Gerar nome único
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `ticket-attachments/${fileName}`;
 
       // Upload para Supabase Storage
       const { data, error } = await supabase.storage
-        .from('avatars') // Usando bucket existente, criar bucket específico depois se necessário
-        .upload(filePath, file, {
+        .from('ticket-attachments')
+        .upload(fileName, file, {
           cacheControl: '3600',
           upsert: false
         });
@@ -42,7 +41,7 @@ export function useTicketAttachmentUpload() {
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
+        .from('ticket-attachments')
         .getPublicUrl(data.path);
 
       return {

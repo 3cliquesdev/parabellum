@@ -22,6 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OctadeskFileUploader } from "@/components/octadesk/OctadeskFileUploader";
 import { OctadeskConversationTable } from "@/components/octadesk/OctadeskConversationTable";
 import { OctadeskImportConfig, OctadeskImportOptions } from "@/components/octadesk/OctadeskImportConfig";
+import { OctadeskConnectionTest } from "@/components/octadesk/OctadeskConnectionTest";
 import { OctadeskConversation } from "@/utils/octadeskParser";
 import { Progress } from "@/components/ui/progress";
 const LOG_PREFIX = '[KnowledgeImport]';
@@ -708,6 +709,11 @@ export default function KnowledgeImport() {
 
         {/* Octadesk Tab */}
         <TabsContent value="octadesk" className="space-y-6">
+          {/* Step 0: Connection Test */}
+          <div className="space-y-4">
+            <OctadeskConnectionTest />
+          </div>
+
           {/* Step 1: Upload JSON */}
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-foreground">Etapa 1: Upload do Arquivo Octadesk</h2>

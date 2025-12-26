@@ -1652,6 +1652,7 @@ export type Database = {
           status: Database["public"]["Enums"]["deal_status"]
           success_criteria: string | null
           title: string
+          tracking_code: string | null
           updated_at: string
           value: number | null
         }
@@ -1685,6 +1686,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["deal_status"]
           success_criteria?: string | null
           title: string
+          tracking_code?: string | null
           updated_at?: string
           value?: number | null
         }
@@ -1718,6 +1720,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["deal_status"]
           success_criteria?: string | null
           title?: string
+          tracking_code?: string | null
           updated_at?: string
           value?: number | null
         }
@@ -4961,6 +4964,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tracking_cache: {
+        Row: {
+          created_at: string | null
+          external_created_at: string | null
+          external_updated_at: string | null
+          fetched_at: string | null
+          id: string
+          platform: string | null
+          status: string | null
+          tracking_code: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          external_created_at?: string | null
+          external_updated_at?: string | null
+          fetched_at?: string | null
+          id?: string
+          platform?: string | null
+          status?: string | null
+          tracking_code: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          external_created_at?: string | null
+          external_updated_at?: string | null
+          fetched_at?: string | null
+          id?: string
+          platform?: string | null
+          status?: string | null
+          tracking_code?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Target, ArrowRightLeft } from "lucide-react";
+import { Target, ArrowRightLeft, Package } from "lucide-react";
 import { useCreateDeal, useUpdateDeal } from "@/hooks/useDeals";
 import { useContacts } from "@/hooks/useContacts";
 import { useOrganizations } from "@/hooks/useOrganizations";
@@ -73,6 +73,8 @@ const dealSchema = z.object({
   lead_email: z.string().email("Email inválido").optional().nullable(),
   lead_phone: z.string().optional().nullable(),
   lead_source: z.enum(["manual", "webchat", "whatsapp", "indicacao", "form"]).optional().nullable(),
+  // Campo de rastreio
+  tracking_code: z.string().max(100).optional().nullable(),
 }).refine((data) => {
   if (data.status === "lost" && (!data.lost_reason || data.lost_reason.trim() === "")) {
     return false;
@@ -144,6 +146,7 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
       lead_email: (deal as any)?.lead_email || "",
       lead_phone: (deal as any)?.lead_phone || "",
       lead_source: (deal as any)?.lead_source || "",
+      tracking_code: (deal as any)?.tracking_code || "",
     },
   });
 
@@ -212,6 +215,8 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
       lead_email: !data.contact_id ? (data.lead_email || null) : null,
       lead_phone: !data.contact_id ? (data.lead_phone || null) : null,
       lead_source: !data.contact_id ? (data.lead_source || null) : null,
+      // Tracking code
+      tracking_code: data.tracking_code || null,
     };
 
     console.log("[DealDialog] Payload to submit:", payload);
@@ -706,6 +711,37 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* ═══════════════════════════════════════════════════ */}
+            {/* SEÇÃO: RASTREIO DE ENVIO                           */}
+            {/* ═══════════════════════════════════════════════════ */}
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                <Package className="h-4 w-4 text-blue-600" />
+                Rastreio de Envio
+              </h3>
+
+              <FormField
+                control={form.control}
+                name="tracking_code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Código de Rastreio</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Ex: AN405740645BR"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Código usado para rastrear a entrega do pedido
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

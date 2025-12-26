@@ -84,7 +84,7 @@ export default function Support() {
             <Button variant="ghost" size="sm" onClick={handleBackToList}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h2 className="font-semibold truncate">Ticket #{selectedTicket.id.slice(0, 8)}</h2>
+            <h2 className="font-semibold truncate">Ticket #{selectedTicket.ticket_number || selectedTicket.id.slice(0, 8)}</h2>
           </div>
           <div className="flex-1 overflow-y-auto">
             <TicketDetails ticket={selectedTicket} />

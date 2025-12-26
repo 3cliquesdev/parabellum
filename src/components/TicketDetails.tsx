@@ -134,7 +134,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
           <AlertCircle className="h-4 w-4 text-yellow-600" />
           <AlertDescription className="flex items-center justify-between">
             <span className="text-yellow-800 dark:text-yellow-200">
-              ⚠️ Este ticket foi mesclado no Ticket #{ticket.merged_to_ticket_id.slice(0, 8)}.
+              ⚠️ Este ticket foi mesclado no Ticket #{ticket.merged_to_ticket_number || ticket.merged_to_ticket_id.slice(0, 8)}.
             </span>
             <Button
               variant="outline"
@@ -156,6 +156,9 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
+              <Badge variant="outline" className="font-mono text-xs">
+                #{ticket.ticket_number || ticket.id.slice(0, 8)}
+              </Badge>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{ticket.subject}</h2>
               
               {/* Badge de Canal */}

@@ -251,7 +251,7 @@ Deno.serve(async (req) => {
         await supabase.functions.invoke('send-ticket-notification', {
           body: {
             ticket_id: ticket.id,
-            ticket_number: ticket.id.substring(0, 8).toUpperCase(),
+            ticket_number: ticket.ticket_number || ticket.id.substring(0, 8).toUpperCase(),
             customer_email: contact.email,
             customer_name: customerName,
             subject: subject,

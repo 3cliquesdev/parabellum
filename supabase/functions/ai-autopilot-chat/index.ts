@@ -347,9 +347,11 @@ function createTicketSuccessMessage(
   ticketId: string, 
   issueType: string = 'financeiro', 
   orderId?: string,
-  withdrawalData?: { amount?: number; cpf_last4?: string }
+  withdrawalData?: { amount?: number; cpf_last4?: string },
+  ticketNumber?: string | null
 ): string {
-  const formattedId = ticketId.slice(0, 8).toUpperCase();
+  // Usa ticket_number se disponível, senão fallback para UUID truncado
+  const formattedId = ticketNumber || ticketId.slice(0, 8).toUpperCase();
   
   // FASE 5: Mensagem específica para SAQUE com dados coletados
   if (issueType === 'saque' && withdrawalData?.amount) {
@@ -2521,7 +2523,8 @@ ${args.order_id ? `- Pedido: ${args.order_id}` : ''}
                 ticket.id,
                 args.issue_type,
                 args.order_id,
-                withdrawalData
+                withdrawalData,
+                ticket.ticket_number
               );
             }
           } catch (error) {
@@ -2898,7 +2901,10 @@ Sobre qual pedido você gostaria de saber mais?`;
           // 🎯 SUBSTITUIR COMPLETAMENTE - Ticket criado = Mensagem limpa e profissional
           assistantMessage = createTicketSuccessMessage(
             ticket?.id || '',
-            'financeiro'
+            'financeiro',
+            undefined,
+            undefined,
+            ticket?.ticket_number
           );
           
           ticketCreatedSuccessfully = true; // 🔒 Atualizar flag DEPOIS de enriquecer

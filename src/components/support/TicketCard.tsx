@@ -43,10 +43,10 @@ export function TicketCard({ ticket, onClick, isSelected }: TicketCardProps) {
       }`}
       onClick={onClick}
     >
-      {/* Header: ID + Status */}
+      {/* Header: Protocolo + Status */}
       <div className="flex items-center justify-between">
         <span className="font-mono text-sm text-muted-foreground">
-          #{ticket.id.slice(0, 8)}
+          #{ticket.ticket_number || ticket.id.slice(0, 8)}
         </span>
         <Badge className={status?.className}>{status?.label}</Badge>
       </div>

@@ -4862,6 +4862,7 @@ export type Database = {
           source_conversation_id: string | null
           status: Database["public"]["Enums"]["ticket_status"]
           subject: string
+          ticket_number: string | null
           updated_at: string
         }
         Insert: {
@@ -4890,6 +4891,7 @@ export type Database = {
           source_conversation_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           subject: string
+          ticket_number?: string | null
           updated_at?: string
         }
         Update: {
@@ -4918,6 +4920,7 @@ export type Database = {
           source_conversation_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           subject?: string
+          ticket_number?: string | null
           updated_at?: string
         }
         Relationships: [

@@ -2598,6 +2598,151 @@ Sobre qual pedido você gostaria de saber mais?`;
             assistantMessage = 'Ocorreu um erro ao consultar seus pedidos. Poderia tentar novamente?';
           }
         }
+        // TOOL: check_tracking - Consultar rastreio via MySQL externo
+        else if (toolCall.function.name === 'check_tracking') {
+          try {
+            const args = JSON.parse(toolCall.function.arguments);
+            const trackingCode = args.tracking_code?.trim();
+            const customerEmail = args.customer_email?.toLowerCase().trim();
+            
+            console.log('[ai-autopilot-chat] 📦 Consultando rastreio:', { trackingCode, customerEmail });
+
+            let codesToQuery: string[] = [];
+
+            // Se tem código de rastreio direto, usa ele
+            if (trackingCode) {
+              codesToQuery = [trackingCode];
+            }
+            // Se tem email, busca deals do cliente com tracking_code
+            else if (customerEmail) {
+              // Buscar contato pelo email
+              const { data: customerContact, error: contactError } = await supabaseClient
+                .from('contacts')
+                .select('id, first_name')
+                .eq('email', customerEmail)
+                .maybeSingle();
+
+              if (contactError || !customerContact) {
+                assistantMessage = `Não encontrei nenhum cliente cadastrado com o email ${customerEmail}. Poderia verificar se é o email correto?`;
+                continue;
+              }
+
+              // Buscar deals com tracking_code
+              const { data: dealsWithTracking, error: dealsError } = await supabaseClient
+                .from('deals')
+                .select('tracking_code, title')
+                .eq('contact_id', customerContact.id)
+                .not('tracking_code', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(5);
+
+              if (!dealsWithTracking || dealsWithTracking.length === 0) {
+                assistantMessage = `Olá ${customerContact.first_name}! Encontrei seu cadastro, mas não há pedidos com código de rastreio registrado. Você tem o código de rastreio em mãos para eu consultar?`;
+                continue;
+              }
+
+              codesToQuery = dealsWithTracking.map(d => d.tracking_code).filter(Boolean) as string[];
+            }
+
+            if (codesToQuery.length === 0) {
+              assistantMessage = 'Para consultar o rastreio, preciso do código de rastreio ou do email cadastrado na compra. Poderia me informar?';
+              continue;
+            }
+
+            // Verificar cache primeiro (menos de 30 min)
+            const { data: cachedData } = await supabaseClient
+              .from('tracking_cache')
+              .select('*')
+              .in('tracking_code', codesToQuery)
+              .gte('fetched_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
+
+            const cachedCodes = cachedData?.map(c => c.tracking_code) || [];
+            const uncachedCodes = codesToQuery.filter(c => !cachedCodes.includes(c));
+
+            let trackingResults: any[] = cachedData || [];
+
+            // Buscar códigos não cacheados no MySQL externo
+            if (uncachedCodes.length > 0) {
+              console.log('[ai-autopilot-chat] 🔍 Buscando no MySQL:', uncachedCodes);
+              
+              try {
+                const { data: fetchResult, error: fetchError } = await supabaseClient.functions.invoke('fetch-tracking', {
+                  body: { tracking_codes: uncachedCodes }
+                });
+
+                if (fetchError) {
+                  console.error('[ai-autopilot-chat] ❌ Erro fetch-tracking:', fetchError);
+                } else if (fetchResult?.success && fetchResult?.data) {
+                  // Atualizar cache e agregar resultados
+                  for (const [code, info] of Object.entries(fetchResult.data)) {
+                    if (info) {
+                      const trackingInfo = info as any;
+                      // Upsert no cache
+                      await supabaseClient
+                        .from('tracking_cache')
+                        .upsert({
+                          tracking_code: code,
+                          platform: trackingInfo.platform,
+                          status: trackingInfo.status,
+                          external_created_at: trackingInfo.created_at,
+                          external_updated_at: trackingInfo.updated_at,
+                          fetched_at: new Date().toISOString()
+                        }, { onConflict: 'tracking_code' });
+
+                      trackingResults.push({
+                        tracking_code: code,
+                        platform: trackingInfo.platform,
+                        status: trackingInfo.status,
+                        external_updated_at: trackingInfo.updated_at
+                      });
+                    }
+                  }
+                }
+              } catch (fetchErr) {
+                console.error('[ai-autopilot-chat] ❌ Erro ao chamar fetch-tracking:', fetchErr);
+              }
+            }
+
+            // Formatar resposta
+            if (trackingResults.length === 0) {
+              assistantMessage = `Não encontrei informações de rastreio para ${codesToQuery.length > 1 ? 'esses códigos' : 'o código ' + codesToQuery[0]}. Por favor, verifique se o código está correto.`;
+              continue;
+            }
+
+            // Status labels em português
+            const statusLabels: Record<string, string> = {
+              'pending': '⏳ Pendente',
+              'shipped': '📦 Enviado',
+              'in_transit': '🚚 Em Trânsito',
+              'out_for_delivery': '🛵 Saiu para Entrega',
+              'delivered': '✅ Entregue',
+              'returned': '↩️ Devolvido',
+              'failed': '❌ Falha na Entrega'
+            };
+
+            const trackingFormatted = trackingResults.map(t => {
+              const statusLabel = statusLabels[t.status?.toLowerCase()] || t.status || 'Desconhecido';
+              const platform = t.platform || 'Transportadora';
+              const updated = t.external_updated_at 
+                ? new Date(t.external_updated_at).toLocaleDateString('pt-BR', { 
+                    day: '2-digit', month: '2-digit', year: 'numeric', 
+                    hour: '2-digit', minute: '2-digit' 
+                  })
+                : 'Não informado';
+
+              return `📦 **${t.tracking_code}**
+🚛 Transportadora: ${platform}
+📊 Status: ${statusLabel}
+🕐 Última atualização: ${updated}`;
+            }).join('\n\n');
+
+            assistantMessage = `Aqui está o status do seu rastreio:\n\n${trackingFormatted}\n\nPosso ajudar com mais alguma coisa?`;
+
+          } catch (error) {
+            console.error('[ai-autopilot-chat] ❌ Erro ao consultar rastreio:', error);
+            assistantMessage = 'Ocorreu um erro ao consultar o rastreio. Poderia tentar novamente?';
+          }
+        }
         // TOOL: request_human_agent - Handoff manual
         else if (toolCall.function.name === 'request_human_agent') {
           try {

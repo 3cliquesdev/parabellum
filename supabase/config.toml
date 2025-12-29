@@ -218,3 +218,6 @@ verify_jwt = true
 
 [functions.fetch-tracking]
 verify_jwt = true
+
+[functions.busca-cep]
+verify_jwt = false

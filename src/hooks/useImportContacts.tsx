@@ -38,9 +38,9 @@ interface ImportResult {
 
 const CHUNK_SIZE = 100; // Processar 100 contatos por vez
 
-async function processChunk(contacts: ContactRow[]): Promise<ImportResult> {
+async function processChunk(contacts: ContactRow[], mode: 'replace' | 'merge' = 'replace'): Promise<ImportResult> {
   const { data, error } = await supabase.functions.invoke('bulk-import-contacts', {
-    body: { contacts },
+    body: { contacts, mode },
   });
 
   if (error) throw error;
@@ -51,9 +51,10 @@ export function useImportContacts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [importMode, setImportMode] = useState<'replace' | 'merge'>('replace');
 
   const mutation = useMutation({
-    mutationFn: async (contacts: ContactRow[]): Promise<ImportResult> => {
+    mutationFn: async ({ contacts, mode }: { contacts: ContactRow[]; mode: 'replace' | 'merge' }): Promise<ImportResult> => {
       const totalContacts = contacts.length;
       setProgress({ current: 0, total: totalContacts });
       
@@ -68,7 +69,7 @@ export function useImportContacts() {
         const chunk = contacts.slice(i, i + CHUNK_SIZE);
         
         try {
-          const chunkResult = await processChunk(chunk);
+          const chunkResult = await processChunk(chunk, mode);
           result.created += chunkResult.created;
           result.updated += chunkResult.updated;
           result.errors.push(...chunkResult.errors);
@@ -114,5 +115,7 @@ export function useImportContacts() {
   return {
     ...mutation,
     progress,
+    importMode,
+    setImportMode,
   };
 }

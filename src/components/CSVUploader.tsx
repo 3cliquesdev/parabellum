@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { Upload, FileText, X } from "lucide-react";
 import Papa from "papaparse";
+import readXlsxFile from "read-excel-file";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -12,16 +13,7 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleFile = useCallback((selectedFile: File) => {
-    const fileName = selectedFile.name.toLowerCase();
-    if (!fileName.endsWith('.csv') && !fileName.endsWith('.txt')) {
-      alert('Por favor, selecione um arquivo CSV ou TXT');
-      return;
-    }
-
-    setFile(selectedFile);
-
-    // Ler arquivo como texto para detectar encoding e delimitador
+  const parseCSV = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       let content = e.target?.result as string;
@@ -34,11 +26,11 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
       Papa.parse(content, {
         header: true,
         skipEmptyLines: true,
-        delimiter: '', // Auto-detectar delimitador (vírgula ou ponto-e-vírgula)
+        delimiter: '', // Auto-detectar delimitador
         complete: (results) => {
           const headers = results.meta.fields || [];
           if (headers.length === 0 || results.data.length === 0) {
-            alert('Arquivo vazio ou formato inválido. Verifique se o arquivo está no formato correto.');
+            alert('Arquivo vazio ou formato inválido.');
             setFile(null);
             return;
           }
@@ -51,14 +43,57 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
         },
       });
     };
-
     reader.onerror = () => {
       alert('Erro ao ler arquivo');
       setFile(null);
     };
-
-    reader.readAsText(selectedFile, 'UTF-8');
+    reader.readAsText(file, 'UTF-8');
   }, [onDataParsed]);
+
+  const parseExcel = useCallback(async (file: File) => {
+    try {
+      const rows = await readXlsxFile(file);
+      if (rows.length < 2) {
+        alert('Planilha vazia ou sem dados.');
+        setFile(null);
+        return;
+      }
+
+      const headers = rows[0].map(cell => String(cell || ''));
+      const data = rows.slice(1).map(row => {
+        const obj: Record<string, string> = {};
+        headers.forEach((header, index) => {
+          obj[header] = row[index] != null ? String(row[index]) : '';
+        });
+        return obj;
+      });
+
+      onDataParsed(data, headers);
+    } catch (error) {
+      console.error('Erro ao processar Excel:', error);
+      alert('Erro ao processar planilha Excel');
+      setFile(null);
+    }
+  }, [onDataParsed]);
+
+  const handleFile = useCallback((selectedFile: File) => {
+    const fileName = selectedFile.name.toLowerCase();
+    const isCSV = fileName.endsWith('.csv') || fileName.endsWith('.txt');
+    const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
+    if (!isCSV && !isExcel) {
+      alert('Por favor, selecione um arquivo CSV ou Excel (.xlsx, .xls)');
+      return;
+    }
+
+    setFile(selectedFile);
+
+    if (isExcel) {
+      parseExcel(selectedFile);
+    } else {
+      parseCSV(selectedFile);
+    }
+  }, [parseCSV, parseExcel]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -105,19 +140,19 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
           }`}
         >
           <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">Arraste seu arquivo CSV aqui</h3>
+          <h3 className="text-lg font-semibold mb-2">Arraste sua planilha aqui</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            ou clique no botão abaixo para selecionar
+            Aceita arquivos Excel (.xlsx, .xls) ou CSV
           </p>
           <label htmlFor="file-upload">
             <Button variant="outline" className="cursor-pointer" asChild>
-              <span>Selecionar Arquivo CSV</span>
+              <span>Selecionar Arquivo</span>
             </Button>
           </label>
           <input
             id="file-upload"
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls,.txt"
             onChange={handleFileInput}
             className="hidden"
           />

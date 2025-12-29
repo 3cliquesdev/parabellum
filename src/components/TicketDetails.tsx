@@ -153,132 +153,136 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
       )}
 
       {/* Header */}
-      <div className="border-b p-6 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <Badge variant="outline" className="font-mono text-xs">
-                #{ticket.ticket_number || ticket.id.slice(0, 8)}
-              </Badge>
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{ticket.subject}</h2>
-              
-              {/* Badge de Canal */}
-              <ChannelBadge channel={ticket.channel || 'platform'} />
-              
-              {/* FASE 5: Agent Presence - Avatares */}
-              {otherUsers.length > 0 && (
-                <TooltipProvider>
-                  <div className="flex items-center gap-2">
-                    <div className="flex -space-x-2">
-                      {otherUsers.slice(0, 3).map((user) => (
-                        <Tooltip key={user.user_id}>
-                          <TooltipTrigger>
-                            <Avatar className="w-8 h-8 border-2 border-white dark:border-zinc-800">
-                              {user.avatar_url ? (
-                                <AvatarImage src={user.avatar_url} alt={user.full_name} />
-                              ) : null}
-                              <AvatarFallback className="bg-blue-500 text-white text-xs">
-                                {user.full_name.split(' ').map(n => n[0]).join('')}
-                              </AvatarFallback>
-                            </Avatar>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-xs">{user.full_name} - Visualizando agora</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      ))}
-                    </div>
-                    {otherUsers.length > 3 && (
-                      <span className="text-xs text-muted-foreground">
-                        +{otherUsers.length - 3} mais
-                      </span>
-                    )}
+      <div className="border-b p-4 space-y-3">
+        {/* Linha 1: Protocolo + Canal + Presença + Ações */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="font-mono text-xs px-2 py-0.5">
+              #{ticket.ticket_number || ticket.id.slice(0, 8)}
+            </Badge>
+            <ChannelBadge channel={ticket.channel || 'platform'} />
+            
+            {/* FASE 5: Agent Presence - Avatares */}
+            {otherUsers.length > 0 && (
+              <TooltipProvider>
+                <div className="flex items-center gap-1">
+                  <div className="flex -space-x-1.5">
+                    {otherUsers.slice(0, 3).map((user) => (
+                      <Tooltip key={user.user_id}>
+                        <TooltipTrigger>
+                          <Avatar className="w-6 h-6 border-2 border-background">
+                            {user.avatar_url ? (
+                              <AvatarImage src={user.avatar_url} alt={user.full_name} />
+                            ) : null}
+                            <AvatarFallback className="bg-primary text-primary-foreground text-[10px]">
+                              {user.full_name.split(' ').map(n => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">{user.full_name} - Visualizando agora</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
                   </div>
-                </TooltipProvider>
-              )}
-            </div>
-            
-            {/* FASE 5: Alerta de "Fulano está digitando..." */}
-            {otherUsers.some(u => u.is_typing) && (
-              <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 mb-2">
-                <Users className="w-4 h-4 animate-pulse" />
-                <span>
-                  {otherUsers.filter(u => u.is_typing).map(u => u.full_name).join(', ')} está digitando...
-                </span>
-              </div>
+                  {otherUsers.length > 3 && (
+                    <span className="text-xs text-muted-foreground">
+                      +{otherUsers.length - 3}
+                    </span>
+                  )}
+                </div>
+              </TooltipProvider>
             )}
-            
-            {/* Creator Info */}
-            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-              <User className="h-4 w-4" />
-              <span>Criado por</span>
-              {ticket.created_by_user ? (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={ticket.created_by_user.avatar_url} />
-                          <AvatarFallback className="text-[10px]">
-                            {ticket.created_by_user.full_name?.split(' ').map((n: string) => n[0]).join('') || '?'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span>{ticket.created_by_user.full_name}</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{ticket.created_by_user.full_name}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : (
-                <span className="text-muted-foreground">Cliente</span>
-              )}
-              <span>em</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">
-                {format(new Date(ticket.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-              </span>
-              <span className="text-muted-foreground">
-                ({formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true, locale: ptBR })})
-              </span>
-            </div>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {/* Botão Mesclar Ticket */}
             {!ticket.merged_to_ticket_id && (ticket.status === 'open' || ticket.status === 'in_progress') && (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => setMergeDialogOpen(true)}
+                className="h-8 px-2"
               >
-                <GitMerge className="w-4 h-4 mr-2" />
-                Mesclar Ticket
+                <GitMerge className="w-4 h-4" />
               </Button>
             )}
 
             {/* Botão Transferir para Financeiro */}
             {canTransferToFinancial && (
               <Button
-                variant="outline"
+                variant="ghost"
+                size="sm"
                 onClick={() => setTransferDialogOpen(true)}
-                className="border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-950"
+                className="h-8 px-2 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 dark:hover:bg-yellow-950"
               >
-                <ArrowRight className="w-4 h-4 mr-2" />
-                Enviar para Financeiro
+                <ArrowRight className="w-4 h-4" />
               </Button>
             )}
           </div>
         </div>
 
-        <p className="text-slate-600 dark:text-slate-400">{ticket.description}</p>
+        {/* FASE 5: Alerta de "Fulano está digitando..." */}
+        {otherUsers.some(u => u.is_typing) && (
+          <div className="flex items-center gap-2 text-xs text-primary">
+            <Users className="w-3 h-3 animate-pulse" />
+            <span>
+              {otherUsers.filter(u => u.is_typing).map(u => u.full_name).join(', ')} está digitando...
+            </span>
+          </div>
+        )}
+        
+        {/* Linha 2: Título (com truncagem) */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <h2 className="text-base font-semibold text-foreground line-clamp-2 cursor-default">
+                {ticket.subject}
+              </h2>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-sm">
+              <p className="text-sm">{ticket.subject}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        {/* Linha 3: Metadados compactos */}
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <User className="h-3 w-3" />
+            {ticket.created_by_user ? (
+              <span>
+                <span className="font-medium text-foreground">{ticket.created_by_user.full_name}</span>
+              </span>
+            ) : (
+              <span>Cliente</span>
+            )}
+          </div>
+          <span className="text-muted-foreground/50">•</span>
+          <span>
+            {format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+          </span>
+          <span className="text-muted-foreground/50">•</span>
+          <span>
+            {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true, locale: ptBR })}
+          </span>
+        </div>
 
-        {/* Controles */}
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="text-xs font-medium mb-2 block text-slate-700 dark:text-slate-300">Status</label>
+        {/* Descrição em container destacado */}
+        {ticket.description && (
+          <div className="bg-muted/40 border border-border/50 rounded-lg p-3 max-h-28 overflow-y-auto">
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+              {ticket.description}
+            </p>
+          </div>
+        )}
+
+        {/* Controles inline compactos */}
+        <div className="flex items-center gap-3 pt-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Status</span>
             <Select value={ticket.status} onValueChange={handleStatusChange}>
-              <SelectTrigger>
+              <SelectTrigger className="h-7 text-xs w-[120px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -291,10 +295,10 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
             </Select>
           </div>
 
-          <div>
-            <label className="text-xs font-medium mb-2 block text-slate-700 dark:text-slate-300">Prioridade</label>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Prioridade</span>
             <Select value={ticket.priority} onValueChange={handlePriorityChange}>
-              <SelectTrigger>
+              <SelectTrigger className="h-7 text-xs w-[90px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -306,13 +310,13 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
             </Select>
           </div>
 
-          <div>
-            <label className="text-xs font-medium mb-2 block text-slate-700 dark:text-slate-300">Atribuído a</label>
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <span className="text-xs text-muted-foreground shrink-0">Atribuído</span>
             <Select 
               value={ticket.assigned_to || 'unassigned'} 
               onValueChange={handleAssignChange}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-7 text-xs flex-1 min-w-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

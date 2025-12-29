@@ -74,10 +74,12 @@ import AdminOnboarding from "./pages/AdminOnboarding";
 import ConsultantDetail from "./pages/ConsultantDetail";
 import Consultants from "./pages/Consultants";
 import ConsultantDistribution from "./pages/reports/ConsultantDistribution";
+import FiscalExport from "./pages/reports/FiscalExport";
 import DebugRoutes from "./pages/DebugRoutes";
 import AIMessagesSettings from "./pages/AIMessagesSettings";
 import TicketNotificationRulesSettings from "./pages/TicketNotificationRulesSettings";
 import PublicOnboarding from "./pages/PublicOnboarding";
+import CustomerFiscalData from "./pages/CustomerFiscalData";
 
 const queryClient = new QueryClient();
 
@@ -104,6 +106,7 @@ const App = () => {
             <Route path="/f/:formId" element={<PublicFormV2 />} />
             <Route path="/public-onboarding/:executionId" element={<PublicOnboarding />} />
             <Route path="/public-onboarding/playbook/:playbookId" element={<PublicOnboarding />} />
+            <Route path="/meu-cadastro" element={<CustomerFiscalData />} />
 
             {/* Debug routes - dev only */}
             <Route path="/debug/routes" element={<DebugRoutes />} />
@@ -137,6 +140,7 @@ const App = () => {
             <Route path="/analytics" element={<ProtectedRoute requiredPermission="analytics.view"><Layout><Analytics /></Layout></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute requiredPermission="reports.access"><Layout><Reports /></Layout></ProtectedRoute>} />
             <Route path="/reports/consultant-distribution" element={<ProtectedRoute requiredPermission="analytics.view"><Layout><ConsultantDistribution /></Layout></ProtectedRoute>} />
+            <Route path="/reports/fiscal-export" element={<ProtectedRoute requiredPermission="reports.access"><Layout><FiscalExport /></Layout></ProtectedRoute>} />
             <Route path="/reports/fraud-detection" element={<ProtectedRoute requiredPermission="analytics.view"><Layout><FraudDetection /></Layout></ProtectedRoute>} />
             <Route path="/goals" element={<ProtectedRoute requiredPermission="goals.view_own"><Layout><Goals /></Layout></ProtectedRoute>} />
             <Route path="/goals-management" element={<ProtectedRoute requiredPermission="goals.set"><Layout><GoalsManagement /></Layout></ProtectedRoute>} />

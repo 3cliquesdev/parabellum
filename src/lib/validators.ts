@@ -292,3 +292,33 @@ export function formatCEP(value: string): string {
   const cleaned = value.replace(/\D/g, '').slice(0, 8);
   return cleaned.replace(/(\d{5})(\d{1,3})$/, '$1-$2');
 }
+
+/**
+ * Valida CPF ou CNPJ baseado no tamanho e retorna resultado com tipo
+ */
+export function validateDocument(document: string): { valid: boolean; type: 'cpf' | 'cnpj' | null } {
+  const clean = document.replace(/\D/g, '');
+  
+  if (clean.length === 11) {
+    const result = validateCPF(clean);
+    return { valid: result.valid, type: 'cpf' };
+  }
+  
+  if (clean.length === 14) {
+    const result = validateCNPJ(clean);
+    return { valid: result.valid, type: 'cnpj' };
+  }
+  
+  return { valid: false, type: null };
+}
+
+/**
+ * Formata documento (CPF ou CNPJ) baseado no tamanho
+ */
+export function formatDocument(document: string): string {
+  const clean = document.replace(/\D/g, '');
+  if (clean.length <= 11) {
+    return formatCPF(clean);
+  }
+  return formatCNPJ(clean);
+}

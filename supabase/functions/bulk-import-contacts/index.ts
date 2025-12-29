@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { contacts } = await req.json() as { contacts: ContactRow[] };
+    const { contacts, mode = 'replace' } = await req.json() as { contacts: ContactRow[]; mode?: 'replace' | 'merge' };
 
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return new Response(
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[Bulk Import] Processing ${contacts.length} contacts`);
+    console.log(`[Bulk Import] Processing ${contacts.length} contacts in ${mode} mode`);
 
     const results = {
       created: 0,
@@ -166,16 +166,41 @@ Deno.serve(async (req) => {
       
       // Atualizar contatos existentes em paralelo (máximo 10 por vez)
       const updatePromises = toUpdate.map(async ({ id, data, originalIndex }) => {
+        // No modo merge, buscar dados existentes e só preencher campos vazios
+        let updateData = data;
+        if (mode === 'merge') {
+          const { data: existing } = await supabase
+            .from('contacts')
+            .select('*')
+            .eq('id', id)
+            .single();
+          
+          if (existing) {
+            // Só atualiza campos que estão NULL ou vazios no banco
+            updateData = {} as any;
+            for (const [key, value] of Object.entries(data)) {
+              if (value !== null && value !== '' && value !== 0) {
+                const existingValue = existing[key as keyof typeof existing];
+                if (existingValue === null || existingValue === '' || existingValue === 0) {
+                  (updateData as any)[key] = value;
+                }
+              }
+            }
+            // Sempre atualiza last_contact_date
+            (updateData as any).last_contact_date = new Date().toISOString();
+          }
+        }
+        
         const { error: updateError } = await supabase
           .from('contacts')
-          .update(data)
+          .update(updateData)
           .eq('id', id);
         
         if (updateError) {
           console.error(`[Bulk Import] Error updating ${data.email}:`, updateError);
           return { success: false, email: data.email, error: updateError.message };
         }
-        console.log(`[Bulk Import] Updated contact: ${data.email}`);
+        console.log(`[Bulk Import] Updated contact: ${data.email} (mode: ${mode})`);
         return { success: true, email: data.email };
       });
       

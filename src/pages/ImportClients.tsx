@@ -105,7 +105,7 @@ export default function ImportClients() {
     }).filter(contact => contact.email); // Apenas contatos com email
 
     try {
-      const result = await importMutation.mutateAsync(mappedContacts);
+      const result = await importMutation.mutateAsync({ contacts: mappedContacts, mode: importMutation.importMode });
       setImportResult({
         total: mappedContacts.length,
         processed: mappedContacts.length,

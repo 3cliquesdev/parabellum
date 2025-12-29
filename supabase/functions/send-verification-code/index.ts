@@ -265,7 +265,7 @@ serve(async (req) => {
     console.log('[send-verification-code] ✅ Email enviado com SUCESSO via Resend');
     console.log('[send-verification-code] Destinatário:', email);
     console.log('[send-verification-code] ID do email:', emailData?.id);
-    console.log('[send-verification-code] 🔑 Código OTP gerado:', code);
+    // SECURITY: OTP code is NOT logged in production - sent only via email
 
     return new Response(JSON.stringify({ 
       success: true

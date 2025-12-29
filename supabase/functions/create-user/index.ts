@@ -248,8 +248,23 @@ serve(async (req) => {
           <div style="background: white; border: 2px solid #1e3a5f; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <p style="margin: 8px 0; color: #1e3a5f;"><strong>Sistema:</strong> https://parabellum.work</p>
             <p style="margin: 8px 0; color: #1e3a5f;"><strong>Login:</strong> ${email}</p>
-            <p style="margin: 8px 0; color: #1e3a5f;"><strong>Senha Temporária:</strong> ${password}</p>
-            <p style="margin: 8px 0; color: #dc2626; font-size: 13px;">(Troca obrigatória no primeiro login)</p>
+            <p style="margin: 8px 0; color: #1e3a5f;"><strong>Acesso:</strong> Utilize o link abaixo para configurar sua senha</p>
+          </div>
+          
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="https://parabellum.work/setup-password" 
+               style="display: inline-block; background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%); 
+                      color: white; text-decoration: none; padding: 15px 40px; border-radius: 8px; 
+                      font-weight: 600; font-size: 16px;">
+              🔐 Configurar Minha Senha
+            </a>
+          </div>
+          
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+            <p style="margin: 0; color: #92400e; font-size: 13px;">
+              <strong>⚠️ Importante:</strong> Ao acessar o link, você receberá um código de verificação 
+              no seu email para confirmar sua identidade antes de definir sua senha.
+            </p>
           </div>
           
           <h3 style="color: #1e3a5f; margin-top: 30px; margin-bottom: 15px; font-size: 16px; text-transform: uppercase;">

@@ -11,6 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Download, FileSpreadsheet, AlertTriangle, CheckCircle2, Search, Filter } from "lucide-react";
 import { formatDocument, formatCEP } from "@/lib/validators";
+import { DateRangePicker } from "@/components/DateRangePicker";
+import { DateRange } from "react-day-picker";
+import { startOfMonth, endOfMonth } from "date-fns";
 
 interface FiscalContact {
   id: string;
@@ -29,6 +32,7 @@ interface FiscalContact {
   state: string | null;
   state_registration: string | null;
   status: string | null;
+  created_at: string;
 }
 
 function isDataComplete(contact: FiscalContact): boolean {
@@ -60,17 +64,31 @@ export default function FiscalExport() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [onlyComplete, setOnlyComplete] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
+  });
 
   const { data: contacts, isLoading } = useQuery({
-    queryKey: ["fiscal-contacts", statusFilter],
+    queryKey: ["fiscal-contacts", statusFilter, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async () => {
       let query = supabase
         .from("contacts")
-        .select("id, first_name, last_name, email, phone, document, customer_type, zip_code, address, address_number, address_complement, neighborhood, city, state, state_registration, status")
-        .order("first_name", { ascending: true }) as any;
+        .select("id, first_name, last_name, email, phone, document, customer_type, zip_code, address, address_number, address_complement, neighborhood, city, state, state_registration, status, created_at")
+        .order("created_at", { ascending: false }) as any;
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
+      }
+
+      // Filtro de período
+      if (dateRange?.from) {
+        query = query.gte("created_at", dateRange.from.toISOString());
+      }
+      if (dateRange?.to) {
+        const endOfDay = new Date(dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte("created_at", endOfDay.toISOString());
       }
 
       const { data, error } = await query;
@@ -309,6 +327,11 @@ export default function FiscalExport() {
                   <SelectItem value="churned">Churned</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="min-w-[220px]">
+              <Label>Período de Cadastro</Label>
+              <DateRangePicker value={dateRange} onChange={setDateRange} />
             </div>
 
             <div className="flex items-end">

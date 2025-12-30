@@ -50,5 +50,6 @@ export function useHotDeals() {
 
       return deals || [];
     },
+    enabled: role !== undefined,
   });
 }

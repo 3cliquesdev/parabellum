@@ -26,7 +26,7 @@ export function useDeals(pipelineId?: string, filters?: DealFilters) {
   const { role } = useUserRole();
 
   return useQuery({
-    queryKey: ["deals", pipelineId, filters],
+    queryKey: ["deals", pipelineId, filters, user?.id, role],
     queryFn: async () => {
       let query = supabase
         .from("deals")
@@ -98,6 +98,7 @@ export function useDeals(pipelineId?: string, filters?: DealFilters) {
       if (error) throw error;
       return data;
     },
+    enabled: role !== undefined,
   });
 }
 

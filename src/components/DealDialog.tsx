@@ -37,6 +37,7 @@ import { useStages } from "@/hooks/useStages";
 import { usePipelines } from "@/hooks/usePipelines";
 import { useSalesReps } from "@/hooks/useSalesReps";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/hooks/useAuth";
 import MoveToPipelineDialog from "@/components/deals/MoveToPipelineDialog";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -116,10 +117,12 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
   const { data: salesReps, isLoading: salesRepsLoading } = useSalesReps();
   const { data: products } = useProducts();
   const { role } = useUserRole();
+  const { user } = useAuth();
 
   console.log("[DealDialog] Sales reps data:", { salesReps, salesRepsLoading });
 
-  const isAdminOrManager = role === "admin" || role === "manager";
+  const isAdminOrManager = role === "admin" || role === "manager" || role === "general_manager";
+  const isSalesRep = role === "sales_rep";
 
   // Encontrar pipeline default
   const defaultPipeline = pipelines?.find(p => p.is_default) || pipelines?.[0];
@@ -135,7 +138,7 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
       pipeline_id: deal?.pipeline_id || defaultPipeline?.id || "",
       stage_id: deal?.stage_id || "",
       status: deal?.status || "open",
-      assigned_to: (deal as any)?.assigned_to || "",
+      assigned_to: deal?.assigned_to || (isSalesRep && user?.id ? user.id : ""),
       lost_reason: (deal as any)?.lost_reason || "",
       product_id: (deal as any)?.product_id || "",
       probability: (deal as any)?.probability || 50,
@@ -203,7 +206,7 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
       pipeline_id: data.pipeline_id,
       stage_id: data.stage_id,
       status: data.status,
-      assigned_to: data.assigned_to || null,
+      assigned_to: isSalesRep ? (user?.id || null) : (data.assigned_to || null),
       lost_reason: data.lost_reason || null,
       product_id: data.product_id || null,
       probability: data.probability || null,
@@ -492,36 +495,39 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="assigned_to"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Atribuir para (opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || undefined}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={salesRepsLoading ? "Carregando..." : "Selecione um vendedor"} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {salesReps && salesReps.length > 0 ? (
-                        salesReps.map((rep) => (
-                          <SelectItem key={rep.id} value={rep.id}>
-                            {rep.full_name} {rep.job_title && `(${rep.job_title})`}
+            {/* Campo de atribuição só visível para admins/managers */}
+            {isAdminOrManager && (
+              <FormField
+                control={form.control}
+                name="assigned_to"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Atribuir para (opcional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={salesRepsLoading ? "Carregando..." : "Selecione um vendedor"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {salesReps && salesReps.length > 0 ? (
+                          salesReps.map((rep) => (
+                            <SelectItem key={rep.id} value={rep.id}>
+                              {rep.full_name} {rep.job_title && `(${rep.job_title})`}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-data" disabled>
+                            {salesRepsLoading ? "Carregando..." : "Nenhum vendedor disponível"}
                           </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="no-data" disabled>
-                          {salesRepsLoading ? "Carregando..." : "Nenhum vendedor disponível"}
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

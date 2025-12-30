@@ -3,13 +3,14 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { MessageSquare, Ticket } from "lucide-react";
+import { MessageSquare, Ticket, DollarSign } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Message = Tables<"messages">;
 type Contact = Tables<"contacts">;
+type Deal = Tables<"deals">;
 
 export default function RealtimeNotifications() {
   const navigate = useNavigate();
@@ -386,6 +387,190 @@ export default function RealtimeNotifications() {
       };
     } catch (error) {
       console.error("[RealtimeNotifications] Error setting up ticket comment listener", error);
+    }
+  }, [user, navigate, play, showBrowserNotification, queryClient]);
+
+  // Listen for deal assignments (notify salesperson of new opportunities)
+  useEffect(() => {
+    if (!user) return;
+
+    console.log("[RealtimeNotifications] Setting up deal assignment listener");
+
+    try {
+      const channel = supabase
+        .channel("deal-assignments")
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "deals",
+            filter: `assigned_to=eq.${user.id}`,
+          },
+          async (payload) => {
+            console.log("[RealtimeNotifications] Deal assigned:", payload);
+
+            const newDeal = payload.new as Deal;
+            const oldDeal = payload.old as Deal;
+
+            // Only notify if assigned_to actually changed to this user
+            if (oldDeal.assigned_to === newDeal.assigned_to) {
+              return;
+            }
+
+            // Fetch deal details with contact
+            const { data: deal, error } = await supabase
+              .from("deals")
+              .select(`
+                id,
+                title,
+                value,
+                contacts (
+                  first_name,
+                  last_name
+                )
+              `)
+              .eq("id", newDeal.id)
+              .single();
+
+            if (error || !deal) {
+              console.error("Error fetching deal:", error);
+              return;
+            }
+
+            const contact = Array.isArray(deal.contacts)
+              ? deal.contacts[0]
+              : deal.contacts;
+
+            const contactName = contact
+              ? `${contact.first_name} ${contact.last_name}`
+              : "Sem contato";
+
+            const valueFormatted = deal.value
+              ? new Intl.NumberFormat("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                }).format(deal.value)
+              : "";
+
+            // Play notification sound
+            play();
+
+            // Show persistent toast
+            toast("💰 Novo deal atribuído a você!", {
+              description: `${deal.title}${valueFormatted ? ` • ${valueFormatted}` : ""}${contact ? ` • ${contactName}` : ""}`,
+              icon: <DollarSign className="h-4 w-4" />,
+              action: {
+                label: "Ver Deal",
+                onClick: () => navigate("/deals"),
+              },
+              duration: 10000, // 10 seconds
+            });
+
+            // Show browser notification if user is in another tab
+            if (document.hidden) {
+              showBrowserNotification(
+                "💰 Novo deal atribuído!",
+                `${deal.title}${valueFormatted ? ` - ${valueFormatted}` : ""}`
+              );
+            }
+
+            // Invalidate deals queries to update the list
+            queryClient.invalidateQueries({ queryKey: ["deals"] });
+          }
+        )
+        .subscribe((status) => {
+          console.log("RealtimeNotifications deal assignment subscription status:", status);
+        });
+
+      // Also listen for new deals inserted with assigned_to = user.id
+      const insertChannel = supabase
+        .channel("deal-assignments-insert")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "deals",
+            filter: `assigned_to=eq.${user.id}`,
+          },
+          async (payload) => {
+            console.log("[RealtimeNotifications] New deal created for user:", payload);
+
+            const newDeal = payload.new as Deal;
+
+            // Fetch deal details with contact
+            const { data: deal, error } = await supabase
+              .from("deals")
+              .select(`
+                id,
+                title,
+                value,
+                contacts (
+                  first_name,
+                  last_name
+                )
+              `)
+              .eq("id", newDeal.id)
+              .single();
+
+            if (error || !deal) {
+              console.error("Error fetching deal:", error);
+              return;
+            }
+
+            const contact = Array.isArray(deal.contacts)
+              ? deal.contacts[0]
+              : deal.contacts;
+
+            const contactName = contact
+              ? `${contact.first_name} ${contact.last_name}`
+              : "Sem contato";
+
+            const valueFormatted = deal.value
+              ? new Intl.NumberFormat("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                }).format(deal.value)
+              : "";
+
+            // Play notification sound
+            play();
+
+            // Show persistent toast
+            toast("💰 Novo deal atribuído a você!", {
+              description: `${deal.title}${valueFormatted ? ` • ${valueFormatted}` : ""}${contact ? ` • ${contactName}` : ""}`,
+              icon: <DollarSign className="h-4 w-4" />,
+              action: {
+                label: "Ver Deal",
+                onClick: () => navigate("/deals"),
+              },
+              duration: 10000,
+            });
+
+            // Show browser notification if user is in another tab
+            if (document.hidden) {
+              showBrowserNotification(
+                "💰 Novo deal atribuído!",
+                `${deal.title}${valueFormatted ? ` - ${valueFormatted}` : ""}`
+              );
+            }
+
+            // Invalidate deals queries
+            queryClient.invalidateQueries({ queryKey: ["deals"] });
+          }
+        )
+        .subscribe((status) => {
+          console.log("RealtimeNotifications deal insert subscription status:", status);
+        });
+
+      return () => {
+        console.log("[RealtimeNotifications] Cleaning up deal assignment listeners");
+        supabase.removeChannel(channel);
+        supabase.removeChannel(insertChannel);
+      };
+    } catch (error) {
+      console.error("[RealtimeNotifications] Error setting up deal assignment listener", error);
     }
   }, [user, navigate, play, showBrowserNotification, queryClient]);
 

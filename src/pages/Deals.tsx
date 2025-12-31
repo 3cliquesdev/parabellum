@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, TrendingUp, Flame, Skull, DollarSign, Settings, Users, Search } from "lucide-react";
+import { Plus, TrendingUp, Flame, Skull, DollarSign, Settings, Users, Search, Trophy, TrendingDown } from "lucide-react";
 import { useDeals, useUpdateDeal, useUpdateDealStage, DealFilters } from "@/hooks/useDeals";
 import { useStages } from "@/hooks/useStages";
 import { usePipelines } from "@/hooks/usePipelines";
@@ -191,6 +191,14 @@ export default function Deals() {
       .filter(d => d.status === "open")
       .reduce((sum, d) => sum + (d.value || 0), 0);
 
+    const totalWonValue = filteredDeals
+      .filter(d => d.status === "won")
+      .reduce((sum, d) => sum + (d.value || 0), 0);
+
+    const totalLostValue = filteredDeals
+      .filter(d => d.status === "lost")
+      .reduce((sum, d) => sum + (d.value || 0), 0);
+
     let weightedForecast = 0;
     stages.forEach(stage => {
       const stageDeals = filteredDeals.filter(d => d.stage_id === stage.id && d.status === "open");
@@ -205,7 +213,7 @@ export default function Deals() {
 
     const rottenCount = rottenDeals?.length || 0;
 
-    return { totalValue, weightedForecast, hotDeals, rottenCount };
+    return { totalValue, totalWonValue, totalLostValue, weightedForecast, hotDeals, rottenCount };
   }, [filteredDeals, stages, rottenDeals]);
 
   const handleLostReasonConfirm = (reason: string, notes?: string) => {
@@ -359,8 +367,8 @@ export default function Deals() {
 
         {/* Pipeline Metrics Bar */}
         {pipelineMetrics && (
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            <Card>
+          <div className="flex flex-wrap gap-4 mb-6">
+            <Card className="flex-1 min-w-[200px]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-primary/10 rounded-lg">
@@ -376,7 +384,43 @@ export default function Deals() {
               </CardContent>
             </Card>
 
-            <Card>
+            {pipelineMetrics.totalWonValue > 0 && (
+              <Card className="flex-1 min-w-[200px] border-green-500/30">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-500/10 rounded-lg">
+                      <Trophy className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Ganho</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {formatCurrency(pipelineMetrics.totalWonValue)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {pipelineMetrics.totalLostValue > 0 && (
+              <Card className="flex-1 min-w-[200px] border-destructive/30">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-destructive/10 rounded-lg">
+                      <TrendingDown className="h-6 w-6 text-destructive" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Perdido</p>
+                      <p className="text-2xl font-bold text-destructive">
+                        {formatCurrency(pipelineMetrics.totalLostValue)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="flex-1 min-w-[200px]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-green-500/10 rounded-lg">
@@ -392,7 +436,7 @@ export default function Deals() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="flex-1 min-w-[200px]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-orange-500/10 rounded-lg">
@@ -408,7 +452,7 @@ export default function Deals() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="flex-1 min-w-[200px]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-destructive/10 rounded-lg">

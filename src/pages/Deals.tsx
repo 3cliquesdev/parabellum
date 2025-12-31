@@ -365,108 +365,64 @@ export default function Deals() {
           </div>
         )}
 
-        {/* Pipeline Metrics Bar */}
+        {/* Pipeline Metrics Bar - Compact Inline */}
         {pipelineMetrics && (
-          <div className="flex flex-wrap gap-4 mb-6">
-            <Card className="flex-1 min-w-[200px]">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <DollarSign className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Pipeline</p>
-                    <p className="text-2xl font-bold text-foreground">
-                      {formatCurrency(pipelineMetrics.totalValue)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
+          <div className="flex items-center gap-4 px-4 py-2.5 bg-muted/40 rounded-lg mb-6 text-sm overflow-x-auto border border-border/50">
+            {/* Total Pipeline */}
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <DollarSign className="h-4 w-4 text-primary" />
+              <span className="text-muted-foreground">Pipeline:</span>
+              <span className="font-semibold">{formatCurrency(pipelineMetrics.totalValue)}</span>
+            </div>
+            
             {pipelineMetrics.totalWonValue > 0 && (
-              <Card className="flex-1 min-w-[200px] border-green-500/30">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-500/10 rounded-lg">
-                      <Trophy className="h-6 w-6 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Ganho</p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {formatCurrency(pipelineMetrics.totalWonValue)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <>
+                <div className="h-4 border-l border-border" />
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  <Trophy className="h-4 w-4 text-green-600" />
+                  <span className="text-muted-foreground">Ganho:</span>
+                  <span className="font-semibold text-green-600">
+                    {formatCurrency(pipelineMetrics.totalWonValue)}
+                  </span>
+                </div>
+              </>
             )}
-
+            
             {pipelineMetrics.totalLostValue > 0 && (
-              <Card className="flex-1 min-w-[200px] border-destructive/30">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-destructive/10 rounded-lg">
-                      <TrendingDown className="h-6 w-6 text-destructive" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Perdido</p>
-                      <p className="text-2xl font-bold text-destructive">
-                        {formatCurrency(pipelineMetrics.totalLostValue)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <>
+                <div className="h-4 border-l border-border" />
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  <TrendingDown className="h-4 w-4 text-destructive" />
+                  <span className="text-muted-foreground">Perdido:</span>
+                  <span className="font-semibold text-destructive">
+                    {formatCurrency(pipelineMetrics.totalLostValue)}
+                  </span>
+                </div>
+              </>
             )}
-
-            <Card className="flex-1 min-w-[200px]">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-500/10 rounded-lg">
-                    <TrendingUp className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Forecast Ponderado</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {formatCurrency(pipelineMetrics.weightedForecast)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="flex-1 min-w-[200px]">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-orange-500/10 rounded-lg">
-                    <Flame className="h-6 w-6 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Deals Quentes</p>
-                    <p className="text-2xl font-bold text-foreground">
-                      {pipelineMetrics.hotDeals}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="flex-1 min-w-[200px]">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-destructive/10 rounded-lg">
-                    <Skull className="h-6 w-6 text-destructive" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Rotten Deals</p>
-                    <p className="text-2xl font-bold text-destructive">
-                      {pipelineMetrics.rottenCount}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            
+            <div className="h-4 border-l border-border" />
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <TrendingUp className="h-4 w-4 text-green-600" />
+              <span className="text-muted-foreground">Forecast:</span>
+              <span className="font-semibold text-green-600">
+                {formatCurrency(pipelineMetrics.weightedForecast)}
+              </span>
+            </div>
+            
+            <div className="h-4 border-l border-border" />
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <Flame className="h-4 w-4 text-orange-500" />
+              <span className="text-muted-foreground">Quentes:</span>
+              <span className="font-semibold">{pipelineMetrics.hotDeals}</span>
+            </div>
+            
+            <div className="h-4 border-l border-border" />
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <Skull className="h-4 w-4 text-destructive" />
+              <span className="text-muted-foreground">Rotten:</span>
+              <span className="font-semibold text-destructive">{pipelineMetrics.rottenCount}</span>
+            </div>
           </div>
         )}
 

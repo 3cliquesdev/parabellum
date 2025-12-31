@@ -30,20 +30,33 @@ interface AdvancedDealFiltersModalProps {
   pipelineId: string;
   filters: DealFilters;
   onFiltersChange: (filters: DealFilters) => void;
-  activeFilterCount: number;
+}
+
+function countActiveFilters(filters: DealFilters): number {
+  let count = 0;
+  if (filters.status && filters.status.length > 0) count++;
+  if (filters.stageIds && filters.stageIds.length > 0) count++;
+  if (filters.valueMin !== undefined || filters.valueMax !== undefined) count++;
+  if (filters.probabilityMin !== undefined || filters.probabilityMax !== undefined) count++;
+  if (filters.createdDateRange?.from || filters.createdDateRange?.to) count++;
+  if (filters.expectedCloseDateRange?.from || filters.expectedCloseDateRange?.to) count++;
+  if (filters.leadSource && filters.leadSource.length > 0) count++;
+  if (filters.assignedTo && filters.assignedTo.length > 0) count++;
+  if (filters.search && filters.search.trim().length > 0) count++;
+  return count;
 }
 
 export function AdvancedDealFiltersModal({
   pipelineId,
   filters,
   onFiltersChange,
-  activeFilterCount,
 }: AdvancedDealFiltersModalProps) {
   const [open, setOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [localFilters, setLocalFilters] = useState<DealFilters>(filters);
   const { role } = useUserRole();
   const isManagerOrAdmin = role === "admin" || role === "manager";
+  const activeFilterCount = countActiveFilters(filters);
 
   const handleOpen = (isOpen: boolean) => {
     if (isOpen) {

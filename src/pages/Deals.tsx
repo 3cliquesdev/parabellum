@@ -35,8 +35,6 @@ import { SortBySelect, SortByOption } from "@/components/deals/filters/SortBySel
 import { ActiveFilterChips, generateDealFilterChips } from "@/components/ui/active-filter-chips";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
 
 type Deal = Tables<"deals"> & {
   contacts: { first_name: string; last_name: string } | null;
@@ -494,9 +492,10 @@ export default function Deals() {
           )}
 
           {/* Advanced Filters */}
-          <DealFilterPopover
+          <AdvancedDealFiltersModal
             filters={dealFilters}
             onFiltersChange={setDealFilters}
+            pipelineId={selectedPipeline}
           />
 
           {/* Search Input */}

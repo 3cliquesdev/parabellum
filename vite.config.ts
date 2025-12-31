@@ -46,7 +46,7 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MB limit
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,

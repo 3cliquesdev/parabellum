@@ -542,6 +542,94 @@ serve(async (req) => {
       console.error('[form-submit-v3] Submission error:', submissionError);
     }
 
+    // Step 4.5: Handle target_type routing (ticket/deal creation based on form config)
+    if (form.target_type === 'ticket' && contactId) {
+      console.log(`[form-submit-v3] Form has target_type=ticket, creating ticket automatically`);
+      
+      const ticketSettings = schema?.ticket_settings || {};
+      
+      // Build subject from field with ticket_field='subject' or first text field or default
+      const subjectField = fields.find((f: any) => f.ticket_field === 'subject');
+      const firstTextField = fields.find((f: any) => f.type === 'text' || f.type === 'short_text');
+      let ticketSubject = 'Solicitação via formulário';
+      
+      if (subjectField && sanitizedAnswers[subjectField.id]) {
+        ticketSubject = sanitizedAnswers[subjectField.id];
+      } else if (ticketSettings.default_subject) {
+        ticketSubject = ticketSettings.default_subject;
+      } else {
+        ticketSubject = `Solicitação via ${form.name}`;
+      }
+      
+      // Build description from field with ticket_field='description' or all answers
+      const descriptionField = fields.find((f: any) => f.ticket_field === 'description');
+      let ticketDescription = '';
+      
+      if (descriptionField && sanitizedAnswers[descriptionField.id]) {
+        ticketDescription = sanitizedAnswers[descriptionField.id];
+      } else {
+        // Build description from all answers
+        const descriptionLines = fields.map((f: any) => {
+          const val = sanitizedAnswers[f.id];
+          if (!val || val === '') return null;
+          return `**${f.label}:** ${val}`;
+        }).filter(Boolean);
+        ticketDescription = descriptionLines.join('\n\n');
+      }
+      
+      // Create ticket with customer_id (NOT contact_id - tickets table uses customer_id)
+      const { data: newTicket, error: ticketError } = await supabase
+        .from('tickets')
+        .insert({
+          customer_id: contactId,  // Correct column name
+          subject: ticketSubject,
+          description: ticketDescription,
+          priority: ticketSettings.default_priority || 'medium',
+          category: ticketSettings.default_category || 'outro',
+          department_id: form.target_department_id || null,
+          status: 'open',
+          channel: 'form',
+        })
+        .select('*, ticket_number')
+        .single();
+      
+      if (ticketError) {
+        console.error('[form-submit-v3] Error creating ticket from target_type:', ticketError);
+      } else if (newTicket) {
+        console.log(`[form-submit-v3] Ticket created: ${newTicket.id}, number: ${newTicket.ticket_number}`);
+        
+        // Send auto-reply email if enabled
+        if (ticketSettings.send_auto_reply && email) {
+          try {
+            const { data: contact } = await supabase
+              .from('contacts')
+              .select('first_name, last_name')
+              .eq('id', contactId)
+              .single();
+            
+            const customerName = contact 
+              ? `${contact.first_name} ${contact.last_name}`.trim() 
+              : 'Cliente';
+            
+            await supabase.functions.invoke('send-ticket-notification', {
+              body: {
+                ticket_id: newTicket.id,
+                ticket_number: newTicket.ticket_number || newTicket.id.substring(0, 8).toUpperCase(),
+                customer_email: email,
+                customer_name: customerName,
+                subject: ticketSubject,
+                description: ticketDescription,
+                priority: newTicket.priority,
+              },
+            });
+            console.log('[form-submit-v3] Auto-reply email sent for target_type ticket');
+          } catch (emailError) {
+            console.error('[form-submit-v3] Failed to send auto-reply email:', emailError);
+          }
+        }
+      }
+    }
+
     // Step 5: Execute automations
     const { data: automations } = await supabase
       .from('form_automations')
@@ -640,12 +728,13 @@ serve(async (req) => {
               const ticketCategory = actionConfig?.category || 'general';
               
               const { data: newTicket } = await supabase.from('tickets').insert({
-                contact_id: contactId,
+                customer_id: contactId,  // Fixed: tickets table uses customer_id, not contact_id
                 subject: ticketSubject,
                 description: ticketDescription,
                 priority: ticketPriority,
                 category: ticketCategory,
                 status: 'open',
+                channel: 'form',
               }).select().single();
 
               // Send notification email to customer

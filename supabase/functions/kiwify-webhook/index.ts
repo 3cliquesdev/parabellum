@@ -1782,6 +1782,10 @@ async function handleChurnOrder(
       .single();
 
     if (winbackStage) {
+      // 🆕 ROUND-ROBIN: Distribuir para vendedor com menos deals
+      const { data: salesRepId } = await supabase.rpc('get_least_loaded_sales_rep');
+      console.log('[kiwify-webhook] 🔄 Winback assigned to sales rep:', salesRepId);
+
       const { data: deal } = await supabase
         .from('deals')
         .insert({
@@ -1793,6 +1797,7 @@ async function handleChurnOrder(
           pipeline_id: winbackStage.pipeline_id,
           contact_id: contact.id,
           lost_reason: order_status,
+          assigned_to: salesRepId, // 🆕 Distribuição automática
         })
         .select()
         .single();

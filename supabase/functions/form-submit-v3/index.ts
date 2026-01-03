@@ -450,9 +450,36 @@ serve(async (req) => {
     }
 
     // Step 3: Create or update contact
+    // Smart email detection: by type, by label, or by content validation
     let contactId: string | null = null;
-    const emailField = fields.find((f: any) => f.type === 'email');
+    let emailField = fields.find((f: any) => f.type === 'email');
+    let emailDetectionMethod = 'type';
+    
+    // Fallback 1: Search by label containing "email" or "e-mail"
+    if (!emailField) {
+      emailField = fields.find((f: any) => 
+        f.label?.toLowerCase().includes('email') || 
+        f.label?.toLowerCase().includes('e-mail')
+      );
+      if (emailField) emailDetectionMethod = 'label';
+    }
+    
+    // Fallback 2: Search text fields with valid email content
+    if (!emailField) {
+      emailField = fields.find((f: any) => {
+        const value = sanitizedAnswers[f.id];
+        return typeof value === 'string' && validators.email(value);
+      });
+      if (emailField) emailDetectionMethod = 'content';
+    }
+    
     const email = emailField ? sanitizedAnswers[emailField.id] : null;
+    
+    if (emailField) {
+      console.log(`[form-submit-v3] Email field detected: "${emailField.label}" (type: ${emailField.type}, detection: ${emailDetectionMethod})`);
+    } else {
+      console.warn('[form-submit-v3] No email field detected - contact will not be created');
+    }
 
     if (email) {
       const { data: existingContact } = await supabase

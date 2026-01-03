@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Check, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { FormFileUpload } from "@/components/forms/FormFileUpload";
 
 // Helper to convert hex to rgba
 function hexToRgba(hex: string, opacity: number = 1): string {
@@ -377,6 +378,19 @@ function FormFieldInput({ field, value, onChange, settings, inputStyles }: FormF
           className="h-12"
           style={inputStyles}
           required={field.required}
+        />
+      );
+
+    case "file":
+      return (
+        <FormFileUpload
+          value={value || []}
+          onChange={onChange}
+          accept={field.accept || "image/*,.pdf"}
+          maxSizeMb={field.max_size_mb || 10}
+          maxFiles={field.max_files || 5}
+          inputStyles={inputStyles}
+          settings={settings}
         />
       );
 

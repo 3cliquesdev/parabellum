@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, Play, Pause, Users, CheckCircle, MessageSquare, UserPlus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Play, Pause, Users, CheckCircle, MessageSquare, UserPlus, Pencil, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,16 +8,17 @@ import { useCadences } from "@/hooks/useCadences";
 import { useUpdateCadence } from "@/hooks/useUpdateCadence";
 import { useDeleteCadence } from "@/hooks/useDeleteCadence";
 import { useCadenceEnrollments } from "@/hooks/useCadenceEnrollments";
-import CadenceDialog from "@/components/CadenceDialog";
 import { CadenceEnrollDialog } from "@/components/CadenceEnrollDialog";
 import { useUserRole } from "@/hooks/useUserRole";
+import { Progress } from "@/components/ui/progress";
+import { CadenceDashboard } from "@/components/cadences/CadenceDashboard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Cadences() {
+  const navigate = useNavigate();
   const { data: cadences, isLoading } = useCadences();
   const { mutate: updateCadence } = useUpdateCadence();
   const { mutate: deleteCadence } = useDeleteCadence();
-  const [selectedCadence, setSelectedCadence] = useState<any>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [enrollDialogCadence, setEnrollDialogCadence] = useState<{ id: string; name: string } | null>(null);
   const { isAdmin, isManager, isGeneralManager } = useUserRole();
   
@@ -30,13 +32,11 @@ export default function Cadences() {
   };
 
   const handleEdit = (cadence: any) => {
-    setSelectedCadence(cadence);
-    setIsDialogOpen(true);
+    navigate(`/cadences/${cadence.id}/edit`);
   };
 
   const handleCreate = () => {
-    setSelectedCadence(null);
-    setIsDialogOpen(true);
+    navigate("/cadences/new/edit");
   };
 
   if (isLoading) {
@@ -68,53 +68,71 @@ export default function Cadences() {
         )}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Cadências</CardTitle>
-            <Play className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{cadences?.length || 0}</div>
-          </CardContent>
-        </Card>
+      {/* Tabs for Dashboard and List */}
+      <Tabs defaultValue="list" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="list" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Cadências
+          </TabsTrigger>
+          <TabsTrigger value="dashboard" className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Dashboard
+          </TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ativas</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {cadences?.filter((c) => c.is_active).length || 0}
-            </div>
-          </CardContent>
-        </Card>
+        <TabsContent value="dashboard" className="space-y-6">
+          <CadenceDashboard cadences={cadences || []} />
+        </TabsContent>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pausadas</CardTitle>
-            <Pause className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {cadences?.filter((c) => !c.is_active).length || 0}
-            </div>
-          </CardContent>
-        </Card>
+        <TabsContent value="list" className="space-y-6">
+          {/* Stats Cards */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Cadências</CardTitle>
+                <Play className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{cadences?.length || 0}</div>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Inscritos</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">-</div>
-            <p className="text-xs text-muted-foreground">Em todas as cadências</p>
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Ativas</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {cadences?.filter((c) => c.is_active).length || 0}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pausadas</CardTitle>
+                <Pause className="h-4 w-4 text-yellow-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {cadences?.filter((c) => !c.is_active).length || 0}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Inscritos</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">-</div>
+                <p className="text-xs text-muted-foreground">Em todas as cadências</p>
+              </CardContent>
+            </Card>
+          </div>
 
       {/* Cadences List */}
       <div className="space-y-4">
@@ -147,18 +165,11 @@ export default function Cadences() {
             />
           ))
         )}
-      </div>
+        </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Dialogs */}
-      <CadenceDialog
-        cadence={selectedCadence}
-        open={isDialogOpen}
-        onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) setSelectedCadence(null);
-        }}
-      />
-
       <CadenceEnrollDialog
         cadence={enrollDialogCadence}
         open={!!enrollDialogCadence}
@@ -183,10 +194,14 @@ function CadenceCard({ cadence, onEdit, onToggleActive, onDelete, onEnroll, canM
   const activeEnrollments = enrollments?.filter((e) => e.status === "active").length || 0;
   const repliedEnrollments = enrollments?.filter((e) => e.status === "replied").length || 0;
   const completedEnrollments = enrollments?.filter((e) => e.status === "completed").length || 0;
+  const totalEnrollments = enrollments?.length || 0;
+
+  const responseRate = totalEnrollments > 0 ? Math.round((repliedEnrollments / totalEnrollments) * 100) : 0;
+  const completionRate = totalEnrollments > 0 ? Math.round((completedEnrollments / totalEnrollments) * 100) : 0;
 
   return (
-    <Card className={!cadence.is_active ? "opacity-60" : ""}>
-      <CardHeader>
+    <Card className={`transition-all hover:shadow-md ${!cadence.is_active ? "opacity-60" : ""}`}>
+      <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="space-y-1 flex-1">
             <div className="flex items-center gap-2">
@@ -203,35 +218,59 @@ function CadenceCard({ cadence, onEdit, onToggleActive, onDelete, onEnroll, canM
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Stats */}
-        <div className="flex gap-6 text-sm">
-          <div>
-            <span className="text-muted-foreground">Total de Inscritos:</span>
-            <span className="ml-2 font-semibold">{enrollments?.length || 0}</span>
+        {/* Performance Metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Users className="h-4 w-4" />
+              <span>Inscritos</span>
+            </div>
+            <div className="text-2xl font-bold">{totalEnrollments}</div>
           </div>
-          <div>
-            <span className="text-muted-foreground">Ativos:</span>
-            <span className="ml-2 font-semibold text-blue-600">{activeEnrollments}</span>
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Play className="h-4 w-4 text-blue-500" />
+              <span>Ativos</span>
+            </div>
+            <div className="text-2xl font-bold text-blue-600">{activeEnrollments}</div>
           </div>
-          <div>
-            <span className="text-muted-foreground">Responderam:</span>
-            <span className="ml-2 font-semibold text-green-600">{repliedEnrollments}</span>
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <MessageSquare className="h-4 w-4 text-green-500" />
+              <span>Responderam</span>
+            </div>
+            <div className="text-2xl font-bold text-green-600">{repliedEnrollments}</div>
+            <div className="flex items-center gap-2">
+              <Progress value={responseRate} className="h-1.5 flex-1" />
+              <span className="text-xs text-muted-foreground">{responseRate}%</span>
+            </div>
           </div>
-          <div>
-            <span className="text-muted-foreground">Concluídos:</span>
-            <span className="ml-2 font-semibold text-gray-600">{completedEnrollments}</span>
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle className="h-4 w-4 text-gray-500" />
+              <span>Concluídos</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-600">{completedEnrollments}</div>
+            <div className="flex items-center gap-2">
+              <Progress value={completionRate} className="h-1.5 flex-1" />
+              <span className="text-xs text-muted-foreground">{completionRate}%</span>
+            </div>
           </div>
         </div>
 
         {/* Actions */}
         {canManage && (
-          <div className="flex gap-2 pt-2 border-t">
+          <div className="flex flex-wrap gap-2 pt-3 border-t">
             <Button onClick={onEnroll} variant="default" size="sm" className="gap-2">
               <UserPlus className="h-4 w-4" />
               Inscrever Contatos
             </Button>
-            <Button onClick={() => onEdit(cadence)} variant="outline" size="sm">
-              Editar Passos
+            <Button onClick={() => onEdit(cadence)} variant="outline" size="sm" className="gap-2">
+              <Pencil className="h-4 w-4" />
+              Editor Visual
             </Button>
             <Button
               onClick={() => onToggleActive(cadence)}

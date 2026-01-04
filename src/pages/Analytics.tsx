@@ -8,13 +8,13 @@ import { SentimentDistributionWidget } from "@/components/widgets/SentimentDistr
 import { SupportKPIsWidget } from "@/components/widgets/SupportKPIsWidget";
 import { VolumeResolutionWidget } from "@/components/widgets/VolumeResolutionWidget";
 import { BusyHoursHeatmap } from "@/components/widgets/BusyHoursHeatmap";
-import { ChatConversionFunnel } from "@/components/widgets/ChatConversionFunnel";
+
 import { RevenueByChannelWidget } from "@/components/widgets/RevenueByChannelWidget";
 import { TeamPerformanceTable } from "@/components/widgets/TeamPerformanceTable";
 import { ChurnAnalyticsWidget } from "@/components/widgets/ChurnAnalyticsWidget";
 import { CadencePerformanceWidget } from "@/components/widgets/CadencePerformanceWidget";
 import { ChannelPerformanceComparison } from "@/components/widgets/ChannelPerformanceComparison";
-import { AutomationROIWidget } from "@/components/widgets/AutomationROIWidget";
+
 import { SLAComplianceWidget } from "@/components/widgets/SLAComplianceWidget";
 import { TeamEfficiencyWidget } from "@/components/widgets/TeamEfficiencyWidget";
 import { AIEconomyWidget } from "@/components/widgets/AIEconomyWidget";
@@ -267,11 +267,6 @@ export default function Analytics() {
             {/* Channel Performance Comparison - Full Width */}
             <ChannelPerformanceComparison startDate={startDate} endDate={endDate} />
             
-            {/* Automation ROI - Full Width */}
-            <AutomationROIWidget />
-            
-            {/* Chat Conversion Funnel - Full Width */}
-            <ChatConversionFunnel startDate={startDate} endDate={endDate} />
 
             {/* Revenue by Channel + Channel Quality */}
             <div className="grid gap-6 md:grid-cols-2 min-w-0">

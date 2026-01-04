@@ -47,11 +47,11 @@ export function useSalesRepDistributionReport() {
   const { data: bySalesRep, isLoading: loadingReps } = useQuery({
     queryKey: ["sales-rep-distribution", today.toISOString()],
     queryFn: async (): Promise<SalesRepDistribution[]> => {
-      // Get sales reps
+      // Get sales reps only (not consultants)
       const { data: userRoles, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id")
-        .in("role", ["sales_rep", "consultant"]);
+        .eq("role", "sales_rep");
 
       if (rolesError) throw rolesError;
 

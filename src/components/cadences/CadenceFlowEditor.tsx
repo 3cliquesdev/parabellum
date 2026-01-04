@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import ReactFlow, {
   Controls,
   Background,
@@ -81,6 +81,31 @@ export function CadenceFlowEditor({ cadenceId, steps, onStepsChange }: CadenceFl
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Sync nodes and edges when steps change (e.g., after applying template)
+  useEffect(() => {
+    const newNodes: Node[] = steps.map((step, index) => ({
+      id: step.id,
+      type: "cadenceStep",
+      position: { x: step.position_x || 400, y: step.position_y || 100 + index * 150 },
+      data: {
+        ...step,
+        stepConfig: stepTypeConfig[step.step_type] || stepTypeConfig.task,
+      },
+    }));
+    setNodes(newNodes);
+
+    const sortedSteps = [...steps].sort((a, b) => a.position - b.position);
+    const newEdges: Edge[] = sortedSteps.slice(0, -1).map((step, index) => ({
+      id: `e-${step.id}-${sortedSteps[index + 1].id}`,
+      source: step.id,
+      target: sortedSteps[index + 1].id,
+      type: "smoothstep",
+      animated: true,
+      style: { stroke: "hsl(var(--primary))", strokeWidth: 2 },
+    }));
+    setEdges(newEdges);
+  }, [steps, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),

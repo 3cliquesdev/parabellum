@@ -1,16 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-// TEMPORÁRIO: Retornando todos os usuários até termos sales_reps reais no sistema
-// TODO: Reverter para filtrar apenas .eq("user_roles.role", "sales_rep") quando houver vendedores
+// Filtra apenas vendedores (sales_rep) - consultores têm seu próprio hook
 export function useSalesReps() {
   return useQuery({
     queryKey: ["sales-reps"],
     queryFn: async () => {
       console.log("[useSalesReps] Fetching sales reps...");
       
-      // Filtrar apenas vendedores (sales_rep e consultant)
-      const salesRoles = ['sales_rep', 'consultant'] as const;
+      // Filtrar apenas vendedores (sales_rep)
+      const salesRoles = ['sales_rep'] as const;
       
       // Primeiro buscar user_ids com roles de funcionários
       const { data: userRoles, error: rolesError } = await supabase

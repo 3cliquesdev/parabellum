@@ -85,6 +85,7 @@ export type FormDistributionRule = "round_robin" | "manager_only" | "specific_us
 export interface Form {
   id: string;
   name: string;
+  title: string | null;
   description: string | null;
   schema: FormSchema;
   is_active: boolean;
@@ -233,6 +234,7 @@ export function useCreateForm() {
   return useMutation({
     mutationFn: async (form: { 
       name: string; 
+      title?: string;
       description?: string; 
       schema: FormSchema;
       target_type?: FormTargetType;
@@ -246,6 +248,7 @@ export function useCreateForm() {
         .from("forms")
         .insert({
           name: form.name,
+          title: form.title || null,
           description: form.description || null,
           schema: form.schema as any,
           target_type: form.target_type || "deal",
@@ -290,6 +293,7 @@ export function useUpdateForm() {
       id: string;
       updates: { 
         name?: string; 
+        title?: string | null;
         description?: string; 
         schema?: FormSchema; 
         is_active?: boolean;

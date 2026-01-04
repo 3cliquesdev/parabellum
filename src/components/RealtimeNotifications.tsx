@@ -150,7 +150,7 @@ export default function RealtimeNotifications() {
 
               // Show persistent toast
               toast(
-                "🔔 Nova conversa atribuída",
+                "Nova conversa atribuída",
                 {
                   description: `Cliente: ${contactName}`,
                   icon: <MessageSquare className="h-4 w-4" />,
@@ -239,7 +239,7 @@ export default function RealtimeNotifications() {
 
               // Show critical toast
               toast(
-                "🚨 ALERTA SLA: Conversa sem resposta",
+                "ALERTA SLA: Conversa sem resposta",
                 {
                   description: `${contactName} aguardando há ${alert.actual_minutes} min`,
                   icon: <MessageSquare className="h-4 w-4" />,
@@ -327,7 +327,7 @@ export default function RealtimeNotifications() {
               play();
 
               toast(
-                "📩 Nova resposta no seu ticket",
+                "Nova resposta no seu ticket",
                 {
                   description: `#${ticket.ticket_number}: ${ticket.subject}`,
                   icon: <Ticket className="h-4 w-4" />,
@@ -352,7 +352,7 @@ export default function RealtimeNotifications() {
               play();
 
               toast(
-                "📨 Criador respondeu no ticket",
+                "Criador respondeu no ticket",
                 {
                   description: `#${ticket.ticket_number}: ${ticket.subject}`,
                   icon: <Ticket className="h-4 w-4" />,
@@ -457,7 +457,7 @@ export default function RealtimeNotifications() {
             play();
 
             // Show persistent toast
-            toast("💰 Novo deal atribuído a você!", {
+            toast("Novo deal atribuído a você!", {
               description: `${deal.title}${valueFormatted ? ` • ${valueFormatted}` : ""}${contact ? ` • ${contactName}` : ""}`,
               icon: <DollarSign className="h-4 w-4" />,
               action: {

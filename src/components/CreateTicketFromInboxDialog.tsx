@@ -23,10 +23,10 @@ interface CreateTicketFromInboxDialogProps {
 }
 
 const CATEGORY_OPTIONS = [
-  { value: 'financeiro', label: '💰 Financeiro', icon: '💰' },
-  { value: 'tecnico', label: '🔧 Técnico', icon: '🔧' },
-  { value: 'bug', label: '🐛 Bug', icon: '🐛' },
-  { value: 'outro', label: '📋 Outro', icon: '📋' },
+  { value: 'financeiro', label: 'Financeiro' },
+  { value: 'tecnico', label: 'Técnico' },
+  { value: 'bug', label: 'Bug' },
+  { value: 'outro', label: 'Outro' },
 ] as const;
 
 const PRIORITY_OPTIONS = [
@@ -35,32 +35,28 @@ const PRIORITY_OPTIONS = [
     label: 'Urgente',
     sla: '4 horas',
     color: 'text-destructive',
-    bgColor: 'bg-destructive/10',
-    icon: '🔴'
+    bgColor: 'bg-destructive/10'
   },
   { 
     value: 'high', 
     label: 'Alta',
     sla: '8 horas',
     color: 'text-orange-600',
-    bgColor: 'bg-orange-100 dark:bg-orange-900/20',
-    icon: '🟠'
+    bgColor: 'bg-orange-100 dark:bg-orange-900/20'
   },
   { 
     value: 'medium', 
     label: 'Média',
     sla: '24 horas',
     color: 'text-yellow-600',
-    bgColor: 'bg-yellow-100 dark:bg-yellow-900/20',
-    icon: '🟡'
+    bgColor: 'bg-yellow-100 dark:bg-yellow-900/20'
   },
   { 
     value: 'low', 
     label: 'Baixa',
     sla: '48 horas',
     color: 'text-green-600',
-    bgColor: 'bg-green-100 dark:bg-green-900/20',
-    icon: '🟢'
+    bgColor: 'bg-green-100 dark:bg-green-900/20'
   },
 ] as const;
 
@@ -222,7 +218,7 @@ export function CreateTicketFromInboxDialog({
                     {PRIORITY_OPTIONS.map((prio) => (
                       <SelectItem key={prio.value} value={prio.value}>
                         <div className="flex items-center justify-between w-full gap-2">
-                          <span>{prio.icon} {prio.label}</span>
+                          <span>{prio.label}</span>
                           <Badge variant="outline" className={`${prio.bgColor} ${prio.color} text-xs`}>
                             <Clock className="h-3 w-3 mr-1" />
                             {prio.sla}
@@ -337,7 +333,7 @@ export function CreateTicketFromInboxDialog({
                         >
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-semibold">
-                              {msg.sender_type === 'contact' ? '👤 Cliente' : '👨‍💼 Agente'}
+                              {msg.sender_type === 'contact' ? 'Cliente' : 'Agente'}
                             </span>
                             <span className="text-muted-foreground">
                               {format(new Date(msg.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
@@ -350,7 +346,7 @@ export function CreateTicketFromInboxDialog({
                   </div>
                 </ScrollArea>
                 <p className="text-xs text-muted-foreground mt-2">
-                  💡 Estas mensagens serão incluídas automaticamente no ticket
+                  Estas mensagens serão incluídas automaticamente no ticket
                 </p>
               </div>
             </div>
@@ -370,7 +366,7 @@ export function CreateTicketFromInboxDialog({
               type="submit"
               disabled={generateTicket.isPending || !subject.trim()}
             >
-              {generateTicket.isPending ? "Gerando..." : "🎫 Gerar Ticket"}
+              {generateTicket.isPending ? "Gerando..." : "Gerar Ticket"}
             </Button>
           </div>
         </form>

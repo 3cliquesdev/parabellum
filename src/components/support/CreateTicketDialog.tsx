@@ -37,13 +37,13 @@ interface CreateTicketDialogProps {
 
 // Labels amigáveis para categorias
 const categoryLabels: Record<string, string> = {
-  duvida: "❓ Dúvida",
-  problema_tecnico: "🔧 Problema Técnico",
-  financeiro: "💰 Financeiro",
-  sugestao: "💡 Sugestão",
-  reclamacao: "😤 Reclamação",
-  saque: "💵 Saque",
-  outro: "📋 Outro",
+  duvida: "Dúvida",
+  problema_tecnico: "Problema Técnico",
+  financeiro: "Financeiro",
+  sugestao: "Sugestão",
+  reclamacao: "Reclamação",
+  saque: "Saque",
+  outro: "Outro",
 };
 
 export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogProps) {
@@ -364,10 +364,10 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">🟢 Baixa</SelectItem>
-                  <SelectItem value="medium">🟡 Média</SelectItem>
-                  <SelectItem value="high">🟠 Alta</SelectItem>
-                  <SelectItem value="urgent">🔴 Urgente</SelectItem>
+                  <SelectItem value="low">Baixa</SelectItem>
+                  <SelectItem value="medium">Média</SelectItem>
+                  <SelectItem value="high">Alta</SelectItem>
+                  <SelectItem value="urgent">Urgente</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -446,7 +446,7 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">📥 Fila de Espera</SelectItem>
+                  <SelectItem value="none">Fila de Espera</SelectItem>
                   {supportUsers.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.full_name || user.email}

@@ -107,7 +107,7 @@ const universalMenuGroups: MenuGroup[] = [
     items: [
       { title: "Negócios", href: "/deals", icon: DollarSign, permission: "deals.view" },
       { title: "Propostas", href: "/quotes", icon: Receipt, permission: "quotes.view" },
-      { title: "⚡ Workzone", href: "/sales-tasks", icon: CheckCircle2, permission: "sales.view_workzone" },
+      { title: "Workzone", href: "/sales-tasks", icon: CheckCircle2, permission: "sales.view_workzone" },
       { title: "Cadências", href: "/cadences", icon: RefreshCw, permission: "cadences.manage" },
     ]
   },
@@ -131,7 +131,7 @@ const universalMenuGroups: MenuGroup[] = [
       { title: "Automações", href: "/automations", icon: Zap, permission: "automations.view" },
       { title: "AI Studio", href: "/ai-studio/personas", icon: Brain, permission: "ai.manage_personas" },
       { title: "AI Messages", href: "/settings/ai-messages", icon: MessageCircle, permission: "ai.manage_personas" },
-      { title: "🤖 AI Trainer", href: "/settings/ai-trainer", icon: Brain, permission: "ai.train" },
+      { title: "AI Trainer", href: "/settings/ai-trainer", icon: Brain, permission: "ai.train" },
       { title: "Templates de Email", href: "/email-templates", icon: Mail, permission: "email.view_templates" },
       { title: "Formulários", href: "/forms", icon: FileText, permission: "forms.view" },
     ]
@@ -146,17 +146,17 @@ const universalMenuGroups: MenuGroup[] = [
   {
     label: "Gestão",
     items: [
-      { title: "🎯 Definir Metas", href: "/goals-management", icon: Target, permission: "goals.set" },
+      { title: "Definir Metas", href: "/goals-management", icon: Target, permission: "goals.set" },
       { title: "Solicitações Internas", href: "/internal-requests", icon: ClipboardList, permission: "tickets.view" },
       { title: "Relatórios", href: "/reports", icon: FileText, permission: "analytics.export" },
-      { title: "📊 Distribuição CS", href: "/reports/consultant-distribution", icon: BarChart3, permission: "reports.distribution" },
-      { title: "📊 Distribuição Vendas", href: "/reports/sales-distribution", icon: BarChart3, permission: "reports.lead_distribution" },
-      { title: "🚨 Detecção de Fraude", href: "/reports/fraud-detection", icon: AlertTriangle, permission: "analytics.view" },
-      { title: "💰 Exportar para NF", href: "/reports/fiscal-export", icon: Receipt, permission: "reports.access" },
+      { title: "Distribuição CS", href: "/reports/consultant-distribution", icon: BarChart3, permission: "reports.distribution" },
+      { title: "Distribuição Vendas", href: "/reports/sales-distribution", icon: BarChart3, permission: "reports.lead_distribution" },
+      { title: "Detecção de Fraude", href: "/reports/fraud-detection", icon: AlertTriangle, permission: "analytics.view" },
+      { title: "Exportar para NF", href: "/reports/fiscal-export", icon: Receipt, permission: "reports.access" },
     ]
   },
   {
-    label: "📦 Cadastros",
+    label: "Cadastros",
     items: [
       { title: "Consultores", href: "/consultants", icon: Users, permission: "cadastros.view_consultants" },
       { title: "Tags", href: "/settings/tags", icon: Tags, permission: "cadastros.view_tags" },
@@ -165,7 +165,7 @@ const universalMenuGroups: MenuGroup[] = [
     ]
   },
   {
-    label: "⚙️ Sistema",
+    label: "Sistema",
     items: [
       { title: "Usuários", href: "/users", icon: UserCog, permission: "settings.manage_users" },
       { title: "Importar Clientes", href: "/import-clients", icon: Upload, permission: "contacts.import" },
@@ -173,7 +173,7 @@ const universalMenuGroups: MenuGroup[] = [
     ]
   },
   {
-    label: "👑 SUPER ADMIN",
+    label: "SUPER ADMIN",
     items: [
       { title: "Painel Admin", href: "/super-admin", icon: Crown, permission: "super_admin.access" },
     ]
@@ -197,15 +197,15 @@ export function AppSidebar() {
 
   // Determine mode label and color
   const getModeInfo = () => {
-    if (isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "👨‍💼 Gerente de Suporte", color: "bg-indigo-500" };
-    if (isSupportAgent && !isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "🛡️ Modo Suporte", color: "bg-blue-500" };
-    if (isFinancialManager && !isAdmin && !isManager && !isGeneralManager) return { label: "💰 Gerente Financeiro", color: "bg-emerald-500" };
-    if (isCSManager && !isAdmin && !isManager && !isGeneralManager) return { label: "👔 Gerente de CS", color: "bg-purple-600" };
-    if (isConsultant && !isAdmin && !isManager && !isGeneralManager) return { label: "🤝 Modo Consultor", color: "bg-green-500" };
-    if (isSalesRep && !isAdmin && !isManager && !isGeneralManager) return { label: "🎯 Modo Vendas", color: "bg-orange-500" };
-    if (isManager && !isAdmin && !isGeneralManager) return { label: "📊 Gerente de Vendas", color: "bg-blue-600" };
-    if (isGeneralManager && !isAdmin) return { label: "🎖️ Gerente Geral", color: "bg-blue-600" };
-    if (isAdmin) return { label: "👑 Modo Admin", color: "bg-purple-500" };
+    if (isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente de Suporte", color: "bg-indigo-500" };
+    if (isSupportAgent && !isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Suporte", color: "bg-blue-500" };
+    if (isFinancialManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente Financeiro", color: "bg-emerald-500" };
+    if (isCSManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente de CS", color: "bg-purple-600" };
+    if (isConsultant && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Consultor", color: "bg-green-500" };
+    if (isSalesRep && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Vendas", color: "bg-orange-500" };
+    if (isManager && !isAdmin && !isGeneralManager) return { label: "Gerente de Vendas", color: "bg-blue-600" };
+    if (isGeneralManager && !isAdmin) return { label: "Gerente Geral", color: "bg-blue-600" };
+    if (isAdmin) return { label: "Modo Admin", color: "bg-purple-500" };
     return { label: "Sistema", color: "bg-gray-500" };
   };
 

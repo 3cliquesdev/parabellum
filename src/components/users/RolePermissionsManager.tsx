@@ -22,29 +22,29 @@ const ROLE_LABELS: Record<string, { label: string; color: string }> = {
   cs_manager: { label: "Gerente de CS", color: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400" },
 };
 
-const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
-  deals: { label: "Negócios", icon: "💰" },
-  dashboard: { label: "Dashboard", icon: "📊" },
-  knowledge: { label: "Base de Conhecimento", icon: "📚" },
-  cadences: { label: "Cadências", icon: "🔄" },
-  users: { label: "Usuários", icon: "👥" },
-  products: { label: "Produtos", icon: "📦" },
-  reports: { label: "Relatórios", icon: "📈" },
-  inbox: { label: "Inbox / Suporte", icon: "💬" },
-  contacts: { label: "Contatos", icon: "👤" },
-  tickets: { label: "Tickets", icon: "🎫" },
-  quotes: { label: "Orçamentos", icon: "📝" },
-  forms: { label: "Formulários", icon: "📋" },
-  email: { label: "Email", icon: "✉️" },
-  automations: { label: "Automações", icon: "⚡" },
-  playbooks: { label: "Playbooks", icon: "📖" },
-  ai: { label: "Inteligência Artificial", icon: "🤖" },
-  cs: { label: "Customer Success", icon: "🎯" },
-  sales: { label: "Gestão de Vendas", icon: "📊" },
-  analytics: { label: "Analytics", icon: "📉" },
-  settings: { label: "Configurações", icon: "⚙️" },
-  audit: { label: "Auditoria", icon: "🔍" },
-  cadastros: { label: "Cadastros", icon: "📦" },
+const CATEGORY_LABELS: Record<string, { label: string }> = {
+  deals: { label: "Negócios" },
+  dashboard: { label: "Dashboard" },
+  knowledge: { label: "Base de Conhecimento" },
+  cadences: { label: "Cadências" },
+  users: { label: "Usuários" },
+  products: { label: "Produtos" },
+  reports: { label: "Relatórios" },
+  inbox: { label: "Inbox / Suporte" },
+  contacts: { label: "Contatos" },
+  tickets: { label: "Tickets" },
+  quotes: { label: "Orçamentos" },
+  forms: { label: "Formulários" },
+  email: { label: "Email" },
+  automations: { label: "Automações" },
+  playbooks: { label: "Playbooks" },
+  ai: { label: "Inteligência Artificial" },
+  cs: { label: "Customer Success" },
+  sales: { label: "Gestão de Vendas" },
+  analytics: { label: "Analytics" },
+  settings: { label: "Configurações" },
+  audit: { label: "Auditoria" },
+  cadastros: { label: "Cadastros" },
 };
 
 // Define category display order
@@ -247,7 +247,6 @@ export function RolePermissionsManager() {
                                     ) : (
                                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                     )}
-                                    <span className="text-lg">{CATEGORY_LABELS[category]?.icon || "⚙️"}</span>
                                     <span className="font-medium text-sm">
                                       {CATEGORY_LABELS[category]?.label || category}
                                     </span>

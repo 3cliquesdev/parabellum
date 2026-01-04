@@ -24,10 +24,11 @@ interface PublicFormV2Props {
   schema?: FormSchema;
   isPreview?: boolean;
   formName?: string;
+  formTitle?: string;
   formDescription?: string;
 }
 
-export default function PublicFormV2({ formId: propFormId, schema: propSchema, isPreview = false, formName, formDescription }: PublicFormV2Props) {
+export default function PublicFormV2({ formId: propFormId, schema: propSchema, isPreview = false, formName, formTitle, formDescription }: PublicFormV2Props) {
   const { formId: paramFormId } = useParams<{ formId: string }>();
   const formId = propFormId || paramFormId;
   
@@ -222,7 +223,7 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
         schema={schema} 
         formId={formId} 
         isPreview={isPreview}
-        title={formData?.name || formName}
+        title={formData?.title || formTitle || formData?.name || formName}
         description={formData?.description || formDescription}
       />
     );
@@ -296,12 +297,12 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
               className="h-8 sm:h-10 mb-4"
             />
           )}
-          {(formData?.name || formName) && (
+          {(formData?.title || formTitle || formData?.name || formName) && (
             <h1 
               className="text-xl sm:text-2xl font-bold mb-2 break-words whitespace-pre-wrap"
               style={{ color: settings.text_color }}
             >
-              {formData?.name || formName}
+              {formData?.title || formTitle || formData?.name || formName}
             </h1>
           )}
           {(formData?.description || formDescription) && (

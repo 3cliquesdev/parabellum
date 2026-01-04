@@ -25,6 +25,7 @@ export default function FormBuilderPage() {
   const updateForm = useUpdateForm();
 
   const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [schema, setSchema] = useState<FormSchema>({
     fields: [],
@@ -45,6 +46,7 @@ export default function FormBuilderPage() {
   useEffect(() => {
     if (existingForm) {
       setName(existingForm.name);
+      setTitle(existingForm.title || "");
       setDescription(existingForm.description || "");
       setSchema({
         ...existingForm.schema,
@@ -75,6 +77,7 @@ export default function FormBuilderPage() {
     try {
       const formData = {
         name,
+        title: title || null,
         description,
         schema,
         target_type: routingSettings.target_type,
@@ -182,19 +185,33 @@ export default function FormBuilderPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Nome *</Label>
+                  <Label>Nome (interno) *</Label>
                   <Input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ex: Formulário de Suporte"
+                    placeholder="Ex: Form Lead Nacional"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Usado apenas para identificação interna
+                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Descrição</Label>
+                  <Label>Título (público)</Label>
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Ex: Fale Conosco"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Exibido no cabeçalho do formulário público
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Descrição (pública)</Label>
                   <Input
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Descrição interna..."
+                    placeholder="Breve descrição do formulário..."
                   />
                 </div>
               </CardContent>
@@ -254,6 +271,7 @@ export default function FormBuilderPage() {
         onOpenChange={setShowPreview}
         schema={schema}
         name={name}
+        title={title}
         description={description}
       />
     </div>

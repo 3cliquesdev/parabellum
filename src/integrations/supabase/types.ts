@@ -2850,6 +2850,7 @@ export type Database = {
           target_pipeline_id: string | null
           target_type: Database["public"]["Enums"]["form_target_type"] | null
           target_user_id: string | null
+          title: string | null
           updated_at: string | null
         }
         Insert: {
@@ -2867,6 +2868,7 @@ export type Database = {
           target_pipeline_id?: string | null
           target_type?: Database["public"]["Enums"]["form_target_type"] | null
           target_user_id?: string | null
+          title?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -2884,6 +2886,7 @@ export type Database = {
           target_pipeline_id?: string | null
           target_type?: Database["public"]["Enums"]["form_target_type"] | null
           target_user_id?: string | null
+          title?: string | null
           updated_at?: string | null
         }
         Relationships: [

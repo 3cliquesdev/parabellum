@@ -59,6 +59,7 @@ import PlaybookExecutions from "./pages/PlaybookExecutions";
 import KnowledgeImport from "./pages/KnowledgeImport";
 import DeliveryGroups from "./pages/DeliveryGroups";
 import Cadences from "./pages/Cadences";
+import CadenceEditorPage from "./pages/CadenceEditorPage";
 import SalesTasks from "./pages/SalesTasks";
 import Macros from "./pages/Macros";
 import Teams from "./pages/Teams";
@@ -164,6 +165,7 @@ const App = () => {
             <Route path="/goals-management" element={<ProtectedRoute requiredPermission="goals.set"><Layout><GoalsManagement /></Layout></ProtectedRoute>} />
             <Route path="/internal-requests" element={<ProtectedRoute requiredPermission="tickets.view"><Layout><InternalRequests /></Layout></ProtectedRoute>} />
             <Route path="/cadences" element={<ProtectedRoute requiredPermission="cadences.manage"><Layout><Cadences /></Layout></ProtectedRoute>} />
+            <Route path="/cadences/:id/edit" element={<ProtectedRoute requiredPermission="cadences.manage"><CadenceEditorPage /></ProtectedRoute>} />
             <Route path="/sales-tasks" element={<ProtectedRoute requiredPermission="sales.view_workzone"><Layout><SalesTasks /></Layout></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute requiredPermission="tickets.view"><Layout><Support /></Layout></ProtectedRoute>} />
             <Route path="/knowledge" element={<ProtectedRoute requiredPermission="knowledge.manage_articles"><Layout><Knowledge /></Layout></ProtectedRoute>} />

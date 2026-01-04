@@ -62,7 +62,7 @@ export function TeamGoalGauge({ targetValue, currentValue, percentage, isLoading
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Gauge Chart */}
-        <div className="flex flex-col items-center justify-center">
+        <div className="flex flex-col items-center justify-center relative">
           <ResponsiveContainer width="100%" height={240}>
             <RadialBarChart
               cx="50%"
@@ -81,7 +81,7 @@ export function TeamGoalGauge({ targetValue, currentValue, percentage, isLoading
               />
             </RadialBarChart>
           </ResponsiveContainer>
-          <div className="absolute inset-0 flex flex-col items-center justify-center mt-12">
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <div className="text-5xl font-bold text-foreground">{percentage.toFixed(0)}%</div>
             <div className="text-sm text-muted-foreground mt-1">da meta atingida</div>
           </div>

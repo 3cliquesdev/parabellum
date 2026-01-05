@@ -86,6 +86,11 @@ export default function ImportClients() {
     }));
   };
 
+  // Calcular contagem de contatos válidos (com email)
+  const validContactsCount = mapping.email 
+    ? csvData.filter(row => row[mapping.email] && row[mapping.email].toString().trim() !== '').length
+    : 0;
+
   const handleImport = async () => {
     if (!mapping.email) {
       alert('O campo Email é obrigatório. Por favor, mapeie a coluna de email.');
@@ -103,7 +108,28 @@ export default function ImportClients() {
       });
 
       return contact;
-    }).filter(contact => contact.email); // Apenas contatos com email
+    }).filter(contact => contact.email && contact.email.toString().trim() !== '');
+
+    // Validar se há contatos para importar
+    if (mappedContacts.length === 0) {
+      const emailColumn = mapping.email;
+      const rowsWithoutEmail = csvData.filter(row => 
+        !row[emailColumn] || row[emailColumn].toString().trim() === ''
+      ).length;
+      
+      alert(
+        `Nenhum contato válido para importar.\n\n` +
+        `Total de linhas no CSV: ${csvData.length}\n` +
+        `Linhas sem email na coluna "${emailColumn}": ${rowsWithoutEmail}\n\n` +
+        `Verifique se a coluna de email está mapeada corretamente e se os dados estão preenchidos.`
+      );
+      return;
+    }
+
+    // Log para debug
+    console.log(`[Import] Total rows: ${csvData.length}`);
+    console.log(`[Import] Valid contacts with email: ${mappedContacts.length}`);
+    console.log(`[Import] Email column: ${mapping.email}`);
 
     try {
       const result = await importMutation.mutateAsync({ contacts: mappedContacts, mode: importMutation.importMode });
@@ -191,6 +217,12 @@ exemplo@email.com;João;Silva;(11) 99999-9999;Empresa Exemplo;123.456.789-00;987
               </RadioGroup>
             </div>
 
+            {mapping.email && csvData.length > 0 && validContactsCount < csvData.length && (
+              <p className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+                ⚠️ {csvData.length - validContactsCount} linha(s) serão ignoradas por não possuírem email válido
+              </p>
+            )}
+
             <div className="flex justify-end gap-4">
               <Button
                 variant="outline"
@@ -205,13 +237,13 @@ exemplo@email.com;João;Silva;(11) 99999-9999;Empresa Exemplo;123.456.789-00;987
               </Button>
               <Button
                 onClick={handleImport}
-                disabled={!mapping.email || csvData.length === 0 || importMutation.isPending}
+                disabled={!mapping.email || validContactsCount === 0 || importMutation.isPending}
               >
                 {importMutation.isPending 
                   ? importMutation.progress.total > 0 
                     ? `Importando ${importMutation.progress.current}/${importMutation.progress.total}...`
                     : 'Importando...' 
-                  : `Importar ${csvData.length} Contatos`}
+                  : `Importar ${validContactsCount} Contatos Válidos`}
               </Button>
             </div>
           </>

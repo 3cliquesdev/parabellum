@@ -77,6 +77,7 @@ export default function TeamMembersDialog({ open, onOpenChange, teamId }: TeamMe
       consultant: { label: "Consultor", variant: "outline" },
       support_agent: { label: "Suporte", variant: "outline" },
       financial_manager: { label: "Financeiro", variant: "secondary" },
+      financial_agent: { label: "Ag. Fin.", variant: "outline" },
     };
     const config = roleLabels[role] || { label: role, variant: "outline" as const };
     return <Badge variant={config.variant}>{config.label}</Badge>;

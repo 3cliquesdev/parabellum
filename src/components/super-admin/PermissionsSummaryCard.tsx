@@ -15,6 +15,7 @@ const ROLE_LABELS: Record<string, { label: string; color: string }> = {
   support_agent: { label: "Suporte", color: "bg-cyan-500" },
   support_manager: { label: "Ger. Suporte", color: "bg-indigo-500" },
   financial_manager: { label: "Ger. Financeiro", color: "bg-emerald-500" },
+  financial_agent: { label: "Ag. Financeiro", color: "bg-amber-500" },
   cs_manager: { label: "Ger. CS", color: "bg-violet-500" },
 };
 

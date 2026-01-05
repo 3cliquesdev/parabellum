@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
 
-type AppRole = "admin" | "general_manager" | "manager" | "sales_rep" | "consultant" | "support_agent" | "support_manager" | "financial_manager" | "cs_manager";
+type AppRole = "admin" | "general_manager" | "manager" | "sales_rep" | "consultant" | "support_agent" | "support_manager" | "financial_manager" | "financial_agent" | "cs_manager";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -48,6 +48,7 @@ export default function ProtectedRoute({ children, allowedRoles, requiredPermiss
     support_manager: "/support",
     support_agent: "/support",
     financial_manager: "/support",
+    financial_agent: "/support",
     cs_manager: "/cs-management",
     consultant: "/my-portfolio",
     sales_rep: "/",

@@ -234,6 +234,7 @@ export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: 
           support_agent: "Atendente / Solver",
           support_manager: "Gerente de Suporte",
           financial_manager: "Gestor Financeiro",
+          financial_agent: "Agente Financeiro",
           cs_manager: "Gerente de CS",
         };
 
@@ -283,6 +284,7 @@ export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: 
     { value: "support_agent", label: "Atendente / Solver", description: "Suporte e tickets", icon: Headphones },
     { value: "support_manager", label: "Gerente de Suporte", description: "Visão total + Gestão de equipe", icon: Headphones },
     { value: "financial_manager", label: "Gestor Financeiro", description: "Aprovação de reembolsos", icon: DollarSign },
+    { value: "financial_agent", label: "Agente Financeiro", description: "Operacional financeiro", icon: DollarSign },
     { value: "cs_manager", label: "Gerente de CS", description: "Head of Success", icon: Users },
   ];
 

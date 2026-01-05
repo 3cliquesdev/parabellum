@@ -43,16 +43,14 @@ export function FormPreviewModal({ open, onOpenChange, schema, name, title, desc
         <div className="h-full w-full flex items-center justify-center bg-muted/50 p-8 pt-16">
           <div
             className={`
-              bg-background overflow-hidden transition-all duration-300
+              bg-background transition-all duration-300 overflow-y-auto
               ${device === "mobile" 
                 ? "w-[375px] h-[667px] rounded-[40px] border-[8px] border-foreground/20 shadow-2xl" 
                 : "w-full h-full rounded-lg shadow-lg"
               }
             `}
           >
-            <div className="h-full overflow-auto">
-              <PublicFormV2 schema={schema} isPreview formName={name} formTitle={title} formDescription={description} />
-            </div>
+            <PublicFormV2 schema={schema} isPreview formName={name} formTitle={title} formDescription={description} />
           </div>
         </div>
       </DialogContent>

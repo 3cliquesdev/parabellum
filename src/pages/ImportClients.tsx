@@ -6,8 +6,9 @@ import { ColumnMapper } from "@/components/ColumnMapper";
 import { ImportProgress } from "@/components/ImportProgress";
 import { useImportContacts } from "@/hooks/useImportContacts";
 import { useUserRole } from "@/hooks/useUserRole";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { Download } from "lucide-react";
-
 export default function ImportClients() {
   const navigate = useNavigate();
   const { role, loading: roleLoading } = useUserRole();
@@ -165,6 +166,30 @@ exemplo@email.com;João;Silva;(11) 99999-9999;Empresa Exemplo;123.456.789-00;987
               mapping={mapping}
               onMappingChange={handleMappingChange}
             />
+
+            <div className="border rounded-lg p-4 space-y-3 bg-card">
+              <Label className="text-sm font-medium">Modo de Importação</Label>
+              <RadioGroup 
+                value={importMutation.importMode} 
+                onValueChange={(value) => importMutation.setImportMode(value as 'replace' | 'merge')}
+                className="flex flex-col sm:flex-row gap-4"
+              >
+                <div className="flex items-start space-x-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="replace" id="replace" className="mt-0.5" />
+                  <Label htmlFor="replace" className="cursor-pointer">
+                    <span className="font-medium">Substituir Tudo</span>
+                    <p className="text-xs text-muted-foreground">Sobrescreve todos os dados existentes</p>
+                  </Label>
+                </div>
+                <div className="flex items-start space-x-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="merge" id="merge" className="mt-0.5" />
+                  <Label htmlFor="merge" className="cursor-pointer">
+                    <span className="font-medium">Preencher Vazios</span>
+                    <p className="text-xs text-muted-foreground">Só atualiza campos que estão vazios no banco</p>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
 
             <div className="flex justify-end gap-4">
               <Button

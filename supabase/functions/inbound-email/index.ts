@@ -69,24 +69,10 @@ Deno.serve(async (req) => {
       isValidBase64: /^[A-Za-z0-9+/=]+$/.test(base64Part),
     });
 
-    // Tentar decodificar com tratamento de erro específico
-    let keyData: Uint8Array<ArrayBuffer>;
-    try {
-      const decoded = atob(base64Part);
-      const buffer = new ArrayBuffer(decoded.length);
-      const view = new Uint8Array(buffer);
-      for (let i = 0; i < decoded.length; i++) {
-        view[i] = decoded.charCodeAt(i);
-      }
-      keyData = view;
-    } catch (decodeError: any) {
-      console.error('[inbound-email] ❌ Base64 decode failed:', {
-        error: decodeError.message,
-        base64PartFirstChars: base64Part.slice(0, 20),
-        base64PartLastChars: base64Part.slice(-20),
-      });
-      throw new Error('Invalid webhook secret format - Base64 decode failed');
-    }
+    // Converter secret para bytes usando TextEncoder (Resend usa string direta, não Base64)
+    const textEncoder = new TextEncoder();
+    const keyData = textEncoder.encode(base64Part);
+    console.log('[inbound-email] Key data prepared, length:', keyData.length);
 
     // Calcular assinatura esperada
     const encoder = new TextEncoder();

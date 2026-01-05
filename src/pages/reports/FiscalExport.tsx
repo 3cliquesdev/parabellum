@@ -90,7 +90,7 @@ export default function FiscalExport() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Query principal: buscar eventos pagos no período
+  // Query principal: buscar TODOS eventos pagos e filtrar por approved_date no frontend
   const { data: paidEvents, isLoading: loadingEvents } = useQuery({
     queryKey: ["fiscal-paid-events", dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async () => {
@@ -99,47 +99,55 @@ export default function FiscalExport() {
       const pageSize = 1000;
       let hasMore = true;
 
+      // Buscar todos os eventos pagos (sem filtro de data no banco - filtraremos por approved_date)
       while (hasMore) {
-        let query = supabase
+        const { data, error } = await supabase
           .from("kiwify_events")
           .select("customer_email, payload, created_at, event_type")
           .in("event_type", ["paid", "order_approved"])
           .order("created_at", { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
-        // Filtrar por período
-        if (dateRange?.from) {
-          query = query.gte("created_at", dateRange.from.toISOString());
-        }
-        if (dateRange?.to) {
-          const endOfDay = new Date(dateRange.to);
-          endOfDay.setHours(23, 59, 59, 999);
-          query = query.lte("created_at", endOfDay.toISOString());
-        }
-
-        const { data, error } = await query;
         if (error) throw error;
-
         allEvents.push(...(data || []));
         hasMore = (data?.length || 0) === pageSize;
         page++;
       }
 
-      return allEvents;
+      // Filtrar por approved_date do payload (data real de aprovação na Kiwify)
+      return allEvents.filter(event => {
+        const approvedDate = (event.payload as any)?.approved_date;
+        if (!approvedDate) return false;
+
+        const eventDate = new Date(approvedDate);
+        if (dateRange?.from && eventDate < dateRange.from) return false;
+        if (dateRange?.to) {
+          const endOfDay = new Date(dateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          if (eventDate > endOfDay) return false;
+        }
+        return true;
+      });
     },
   });
 
-  // Consolidar compras por email (excluindo reembolsos/chargebacks)
+  // Consolidar compras por email (excluindo duplicatas e reembolsos/chargebacks)
   const customerPurchases = useMemo(() => {
     const purchaseMap = new Map<string, CustomerPurchase>();
+    const processedOrderIds = new Set<string>(); // Evitar duplicatas por order_id
 
     if (!paidEvents || !cancelledOrderIds) return purchaseMap;
 
     let excludedCount = 0;
+    let uniqueSalesCount = 0;
 
     for (const event of paidEvents) {
       const payload = event.payload as any;
       const orderId = payload?.order_id;
+
+      // Pular se já processou este order_id (duplicata)
+      if (orderId && processedOrderIds.has(orderId)) continue;
+      if (orderId) processedOrderIds.add(orderId);
 
       // Pular se este pedido foi reembolsado ou chargeback
       if (orderId && cancelledOrderIds.has(orderId)) {
@@ -147,11 +155,14 @@ export default function FiscalExport() {
         continue;
       }
 
+      uniqueSalesCount++;
+
       const email = event.customer_email?.toLowerCase();
       if (!email) continue;
 
       const chargeAmount = payload?.Commissions?.charge_amount;
       const productName = payload?.Product?.product_name || "Venda curso";
+      const approvedDate = payload?.approved_date || event.created_at;
 
       if (chargeAmount) {
         const value = Number(chargeAmount) / 100;
@@ -167,14 +178,15 @@ export default function FiscalExport() {
             email,
             totalValue: value,
             products: [productName],
-            purchaseDate: event.created_at,
+            purchaseDate: approvedDate,
           });
         }
       }
     }
 
-    // Armazenar contagem de excluídos para exibição
+    // Armazenar contagens para exibição
     (purchaseMap as any)._excludedCount = excludedCount;
+    (purchaseMap as any)._uniqueSalesCount = uniqueSalesCount;
 
     return purchaseMap;
   }, [paidEvents, cancelledOrderIds]);
@@ -250,6 +262,7 @@ export default function FiscalExport() {
   const completeCount = filteredCustomers.filter(isDataComplete).length;
   const incompleteCount = filteredCustomers.length - completeCount;
   const excludedCount = (customerPurchases as any)._excludedCount || 0;
+  const uniqueSalesCount = (customerPurchases as any)._uniqueSalesCount || 0;
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -386,7 +399,21 @@ export default function FiscalExport() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                <Layers className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{uniqueSalesCount}</p>
+                <p className="text-sm text-muted-foreground">Vendas Únicas</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">

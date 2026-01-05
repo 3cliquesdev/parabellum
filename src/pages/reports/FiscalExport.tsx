@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Layers } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -139,19 +141,32 @@ export default function FiscalExport() {
     },
   });
 
-  // Criar mapa de email -> { value, productName } - normalizado para lowercase
-  const productMap = new Map<string, { value: number; productName: string }>();
+  // Criar mapa de email -> { totalValue, products[] } - consolidado para somar upsells e order bumps
+  const productMap = new Map<string, { totalValue: number; products: string[] }>();
   if (kiwifyValues) {
     for (const event of kiwifyValues) {
       const emailKey = event.customer_email?.toLowerCase();
-      if (emailKey && !productMap.has(emailKey)) {
-        const payload = event.payload as any;
-        const chargeAmount = payload?.Commissions?.charge_amount;
-        const productName = payload?.Product?.product_name || "Venda curso";
-        if (chargeAmount) {
+      if (!emailKey) continue;
+
+      const payload = event.payload as any;
+      const chargeAmount = payload?.Commissions?.charge_amount;
+      const productName = payload?.Product?.product_name || "Venda curso";
+
+      if (chargeAmount) {
+        const value = Number(chargeAmount) / 100;
+
+        if (productMap.has(emailKey)) {
+          const existing = productMap.get(emailKey)!;
+          // Somar valor
+          existing.totalValue += value;
+          // Adicionar produto se não existir na lista
+          if (!existing.products.includes(productName)) {
+            existing.products.push(productName);
+          }
+        } else {
           productMap.set(emailKey, {
-            value: Number(chargeAmount) / 100,
-            productName,
+            totalValue: value,
+            products: [productName],
           });
         }
       }
@@ -261,8 +276,9 @@ export default function FiscalExport() {
 
     const rows = contactsToExport.map((c) => {
       const productData = c.email ? productMap.get(c.email.toLowerCase()) : undefined;
+      const productsDisplay = productData?.products?.join(" + ") || "Venda curso";
       return [
-        productData?.value ? productData.value.toFixed(2).replace('.', ',') : "",
+        productData?.totalValue ? productData.totalValue.toFixed(2).replace('.', ',') : "",
         c.document ? formatDocument(c.document) : "",
         `${c.first_name} ${c.last_name}`.trim(),
         c.address || "",
@@ -273,7 +289,7 @@ export default function FiscalExport() {
         c.state || "",
         c.zip_code ? formatCEP(c.zip_code) : "",
         c.email || "",
-        productData?.productName || "Venda curso", // Nome real do produto
+        productsDisplay, // Nome(s) do(s) produto(s) consolidado(s)
         "Não", // Calcular valor líquido
         "", // Código do Serviço
         "Não", // Tem retenção
@@ -482,18 +498,42 @@ export default function FiscalExport() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        {productData?.value ? (
-                          <span className="font-mono text-sm font-medium text-green-600">
-                            R$ {productData.value.toFixed(2).replace('.', ',')}
-                          </span>
+                        {productData?.totalValue ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="font-mono text-sm font-medium text-green-600">
+                              R$ {productData.totalValue.toFixed(2).replace('.', ',')}
+                            </span>
+                            {productData.products.length > 1 && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                                      <Layers className="h-3 w-3 mr-0.5" />
+                                      {productData.products.length}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="font-medium mb-1">Compra consolidada:</p>
+                                    <ul className="text-xs space-y-0.5">
+                                      {productData.products.map((p, i) => (
+                                        <li key={i}>• {p}</li>
+                                      ))}
+                                    </ul>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
                       </TableCell>
                       <TableCell className="max-w-[180px]">
-                        {productData?.productName ? (
-                          <span className="text-sm truncate block" title={productData.productName}>
-                            {productData.productName}
+                        {productData?.products ? (
+                          <span className="text-sm truncate block" title={productData.products.join(" + ")}>
+                            {productData.products.length > 1
+                              ? `${productData.products[0]} + ${productData.products.length - 1} outro(s)`
+                              : productData.products[0]}
                           </span>
                         ) : (
                           <span className="text-muted-foreground text-sm">-</span>

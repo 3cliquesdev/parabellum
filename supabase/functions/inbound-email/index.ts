@@ -94,14 +94,18 @@ serve(async (req) => {
     const payload = JSON.parse(body);
     console.log("[inbound-email] Payload received:", JSON.stringify(payload, null, 2));
 
-    // Resend webhook payload structure
-    const { from, to, subject, text, html, headers } = payload;
+    // Resend webhook: dados do email vêm dentro de payload.data
+    const emailData = payload.data || payload;
+    const { from, to, subject, text, html, attachments } = emailData;
     const emailContent = text || html || "Email sem conteúdo";
 
-    // Extrair headers de threading para detectar respostas
-    const inReplyTo = headers?.["In-Reply-To"] || headers?.["in-reply-to"];
-    const references = headers?.["References"] || headers?.["references"];
-    const messageId = headers?.["Message-ID"] || headers?.["message-id"];
+    console.log("[inbound-email] Email data:", { from, subject, hasText: !!text, hasHtml: !!html });
+
+    // Extrair headers de threading - Resend pode fornecer de formas diferentes
+    const headers = emailData.headers || {};
+    const inReplyTo = headers["In-Reply-To"] || headers["in-reply-to"] || emailData.in_reply_to;
+    const references = headers["References"] || headers["references"] || emailData.references;
+    const messageId = headers["Message-ID"] || headers["message-id"] || emailData.message_id;
 
     console.log("[inbound-email] Threading headers:", { inReplyTo, references, messageId });
 
@@ -196,7 +200,7 @@ serve(async (req) => {
       console.log("[inbound-email] Nenhum ticket encontrado por message_id, tentando por subject...");
       
       // Fallback: buscar por ticket ID no subject (ex: "Re: ... #abc12345")
-      if (subject) {
+      if (subject && typeof subject === 'string') {
         const ticketIdMatch = subject.match(/#([a-f0-9]{8})/i);
         if (ticketIdMatch) {
           const partialId = ticketIdMatch[1];
@@ -384,14 +388,14 @@ serve(async (req) => {
         .from("tickets")
         .insert({
           customer_id: contact.id,
-          subject: subject.replace(/^re:\s*/i, "").trim(),
+          subject: (subject || "Email sem assunto").replace(/^re:\s*/i, "").trim(),
           description: emailContent,
           channel: "email",
           status: "open",
           priority: "medium",
           department_id: supportDept.id,
           source_conversation_id: conversationId,
-          last_email_message_id: headers["Message-ID"] || null,
+          last_email_message_id: messageId || null,
         })
         .select()
         .single();

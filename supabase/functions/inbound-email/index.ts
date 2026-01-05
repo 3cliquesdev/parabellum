@@ -87,6 +87,107 @@ serve(async (req) => {
 
     // Resend webhook payload structure
     const { from, to, subject, text, html, headers } = payload;
+    const emailContent = text || html || "Email sem conteúdo";
+
+    // Extrair headers de threading para detectar respostas
+    const inReplyTo = headers?.["In-Reply-To"] || headers?.["in-reply-to"];
+    const references = headers?.["References"] || headers?.["references"];
+    const messageId = headers?.["Message-ID"] || headers?.["message-id"];
+
+    console.log("[inbound-email] Threading headers:", { inReplyTo, references, messageId });
+
+    // ========== VERIFICAR SE É RESPOSTA A UM TICKET EXISTENTE ==========
+    if (inReplyTo || references) {
+      // Extrair message-id da referência (pode vir como lista separada por espaço)
+      const referencedMessageIds: string[] = [];
+      if (inReplyTo) referencedMessageIds.push(inReplyTo.trim().replace(/^<|>$/g, ''));
+      if (references) {
+        references.split(/\s+/).forEach((ref: string) => {
+          const cleaned = ref.trim().replace(/^<|>$/g, '');
+          if (cleaned && !referencedMessageIds.includes(cleaned)) {
+            referencedMessageIds.push(cleaned);
+          }
+        });
+      }
+
+      console.log("[inbound-email] Buscando ticket por message_ids:", referencedMessageIds);
+
+      // Buscar ticket que tenha qualquer um dos message_ids referenciados
+      for (const refMessageId of referencedMessageIds) {
+        const { data: existingTicket, error: ticketError } = await supabase
+          .from("tickets")
+          .select("id, subject, channel, customer_id, assigned_to, status")
+          .eq("last_email_message_id", refMessageId)
+          .single();
+
+        if (existingTicket && !ticketError) {
+          console.log("[inbound-email] ✅ Encontrado ticket existente:", existingTicket.id);
+
+          // Adicionar como comentário no ticket
+          const { error: commentError } = await supabase.from("ticket_comments").insert({
+            ticket_id: existingTicket.id,
+            content: emailContent,
+            user_id: null, // Comentário do cliente (não de agente)
+            is_internal: false,
+          });
+
+          if (commentError) {
+            console.error("[inbound-email] Erro ao inserir comentário:", commentError);
+          } else {
+            console.log("[inbound-email] ✅ Comentário adicionado ao ticket");
+          }
+
+          // Atualizar ticket: status, message_id e updated_at
+          const updateData: Record<string, any> = {
+            updated_at: new Date().toISOString(),
+          };
+          
+          // Atualizar last_email_message_id se tiver novo
+          if (messageId) {
+            updateData.last_email_message_id = messageId.replace(/^<|>$/g, '');
+          }
+
+          // Reabrir ticket se estava aguardando cliente
+          if (existingTicket.status === 'pending' || existingTicket.status === 'awaiting_customer') {
+            updateData.status = 'open';
+            console.log("[inbound-email] Reabrindo ticket que estava aguardando");
+          }
+
+          await supabase
+            .from("tickets")
+            .update(updateData)
+            .eq("id", existingTicket.id);
+
+          // Notificar agente atribuído (se houver)
+          if (existingTicket.assigned_to) {
+            await supabase.from("notifications").insert({
+              user_id: existingTicket.assigned_to,
+              title: "Nova resposta do cliente",
+              message: `Cliente respondeu ao ticket #${existingTicket.id.slice(0, 8)}`,
+              type: "ticket_reply",
+              read: false,
+            });
+            console.log("[inbound-email] ✅ Notificação enviada ao agente");
+          }
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              action: "ticket_comment_added",
+              ticket_id: existingTicket.id,
+            }),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+      }
+
+      console.log("[inbound-email] Nenhum ticket encontrado para as referências, continuando fluxo normal...");
+    }
+
+    // ========== FLUXO NORMAL: NOVO EMAIL (não é resposta a ticket) ==========
 
     // 1. Extract sender email and name
     const fromEmail = from.match(/<(.+)>/)?.[1] || from;
@@ -162,8 +263,6 @@ serve(async (req) => {
     console.log(`[inbound-email] ✅ Conversa criada/recuperada: ${conversationId}`);
 
     // Inserir mensagem do cliente na conversa
-    const emailContent = text || html || "Email sem conteúdo";
-    
     await supabase.from('messages').insert({
       conversation_id: conversationId,
       content: emailContent,

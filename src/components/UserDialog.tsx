@@ -26,13 +26,13 @@ const userSchema = z.object({
   password: z.string().min(8, { message: "Senha deve ter no mínimo 8 caracteres" }),
   role: z.enum(["admin", "general_manager", "manager", "sales_rep", "consultant", "support_agent", "support_manager", "financial_manager", "financial_agent", "cs_manager"], { message: "Role inválida" }),
   full_name: z.string().min(1, { message: "Nome completo é obrigatório" }),
-  department: z.string().uuid({ message: "Departamento inválido" }),
+  department: z.string().uuid({ message: "Departamento inválido" }).optional().or(z.literal("")),
 });
 
 const editUserSchema = z.object({
   role: z.enum(["admin", "general_manager", "manager", "sales_rep", "consultant", "support_agent", "support_manager", "financial_manager", "financial_agent", "cs_manager"], { message: "Role inválida" }),
   full_name: z.string().min(1, { message: "Nome completo é obrigatório" }),
-  department: z.string().uuid({ message: "Departamento inválido" }),
+  department: z.string().uuid({ message: "Departamento inválido" }).optional().or(z.literal("")),
 });
 
 interface UserWithRole {

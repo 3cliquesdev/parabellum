@@ -113,10 +113,15 @@ Deno.serve(async (req) => {
         }
 
         const fetchedEmailData = await response.json();
+        
+        // 📥 LOG DETALHADO DA RESPOSTA API RESEND
+        console.log("[inbound-email] 📥 Resposta API Resend - keys:", Object.keys(fetchedEmailData));
+        console.log("[inbound-email] 📥 Resposta API Resend - preview:", JSON.stringify(fetchedEmailData, null, 2).slice(0, 1500));
         console.log("[inbound-email] ✅ Conteúdo do email recuperado:", {
           hasText: !!fetchedEmailData.text,
           hasHtml: !!fetchedEmailData.html,
-          textLength: fetchedEmailData.text?.length || 0
+          textLength: fetchedEmailData.text?.length || 0,
+          htmlLength: fetchedEmailData.html?.length || 0
         });
 
         return { text: fetchedEmailData.text, html: fetchedEmailData.html };
@@ -128,11 +133,28 @@ Deno.serve(async (req) => {
 
     // Agora parsear o JSON
     const payload = JSON.parse(body);
-    console.log("[inbound-email] Payload received:", JSON.stringify(payload, null, 2));
+    
+    // 📦 LOG DETALHADO DO PAYLOAD
+    console.log("[inbound-email] 📦 PAYLOAD COMPLETO:");
+    console.log("[inbound-email] - type:", typeof payload);
+    console.log("[inbound-email] - keys:", Object.keys(payload));
+    console.log("[inbound-email] - payload.data keys:", payload.data ? Object.keys(payload.data) : "N/A");
+    console.log("[inbound-email] - event type:", payload.type || payload.event || "N/A");
+    console.log("[inbound-email] - raw payload:", JSON.stringify(payload, null, 2));
 
     // Resend webhook: dados do email vêm dentro de payload.data
     const emailData = payload.data || payload;
     const { from, to, subject, text, html, attachments, email_id } = emailData;
+    
+    // 📧 LOG DETALHADO DOS DADOS DO EMAIL
+    console.log("[inbound-email] 📧 DADOS DO EMAIL:");
+    console.log("[inbound-email] - from:", from);
+    console.log("[inbound-email] - to:", to);
+    console.log("[inbound-email] - subject:", subject);
+    console.log("[inbound-email] - email_id:", email_id);
+    console.log("[inbound-email] - text presente:", !!text, "| length:", text?.length || 0);
+    console.log("[inbound-email] - html presente:", !!html, "| length:", html?.length || 0);
+    console.log("[inbound-email] - attachments:", attachments?.length || 0);
     
     // Se não veio conteúdo no webhook, buscar via API Resend
     let emailContent = text || html;
@@ -152,7 +174,13 @@ Deno.serve(async (req) => {
     const references = headers["References"] || headers["references"] || emailData.references;
     const messageId = headers["Message-ID"] || headers["message-id"] || emailData.message_id;
 
-    console.log("[inbound-email] Threading headers:", { inReplyTo, references, messageId });
+    // 🔗 LOG DETALHADO DOS HEADERS DE THREADING
+    console.log("[inbound-email] 🔗 THREADING HEADERS DETALHADOS:");
+    console.log("[inbound-email] - emailData.headers:", JSON.stringify(headers, null, 2));
+    console.log("[inbound-email] - emailData.in_reply_to:", emailData.in_reply_to);
+    console.log("[inbound-email] - emailData.references:", emailData.references);
+    console.log("[inbound-email] - emailData.message_id:", emailData.message_id);
+    console.log("[inbound-email] - Valores extraídos: inReplyTo=", inReplyTo, "| references=", references, "| messageId=", messageId);
 
     // ========== VERIFICAR SE É RESPOSTA A UM TICKET EXISTENTE ==========
     
@@ -174,11 +202,23 @@ Deno.serve(async (req) => {
 
       // Buscar ticket que tenha qualquer um dos message_ids referenciados
       for (const refMessageId of referencedMessageIds) {
+        console.log("[inbound-email] 🔍 Buscando ticket com last_email_message_id =", refMessageId);
+        
         const { data: existingTicket, error: ticketError } = await supabase
           .from("tickets")
-          .select("id, subject, channel, customer_id, assigned_to, status")
+          .select("id, subject, channel, customer_id, assigned_to, status, last_email_message_id")
           .eq("last_email_message_id", refMessageId)
           .single();
+
+        // 🔍 LOG DO RESULTADO DA BUSCA POR MESSAGE_ID
+        console.log("[inbound-email] 🔍 Resultado busca por message_id:", {
+          buscado: refMessageId,
+          encontrado: !!existingTicket,
+          ticketId: existingTicket?.id || null,
+          ticketMessageId: existingTicket?.last_email_message_id || null,
+          erro: ticketError?.message || null,
+          erroCode: ticketError?.code || null
+        });
 
         if (existingTicket && !ticketError) {
           console.log("[inbound-email] ✅ Encontrado ticket existente:", existingTicket.id);
@@ -249,17 +289,30 @@ Deno.serve(async (req) => {
 
     // PASSO 2: FALLBACK INDEPENDENTE - Buscar por ticket ID no subject (ex: "Re: ... #abc12345")
     // Este bloco executa SEMPRE que não retornou acima, mesmo sem headers
+    console.log("[inbound-email] 🔍 Iniciando busca por subject fallback...");
+    console.log("[inbound-email] 🔍 Subject para análise:", subject);
+    
     if (subject && typeof subject === 'string') {
       const ticketIdMatch = subject.match(/#([a-f0-9]{8})/i);
+      console.log("[inbound-email] 🔍 Regex match result:", ticketIdMatch);
+      
       if (ticketIdMatch) {
         const partialId = ticketIdMatch[1];
         console.log("[inbound-email] Buscando ticket por ID parcial no subject:", partialId);
         
-        const { data: ticketBySubject } = await supabase
+        const { data: ticketBySubject, error: subjectError } = await supabase
           .from("tickets")
           .select("id, subject, channel, customer_id, assigned_to, status")
           .ilike("id", `${partialId}%`)
           .single();
+        
+        // 🔍 LOG DO RESULTADO DA BUSCA POR SUBJECT
+        console.log("[inbound-email] 🔍 Resultado busca por subject:", {
+          partialId,
+          encontrado: !!ticketBySubject,
+          ticketId: ticketBySubject?.id || null,
+          erro: subjectError?.message || null
+        });
         
         if (ticketBySubject) {
           console.log("[inbound-email] ✅ Ticket encontrado por subject:", ticketBySubject.id);

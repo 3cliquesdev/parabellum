@@ -41,20 +41,18 @@ Deno.serve(async (req) => {
     // Ler body como texto para validação
     const body = await req.text();
     
-    // Extrair headers para a biblioteca
-    const svixHeaders = {
-      "svix-id": req.headers.get("svix-id") || "",
-      "svix-timestamp": req.headers.get("svix-timestamp") || "",
-      "svix-signature": req.headers.get("svix-signature") || "",
-    };
+    // Extrair headers Svix e mapear para formato que a biblioteca espera
+    const svixId = req.headers.get("svix-id") || "";
+    const svixTimestamp = req.headers.get("svix-timestamp") || "";
+    const svixSignature = req.headers.get("svix-signature") || "";
 
-    console.log('[inbound-email] Svix headers:', {
-      hasId: !!svixHeaders["svix-id"],
-      hasTimestamp: !!svixHeaders["svix-timestamp"],
-      hasSignature: !!svixHeaders["svix-signature"],
+    console.log('[inbound-email] Svix headers recebidos:', {
+      hasId: !!svixId,
+      hasTimestamp: !!svixTimestamp,
+      hasSignature: !!svixSignature,
     });
 
-    if (!svixHeaders["svix-id"] || !svixHeaders["svix-timestamp"] || !svixHeaders["svix-signature"]) {
+    if (!svixId || !svixTimestamp || !svixSignature) {
       console.error('[inbound-email] Missing Svix headers');
       return new Response(
         JSON.stringify({ error: 'Missing webhook signature headers' }),
@@ -62,11 +60,20 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Mapear headers Svix -> Standard Webhooks format (a biblioteca espera webhook-*)
+    const webhookHeaders = {
+      "webhook-id": svixId,
+      "webhook-timestamp": svixTimestamp,
+      "webhook-signature": svixSignature,
+    };
+
+    console.log('[inbound-email] Headers mapeados para standardwebhooks:', Object.keys(webhookHeaders));
+
     // Usar biblioteca oficial standardwebhooks para verificar assinatura
     // O secret deve ser passado COM o prefixo whsec_ para a biblioteca
     try {
       const wh = new Webhook(webhookSecret);
-      wh.verify(body, svixHeaders);
+      wh.verify(body, webhookHeaders);
       console.log('[inbound-email] ✅ Signature verified successfully (standardwebhooks)');
     } catch (verifyError: any) {
       console.error('[inbound-email] ❌ Webhook verification failed:', verifyError.message);

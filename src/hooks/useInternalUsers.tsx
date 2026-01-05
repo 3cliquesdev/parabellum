@@ -26,6 +26,7 @@ export function useInternalUsers() {
         'support_agent',
         'support_manager',
         'financial_manager',
+        'financial_agent',
         'cs_manager'
       ] as const;
       

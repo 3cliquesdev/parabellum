@@ -160,6 +160,7 @@ export default function Users() {
     support_agent: "Agente de Suporte",
     support_manager: "Gerente de Suporte",
     financial_manager: "Gerente Financeiro",
+    financial_agent: "Agente Financeiro",
     cs_manager: "Gerente de CS",
   };
 

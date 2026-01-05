@@ -184,7 +184,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { role, isAdmin, isManager, isSalesRep, isConsultant, isSupportAgent, isSupportManager, isFinancialManager, isCSManager, isGeneralManager, loading } = useUserRole();
+  const { role, isAdmin, isManager, isSalesRep, isConsultant, isSupportAgent, isSupportManager, isFinancialManager, isFinancialAgent, isCSManager, isGeneralManager, loading } = useUserRole();
   const { hasPermission, loading: permissionsLoading } = useRolePermissions();
   useRealtimePermissions(); // Sincronização em tempo real
   const { signOut, user, profile } = useAuth();
@@ -200,6 +200,7 @@ export function AppSidebar() {
     if (isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente de Suporte", color: "bg-indigo-500" };
     if (isSupportAgent && !isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Suporte", color: "bg-blue-500" };
     if (isFinancialManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente Financeiro", color: "bg-emerald-500" };
+    if (isFinancialAgent && !isFinancialManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Agente Financeiro", color: "bg-amber-500" };
     if (isCSManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente de CS", color: "bg-purple-600" };
     if (isConsultant && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Consultor", color: "bg-green-500" };
     if (isSalesRep && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Vendas", color: "bg-orange-500" };

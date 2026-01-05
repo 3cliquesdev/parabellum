@@ -11,12 +11,15 @@ const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const roleLabels: Record<string, string> = {
   'admin': 'Administrador',
+  'general_manager': 'Gerente Geral',
   'manager': 'Gerente',
   'sales_rep': 'Vendedor',
   'consultant': 'Consultor',
   'support_agent': 'Agente de Suporte',
   'support_manager': 'Gerente de Suporte',
-  'financial_manager': 'Gerente Financeiro'
+  'financial_manager': 'Gerente Financeiro',
+  'financial_agent': 'Agente Financeiro',
+  'cs_manager': 'Gerente de CS'
 };
 
 serve(async (req) => {

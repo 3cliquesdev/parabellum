@@ -525,23 +525,15 @@ export default function Deals() {
           )}
 
           {/* Selection Mode Toggle */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={isSelectionMode ? "default" : "outline"}
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={toggleSelectionMode}
-                >
-                  <CheckSquare className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {isSelectionMode ? "Sair do modo seleção" : "Selecionar múltiplos negócios"}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Button
+            variant={isSelectionMode ? "default" : "outline"}
+            size="sm"
+            className="gap-2"
+            onClick={toggleSelectionMode}
+          >
+            <CheckSquare className="h-4 w-4" />
+            {isSelectionMode ? "Sair Seleção" : "Selecionar Deals"}
+          </Button>
           {/* Advanced Filters */}
           <AdvancedDealFiltersModal
             filters={dealFilters}

@@ -389,6 +389,61 @@ serve(async (req) => {
     }
 
     const schema = form.schema as any;
+    
+    // ============================================
+    // STEP: CHECK SUBMISSION LIMIT PER CONTACT
+    // ============================================
+    // First, try to find the email in answers to check limit before processing
+    const fieldsForLimit = schema?.fields || [];
+    let emailForLimit: string | null = null;
+    
+    // Find email field by type
+    let emailFieldForLimit = fieldsForLimit.find((f: any) => f.type === 'email');
+    if (!emailFieldForLimit) {
+      // Fallback: search by label
+      emailFieldForLimit = fieldsForLimit.find((f: any) => 
+        f.label?.toLowerCase().includes('email') || f.label?.toLowerCase().includes('e-mail')
+      );
+    }
+    if (!emailFieldForLimit) {
+      // Fallback: search by content validation
+      emailFieldForLimit = fieldsForLimit.find((f: any) => {
+        const value = sanitizedAnswers[f.id];
+        return typeof value === 'string' && validators.email(value);
+      });
+    }
+    
+    if (emailFieldForLimit) {
+      emailForLimit = sanitizedAnswers[emailFieldForLimit.id];
+    }
+    
+    // Check submission limit if form has one and we have an email
+    if (form.max_submissions_per_contact && emailForLimit) {
+      console.log(`[form-submit-v3] Checking submission limit: max=${form.max_submissions_per_contact}, email=${emailForLimit}`);
+      
+      const { data: limitCheck, error: limitError } = await supabase.rpc('check_submission_limit', {
+        p_form_id: form_id,
+        p_email: emailForLimit
+      });
+      
+      if (limitError) {
+        console.error('[form-submit-v3] Error checking submission limit:', limitError);
+      } else if (limitCheck && !limitCheck.allowed) {
+        console.warn(`[form-submit-v3] Submission limit reached for ${emailForLimit}: ${limitCheck.current_count}/${form.max_submissions_per_contact}`);
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error: 'submission_limit_reached',
+            message: limitCheck.message || 'Você já preencheu este formulário o número máximo de vezes permitido.',
+            remaining: 0,
+            current_count: limitCheck.current_count
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        console.log(`[form-submit-v3] Submission allowed. Remaining: ${limitCheck?.remaining}`);
+      }
+    }
     const fields = schema?.fields || [];
     const validationErrors: Record<string, string> = {};
 

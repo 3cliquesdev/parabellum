@@ -98,6 +98,7 @@ export interface Form {
   target_user_id: string | null;
   distribution_rule: FormDistributionRule;
   notify_manager: boolean;
+  max_submissions_per_contact: number | null;
 }
 
 // ==================== DEFAULT VALUES ====================
@@ -243,6 +244,7 @@ export function useCreateForm() {
       target_user_id?: string;
       distribution_rule?: FormDistributionRule;
       notify_manager?: boolean;
+      max_submissions_per_contact?: number | null;
     }) => {
       const { data, error } = await supabase
         .from("forms")
@@ -257,6 +259,7 @@ export function useCreateForm() {
           target_user_id: form.target_user_id || null,
           distribution_rule: form.distribution_rule || "round_robin",
           notify_manager: form.notify_manager ?? true,
+          max_submissions_per_contact: form.max_submissions_per_contact ?? null,
         })
         .select()
         .single();
@@ -303,6 +306,7 @@ export function useUpdateForm() {
         target_user_id?: string | null;
         distribution_rule?: FormDistributionRule;
         notify_manager?: boolean;
+        max_submissions_per_contact?: number | null;
       };
     }) => {
       const updatePayload: any = { ...updates };

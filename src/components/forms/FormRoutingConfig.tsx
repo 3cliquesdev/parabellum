@@ -12,7 +12,7 @@ import {
 import { useDepartments } from "@/hooks/useDepartments";
 import { usePipelines } from "@/hooks/usePipelines";
 import { useUsersByDepartment } from "@/hooks/useUsersByDepartment";
-import { Briefcase, Ticket, FileText, Users, Target, Bell } from "lucide-react";
+import { Briefcase, Ticket, FileText, Users, Target, Bell, RefreshCcw } from "lucide-react";
 
 export type FormTargetType = "deal" | "ticket" | "internal_request";
 export type FormDistributionRule = "round_robin" | "manager_only" | "specific_user";
@@ -24,6 +24,7 @@ export interface FormRoutingSettings {
   target_user_id?: string;
   distribution_rule: FormDistributionRule;
   notify_manager: boolean;
+  max_submissions_per_contact?: number | null;
 }
 
 interface FormRoutingConfigProps {
@@ -249,6 +250,36 @@ export function FormRoutingConfig({ settings, onChange }: FormRoutingConfigProps
             )}
           </div>
         )}
+
+        {/* Submission Limit */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <RefreshCcw className="h-4 w-4" />
+            Limite de preenchimentos
+          </Label>
+          <Select
+            value={settings.max_submissions_per_contact?.toString() || "unlimited"}
+            onValueChange={(v) => updateSetting(
+              "max_submissions_per_contact", 
+              v === "unlimited" ? null : parseInt(v)
+            )}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="unlimited">Ilimitado</SelectItem>
+              <SelectItem value="1">Apenas 1 vez por contato</SelectItem>
+              <SelectItem value="2">Até 2 vezes</SelectItem>
+              <SelectItem value="3">Até 3 vezes</SelectItem>
+              <SelectItem value="5">Até 5 vezes</SelectItem>
+              <SelectItem value="10">Até 10 vezes</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Identificação por email do contato
+          </p>
+        </div>
 
         {/* Notify Manager Toggle */}
         <div className="flex items-center justify-between border-t pt-4">

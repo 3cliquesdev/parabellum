@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { RatingField, YesNoField, LongTextField, DateField, SelectField } from "@/components/forms/fields";
 import { SinglePageFormView } from "@/components/forms/SinglePageFormView";
 import { FormFileUpload, UploadedFile } from "@/components/forms/FormFileUpload";
-import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Loader2, AlertCircle } from "lucide-react";
 
 // Helper to convert hex to rgba
 function hexToRgba(hex: string, opacity: number = 1): string {
@@ -44,6 +44,10 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [direction, setDirection] = useState(1);
+  const [submissionError, setSubmissionError] = useState<{
+    type: 'limit' | 'generic';
+    message: string;
+  } | null>(null);
 
   const currentField = fields[currentIndex];
   const progress = fields.length > 0 ? ((currentIndex + 1) / fields.length) * 100 : 0;
@@ -154,6 +158,16 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
       });
 
       if (error) throw error;
+      
+      // Check for submission limit error
+      if (result?.error === 'submission_limit_reached') {
+        setSubmissionError({
+          type: 'limit',
+          message: result.message || 'Você já preencheu este formulário o número máximo de vezes permitido.'
+        });
+        return;
+      }
+      
       if (!result?.success) throw new Error(result?.error || 'Erro ao processar formulário');
 
       setIsSubmitted(true);
@@ -165,6 +179,10 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
       }
     } catch (error: any) {
       console.error("Error submitting form:", error);
+      setSubmissionError({
+        type: 'generic',
+        message: 'Ocorreu um erro ao enviar o formulário. Tente novamente.'
+      });
     }
   };
 
@@ -212,6 +230,48 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
           <h1 className="text-2xl font-bold mb-2">Formulário não encontrado</h1>
           <p style={{ opacity: 0.6 }}>Este formulário pode ter sido desativado.</p>
         </div>
+      </div>
+    );
+  }
+
+  // Submission limit reached screen
+  if (submissionError?.type === 'limit') {
+    return (
+      <div 
+        className="min-h-screen flex items-center justify-center p-6"
+        style={{ 
+          backgroundColor: settings.background_color,
+          backgroundImage: settings.background_image ? `url(${settings.background_image})` : undefined,
+          backgroundSize: "cover",
+        }}
+      >
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="text-center max-w-md p-8"
+          style={cardStyles}
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring" }}
+            className="h-20 w-20 rounded-full bg-amber-500 flex items-center justify-center mx-auto mb-6"
+          >
+            <AlertCircle className="h-10 w-10 text-white" />
+          </motion.div>
+          <h1 
+            className="text-2xl font-bold mb-3"
+            style={{ color: settings.text_color }}
+          >
+            Limite atingido
+          </h1>
+          <p 
+            className="text-lg"
+            style={{ color: settings.text_color, opacity: 0.7 }}
+          >
+            {submissionError.message}
+          </p>
+        </motion.div>
       </div>
     );
   }

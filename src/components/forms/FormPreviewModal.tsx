@@ -43,10 +43,10 @@ export function FormPreviewModal({ open, onOpenChange, schema, name, title, desc
         </div>
 
         {/* Preview Container */}
-        <div className="flex-1 min-h-0 flex items-center justify-center bg-muted/50 p-8 overflow-hidden">
+        <div className="flex-1 min-h-0 flex items-start justify-center bg-muted/50 p-8 overflow-y-auto">
           {device === "mobile" ? (
             <div 
-              className="bg-background rounded-[40px] border-[8px] border-foreground/20 shadow-2xl overflow-y-auto"
+              className="flex-shrink-0 bg-background rounded-[40px] border-[8px] border-foreground/20 shadow-2xl overflow-y-auto"
               style={{ width: MOBILE_WIDTH, height: MOBILE_HEIGHT }}
             >
               <PublicFormV2 
@@ -58,7 +58,7 @@ export function FormPreviewModal({ open, onOpenChange, schema, name, title, desc
               />
             </div>
           ) : (
-            <div className="w-full h-full rounded-lg shadow-lg bg-background overflow-y-auto">
+            <div className="w-full max-w-4xl rounded-lg shadow-lg bg-background">
               <PublicFormV2 
                 schema={schema} 
                 isPreview 

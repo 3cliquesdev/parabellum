@@ -59,6 +59,7 @@ export default function FormBuilderPage() {
         target_user_id: existingForm.target_user_id || undefined,
         distribution_rule: existingForm.distribution_rule || "round_robin",
         notify_manager: existingForm.notify_manager ?? true,
+        max_submissions_per_contact: existingForm.max_submissions_per_contact ?? null,
       });
     }
   }, [existingForm]);
@@ -86,6 +87,7 @@ export default function FormBuilderPage() {
         target_user_id: routingSettings.target_user_id || null,
         distribution_rule: routingSettings.distribution_rule,
         notify_manager: routingSettings.notify_manager,
+        max_submissions_per_contact: routingSettings.max_submissions_per_contact ?? null,
       };
 
       if (isEditing) {

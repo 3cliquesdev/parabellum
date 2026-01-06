@@ -2927,6 +2927,7 @@ export type Database = {
             | null
           id: string
           is_active: boolean | null
+          max_submissions_per_contact: number | null
           name: string
           notify_manager: boolean | null
           schema: Json
@@ -2945,6 +2946,7 @@ export type Database = {
             | null
           id?: string
           is_active?: boolean | null
+          max_submissions_per_contact?: number | null
           name: string
           notify_manager?: boolean | null
           schema?: Json
@@ -2963,6 +2965,7 @@ export type Database = {
             | null
           id?: string
           is_active?: boolean | null
+          max_submissions_per_contact?: number | null
           name?: string
           notify_manager?: boolean | null
           schema?: Json
@@ -5800,6 +5803,10 @@ export type Database = {
           p_window_minutes?: number
         }
         Returns: boolean
+      }
+      check_submission_limit: {
+        Args: { p_email: string; p_form_id: string }
+        Returns: Json
       }
       distribute_client_to_consultant: {
         Args: { p_contact_id: string }

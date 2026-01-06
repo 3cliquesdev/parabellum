@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -88,31 +88,76 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
     });
   }, [product, form]);
 
+  const [isCreating, setIsCreating] = useState(false);
+
   const onSubmit = async (data: ProductFormData) => {
-    if (!product) return;
-
     const delivery_group_id = data.delivery_group_id === "none" ? null : data.delivery_group_id;
+    let targetProductId: string;
+    let targetExternalId: string | null;
 
-    await updateProduct.mutateAsync({
-      id: product.id,
-      updates: {
-        delivery_group_id: delivery_group_id || undefined,
-        requires_account_manager: data.requires_account_manager,
-        is_active: data.is_active,
-      },
-    });
+    // Se produto não existe, criar primeiro
+    if (!product && initialData?.external_id) {
+      setIsCreating(true);
+      try {
+        const { data: newProduct, error } = await supabase
+          .from('products')
+          .insert({
+            name: initialData.name || 'Produto Kiwify',
+            external_id: initialData.external_id,
+            is_active: data.is_active,
+            requires_account_manager: data.requires_account_manager,
+            delivery_group_id: delivery_group_id,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          toast({
+            title: "Erro ao criar produto",
+            description: error.message,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        targetProductId = newProduct.id;
+        targetExternalId = newProduct.external_id;
+        
+        toast({
+          title: "✅ Produto mapeado",
+          description: `${initialData.name} foi criado com sucesso`,
+        });
+      } finally {
+        setIsCreating(false);
+      }
+    } else if (product) {
+      // Atualizar produto existente
+      await updateProduct.mutateAsync({
+        id: product.id,
+        updates: {
+          delivery_group_id: delivery_group_id || undefined,
+          requires_account_manager: data.requires_account_manager,
+          is_active: data.is_active,
+        },
+      });
+
+      targetProductId = product.id;
+      targetExternalId = product.external_id;
+    } else {
+      return; // Nenhum dado válido
+    }
 
     // Vincular deals ao produto após mapeamento
-    if (product.external_id || offers?.length) {
+    if (targetExternalId || offers?.length) {
       const kiwifyIds = [
-        ...(product.external_id ? [product.external_id] : []),
+        ...(targetExternalId ? [targetExternalId] : []),
         ...(offers?.map(o => o.offer_id) || []),
       ];
 
       try {
         const { data: linkResult } = await supabase.functions.invoke('link-deals-to-product', {
           body: { 
-            product_id: product.id,
+            product_id: targetProductId,
             kiwify_product_ids: kiwifyIds,
           },
         });
@@ -141,7 +186,7 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
-            Configurar Produto
+            {product ? "Configurar Produto" : "Mapear Produto"}
           </DialogTitle>
         </DialogHeader>
 
@@ -275,8 +320,8 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={updateProduct.isPending || !product?.external_id}>
-                {updateProduct.isPending ? "Salvando..." : "Salvar"}
+              <Button type="submit" disabled={updateProduct.isPending || isCreating || (!product?.external_id && !initialData?.external_id)}>
+                {(updateProduct.isPending || isCreating) ? "Salvando..." : (product ? "Salvar" : "Mapear")}
               </Button>
             </div>
           </form>

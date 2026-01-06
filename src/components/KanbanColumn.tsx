@@ -17,9 +17,18 @@ type Deal = Tables<"deals"> & {
 interface KanbanColumnProps {
   stage: Tables<"stages">;
   deals: Deal[];
+  isSelectionMode?: boolean;
+  selectedDeals?: Set<string>;
+  onSelectionChange?: (dealId: string, selected: boolean) => void;
 }
 
-export default function KanbanColumn({ stage, deals }: KanbanColumnProps) {
+export default function KanbanColumn({ 
+  stage, 
+  deals, 
+  isSelectionMode = false,
+  selectedDeals = new Set(),
+  onSelectionChange,
+}: KanbanColumnProps) {
   const [showAll, setShowAll] = useState(false);
   const LIMIT = 5;
   
@@ -112,7 +121,13 @@ export default function KanbanColumn({ stage, deals }: KanbanColumnProps) {
           )}
         >
           {visibleDeals.map((deal) => (
-            <KanbanCard key={deal.id} deal={deal} />
+            <KanbanCard 
+              key={deal.id} 
+              deal={deal}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedDeals.has(deal.id)}
+              onSelectionChange={onSelectionChange}
+            />
           ))}
           {deals.length === 0 && (
             <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">

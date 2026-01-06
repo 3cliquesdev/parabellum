@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, TrendingUp, Flame, Skull, DollarSign, Settings, Users, Search, Trophy, TrendingDown } from "lucide-react";
+import { Plus, TrendingUp, Flame, Skull, DollarSign, Settings, Users, Search, Trophy, TrendingDown, CheckSquare } from "lucide-react";
 import { useDeals, useUpdateDeal, useUpdateDealStage, DealFilters } from "@/hooks/useDeals";
 import { useStages } from "@/hooks/useStages";
 import { usePipelines } from "@/hooks/usePipelines";
@@ -33,6 +33,8 @@ import { AdvancedDealFiltersModal } from "@/components/deals/AdvancedDealFilters
 import { SavedFiltersDropdown } from "@/components/deals/filters/SavedFiltersDropdown";
 import { SortBySelect, SortByOption } from "@/components/deals/filters/SortBySelect";
 import { ActiveFilterChips, generateDealFilterChips } from "@/components/ui/active-filter-chips";
+import BulkMoveDealsDialog from "@/components/deals/BulkMoveDealsDialog";
+import BulkActionsBar from "@/components/deals/BulkActionsBar";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -51,6 +53,11 @@ export default function Deals() {
   const [pendingLostDeal, setPendingLostDeal] = useState<Deal | null>(null);
   const [showValidateWonDialog, setShowValidateWonDialog] = useState(false);
   const [pendingWonDeal, setPendingWonDeal] = useState<Deal | null>(null);
+  
+  // Bulk selection state
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedDeals, setSelectedDeals] = useState<Set<string>>(new Set());
+  const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
   
   // Advanced filters state
   const [dealFilters, setDealFilters] = useState<DealFilters>({
@@ -142,6 +149,32 @@ export default function Deals() {
 
   const clearAllFilters = () => {
     setDealFilters({ search: "", leadSource: [], assignedTo: [] });
+  };
+
+  // Bulk selection handlers
+  const handleSelectionChange = (dealId: string, selected: boolean) => {
+    setSelectedDeals(prev => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(dealId);
+      } else {
+        next.delete(dealId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedDeals(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const toggleSelectionMode = () => {
+    if (isSelectionMode) {
+      clearSelection();
+    } else {
+      setIsSelectionMode(true);
+    }
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -491,6 +524,24 @@ export default function Deals() {
             </div>
           )}
 
+          {/* Selection Mode Toggle */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={isSelectionMode ? "default" : "outline"}
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={toggleSelectionMode}
+                >
+                  <CheckSquare className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isSelectionMode ? "Sair do modo seleção" : "Selecionar múltiplos negócios"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {/* Advanced Filters */}
           <AdvancedDealFiltersModal
             filters={dealFilters}
@@ -530,7 +581,16 @@ export default function Deals() {
               const stageDeals = filteredDeals?.filter(
                 (deal) => deal.stage_id === stage.id && deal.status === "open"
               ) || [];
-              return <KanbanColumn key={stage.id} stage={stage} deals={stageDeals as Deal[]} />;
+              return (
+                <KanbanColumn 
+                  key={stage.id} 
+                  stage={stage} 
+                  deals={stageDeals as Deal[]}
+                  isSelectionMode={isSelectionMode}
+                  selectedDeals={selectedDeals}
+                  onSelectionChange={handleSelectionChange}
+                />
+              );
             })}
 
             {/* Virtual Won column */}
@@ -574,6 +634,22 @@ export default function Deals() {
         onOpenChange={setShowValidateWonDialog}
         deal={pendingWonDeal}
         onValidationSuccess={handleValidationSuccess}
+      />
+
+      {/* Bulk Move Deals Dialog */}
+      <BulkMoveDealsDialog
+        open={showBulkMoveDialog}
+        onOpenChange={setShowBulkMoveDialog}
+        selectedDealIds={Array.from(selectedDeals)}
+        currentPipelineId={selectedPipeline}
+        onSuccess={clearSelection}
+      />
+
+      {/* Bulk Actions Bar */}
+      <BulkActionsBar
+        selectedCount={selectedDeals.size}
+        onMoveClick={() => setShowBulkMoveDialog(true)}
+        onClearSelection={clearSelection}
       />
     </div>
   );

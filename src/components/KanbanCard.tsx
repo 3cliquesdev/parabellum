@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Pencil, AlertCircle, CheckCircle, AlertTriangle, Skull, MessageSquare, Phone, FileText, ArrowRightLeft } from "lucide-react";
@@ -27,9 +28,17 @@ type Deal = Tables<"deals"> & {
 
 interface KanbanCardProps {
   deal: Deal;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onSelectionChange?: (dealId: string, selected: boolean) => void;
 }
 
-export default function KanbanCard({ deal }: KanbanCardProps) {
+export default function KanbanCard({ 
+  deal, 
+  isSelectionMode = false, 
+  isSelected = false, 
+  onSelectionChange 
+}: KanbanCardProps) {
   const [showContactSheet, setShowContactSheet] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const navigate = useNavigate();
@@ -63,6 +72,7 @@ export default function KanbanCard({ deal }: KanbanCardProps) {
     data: {
       deal,
     },
+    disabled: isSelectionMode, // Disable drag when in selection mode
   });
 
   const { data: nextActivity } = useNextActivity(deal.id);
@@ -128,15 +138,35 @@ export default function KanbanCard({ deal }: KanbanCardProps) {
         ref={setNodeRef}
         style={style}
         className={cn(
-          "cursor-grab active:cursor-grabbing mb-3 transition-all relative group",
+          "mb-3 transition-all relative group",
+          isSelectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
           "hover:border-primary/50 dark:hover:border-primary/30",
           "dark:bg-white/[0.02] dark:border-white/5",
-          isRotten && "border-destructive/50 dark:border-destructive/30 border-2"
+          isRotten && "border-destructive/50 dark:border-destructive/30 border-2",
+          isSelected && "ring-2 ring-primary bg-primary/5"
         )}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onClick={() => {
+          if (isSelectionMode) {
+            onSelectionChange?.(deal.id, !isSelected);
+          }
+        }}
       >
         <CardContent className="p-4">
+          {/* Selection Checkbox */}
+          {isSelectionMode && (
+            <div 
+              className="absolute top-2 left-2 z-20"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={(checked) => onSelectionChange?.(deal.id, !!checked)}
+                className="h-5 w-5"
+              />
+            </div>
+          )}
           <DealDialog
             deal={deal}
             trigger={
@@ -151,11 +181,11 @@ export default function KanbanCard({ deal }: KanbanCardProps) {
             }
           />
           
-          {/* Ícone de Status de Atividade */}
+          {/* Ícone de Status de Atividade - move right when in selection mode */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="absolute top-2 left-2">
+                <div className={cn("absolute top-2", isSelectionMode ? "left-9" : "left-2")}>
                   <ActivityIcon className={`h-5 w-5 ${activityStatus.color}`} />
                 </div>
               </TooltipTrigger>
@@ -165,12 +195,12 @@ export default function KanbanCard({ deal }: KanbanCardProps) {
             </Tooltip>
           </TooltipProvider>
 
-          {/* Indicador Rotten Deal */}
+          {/* Indicador Rotten Deal - adjust position based on selection mode */}
           {isRotten && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="absolute top-2 left-9">
+                  <div className={cn("absolute top-2", isSelectionMode ? "left-16" : "left-9")}>
                     <Badge variant="destructive" className="gap-1 px-1.5 py-0.5">
                       <Skull className="h-3 w-3" />
                     </Badge>

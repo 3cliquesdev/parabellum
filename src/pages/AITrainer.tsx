@@ -9,7 +9,7 @@ import { Brain, ArrowLeft, Settings, Sparkles, Zap, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AITrainerStatsWidget } from "@/components/settings/AITrainerStatsWidget";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 
 // Modelos disponíveis no Lovable AI
 const AVAILABLE_MODELS = [
@@ -25,7 +25,7 @@ const AVAILABLE_MODELS = [
 export default function AITrainer() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { hasPermission, loading: permLoading } = useRolePermissions();
   const [selectedModel, setSelectedModel] = useState<string>("");
 
   // Buscar modelo configurado
@@ -79,7 +79,7 @@ export default function AITrainer() {
   // Set selected model when config loads
   const configuredModel = currentConfig?.value || "google/gemini-2.5-flash";
 
-  if (roleLoading) {
+  if (permLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
@@ -87,14 +87,14 @@ export default function AITrainer() {
     );
   }
 
-  if (!isAdmin) {
+  if (!hasPermission("ai.train")) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="max-w-md">
           <CardContent className="p-6 text-center">
             <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h2 className="text-lg font-semibold mb-2">Acesso Restrito</h2>
-            <p className="text-muted-foreground">Apenas administradores podem acessar o AI Trainer.</p>
+            <p className="text-muted-foreground">Você não tem permissão para acessar o AI Trainer.</p>
           </CardContent>
         </Card>
       </div>

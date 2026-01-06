@@ -1,4 +1,4 @@
-import { useUserRole } from "@/hooks/useUserRole";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { Shield, Loader2, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import AIModelConfigCard from "@/components/settings/AIModelConfigCard";
 import { AITrainerStatsWidget } from "@/components/settings/AITrainerStatsWidget";
 
 export default function IntegrationsSettings() {
-  const { isAdmin, loading } = useUserRole();
+  const { hasPermission, loading } = useRolePermissions();
   const navigate = useNavigate();
 
   if (loading) {
@@ -22,7 +22,7 @@ export default function IntegrationsSettings() {
     );
   }
 
-  if (!isAdmin) {
+  if (!hasPermission("settings.integrations")) {
     return (
       <div className="min-h-screen p-6 flex items-center justify-center">
         <div className="text-center">

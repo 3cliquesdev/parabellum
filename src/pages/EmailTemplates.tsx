@@ -27,7 +27,7 @@ import {
 import { EmailTemplateDialog } from "@/components/EmailTemplateDialog";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useDeleteEmailTemplate } from "@/hooks/useDeleteEmailTemplate";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 import type { Tables } from "@/integrations/supabase/types";
 import { SafeHTML } from "@/components/SafeHTML";
 import { MigrateTemplateButton } from "@/components/email-builder-v2/MigrateTemplateButton";
@@ -51,7 +51,7 @@ import { EmailTemplatesV2List, CreateTemplateV2Dialog } from "@/components/email
 
 export default function EmailTemplates() {
   const navigate = useNavigate();
-  const { role, loading: roleLoading } = useUserRole();
+  const { hasPermission, loading: permLoading } = useRolePermissions();
   const { data: templates, isLoading } = useEmailTemplates();
   const deleteMutation = useDeleteEmailTemplate();
 
@@ -65,7 +65,7 @@ export default function EmailTemplates() {
   const [previewTemplate, setPreviewTemplate] = useState<Tables<"email_templates"> | null>(null);
 
   // Verificar permissão de acesso
-  if (!roleLoading && role !== null && role !== 'admin' && role !== 'manager' && role !== 'general_manager') {
+  if (!permLoading && !hasPermission("email.view_templates")) {
     navigate('/');
     return null;
   }
@@ -109,7 +109,7 @@ export default function EmailTemplates() {
     return trigger ? labels[trigger] || trigger : "—";
   };
 
-  if (isLoading || roleLoading) {
+  if (isLoading || permLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground">Carregando templates...</p>

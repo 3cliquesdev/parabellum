@@ -18,7 +18,7 @@ import { TicketTimeline } from "@/components/TicketTimeline";
 import { useTicketPresence } from "@/hooks/useTicketPresence";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertCircle, Clock, CheckCircle, Sparkles, Copy, ArrowRight, Users, GitMerge, ExternalLink, User } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle, Sparkles, Copy, ArrowRight, Users, GitMerge, ExternalLink, User, FileText } from "lucide-react";
 import { useState } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -268,14 +268,6 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
           </span>
         </div>
 
-        {/* Descrição em container destacado */}
-        {ticket.description && (
-          <div className="bg-muted/40 border border-border/50 rounded-lg p-3 max-h-28 overflow-y-auto">
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-              {ticket.description}
-            </p>
-          </div>
-        )}
 
         {/* Controles inline compactos */}
         <div className="flex items-center gap-3 pt-1">
@@ -334,6 +326,25 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Descrição do Chamado - Área Principal Expandida */}
+        {ticket.description && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Descrição do Chamado
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-64 overflow-y-auto">
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                  {ticket.description}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Financial Approval Bar (só para financial_manager) */}
         {isFinancialManager && isFinancialTicket && (
           <FinancialApprovalBar 

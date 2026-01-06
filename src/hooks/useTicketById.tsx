@@ -11,10 +11,10 @@ export function useTicketById(ticketId: string | undefined) {
         .from('tickets')
         .select(`
           *,
-          customer:customer_id(id, first_name, last_name, email, phone, avatar_url, company),
-          assigned_user:assigned_to(id, full_name, email, avatar_url),
-          created_by_user:created_by(id, full_name, email, avatar_url),
-          department:department_id(id, name, color)
+          customer:contacts(id, first_name, last_name, email, phone, avatar_url, company, address, city, state, zip_code),
+          assigned_user:profiles!tickets_assigned_to_fkey(id, full_name, avatar_url),
+          created_by_user:profiles!tickets_created_by_fkey(id, full_name, avatar_url),
+          department:departments(id, name, color)
         `)
         .eq('id', ticketId)
         .maybeSingle();

@@ -675,6 +675,119 @@ async function handlePaidOrder(
     .eq('email', Customer.email)
     .single();
   
+  // ============================================
+  // 🆕 FECHAMENTO AUTOMÁTICO DE DEALS ABERTOS
+  // Buscar deals de recuperação/oportunidade para este email
+  // ============================================
+  console.log('[kiwify-webhook] 🔍 Buscando deals abertos para:', Customer.email);
+  
+  const { data: openDeals } = await supabase
+    .from('deals')
+    .select('id, title, assigned_to, contact_id, value, lead_email')
+    .eq('status', 'open')
+    .or(`lead_email.eq.${Customer.email}`)
+    .order('created_at', { ascending: false });
+
+  // Encontrar deal correspondente ao email do cliente
+  let matchingDeal: { id: string; title: string; assigned_to: string | null; contact_id: string | null; value: number | null } | null = null;
+  
+  // 1. Buscar por lead_email
+  if (openDeals && openDeals.length > 0) {
+    matchingDeal = openDeals.find((d: any) => d.lead_email === Customer.email) || null;
+  }
+  
+  // 2. Se não encontrou por lead_email, buscar por contact_id
+  if (!matchingDeal && existingContact) {
+    const { data: contactDeals } = await supabase
+      .from('deals')
+      .select('id, title, assigned_to, contact_id, value')
+      .eq('status', 'open')
+      .eq('contact_id', existingContact.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (contactDeals && contactDeals.length > 0) {
+      matchingDeal = contactDeals[0];
+    }
+  }
+
+  // 🎯 Se encontrou deal com vendedor, marcar como PENDING (aguardando validação 30 min)
+  if (matchingDeal && matchingDeal.assigned_to) {
+    console.log('[kiwify-webhook] ✅ Deal encontrado, marcando como pending:', matchingDeal.id);
+    
+    // Buscar kiwify_event recém-criado
+    const { data: kiwifyEvent } = await supabase
+      .from('kiwify_events')
+      .select('id')
+      .eq('order_id', order_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Marcar deal como pending payment (vendedor tem 30 min para validar)
+    await supabase
+      .from('deals')
+      .update({
+        pending_payment_at: new Date().toISOString(),
+        pending_kiwify_event_id: kiwifyEvent?.id || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', matchingDeal.id);
+
+    // Vincular kiwify_event ao deal para rastreamento
+    if (kiwifyEvent) {
+      await supabase
+        .from('kiwify_events')
+        .update({ linked_deal_id: matchingDeal.id })
+        .eq('id', kiwifyEvent.id);
+    }
+
+    // 🔔 NOTIFICAR VENDEDOR com urgência
+    const valueFormatted = new Intl.NumberFormat('pt-BR', {
+      style: 'currency', currency: 'BRL'
+    }).format(Commissions.product_base_price / 100);
+
+    const deadline = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+    await supabase.from('notifications').insert({
+      user_id: matchingDeal.assigned_to,
+      type: 'payment_pending_validation',
+      title: '💰 Cliente Pagou! Validar Venda',
+      message: `${Customer.full_name} pagou ${valueFormatted} por ${Product.product_name}. Informe o código Kiwify em até 30 minutos ou será marcado como venda orgânica.`,
+      metadata: {
+        deal_id: matchingDeal.id,
+        deal_title: matchingDeal.title,
+        kiwify_event_id: kiwifyEvent?.id,
+        order_id,
+        customer_email: Customer.email,
+        customer_name: Customer.full_name,
+        product_name: Product.product_name,
+        value: Commissions.product_base_price / 100,
+        deadline
+      },
+      read: false
+    });
+
+    console.log('[kiwify-webhook] 🔔 Vendedor notificado, deadline:', deadline);
+
+    // Registrar na timeline do contact (se existir)
+    if (matchingDeal.contact_id) {
+      await supabase.from('interactions').insert({
+        customer_id: matchingDeal.contact_id,
+        type: 'note',
+        channel: 'other',
+        content: `💳 Pagamento detectado! Vendedor tem 30 minutos para validar. Produto: ${Product.product_name} - ${valueFormatted}`,
+        metadata: {
+          deal_id: matchingDeal.id,
+          order_id,
+          pending_validation: true,
+          deadline
+        }
+      });
+    }
+  }
+  // FIM DO FECHAMENTO AUTOMÁTICO
+  
   const isReturningCustomer = existingContact && existingContact.status === 'customer';
   
   if (isReturningCustomer) {

@@ -164,6 +164,23 @@ export default function Deals() {
     });
   };
 
+  const handleSelectAllInStage = (dealIds: string[]) => {
+    setSelectedDeals(prev => {
+      const newSet = new Set(prev);
+      const allSelected = dealIds.every(id => newSet.has(id));
+      
+      if (allSelected) {
+        // Deselect all deals from this stage
+        dealIds.forEach(id => newSet.delete(id));
+      } else {
+        // Select all deals from this stage
+        dealIds.forEach(id => newSet.add(id));
+      }
+      
+      return newSet;
+    });
+  };
+
   const clearSelection = () => {
     setSelectedDeals(new Set());
     setIsSelectionMode(false);
@@ -581,6 +598,7 @@ export default function Deals() {
                   isSelectionMode={isSelectionMode}
                   selectedDeals={selectedDeals}
                   onSelectionChange={handleSelectionChange}
+                  onSelectAllInStage={handleSelectAllInStage}
                 />
               );
             })}

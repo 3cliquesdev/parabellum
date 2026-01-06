@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, CheckSquare, Square } from "lucide-react";
 import KanbanCard from "./KanbanCard";
 import StageDialog from "./StageDialog";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
@@ -20,6 +20,7 @@ interface KanbanColumnProps {
   isSelectionMode?: boolean;
   selectedDeals?: Set<string>;
   onSelectionChange?: (dealId: string, selected: boolean) => void;
+  onSelectAllInStage?: (dealIds: string[]) => void;
 }
 
 export default function KanbanColumn({ 
@@ -28,6 +29,7 @@ export default function KanbanColumn({
   isSelectionMode = false,
   selectedDeals = new Set(),
   onSelectionChange,
+  onSelectAllInStage,
 }: KanbanColumnProps) {
   const [showAll, setShowAll] = useState(false);
   const LIMIT = 5;
@@ -57,6 +59,19 @@ export default function KanbanColumn({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
+  };
+
+  // Check if all deals in this column are selected
+  const dealIds = useMemo(() => deals.map(d => d.id), [deals]);
+  const allSelected = useMemo(() => 
+    dealIds.length > 0 && dealIds.every(id => selectedDeals.has(id)),
+    [dealIds, selectedDeals]
+  );
+
+  const handleSelectAllClick = () => {
+    if (onSelectAllInStage && dealIds.length > 0) {
+      onSelectAllInStage(dealIds);
+    }
   };
 
   return (
@@ -92,9 +107,27 @@ export default function KanbanColumn({
               />
             )}
           </div>
-          <span className="text-sm text-muted-foreground bg-muted rounded-full px-2 py-1">
-            {deals.length}
-          </span>
+          <div className="flex items-center gap-1">
+            {/* Select All button - only visible in selection mode */}
+            {isSelectionMode && dealIds.length > 0 && (
+              <Button
+                variant={allSelected ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-xs gap-1"
+                onClick={handleSelectAllClick}
+              >
+                {allSelected ? (
+                  <CheckSquare className="h-3 w-3" />
+                ) : (
+                  <Square className="h-3 w-3" />
+                )}
+                Todos
+              </Button>
+            )}
+            <span className="text-sm text-muted-foreground bg-muted rounded-full px-2 py-1">
+              {deals.length}
+            </span>
+          </div>
         </div>
 
         {/* Financial Intelligence */}

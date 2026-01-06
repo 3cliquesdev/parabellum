@@ -47,6 +47,7 @@ const Goals = lazy(() => import("./pages/Goals"));
 const GoalsManagement = lazy(() => import("./pages/GoalsManagement"));
 const ImportClients = lazy(() => import("./pages/ImportClients"));
 const Support = lazy(() => import("./pages/Support"));
+const TicketDetail = lazy(() => import("./pages/TicketDetail"));
 const Knowledge = lazy(() => import("./pages/Knowledge"));
 const PublicTicketForm = lazy(() => import("./pages/PublicTicketForm"));
 const MyTickets = lazy(() => import("./pages/MyTickets"));
@@ -173,6 +174,7 @@ const App = () => {
               <Route path="/cadences/:id/edit" element={<ProtectedRoute requiredPermission="cadences.manage"><CadenceEditorPage /></ProtectedRoute>} />
               <Route path="/sales-tasks" element={<ProtectedRoute requiredPermission="sales.view_workzone"><Layout><SalesTasks /></Layout></ProtectedRoute>} />
               <Route path="/support" element={<ProtectedRoute requiredPermission="tickets.view"><Layout><Support /></Layout></ProtectedRoute>} />
+              <Route path="/support/:ticketId" element={<ProtectedRoute requiredPermission="tickets.view"><Layout><TicketDetail /></Layout></ProtectedRoute>} />
               <Route path="/knowledge" element={<ProtectedRoute requiredPermission="knowledge.manage_articles"><Layout><Knowledge /></Layout></ProtectedRoute>} />
               <Route path="/ai-studio/personas" element={<ProtectedRoute requiredPermission="ai.manage_personas"><Layout><AIStudio /></Layout></ProtectedRoute>} />
               <Route path="/import-clients" element={<ProtectedRoute requiredPermission="contacts.import"><Layout><ImportClients /></Layout></ProtectedRoute>} />

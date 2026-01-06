@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/hooks/useTickets";
 import { TicketsTable } from "@/components/support/TicketsTable";
 import { TicketsSidebar, type SidebarFilter } from "@/components/support/TicketsSidebar";
@@ -17,6 +18,7 @@ type MobileView = 'list' | 'details';
 const TICKETS_PER_PAGE = 20;
 
 export default function Support() {
+  const navigate = useNavigate();
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>('all');
   const [mobileView, setMobileView] = useState<MobileView>('list');
@@ -93,17 +95,13 @@ export default function Support() {
     setCurrentPage(1);
   }, [sidebarFilter, searchTerm]);
 
-  // Auto-select first ticket on desktop
-  useEffect(() => {
-    if (!isMobile && !selectedTicketId && paginatedTickets.length > 0) {
-      setSelectedTicketId(paginatedTickets[0].id);
-    }
-  }, [isMobile, selectedTicketId, paginatedTickets]);
-
   const handleSelectTicket = (ticketId: string) => {
-    setSelectedTicketId(ticketId);
     if (isMobile) {
+      setSelectedTicketId(ticketId);
       setMobileView('details');
+    } else {
+      // Desktop: navigate to full page
+      navigate(`/support/${ticketId}`);
     }
   };
 
@@ -270,8 +268,8 @@ export default function Support() {
           />
         </div>
 
-        {/* Tickets Table */}
-        <div className="flex-1 min-w-0 overflow-hidden border-r border-border">
+        {/* Tickets Table - Full width now */}
+        <div className="flex-1 min-w-0 overflow-hidden">
           <TicketsTable
             tickets={paginatedTickets}
             selectedTicketId={selectedTicketId}
@@ -280,20 +278,6 @@ export default function Support() {
             onToggleSelect={handleToggleSelect}
             onToggleSelectAll={handleToggleSelectAll}
           />
-        </div>
-
-        {/* Ticket Details (400px) */}
-        <div className="w-[400px] flex-shrink-0 overflow-hidden">
-          {selectedTicket ? (
-            <TicketDetails ticket={selectedTicket} />
-          ) : (
-            <div className="flex items-center justify-center h-full bg-card">
-              <div className="text-center text-muted-foreground">
-                <p className="text-lg font-medium mb-2">Selecione um ticket</p>
-                <p className="text-sm">Clique em um ticket para ver os detalhes</p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

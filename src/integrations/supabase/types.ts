@@ -1758,6 +1758,7 @@ export type Database = {
           expected_revenue: number | null
           gross_value: number | null
           id: string
+          is_organic_sale: boolean | null
           kiwify_fee: number | null
           lead_email: string | null
           lead_phone: string | null
@@ -1767,6 +1768,8 @@ export type Database = {
           net_value: number | null
           organization_id: string | null
           pain_points: string | null
+          pending_kiwify_event_id: string | null
+          pending_payment_at: string | null
           pipeline_id: string
           probability: number | null
           product_id: string | null
@@ -1792,6 +1795,7 @@ export type Database = {
           expected_revenue?: number | null
           gross_value?: number | null
           id?: string
+          is_organic_sale?: boolean | null
           kiwify_fee?: number | null
           lead_email?: string | null
           lead_phone?: string | null
@@ -1801,6 +1805,8 @@ export type Database = {
           net_value?: number | null
           organization_id?: string | null
           pain_points?: string | null
+          pending_kiwify_event_id?: string | null
+          pending_payment_at?: string | null
           pipeline_id: string
           probability?: number | null
           product_id?: string | null
@@ -1826,6 +1832,7 @@ export type Database = {
           expected_revenue?: number | null
           gross_value?: number | null
           id?: string
+          is_organic_sale?: boolean | null
           kiwify_fee?: number | null
           lead_email?: string | null
           lead_phone?: string | null
@@ -1835,6 +1842,8 @@ export type Database = {
           net_value?: number | null
           organization_id?: string | null
           pain_points?: string | null
+          pending_kiwify_event_id?: string | null
+          pending_payment_at?: string | null
           pipeline_id?: string
           probability?: number | null
           product_id?: string | null
@@ -1866,6 +1875,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_pending_kiwify_event_id_fkey"
+            columns: ["pending_kiwify_event_id"]
+            isOneToOne: false
+            referencedRelation: "kiwify_events"
             referencedColumns: ["id"]
           },
           {

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { MessageSquare, Ticket, DollarSign, Mail, RefreshCw } from "lucide-react";
+import { MessageSquare, Ticket, DollarSign, Mail, RefreshCw, Clock, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import type { Tables } from "@/integrations/supabase/types";
@@ -303,34 +303,80 @@ export default function RealtimeNotifications() {
     queryClient.invalidateQueries({ queryKey: ["deals"] });
   }, [navigate, play, showBrowserNotification, queryClient]);
 
-  // Handler for subscription renewal notifications
-  const handleRenewalNotification = useCallback(async (payload: any) => {
-    console.log("[RealtimeNotifications] Renewal notification received:", payload);
+  // Handler for general notifications (renewal, payment validation, organic deals)
+  const handleGeneralNotification = useCallback(async (payload: any) => {
+    console.log("[RealtimeNotifications] Notification received:", payload);
     
     const notification = payload.new;
     
-    // Only process if it's for the current user and is a renewal
-    if (notification.user_id !== user?.id || notification.type !== 'subscription_renewal') return;
+    // Only process if it's for the current user
+    if (notification.user_id !== user?.id) return;
 
-    play();
+    const metadata = notification.metadata as { 
+      contact_id?: string; 
+      contact_name?: string;
+      deal_id?: string;
+      deal_title?: string;
+      deadline?: string;
+    } | null;
 
-    const metadata = notification.metadata as { contact_id?: string; contact_name?: string } | null;
+    // Handle different notification types
+    switch (notification.type) {
+      case 'subscription_renewal':
+        play();
+        toast(notification.title, {
+          description: notification.message,
+          icon: <RefreshCw className="h-4 w-4" />,
+          action: metadata?.contact_id ? {
+            label: "Ver Cliente",
+            onClick: () => navigate(`/customers/${metadata.contact_id}`),
+          } : undefined,
+          duration: 10000,
+        });
+        break;
 
-    toast(notification.title, {
-      description: notification.message,
-      icon: <RefreshCw className="h-4 w-4" />,
-      action: metadata?.contact_id ? {
-        label: "Ver Cliente",
-        onClick: () => navigate(`/customers/${metadata.contact_id}`),
-      } : undefined,
-      duration: 10000,
-    });
+      case 'payment_pending_validation':
+        play();
+        toast.warning(notification.title, {
+          description: notification.message,
+          icon: <Clock className="h-4 w-4 text-yellow-500" />,
+          action: metadata?.deal_id ? {
+            label: "Validar Venda",
+            onClick: () => navigate(`/deals?highlight=${metadata.deal_id}`),
+          } : undefined,
+          duration: 30000, // 30 segundos - mais tempo por ser urgente
+        });
+        break;
+
+      case 'deal_marked_organic':
+        play();
+        toast(notification.title, {
+          description: notification.message,
+          icon: <AlertTriangle className="h-4 w-4 text-orange-500" />,
+          action: metadata?.deal_id ? {
+            label: "Ver Deal",
+            onClick: () => navigate(`/deals?id=${metadata.deal_id}`),
+          } : undefined,
+          duration: 15000,
+        });
+        break;
+
+      default:
+        // Generic notification
+        play();
+        toast(notification.title, {
+          description: notification.message,
+          duration: 8000,
+        });
+        break;
+    }
 
     if (document.hidden) {
       showBrowserNotification(notification.title, notification.message);
     }
 
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    queryClient.invalidateQueries({ queryKey: ["deals"] });
   }, [user, navigate, play, showBrowserNotification, queryClient]);
 
   // CONSOLIDATED: Single channel for all notifications - reduces websocket connections
@@ -379,7 +425,7 @@ export default function RealtimeNotifications() {
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-          handleRenewalNotification
+          handleGeneralNotification
         )
         .subscribe((status) => {
           console.log("RealtimeNotifications consolidated subscription status:", status);
@@ -400,7 +446,7 @@ export default function RealtimeNotifications() {
     handleTicketComment,
     handleDealAssignment,
     handleNewDeal,
-    handleRenewalNotification
+    handleGeneralNotification
   ]);
 
   return null;

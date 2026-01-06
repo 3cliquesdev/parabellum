@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { useAutomations } from "@/hooks/useAutomations";
 import { useDeleteAutomation } from "@/hooks/useDeleteAutomation";
 import { useToggleAutomation } from "@/hooks/useToggleAutomation";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function Automations() {
-  const { isAdmin, isManager, loading: roleLoading } = useUserRole();
+  const { hasPermission, loading: permLoading } = useRolePermissions();
   const { data: automations, isLoading } = useAutomations();
   const deleteMutation = useDeleteAutomation();
   const toggleMutation = useToggleAutomation();
@@ -31,7 +31,7 @@ export default function Automations() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [automationToDelete, setAutomationToDelete] = useState<string | null>(null);
 
-  if (roleLoading || isLoading) {
+  if (permLoading || isLoading) {
     return (
       <div className="min-h-screen p-6 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -39,7 +39,7 @@ export default function Automations() {
     );
   }
 
-  if (!isAdmin && !isManager) {
+  if (!hasPermission("automations.view")) {
     return (
       <div className="min-h-screen p-6 flex items-center justify-center">
         <div className="text-center">

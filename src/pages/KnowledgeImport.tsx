@@ -16,7 +16,7 @@ import { KnowledgeImportProgress } from "@/components/KnowledgeImportProgress";
 import { useImportKnowledge } from "@/hooks/useImportKnowledge";
 import { useImportDocument } from "@/hooks/useImportDocument";
 import { useImportOctadesk } from "@/hooks/useImportOctadesk";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OctadeskFileUploader } from "@/components/octadesk/OctadeskFileUploader";
@@ -45,7 +45,7 @@ const logWarn = (message: string, data?: Record<string, unknown>) => {
 export default function KnowledgeImport() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isAdmin, isManager, isGeneralManager, loading: roleLoading } = useUserRole();
+  const { hasPermission, loading: permLoading } = useRolePermissions();
   
   // CSV/Excel state
   const [csvData, setCsvData] = useState<any[]>([]);
@@ -84,14 +84,11 @@ export default function KnowledgeImport() {
   }, []);
 
   useEffect(() => {
-    logInfo('Role check', { 
-      roleLoading, 
-      isAdmin, 
-      isManager,
-      isGeneralManager,
-      hasAccess: isAdmin || isManager || isGeneralManager
+    logInfo('Permission check', { 
+      permLoading, 
+      hasKnowledgePermission: !permLoading && hasPermission("knowledge.manage_articles")
     });
-  }, [roleLoading, isAdmin, isManager, isGeneralManager]);
+  }, [permLoading, hasPermission]);
 
   // Auto-detect column mapping for CSV
   useEffect(() => {
@@ -390,7 +387,7 @@ export default function KnowledgeImport() {
     mapping.output !== '__none__' ? mapping.output : null,
   ].filter(Boolean) as string[];
 
-  if (roleLoading) {
+  if (permLoading) {
     return (
       <div className="min-h-screen p-6 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -398,14 +395,14 @@ export default function KnowledgeImport() {
     );
   }
 
-  if (!isAdmin && !isManager && !isGeneralManager) {
+  if (!hasPermission("knowledge.manage_articles")) {
     return (
       <div className="container mx-auto py-8 px-4">
         <Card className="border-destructive">
           <CardHeader>
             <CardTitle className="text-destructive">Acesso Negado</CardTitle>
             <CardDescription>
-              Apenas administradores e gerentes podem acessar esta página.
+              Você não tem permissão para acessar esta página.
             </CardDescription>
           </CardHeader>
           <CardContent>

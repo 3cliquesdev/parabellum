@@ -5,13 +5,13 @@ import { CSVUploader } from "@/components/CSVUploader";
 import { ColumnMapper } from "@/components/ColumnMapper";
 import { ImportProgress } from "@/components/ImportProgress";
 import { useImportContacts } from "@/hooks/useImportContacts";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Download } from "lucide-react";
 export default function ImportClients() {
   const navigate = useNavigate();
-  const { role, loading: roleLoading } = useUserRole();
+  const { hasPermission, loading: permLoading } = useRolePermissions();
   const [csvData, setCsvData] = useState<any[]>([]);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -19,12 +19,12 @@ export default function ImportClients() {
   
   const importMutation = useImportContacts();
 
-  // Redirecionar se não for admin
+  // Redirecionar se não tiver permissão
   useEffect(() => {
-    if (!roleLoading && role !== null && role !== 'admin' && role !== 'general_manager') {
+    if (!permLoading && !hasPermission("contacts.import")) {
       navigate('/');
     }
-  }, [role, roleLoading, navigate]);
+  }, [hasPermission, permLoading, navigate]);
 
   // Auto-mapear colunas quando CSV é carregado
   useEffect(() => {
@@ -169,7 +169,7 @@ exemplo@email.com;João;Silva;(11) 99999-9999;Empresa Exemplo;123.456.789-00;987
     link.click();
   };
 
-  if (roleLoading) {
+  if (permLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-muted-foreground">Carregando...</p>

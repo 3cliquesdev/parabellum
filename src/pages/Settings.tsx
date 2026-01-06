@@ -1,4 +1,4 @@
-import { useUserRole } from "@/hooks/useUserRole";
+import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
-  const { isAdmin, loading } = useUserRole();
+  const { hasPermission, loading } = useRolePermissions();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -26,7 +26,7 @@ export default function Settings() {
     );
   }
 
-  if (!isAdmin) {
+  if (!hasPermission("settings.view")) {
     return (
       <div className="min-h-screen p-6 flex items-center justify-center">
         <div className="text-center">

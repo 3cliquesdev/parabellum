@@ -5194,6 +5194,7 @@ export type Database = {
           created_by: string | null
           id: string
           is_internal: boolean | null
+          source: string | null
           ticket_id: string
         }
         Insert: {
@@ -5202,6 +5203,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_internal?: boolean | null
+          source?: string | null
           ticket_id: string
         }
         Update: {
@@ -5210,6 +5212,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_internal?: boolean | null
+          source?: string | null
           ticket_id?: string
         }
         Relationships: [

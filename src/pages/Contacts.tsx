@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Search, Plus, Mail, Phone, Trash2, Eye, UserCog } from "lucide-react";
+import { Search, Plus, Mail, Phone, Trash2, Eye, UserCog, ArrowUpDown } from "lucide-react";
 import { useContacts, useDeleteContact, ContactFilters } from "@/hooks/useContacts";
 import { useTags } from "@/hooks/useTags";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -40,6 +40,7 @@ import { ChangeConsultantDialog } from "@/components/playbooks/ChangeConsultantD
 import { ConsultantClientsSheet } from "@/components/contacts/ConsultantClientsSheet";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useProfiles } from "@/hooks/useProfiles";
+import { LeadScoreBadge } from "@/components/scoring/LeadScoreBadge";
 import type { Tables } from "@/integrations/supabase/types";
 
 type ContactWithOrg = Tables<"contacts"> & {
@@ -253,6 +254,7 @@ export default function Contacts() {
                   <TableHead>Nome</TableHead>
                   <TableHead>E-mail</TableHead>
                   <TableHead>Telefone</TableHead>
+                  <TableHead>Score</TableHead>
                   <TableHead>Consultor</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Plano</TableHead>
@@ -304,6 +306,13 @@ export default function Contacts() {
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <LeadScoreBadge
+                        score={contact.lead_score}
+                        classification={contact.lead_classification}
+                        size="sm"
+                      />
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       {(() => {

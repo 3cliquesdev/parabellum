@@ -19,6 +19,7 @@ import { useCustomerTimeline } from "@/hooks/useCustomerTimeline";
 import { useCustomerTags } from "@/hooks/useCustomerTags";
 import TimelineItem from "@/components/TimelineItem";
 import { Phone, Mail, MessageSquare, Save, Loader2, ExternalLink, UserCog } from "lucide-react";
+import { LeadScoreBadge } from "@/components/scoring/LeadScoreBadge";
 import type { Tables } from "@/integrations/supabase/types";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -137,6 +138,20 @@ export default function ContactSheet({ contact, open, onOpenChange }: ContactShe
         </SheetHeader>
 
         <ScrollArea className="flex-1 -mx-6 px-6">
+          {/* Lead Score Card */}
+          {(contact.lead_score !== null && contact.lead_score !== undefined) && (
+            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg mb-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Score de Qualificação</p>
+                <LeadScoreBadge 
+                  score={contact.lead_score} 
+                  classification={contact.lead_classification}
+                  size="lg"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Consultant Info */}
           {(() => {
             const consultant = profiles?.find(p => p.id === contact.consultant_id);

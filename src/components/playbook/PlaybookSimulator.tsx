@@ -50,7 +50,7 @@ export function PlaybookSimulator({
 
   // Get next node based on current
   const getNextNode = useCallback(
-    (nodeId: string, path?: "true" | "false") => {
+    (nodeId: string, path?: string) => {
       const outgoingEdge = edges.find((e) => {
         if (e.source !== nodeId) return false;
         if (path && e.sourceHandle !== path) return false;
@@ -63,7 +63,7 @@ export function PlaybookSimulator({
 
   // Mark step as completed and advance
   const completeStep = useCallback(
-    (path?: "true" | "false") => {
+    (path?: string) => {
       if (!currentNodeId) return;
 
       setCompletedNodeIds((prev) => [...prev, currentNodeId]);

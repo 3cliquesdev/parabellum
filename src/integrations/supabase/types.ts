@@ -6204,7 +6204,7 @@ export type Database = {
       deal_status: "open" | "won" | "lost"
       department_type: "comercial" | "suporte" | "marketing" | "operacional"
       form_distribution_rule: "round_robin" | "manager_only" | "specific_user"
-      form_target_type: "deal" | "ticket" | "internal_request"
+      form_target_type: "deal" | "ticket" | "internal_request" | "none"
       interaction_type:
         | "email_sent"
         | "email_open"
@@ -6420,7 +6420,7 @@ export const Constants = {
       deal_status: ["open", "won", "lost"],
       department_type: ["comercial", "suporte", "marketing", "operacional"],
       form_distribution_rule: ["round_robin", "manager_only", "specific_user"],
-      form_target_type: ["deal", "ticket", "internal_request"],
+      form_target_type: ["deal", "ticket", "internal_request", "none"],
       interaction_type: [
         "email_sent",
         "email_open",

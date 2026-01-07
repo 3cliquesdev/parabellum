@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mail, Clock, CheckSquare, Phone, Save, X, GitBranch, UserCheck, Eye, HelpCircle, Plus, Trash2, Play, FileText } from "lucide-react";
+import { Mail, Clock, CheckSquare, Phone, Save, X, GitBranch, UserCheck, Eye, HelpCircle, Plus, Trash2, Play, FileText, Shuffle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -35,6 +35,7 @@ import { ConditionNode } from "./ConditionNode";
 import { ApprovalNode } from "./ApprovalNode";
 import { ButtonEdge } from "./ButtonEdge";
 import { FormNode } from "./FormNode";
+import { SwitchNode } from "./SwitchNode";
 import { DraggableBlock } from "./DraggableBlock";
 import { RichTextEditor } from "./RichTextEditor";
 import { VideoEmbedField } from "./VideoEmbedField";
@@ -53,6 +54,7 @@ export const nodeTypes = {
   condition: ConditionNode,
   approval: ApprovalNode,
   form: FormNode,
+  switch: SwitchNode,
 };
 
 const edgeTypes = {
@@ -116,6 +118,14 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
         ...(type === "condition" && { condition_type: "email_opened", condition_value: "" }),
         ...(type === "approval" && { approver_role: "consultant", approval_message: "Revisar antes de continuar" }),
         ...(type === "form" && { form_id: "", form_name: "", pause_execution: true, timeout_days: 3 }),
+        ...(type === "switch" && { 
+          switch_type: "lead_classification", 
+          cases: [
+            { id: "quente", value: "quente", label: "Quente", color: "#16a34a", icon: "flame" },
+            { id: "morno", value: "morno", label: "Morno", color: "#d97706", icon: "thermometer" },
+            { id: "frio", value: "frio", label: "Frio", color: "#dc2626", icon: "snowflake" },
+          ]
+        }),
       },
     };
     setNodes((nds) => [...nds, newNode]);
@@ -233,6 +243,7 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
             <DraggableBlock type="task" icon={CheckSquare} label="Tarefa" />
             <DraggableBlock type="call" icon={Phone} label="Ligação" />
             <DraggableBlock type="condition" icon={GitBranch} label="Condição" />
+            <DraggableBlock type="switch" icon={Shuffle} label="Switch" />
             <DraggableBlock type="approval" icon={UserCheck} label="Aprovação" />
             <DraggableBlock type="form" icon={FileText} label="Formulário" />
           </div>
@@ -750,6 +761,85 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     0 = Sem timeout. Se o cliente não responder, continua após este tempo.
+                  </p>
+                </div>
+              </>
+            )}
+            {selectedNode.type === "switch" && (
+              <>
+                <div>
+                  <Label>Tipo de Switch</Label>
+                  <Select
+                    value={selectedNode.data.switch_type || "lead_classification"}
+                    onValueChange={(value) => {
+                      updateNodeData("switch_type", value);
+                      // Set default cases based on switch type
+                      if (value === "lead_classification") {
+                        updateNodeData("cases", [
+                          { id: "quente", value: "quente", label: "Quente", color: "#16a34a", icon: "flame" },
+                          { id: "morno", value: "morno", label: "Morno", color: "#d97706", icon: "thermometer" },
+                          { id: "frio", value: "frio", label: "Frio", color: "#dc2626", icon: "snowflake" },
+                        ]);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-background text-foreground">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999] bg-popover" sideOffset={5}>
+                      <SelectItem value="lead_classification">
+                        <div className="flex items-center gap-2">
+                          <Flame className="h-4 w-4 text-green-600" />
+                          Classificação de Lead
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {selectedNode.data.switch_type === "lead_classification" && (
+                  <div className="p-3 rounded-lg bg-muted/50 border space-y-2">
+                    <p className="text-xs font-medium">Saídas disponíveis:</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-green-500/10 text-green-600">
+                        <Flame className="h-3 w-3" /> Quente
+                      </span>
+                      <span className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-amber-500/10 text-amber-600">
+                        <Thermometer className="h-3 w-3" /> Morno
+                      </span>
+                      <span className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-red-500/10 text-red-600">
+                        <Snowflake className="h-3 w-3" /> Frio
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Conecte cada saída colorida ao próximo bloco correspondente
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <Label>Formulário de origem (para classificação)</Label>
+                  <Select
+                    value={selectedNode.data.form_id || ""}
+                    onValueChange={(value) => {
+                      const form = forms?.find(f => f.id === value);
+                      updateNodeData("form_id", value);
+                      updateNodeData("form_name", form?.name || "");
+                    }}
+                  >
+                    <SelectTrigger className="bg-background text-foreground">
+                      <SelectValue placeholder="Selecione o formulário..." />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999] bg-popover" sideOffset={5}>
+                      {forms?.filter(f => f.is_active).map((form) => (
+                        <SelectItem key={form.id} value={form.id}>
+                          {form.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    O switch usará a classificação gerada pelo formulário
                   </p>
                 </div>
               </>

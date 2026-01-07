@@ -137,6 +137,9 @@ Deno.serve(async (req) => {
           case 'condition':
             actionResult = await executeConditionNode(supabaseAdmin, item, flow, execution as PlaybookExecution);
             break;
+          case 'switch':
+            actionResult = await executeSwitchNode(supabaseAdmin, item, flow, execution as PlaybookExecution);
+            break;
           default:
             console.warn(`Unknown node type: ${item.node_type}`);
             actionResult = { success: true, message: 'Skipped unknown node type' };
@@ -172,8 +175,8 @@ Deno.serve(async (req) => {
           })
           .eq('id', item.id);
 
-        // Queue next node if not a delay or form (they queue internally)
-        if (item.node_type !== 'delay' && item.node_type !== 'form' && item.node_type !== 'condition') {
+        // Queue next node if not a delay, form, condition, or switch (they queue internally)
+        if (item.node_type !== 'delay' && item.node_type !== 'form' && item.node_type !== 'condition' && item.node_type !== 'switch') {
           await queueNextNode(supabaseAdmin, item, flow, execution as PlaybookExecution);
         }
 
@@ -729,6 +732,89 @@ async function executeConditionNode(supabase: any, item: QueueItem, flow: Playbo
   return { success: true, condition_result: conditionResult, path: pathResult };
 }
 
+async function executeSwitchNode(supabase: any, item: QueueItem, flow: PlaybookFlow, execution: PlaybookExecution) {
+  console.log(`Executing switch node: ${item.node_id}`);
+  
+  const switchData = item.node_data;
+  const switchType = switchData.switch_type || 'lead_classification';
+  
+  let selectedCase: string | null = null;
+
+  switch (switchType) {
+    case 'lead_classification': {
+      // Get lead classification from execution context or contact
+      const { data: execData } = await supabase
+        .from('playbook_executions')
+        .select('execution_context, contact_id')
+        .eq('id', execution.id)
+        .single();
+      
+      const context = execData?.execution_context || {};
+      let leadClassification = context.lead_classification || null;
+      
+      // If not in context, fetch from contact
+      if (!leadClassification && execData?.contact_id) {
+        const { data: contact } = await supabase
+          .from('contacts')
+          .select('lead_classification')
+          .eq('id', execData.contact_id)
+          .single();
+        
+        leadClassification = contact?.lead_classification || 'frio';
+      }
+      
+      selectedCase = (leadClassification || 'frio').toLowerCase();
+      console.log(`Switch lead_classification: ${selectedCase}`);
+      break;
+    }
+
+    default:
+      console.warn(`Unknown switch type: ${switchType}`);
+      selectedCase = switchData.cases?.[0]?.id || null; // Default to first case
+  }
+
+  if (!selectedCase) {
+    console.error('No case selected for switch node');
+    return { success: false, error: 'Nenhum caso selecionado para o switch' };
+  }
+
+  // Find next node based on selected case (using sourceHandle)
+  const nextNodeId = findNextNodeWithHandle(item.node_id, flow, selectedCase);
+  
+  if (!nextNodeId) {
+    // No next node for this case - mark execution as completed
+    await supabase
+      .from('playbook_executions')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('id', execution.id);
+    
+    console.log(`No next node for case ${selectedCase}, execution completed: ${execution.id}`);
+    return { success: true, selected_case: selectedCase, message: 'No path for this case' };
+  }
+
+  const nextNode = flow.nodes.find(n => n.id === nextNodeId);
+  if (!nextNode) {
+    console.warn(`Next node not found: ${nextNodeId}`);
+    return { success: true, selected_case: selectedCase };
+  }
+
+  // Queue next node based on selected case
+  await supabase
+    .from('playbook_execution_queue')
+    .insert({
+      execution_id: execution.id,
+      node_id: nextNode.id,
+      node_type: nextNode.type,
+      node_data: nextNode.data,
+      scheduled_for: new Date().toISOString(),
+      status: 'pending',
+      retry_count: 0,
+      max_retries: 3,
+    });
+
+  console.log(`Queued next node ${nextNode.id} for case ${selectedCase}`);
+  return { success: true, selected_case: selectedCase };
+}
 async function queueNextNode(supabase: any, currentItem: QueueItem, flow: PlaybookFlow, execution: PlaybookExecution) {
   const nextNodeId = findNextNode(currentItem.node_id, flow);
   

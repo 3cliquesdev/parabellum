@@ -19,9 +19,10 @@ export default function ImportClients() {
   
   const importMutation = useImportContacts();
 
-  // Redirecionar se não tiver permissão
+  // Redirecionar se não tiver permissão (aguarda permissões carregarem completamente)
   useEffect(() => {
-    if (!permLoading && !hasPermission("contacts.import")) {
+    // Só redireciona quando permissões definitivamente carregadas E sem permissão
+    if (!permLoading && hasPermission("contacts.import") === false) {
       navigate('/');
     }
   }, [hasPermission, permLoading, navigate]);

@@ -64,48 +64,37 @@ export function FormPreviewModal({ open, onOpenChange, schema, name, title, desc
             </Tabs>
           </div>
 
-          {/* Preview Container - scrollable area */}
-          <div 
-            className="bg-muted/50"
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              minHeight: 0,
-            }}
-          >
-            <div className="p-8 flex items-start justify-center">
-              {device === "mobile" ? (
-                <div 
-                  className="shrink-0 bg-background rounded-[40px] border-[8px] border-foreground/20 shadow-2xl overflow-y-auto"
-                  style={{ width: MOBILE_WIDTH, height: MOBILE_HEIGHT }}
-                >
-                  <PublicFormV2 
-                    schema={schema} 
-                    isPreview 
-                    formName={name} 
-                    formTitle={title} 
-                    formDescription={description}
-                  />
-                </div>
-            ) : (
+          {/* Preview Container */}
+          {device === "mobile" ? (
+            <div 
+              className="flex-1 min-h-0 overflow-y-auto bg-muted/50 flex items-start justify-center p-8"
+            >
               <div 
-                className="w-full max-w-4xl rounded-lg shadow-lg bg-background overflow-hidden"
-                style={{ height: 'calc(90vh - 140px)' }}
+                className="shrink-0 bg-background rounded-[40px] border-[8px] border-foreground/20 shadow-2xl overflow-y-auto"
+                style={{ width: MOBILE_WIDTH, height: MOBILE_HEIGHT }}
               >
-                <div className="h-full overflow-y-auto scrollbar-thin">
-                  <PublicFormV2 
-                    schema={schema} 
-                    isPreview 
-                    formName={name} 
-                    formTitle={title} 
-                    formDescription={description}
-                  />
-                </div>
+                <PublicFormV2 
+                  schema={schema} 
+                  isPreview 
+                  formName={name} 
+                  formTitle={title} 
+                  formDescription={description}
+                />
               </div>
-            )}
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 min-h-0 overflow-y-auto bg-muted/50 p-8">
+              <div className="max-w-4xl mx-auto bg-background rounded-lg shadow-lg">
+                <PublicFormV2 
+                  schema={schema} 
+                  isPreview 
+                  formName={name} 
+                  formTitle={title} 
+                  formDescription={description}
+                />
+              </div>
+            </div>
+          )}
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>

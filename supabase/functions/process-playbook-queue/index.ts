@@ -586,6 +586,35 @@ async function executeConditionNode(supabase: any, item: QueueItem, flow: Playbo
   let conditionResult = false;
 
   switch (conditionType) {
+    case 'lead_classification': {
+      // Get lead classification from execution context or contact
+      const { data: execData } = await supabase
+        .from('playbook_executions')
+        .select('execution_context, contact_id')
+        .eq('id', execution.id)
+        .single();
+      
+      const context = execData?.execution_context || {};
+      let leadClassification = context.lead_classification || null;
+      
+      // If not in context, fetch from contact
+      if (!leadClassification && execData?.contact_id) {
+        const { data: contact } = await supabase
+          .from('contacts')
+          .select('lead_classification')
+          .eq('id', execData.contact_id)
+          .single();
+        
+        leadClassification = contact?.lead_classification || 'frio';
+      }
+      
+      const expectedClassification = conditionData.expected_classification || 'quente';
+      conditionResult = leadClassification?.toLowerCase() === expectedClassification.toLowerCase();
+      
+      console.log(`Evaluating lead_classification: actual=${leadClassification}, expected=${expectedClassification}, result=${conditionResult}`);
+      break;
+    }
+
     case 'form_score': {
       // Get scores from execution context
       const { data: execData } = await supabase
@@ -596,8 +625,8 @@ async function executeConditionNode(supabase: any, item: QueueItem, flow: Playbo
       
       const context = execData?.execution_context || {};
       const formScores = context.form_scores || {};
-      const scoreName = conditionData.score_name || 'score';
-      const scoreValue = formScores[scoreName] ?? 0;
+      const scoreName = conditionData.score_name || 'leadScoringTotal';
+      const scoreValue = formScores[scoreName] ?? context.lead_score ?? 0;
       const threshold = conditionData.score_threshold ?? 0;
       const operator = conditionData.score_operator || 'gte';
 

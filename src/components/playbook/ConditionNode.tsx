@@ -1,13 +1,13 @@
 import { memo } from "react";
 import { Handle, Position } from "reactflow";
-import { GitBranch } from "lucide-react";
+import { GitBranch, Flame, Thermometer, Snowflake } from "lucide-react";
 import { WorkflowNodeWrapper } from "./WorkflowNodeWrapper";
 import { Badge } from "@/components/ui/badge";
 import { NodeProps } from "reactflow";
 
 interface ConditionNodeData {
   label: string;
-  condition_type?: "email_opened" | "email_clicked" | "meeting_booked" | "tag_exists" | "status_change" | "form_score";
+  condition_type?: "email_opened" | "email_clicked" | "meeting_booked" | "tag_exists" | "status_change" | "form_score" | "lead_classification";
   condition_value?: string;
   // Form score specific fields
   score_form_id?: string;
@@ -15,6 +15,8 @@ interface ConditionNodeData {
   score_name?: string;
   score_operator?: "gt" | "lt" | "eq" | "gte" | "lte";
   score_threshold?: number;
+  // Lead classification specific fields
+  expected_classification?: "frio" | "morno" | "quente";
 }
 
 const conditionLabels: Record<string, string> = {
@@ -24,6 +26,7 @@ const conditionLabels: Record<string, string> = {
   tag_exists: "Tag Existe",
   status_change: "Mudança de Status",
   form_score: "Score do Formulário",
+  lead_classification: "Classificação de Lead",
 };
 
 const operatorLabels: Record<string, string> = {
@@ -34,18 +37,32 @@ const operatorLabels: Record<string, string> = {
   lte: "<=",
 };
 
+const classificationConfig = {
+  quente: { icon: Flame, label: "Quente", color: "text-green-600", bg: "bg-green-500/10" },
+  morno: { icon: Thermometer, label: "Morno", color: "text-amber-600", bg: "bg-amber-500/10" },
+  frio: { icon: Snowflake, label: "Frio", color: "text-red-600", bg: "bg-red-500/10" },
+};
+
 export const ConditionNode = memo(({ data, selected }: NodeProps<ConditionNodeData>) => {
   // Build subtitle based on condition type
   let subtitle: string | undefined;
   
-  if (data.condition_type === 'form_score') {
+  if (data.condition_type === 'lead_classification') {
+    const classification = data.expected_classification || 'quente';
+    const config = classificationConfig[classification];
+    subtitle = `Se: Lead = ${config.label}`;
+  } else if (data.condition_type === 'form_score') {
     const op = data.score_operator ? operatorLabels[data.score_operator] : '?';
     const threshold = data.score_threshold ?? '?';
-    const scoreName = data.score_name || 'score';
+    const scoreName = data.score_name || 'leadScoringTotal';
     subtitle = `Se: ${scoreName} ${op} ${threshold}`;
   } else if (data.condition_type) {
     subtitle = `Se: ${conditionLabels[data.condition_type]}`;
   }
+
+  const ClassificationIcon = data.condition_type === 'lead_classification' && data.expected_classification
+    ? classificationConfig[data.expected_classification]?.icon
+    : null;
 
   return (
     <WorkflowNodeWrapper
@@ -81,12 +98,27 @@ export const ConditionNode = memo(({ data, selected }: NodeProps<ConditionNodeDa
         </>
       }
     >
+      {/* Lead Classification visual badge */}
+      {data.condition_type === 'lead_classification' && data.expected_classification && (
+        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${classificationConfig[data.expected_classification].bg} ${classificationConfig[data.expected_classification].color}`}>
+          {ClassificationIcon && <ClassificationIcon className="h-3 w-3" />}
+          {classificationConfig[data.expected_classification].label}
+        </div>
+      )}
+      
       {data.condition_type === 'form_score' && data.score_form_name && (
         <p className="text-xs text-muted-foreground italic">
           📋 {data.score_form_name}
         </p>
       )}
-      {data.condition_type !== 'form_score' && data.condition_value && (
+      
+      {data.condition_type === 'lead_classification' && data.score_form_name && (
+        <p className="text-xs text-muted-foreground italic">
+          📋 {data.score_form_name}
+        </p>
+      )}
+      
+      {data.condition_type !== 'form_score' && data.condition_type !== 'lead_classification' && data.condition_value && (
         <p className="text-xs text-muted-foreground italic">
           "{data.condition_value}"
         </p>

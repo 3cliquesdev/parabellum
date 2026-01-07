@@ -213,7 +213,7 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
       </header>
 
       {/* Main Content */}
-      <main className={`${isEmbedded ? '' : 'flex-1'} flex items-start justify-center p-4 sm:p-6 pt-8`}>
+      <main className={`${isEmbedded || isPreview ? '' : 'flex-1'} flex items-start justify-center p-4 sm:p-6 pt-8`}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

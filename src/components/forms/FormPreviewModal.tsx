@@ -80,18 +80,20 @@ export function FormPreviewModal({ open, onOpenChange, schema, name, title, desc
               </div>
             </div>
           ) : (
-            <div className="flex-1 min-h-0 bg-muted/50 p-8 flex items-start justify-center">
+            <div className="flex-1 min-h-0 bg-muted/50 p-8 flex items-start justify-center overflow-hidden">
               <div 
-                className="w-full max-w-4xl bg-background rounded-lg shadow-lg overflow-y-auto scrollbar-thin"
+                className="w-full max-w-4xl bg-background rounded-lg shadow-lg overflow-hidden"
                 style={{ maxHeight: 'calc(90vh - 120px)' }}
               >
-                <PublicFormV2 
-                  schema={schema} 
-                  isPreview 
-                  formName={name} 
-                  formTitle={title} 
-                  formDescription={description}
-                />
+                <div className="h-full overflow-y-auto scrollbar-thin" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+                  <PublicFormV2 
+                    schema={schema} 
+                    isPreview 
+                    formName={name} 
+                    formTitle={title} 
+                    formDescription={description}
+                  />
+                </div>
               </div>
             </div>
           )}

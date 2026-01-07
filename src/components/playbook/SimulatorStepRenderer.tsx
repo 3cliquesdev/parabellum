@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Mail, CheckSquare, Phone, GitBranch, UserCheck, FastForward, Eye, Lock, CheckCircle } from "lucide-react";
+import { Clock, Mail, CheckSquare, Phone, GitBranch, UserCheck, FastForward, Eye, Lock, CheckCircle, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Node } from "reactflow";
 import { PlaybookStepViewer } from "./PlaybookStepViewer";
@@ -12,7 +12,7 @@ interface SimulatorStepRendererProps {
   node: Node;
   emailTemplates?: any[];
   mockCustomer: { name: string; email: string };
-  onComplete: (path?: "true" | "false") => void;
+  onComplete: (path?: string) => void;
 }
 
 const conditionLabels: Record<string, string> = {
@@ -275,6 +275,94 @@ export function SimulatorStepRenderer({
           <UserCheck className="h-4 w-4" />
           Simular Aprovação
         </Button>
+      </Card>
+    );
+  }
+
+  // FORM NODE
+  if (node.type === "form") {
+    const formName = node.data.form_name || node.data.label || "Formulário";
+    
+    return (
+      <Card className="border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <FileText className="h-8 w-8 text-emerald-600" />
+          <div>
+            <h3 className="font-semibold text-lg">📋 {formName}</h3>
+            <p className="text-sm text-muted-foreground">
+              {node.data.pause_until_response 
+                ? "Pausa até resposta do cliente" 
+                : "Formulário embutido na jornada"}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-sm text-muted-foreground mb-4">
+          Em produção, o cliente preencheria o formulário aqui e as respostas 
+          seriam usadas para calcular o score e classificação.
+        </p>
+
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => {
+              toast({
+                title: "📋 Formulário Simulado",
+                description: "Cliente preencheu o formulário. Score calculado!",
+              });
+              setTimeout(() => onComplete(), 500);
+            }} 
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+          >
+            <CheckSquare className="h-4 w-4" />
+            Simular Preenchimento
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  // SWITCH NODE (Multi-path based on classification)
+  if (node.type === "switch") {
+    const cases = node.data.cases || [
+      { id: "hot", value: "Quente", label: "Quente", color: "red" },
+      { id: "warm", value: "Morno", label: "Morno", color: "yellow" },
+      { id: "cold", value: "Frio", label: "Frio", color: "blue" },
+    ];
+
+    const colorClasses: Record<string, string> = {
+      red: "bg-red-500 hover:bg-red-600 text-white",
+      yellow: "bg-yellow-500 hover:bg-yellow-600 text-black",
+      blue: "bg-blue-500 hover:bg-blue-600 text-white",
+      green: "bg-green-500 hover:bg-green-600 text-white",
+    };
+
+    return (
+      <Card className="border-purple-500 bg-purple-50 dark:bg-purple-950/30 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <GitBranch className="h-8 w-8 text-purple-600" />
+          <div>
+            <h3 className="font-semibold text-lg">🔀 Roteamento por Classificação</h3>
+            <p className="text-sm text-muted-foreground">
+              Direciona com base no score do formulário
+            </p>
+          </div>
+        </div>
+
+        <p className="text-sm mb-4 font-medium">
+          Simule a classificação do cliente para testar cada caminho:
+        </p>
+
+        <div className="grid grid-cols-3 gap-3">
+          {cases.map((caseItem: { id: string; label: string; color?: string }) => (
+            <Button
+              key={caseItem.id}
+              onClick={() => onComplete(caseItem.id)}
+              className={colorClasses[caseItem.color || "gray"] || "bg-gray-500 hover:bg-gray-600 text-white"}
+            >
+              {caseItem.label}
+            </Button>
+          ))}
+        </div>
       </Card>
     );
   }

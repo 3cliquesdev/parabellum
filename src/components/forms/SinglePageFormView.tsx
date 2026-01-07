@@ -127,9 +127,9 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
   };
 
   // Success screen
-  // In preview mode, content flows naturally - scroll is controlled by parent wrapper
+  // In preview mode, we need overflow-y-auto to enable scrolling within the fixed-height container
   const containerClass = isPreview 
-    ? "flex flex-col" 
+    ? "flex flex-col overflow-y-auto" 
     : (isEmbedded ? "" : "min-h-screen flex flex-col");
   
   if (isSubmitted) {

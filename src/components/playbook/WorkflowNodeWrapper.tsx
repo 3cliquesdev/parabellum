@@ -4,7 +4,7 @@ import { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface WorkflowNodeWrapperProps {
-  type: 'email' | 'delay' | 'task' | 'call' | 'condition' | 'approval' | 'form';
+  type: 'email' | 'delay' | 'task' | 'call' | 'condition' | 'approval' | 'form' | 'switch';
   icon: LucideIcon;
   title: string;
   subtitle?: string;
@@ -15,7 +15,7 @@ interface WorkflowNodeWrapperProps {
   customHandles?: ReactNode;
 }
 
-const typeColors = {
+const typeColors: Record<string, { header: string; border: string }> = {
   email: {
     header: 'bg-blue-600 dark:bg-blue-700',
     border: 'border-blue-400 dark:border-blue-600',
@@ -43,6 +43,10 @@ const typeColors = {
   form: {
     header: 'bg-cyan-600 dark:bg-cyan-700',
     border: 'border-cyan-400 dark:border-cyan-600',
+  },
+  switch: {
+    header: 'bg-pink-600 dark:bg-pink-700',
+    border: 'border-pink-400 dark:border-pink-600',
   },
 };
 

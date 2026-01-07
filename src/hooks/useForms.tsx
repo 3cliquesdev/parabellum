@@ -93,7 +93,7 @@ export interface FormSchema {
   ticket_settings?: TicketSettings;
 }
 
-export type FormTargetType = "deal" | "ticket" | "internal_request";
+export type FormTargetType = "deal" | "ticket" | "internal_request" | "none";
 export type FormDistributionRule = "round_robin" | "manager_only" | "specific_user";
 
 export interface Form {

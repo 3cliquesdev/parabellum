@@ -1,5 +1,4 @@
-import { createClient } from "https://esm.sh/v135/@supabase/supabase-js@2.39.3";
-import { Webhook } from "https://esm.sh/v135/standardwebhooks@1.0.0";
+import { createClient } from "https://deno.land/x/supabase@1.4.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +7,41 @@ const corsHeaders = {
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// Inline HMAC verification helper (to avoid external CDN dependency)
+async function verifyWebhookSignature(payload: string, secret: string, headers: Record<string, string>): Promise<boolean> {
+  const timestamp = headers["webhook-timestamp"];
+  const signatures = headers["webhook-signature"]?.split(" ") || [];
+  
+  // Remove whsec_ prefix if present
+  const secretKey = secret.startsWith("whsec_") ? secret.slice(6) : secret;
+  
+  // Decode base64 secret
+  const keyData = Uint8Array.from(atob(secretKey), c => c.charCodeAt(0));
+  
+  // Create signed payload (timestamp.payload)
+  const signedPayload = `${timestamp}.${payload}`;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(signedPayload);
+  
+  // Import key for HMAC
+  const key = await crypto.subtle.importKey(
+    "raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  
+  // Generate expected signature
+  const signature = await crypto.subtle.sign("HMAC", key, data);
+  const expectedSig = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  
+  // Check if any provided signature matches
+  for (const sig of signatures) {
+    const [version, providedSig] = sig.split(",");
+    if (version === "v1" && providedSig === expectedSig) {
+      return true;
+    }
+  }
+  return false;
+}
 
 Deno.serve(async (req) => {
   console.log("[inbound-email] ========= NOVA REQUISIÇÃO =========");
@@ -60,21 +94,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Mapear headers Svix -> Standard Webhooks format (a biblioteca espera webhook-*)
+    // Mapear headers Svix -> Standard Webhooks format
     const webhookHeaders = {
       "webhook-id": svixId,
       "webhook-timestamp": svixTimestamp,
       "webhook-signature": svixSignature,
     };
 
-    console.log('[inbound-email] Headers mapeados para standardwebhooks:', Object.keys(webhookHeaders));
+    console.log('[inbound-email] Headers mapeados para verificação:', Object.keys(webhookHeaders));
 
-    // Usar biblioteca oficial standardwebhooks para verificar assinatura
-    // O secret deve ser passado COM o prefixo whsec_ para a biblioteca
+    // Verificar assinatura usando implementação inline
     try {
-      const wh = new Webhook(webhookSecret);
-      wh.verify(body, webhookHeaders);
-      console.log('[inbound-email] ✅ Signature verified successfully (standardwebhooks)');
+      const isValid = await verifyWebhookSignature(body, webhookSecret, webhookHeaders);
+      if (!isValid) {
+        throw new Error("Signature mismatch");
+      }
+      console.log('[inbound-email] ✅ Signature verified successfully');
     } catch (verifyError: any) {
       console.error('[inbound-email] ❌ Webhook verification failed:', verifyError.message);
       return new Response(

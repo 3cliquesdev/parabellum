@@ -43,7 +43,8 @@ import { PlaybookStepViewer } from "./PlaybookStepViewer";
 import { PlaybookSimulator } from "./PlaybookSimulator";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useForms } from "@/hooks/useForms";
-
+import { useScoringRanges } from "@/hooks/useScoringConfig";
+import { Flame, Thermometer, Snowflake } from "lucide-react";
 export const nodeTypes = {
   email: EmailNode,
   delay: DelayNode,
@@ -75,6 +76,7 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { data: emailTemplates } = useEmailTemplates();
   const { data: forms } = useForms();
+  const { data: scoringRanges = [] } = useScoringRanges();
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge({
@@ -460,23 +462,123 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
                   <Label>Tipo de Condição</Label>
                   <Select
                     value={selectedNode.data.condition_type || "email_opened"}
-                    onValueChange={(value) => updateNodeData("condition_type", value)}
+                    onValueChange={(value) => {
+                      updateNodeData("condition_type", value);
+                      // Auto-preencher leadScoringTotal para form_score
+                      if (value === "form_score" && !selectedNode.data.score_name) {
+                        updateNodeData("score_name", "leadScoringTotal");
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="lead_classification">🎯 Classificação de Lead</SelectItem>
+                      <SelectItem value="form_score">📊 Score do Formulário</SelectItem>
                       <SelectItem value="email_opened">Email Aberto</SelectItem>
                       <SelectItem value="email_clicked">Email Clicado</SelectItem>
                       <SelectItem value="meeting_booked">Reunião Agendada</SelectItem>
                       <SelectItem value="tag_exists">Tag Existe</SelectItem>
                       <SelectItem value="status_change">Mudança de Status</SelectItem>
-                      <SelectItem value="form_score">Score do Formulário</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 
-                {/* Form Score specific fields */}
+                {/* Lead Classification - Nova opção intuitiva */}
+                {selectedNode.data.condition_type === "lead_classification" && (
+                  <>
+                    <div>
+                      <Label>Formulário</Label>
+                      <Select
+                        value={selectedNode.data.score_form_id || ""}
+                        onValueChange={(value) => {
+                          const form = forms?.find(f => f.id === value);
+                          updateNodeData("score_form_id", value);
+                          updateNodeData("score_form_name", form?.name || "");
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o formulário..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {forms?.filter(f => f.is_active).map((form) => (
+                            <SelectItem key={form.id} value={form.id}>
+                              {form.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* Mostrar faixas configuradas */}
+                    {scoringRanges.length > 0 && (
+                      <div className="p-3 bg-muted/50 rounded-lg border space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">📊 Faixas configuradas:</p>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {scoringRanges.map((range) => (
+                            <span 
+                              key={range.id} 
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full"
+                              style={{ backgroundColor: `${range.color}20`, color: range.color }}
+                            >
+                              {range.classification === "quente" && <Flame className="h-3 w-3" />}
+                              {range.classification === "morno" && <Thermometer className="h-3 w-3" />}
+                              {range.classification === "frio" && <Snowflake className="h-3 w-3" />}
+                              {range.classification}: {range.min_score}-{range.max_score ?? "∞"}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div>
+                      <Label>Classificação Esperada</Label>
+                      <RadioGroup
+                        value={selectedNode.data.expected_classification || "quente"}
+                        onValueChange={(value) => updateNodeData("expected_classification", value)}
+                        className="mt-2 space-y-2"
+                      >
+                        <div className="flex items-center space-x-2 p-2 rounded border border-green-500/30 bg-green-500/5">
+                          <RadioGroupItem value="quente" id="class-quente" />
+                          <Label htmlFor="class-quente" className="flex items-center gap-2 cursor-pointer flex-1">
+                            <Flame className="h-4 w-4 text-green-600" />
+                            <span className="text-green-600 font-medium">Quente</span>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              {scoringRanges.find(r => r.classification === "quente")?.min_score ?? 31}+ pts
+                            </span>
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2 p-2 rounded border border-amber-500/30 bg-amber-500/5">
+                          <RadioGroupItem value="morno" id="class-morno" />
+                          <Label htmlFor="class-morno" className="flex items-center gap-2 cursor-pointer flex-1">
+                            <Thermometer className="h-4 w-4 text-amber-600" />
+                            <span className="text-amber-600 font-medium">Morno</span>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              {scoringRanges.find(r => r.classification === "morno")?.min_score ?? 16}-{scoringRanges.find(r => r.classification === "morno")?.max_score ?? 30} pts
+                            </span>
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2 p-2 rounded border border-red-500/30 bg-red-500/5">
+                          <RadioGroupItem value="frio" id="class-frio" />
+                          <Label htmlFor="class-frio" className="flex items-center gap-2 cursor-pointer flex-1">
+                            <Snowflake className="h-4 w-4 text-red-600" />
+                            <span className="text-red-600 font-medium">Frio</span>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              {scoringRanges.find(r => r.classification === "frio")?.min_score ?? 0}-{scoringRanges.find(r => r.classification === "frio")?.max_score ?? 15} pts
+                            </span>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        ✓ Sim → Se o lead <strong>for</strong> essa classificação<br/>
+                        ✗ Não → Se o lead <strong>não for</strong> essa classificação
+                      </p>
+                    </div>
+                  </>
+                )}
+                
+                {/* Form Score specific fields - Melhorado */}
                 {selectedNode.data.condition_type === "form_score" && (
                   <>
                     <div>
@@ -501,15 +603,37 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
                         </SelectContent>
                       </Select>
                     </div>
+                    
+                    {/* Mostrar faixas configuradas */}
+                    {scoringRanges.length > 0 && (
+                      <div className="p-3 bg-muted/50 rounded-lg border space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">ℹ️ Faixas de referência:</p>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {scoringRanges.map((range) => (
+                            <span 
+                              key={range.id} 
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full"
+                              style={{ backgroundColor: `${range.color}20`, color: range.color }}
+                            >
+                              {range.classification === "quente" && <Flame className="h-3 w-3" />}
+                              {range.classification === "morno" && <Thermometer className="h-3 w-3" />}
+                              {range.classification === "frio" && <Snowflake className="h-3 w-3" />}
+                              {range.classification}: {range.min_score}-{range.max_score ?? "∞"}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     <div>
                       <Label>Nome do Score</Label>
                       <Input
-                        value={selectedNode.data.score_name || ""}
+                        value={selectedNode.data.score_name || "leadScoringTotal"}
                         onChange={(e) => updateNodeData("score_name", e.target.value)}
-                        placeholder="Ex: qualificacao, engagement"
+                        placeholder="leadScoringTotal"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Nome definido no calculatedScores do formulário
+                        Use <code className="bg-muted px-1 rounded">leadScoringTotal</code> para o score padrão
                       </p>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -544,7 +668,8 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
                 )}
                 
                 {/* Standard condition value */}
-                {selectedNode.data.condition_type !== "form_score" && (
+                {selectedNode.data.condition_type !== "form_score" && 
+                 selectedNode.data.condition_type !== "lead_classification" && (
                   <div>
                     <Label>Valor da Condição</Label>
                     <Input

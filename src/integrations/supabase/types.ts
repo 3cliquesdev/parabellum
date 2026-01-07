@@ -1196,8 +1196,11 @@ export type Database = {
           last_kiwify_event_at: string | null
           last_name: string
           last_payment_date: string | null
+          lead_classification: string | null
+          lead_score: number | null
           neighborhood: string | null
           next_payment_date: string | null
+          onboarding_submission_id: string | null
           organization_id: string | null
           phone: string | null
           recent_orders_count: number | null
@@ -1238,8 +1241,11 @@ export type Database = {
           last_kiwify_event_at?: string | null
           last_name: string
           last_payment_date?: string | null
+          lead_classification?: string | null
+          lead_score?: number | null
           neighborhood?: string | null
           next_payment_date?: string | null
+          onboarding_submission_id?: string | null
           organization_id?: string | null
           phone?: string | null
           recent_orders_count?: number | null
@@ -1280,8 +1286,11 @@ export type Database = {
           last_kiwify_event_at?: string | null
           last_name?: string
           last_payment_date?: string | null
+          lead_classification?: string | null
+          lead_score?: number | null
           neighborhood?: string | null
           next_payment_date?: string | null
+          onboarding_submission_id?: string | null
           organization_id?: string | null
           phone?: string | null
           recent_orders_count?: number | null
@@ -1309,6 +1318,13 @@ export type Database = {
             columns: ["consultant_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_onboarding_submission_id_fkey"
+            columns: ["onboarding_submission_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_submissions"
             referencedColumns: ["id"]
           },
           {
@@ -3822,6 +3838,8 @@ export type Database = {
       }
       onboarding_submissions: {
         Row: {
+          classification: string | null
+          contact_id: string | null
           created_at: string | null
           dropshipping_experience: string | null
           email: string
@@ -3835,11 +3853,15 @@ export type Database = {
           metadata: Json | null
           name: string
           platform_used: string | null
+          score_breakdown: Json | null
+          score_total: number | null
           social_networks: string[] | null
           updated_at: string | null
           whatsapp: string
         }
         Insert: {
+          classification?: string | null
+          contact_id?: string | null
           created_at?: string | null
           dropshipping_experience?: string | null
           email: string
@@ -3853,11 +3875,15 @@ export type Database = {
           metadata?: Json | null
           name: string
           platform_used?: string | null
+          score_breakdown?: Json | null
+          score_total?: number | null
           social_networks?: string[] | null
           updated_at?: string | null
           whatsapp: string
         }
         Update: {
+          classification?: string | null
+          contact_id?: string | null
           created_at?: string | null
           dropshipping_experience?: string | null
           email?: string
@@ -3871,11 +3897,21 @@ export type Database = {
           metadata?: Json | null
           name?: string
           platform_used?: string | null
+          score_breakdown?: Json | null
+          score_total?: number | null
           social_networks?: string[] | null
           updated_at?: string | null
           whatsapp?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_submissions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       organizations: {
         Row: {
@@ -4833,6 +4869,66 @@ export type Database = {
           report_type?: string
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      scoring_config: {
+        Row: {
+          created_at: string | null
+          field_label: string
+          field_name: string
+          id: string
+          is_active: boolean | null
+          updated_at: string | null
+          value_rules: Json
+        }
+        Insert: {
+          created_at?: string | null
+          field_label: string
+          field_name: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+          value_rules?: Json
+        }
+        Update: {
+          created_at?: string | null
+          field_label?: string
+          field_name?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+          value_rules?: Json
+        }
+        Relationships: []
+      }
+      scoring_ranges: {
+        Row: {
+          classification: string
+          color: string
+          created_at: string | null
+          id: string
+          max_score: number | null
+          min_score: number
+          priority: number | null
+        }
+        Insert: {
+          classification: string
+          color: string
+          created_at?: string | null
+          id?: string
+          max_score?: number | null
+          min_score: number
+          priority?: number | null
+        }
+        Update: {
+          classification?: string
+          color?: string
+          created_at?: string | null
+          id?: string
+          max_score?: number | null
+          min_score?: number
+          priority?: number | null
         }
         Relationships: []
       }
@@ -5826,6 +5922,7 @@ export type Database = {
         }
         Returns: string
       }
+      calculate_lead_score: { Args: { submission_id: string }; Returns: number }
       calculate_onboarding_progress: {
         Args: { p_user_id: string }
         Returns: number

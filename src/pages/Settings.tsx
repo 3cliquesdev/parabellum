@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Database, Mail, Webhook, Loader2, FileText, MessageCircle, Brain, Smartphone, Package, Key, Zap, Settings as SettingsIcon, Clock } from "lucide-react";
+import { Shield, Database, Mail, Webhook, Loader2, FileText, MessageCircle, Brain, Smartphone, Package, Key, Zap, Settings as SettingsIcon, Clock, Target } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -250,6 +250,21 @@ export default function Settings() {
           <CardContent>
             <Button variant="outline" onClick={() => navigate('/settings/sla')}>
               Configurar SLA
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-2 border-amber-500/20 bg-amber-500/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-amber-500" />
+              Scoring de Qualificação
+            </CardTitle>
+            <CardDescription>Configure pontuação por resposta e faixas de classificação de leads</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => navigate('/settings/scoring')}>
+              Configurar Scoring
             </Button>
           </CardContent>
         </Card>

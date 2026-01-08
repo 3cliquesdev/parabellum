@@ -96,6 +96,10 @@ export interface FormSettings {
   // Animações
   transition_type?: TransitionType; // Tipo de transição entre campos
   transition_duration?: number;     // Duração da transição (0.2-0.8s)
+  // Efeitos de hover
+  hover_effect_enabled?: boolean;   // Habilitar efeitos de hover
+  hover_scale?: number;             // Escala no hover (1.00-1.10)
+  hover_glow?: boolean;             // Brilho/glow no hover
   // Espaçamento avançado
   container_padding?: number;       // Padding interno do container (16-64px)
   field_gap?: number;               // Espaçamento entre campos (8-48px)
@@ -176,6 +180,10 @@ export const DEFAULT_FORM_SETTINGS: FormSettings = {
   // Animações
   transition_type: "slide",
   transition_duration: 0.3,
+  // Hover
+  hover_effect_enabled: true,
+  hover_scale: 1.02,
+  hover_glow: true,
   // Espaçamento
   container_padding: 32,
   field_gap: 24,

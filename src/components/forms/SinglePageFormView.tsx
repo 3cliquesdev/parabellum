@@ -308,23 +308,34 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
               </motion.div>
             ))}
 
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-6 text-lg font-semibold mt-8"
-              style={{ 
-                backgroundColor: settings.button_color,
-                color: settings.button_text_color,
-                borderRadius: `${Math.min(settings.border_radius ?? 16, 12)}px`,
-              }}
+            <motion.div
+              whileHover={settings.hover_effect_enabled !== false ? { 
+                scale: settings.hover_scale ?? 1.02,
+                boxShadow: settings.hover_glow !== false ? `0 0 20px ${settings.button_color}50` : undefined,
+              } : undefined}
+              whileTap={settings.hover_effect_enabled !== false ? { scale: 0.98 } : undefined}
+              transition={{ duration: 0.2 }}
+              className="mt-8"
+              style={{ borderRadius: `${Math.min(settings.border_radius ?? 16, 12)}px` }}
             >
-              {isSubmitting ? (
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              ) : (
-                <Check className="h-5 w-5 mr-2" />
-              )}
-              Enviar
-            </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-6 text-lg font-semibold transition-all duration-200"
+                style={{ 
+                  backgroundColor: settings.button_color,
+                  color: settings.button_text_color,
+                  borderRadius: `${Math.min(settings.border_radius ?? 16, 12)}px`,
+                }}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : (
+                  <Check className="h-5 w-5 mr-2" />
+                )}
+                Enviar
+              </Button>
+            </motion.div>
           </form>
         </motion.div>
       </main>

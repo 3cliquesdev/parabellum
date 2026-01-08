@@ -34,6 +34,7 @@ import {
   AlertTriangle,
   Crown,
   ClipboardList,
+  Kanban,
   LucideIcon
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -148,6 +149,7 @@ const universalMenuGroups: MenuGroup[] = [
   {
     label: "Gestão",
     items: [
+      { title: "Projetos", href: "/projects", icon: Kanban, permission: "projects.view" },
       { title: "Definir Metas", href: "/goals-management", icon: Target, permission: "goals.set" },
       { title: "Solicitações Internas", href: "/internal-requests", icon: ClipboardList, permission: "tickets.view" },
       { title: "Relatórios", href: "/reports", icon: FileText, permission: "analytics.export" },

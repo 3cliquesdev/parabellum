@@ -93,6 +93,8 @@ const TicketStatusSettings = lazy(() => import("./pages/TicketStatusSettings"));
 const CustomerFiscalData = lazy(() => import("./pages/CustomerFiscalData"));
 const SuperAdminPanel = lazy(() => import("./pages/SuperAdminPanel"));
 const InternalRequests = lazy(() => import("./pages/InternalRequests"));
+const ProjectsPage = lazy(() => import("./pages/ProjectsPage"));
+const ProjectBoardPage = lazy(() => import("./pages/ProjectBoardPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -207,6 +209,10 @@ const App = () => {
               <Route path="/settings/ticket-statuses" element={<ProtectedRoute requiredPermission="settings.view"><Layout><TicketStatusSettings /></Layout></ProtectedRoute>} />
               <Route path="/admin-onboarding" element={<ProtectedRoute requiredPermission="settings.view"><AdminOnboarding /></ProtectedRoute>} />
               <Route path="/super-admin" element={<ProtectedRoute allowedRoles={["admin"]}><Layout><SuperAdminPanel /></Layout></ProtectedRoute>} />
+              
+              {/* Projects / Kanban */}
+              <Route path="/projects" element={<ProtectedRoute requiredPermission="projects.view"><Layout><ProjectsPage /></Layout></ProtectedRoute>} />
+              <Route path="/projects/:boardId" element={<ProtectedRoute requiredPermission="projects.view"><Layout><ProjectBoardPage /></Layout></ProtectedRoute>} />
               
               {/* Catch-all route - must be last */}
               <Route path="*" element={<NotFound />} />

@@ -1,24 +1,35 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useDepartments } from "@/hooks/useDepartments";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Copy, ExternalLink, MessageSquare, Phone } from "lucide-react";
 
 export default function ChatLinksSettings() {
-  const { data: departments } = useDepartments();
   const { toast } = useToast();
 
   const baseUrl = window.location.origin;
 
-  // Buscar apenas o departamento Comercial
-  const comercialDept = departments?.find(
-    (d) => d.name.toLowerCase() === "comercial" && d.is_active
-  );
+  // Buscar instância WhatsApp conectada
+  const { data: whatsappInstances } = useQuery({
+    queryKey: ['whatsapp-instances-public'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('whatsapp_instances')
+        .select('phone_number, name')
+        .eq('status', 'connected')
+        .limit(1);
+      return data;
+    }
+  });
+
+  const whatsappInstance = whatsappInstances?.[0];
+  // phone_number vem no formato "5511999999999@s.whatsapp.net" - extrair só o número
+  const whatsappNumber = whatsappInstance?.phone_number?.replace('@s.whatsapp.net', '');
 
   const chatLink = `${baseUrl}/public-chat?dept=comercial`;
-  const whatsappNumber = comercialDept?.whatsapp_number?.replace(/\D/g, "");
   const whatsappMessage = encodeURIComponent(
-    "Olá, vim pelo site e gostaria de falar com o Comercial"
+    "Olá, vim pelo site e gostaria de atendimento"
   );
   const whatsappLink = whatsappNumber
     ? `https://wa.me/${whatsappNumber}?text=${whatsappMessage}`
@@ -110,8 +121,7 @@ export default function ChatLinksSettings() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Configure o número do WhatsApp nas configurações do departamento
-                Comercial.
+                Nenhuma instância WhatsApp conectada. Configure em Configurações → WhatsApp.
               </p>
             )}
           </CardContent>

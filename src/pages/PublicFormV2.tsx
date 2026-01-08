@@ -546,28 +546,38 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
           </div>
 
           {/* Next/Submit Button */}
-          <Button
-            onClick={handleNext}
-            disabled={currentField?.required && !answers[currentField?.id]}
-            style={{ 
-              backgroundColor: settings.button_color,
-              color: settings.button_text_color,
-              borderRadius: `${Math.min(settings.border_radius ?? 16, 12)}px`,
-            }}
-            className="px-8 py-6 text-lg font-semibold"
+          <motion.div
+            whileHover={settings.hover_effect_enabled !== false ? { 
+              scale: settings.hover_scale ?? 1.02,
+              boxShadow: settings.hover_glow !== false ? `0 0 20px ${settings.button_color}50` : undefined,
+            } : undefined}
+            whileTap={settings.hover_effect_enabled !== false ? { scale: 0.98 } : undefined}
+            transition={{ duration: 0.2 }}
+            style={{ borderRadius: `${Math.min(settings.border_radius ?? 16, 12)}px` }}
           >
-            {currentIndex === fields.length - 1 ? (
-              <>
-                Enviar
-                <Check className="h-5 w-5 ml-2" />
-              </>
-            ) : (
-              <>
-                {settings.button_text || "Continuar"}
-                <ChevronRight className="h-5 w-5 ml-2" />
-              </>
-            )}
-          </Button>
+            <Button
+              onClick={handleNext}
+              disabled={currentField?.required && !answers[currentField?.id]}
+              style={{ 
+                backgroundColor: settings.button_color,
+                color: settings.button_text_color,
+                borderRadius: `${Math.min(settings.border_radius ?? 16, 12)}px`,
+              }}
+              className="px-8 py-6 text-lg font-semibold transition-all duration-200"
+            >
+              {currentIndex === fields.length - 1 ? (
+                <>
+                  Enviar
+                  <Check className="h-5 w-5 ml-2" />
+                </>
+              ) : (
+                <>
+                  {settings.button_text || "Continuar"}
+                  <ChevronRight className="h-5 w-5 ml-2" />
+                </>
+              )}
+            </Button>
+          </motion.div>
         </div>
 
         {/* Keyboard Hint */}

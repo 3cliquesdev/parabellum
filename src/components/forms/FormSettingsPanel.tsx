@@ -370,6 +370,50 @@ export function FormSettingsPanel({ settings, onChange }: FormSettingsPanelProps
             className="w-full"
           />
         </div>
+
+        <Separator className="my-2" />
+
+        {/* Efeitos de Hover */}
+        <div className="flex items-center justify-between">
+          <div>
+            <Label>Efeitos de Hover</Label>
+            <p className="text-xs text-muted-foreground">Animações ao passar o mouse</p>
+          </div>
+          <Switch
+            checked={settings.hover_effect_enabled !== false}
+            onCheckedChange={(checked) => onChange({ hover_effect_enabled: checked })}
+          />
+        </div>
+
+        {settings.hover_effect_enabled !== false && (
+          <>
+            <div className="space-y-2">
+              <Label>Escala: {((settings.hover_scale ?? 1.02) * 100).toFixed(0)}%</Label>
+              <Slider
+                value={[(settings.hover_scale ?? 1.02) * 100]}
+                onValueChange={([val]) => onChange({ hover_scale: val / 100 })}
+                min={100}
+                max={110}
+                step={1}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Aumento de tamanho no hover
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Efeito Glow</Label>
+                <p className="text-xs text-muted-foreground">Brilho suave nos elementos</p>
+              </div>
+              <Switch
+                checked={settings.hover_glow !== false}
+                onCheckedChange={(checked) => onChange({ hover_glow: checked })}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <Separator />

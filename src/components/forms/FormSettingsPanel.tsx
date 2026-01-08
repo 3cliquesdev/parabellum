@@ -1,4 +1,4 @@
-import { FormSettings, LogoPosition, LogoSize, FontFamily, TransitionType } from "@/hooks/useForms";
+import { FormSettings, LogoPosition, LogoSize, FontFamily, TransitionType, GradientDirection } from "@/hooks/useForms";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,22 +79,91 @@ export function FormSettingsPanel({ settings, onChange }: FormSettingsPanelProps
       <div className="space-y-4">
         <h4 className="font-medium text-sm">Fundo</h4>
         
-        <div className="space-y-2">
-          <Label>Cor de Fundo da Página</Label>
-          <div className="flex gap-2">
-            <Input
-              type="color"
-              value={settings.background_color || "#0a0a0a"}
-              onChange={(e) => onChange({ background_color: e.target.value })}
-              className="w-12 h-9 p-1 cursor-pointer"
-            />
-            <Input
-              value={settings.background_color || "#0a0a0a"}
-              onChange={(e) => onChange({ background_color: e.target.value })}
-              className="flex-1"
-            />
+        {/* Gradient Toggle */}
+        <div className="flex items-center justify-between">
+          <div>
+            <Label>Usar Gradiente</Label>
+            <p className="text-xs text-muted-foreground">Fundo com gradiente de cores</p>
           </div>
+          <Switch
+            checked={settings.background_gradient_enabled === true}
+            onCheckedChange={(checked) => onChange({ background_gradient_enabled: checked })}
+          />
         </div>
+
+        {settings.background_gradient_enabled ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Cor Inicial</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="color"
+                    value={settings.background_gradient_from || "#1a1a2e"}
+                    onChange={(e) => onChange({ background_gradient_from: e.target.value })}
+                    className="w-10 h-9 p-1 cursor-pointer"
+                  />
+                  <Input
+                    value={settings.background_gradient_from || "#1a1a2e"}
+                    onChange={(e) => onChange({ background_gradient_from: e.target.value })}
+                    className="flex-1 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Cor Final</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="color"
+                    value={settings.background_gradient_to || "#0a0a0a"}
+                    onChange={(e) => onChange({ background_gradient_to: e.target.value })}
+                    className="w-10 h-9 p-1 cursor-pointer"
+                  />
+                  <Input
+                    value={settings.background_gradient_to || "#0a0a0a"}
+                    onChange={(e) => onChange({ background_gradient_to: e.target.value })}
+                    className="flex-1 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Direção do Gradiente</Label>
+              <Select
+                value={settings.background_gradient_direction || "to-b"}
+                onValueChange={(value: GradientDirection) => onChange({ background_gradient_direction: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="to-b">↓ Vertical (Cima → Baixo)</SelectItem>
+                  <SelectItem value="to-r">→ Horizontal (Esquerda → Direita)</SelectItem>
+                  <SelectItem value="to-br">↘ Diagonal (Canto Superior Esq → Inf Dir)</SelectItem>
+                  <SelectItem value="to-bl">↙ Diagonal (Canto Superior Dir → Inf Esq)</SelectItem>
+                  <SelectItem value="radial">◉ Radial (Centro → Bordas)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-2">
+            <Label>Cor de Fundo da Página</Label>
+            <div className="flex gap-2">
+              <Input
+                type="color"
+                value={settings.background_color || "#0a0a0a"}
+                onChange={(e) => onChange({ background_color: e.target.value })}
+                className="w-12 h-9 p-1 cursor-pointer"
+              />
+              <Input
+                value={settings.background_color || "#0a0a0a"}
+                onChange={(e) => onChange({ background_color: e.target.value })}
+                className="flex-1"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Imagem de Fundo */}
         <ImageUploader

@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, User } from "lucide-react";
 import { useIsMobileBreakpoint } from "@/hooks/useBreakpoint";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+
 import type { Tables } from "@/integrations/supabase/types";
 
 type Contact = Tables<"contacts"> & {
@@ -278,59 +278,48 @@ export default function Inbox() {
     );
   }
 
-  // Desktop Layout - 4 Columns with Sidebar (Octa style)
+  // Desktop Layout - 4 Columns Fixed (Octa style)
   return (
     <div className="flex h-full overflow-hidden min-w-0">
-      {/* Resizable 4-Column Layout */}
-      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
-        {/* Filter Sidebar Panel */}
-        <ResizablePanel defaultSize={15} minSize={12} maxSize={20}>
-          <InboxSidebar counts={sidebarCounts} />
-        </ResizablePanel>
+      {/* Filter Sidebar - fixed width */}
+      <div className="w-56 flex-shrink-0 border-r border-border">
+        <InboxSidebar counts={sidebarCounts} />
+      </div>
+      
+      {/* Conversation List - fixed width */}
+      <div className="w-72 flex-shrink-0 border-r border-border flex flex-col">
+        {/* Mini Header with filters */}
+        <div className="flex-none border-b border-border px-3 py-2 bg-card">
+          <InboxFilterPopover filters={filters} onFiltersChange={setFilters} />
+        </div>
         
-        <ResizableHandle />
-        
-        {/* Conversation List Panel */}
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-          <div className="flex flex-col h-full">
-            {/* Mini Header with filters */}
-            <div className="flex-none border-b border-border px-3 py-2 bg-card">
-              <InboxFilterPopover filters={filters} onFiltersChange={setFilters} />
-            </div>
-            
-            {hasHiddenConversations && (
-              <div className="flex-none px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800">
-                <p className="text-xs text-yellow-800 dark:text-yellow-200">
-                  ⚠️ Nenhuma conversa neste filtro
-                </p>
-              </div>
-            )}
-            
-            <div className="flex-1 overflow-hidden">
-              <ConversationList
-                conversations={filteredConversations}
-                activeConversationId={activeConversation?.id || null}
-                onSelectConversation={handleSelectConversation}
-                isLoading={inboxLoading || convLoading}
-              />
-            </div>
+        {hasHiddenConversations && (
+          <div className="flex-none px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800">
+            <p className="text-xs text-yellow-800 dark:text-yellow-200">
+              ⚠️ Nenhuma conversa neste filtro
+            </p>
           </div>
-        </ResizablePanel>
+        )}
         
-        <ResizableHandle withHandle />
-        
-        {/* Chat Window Panel */}
-        <ResizablePanel defaultSize={40} minSize={30}>
-          <ChatWindow conversation={activeConversation} />
-        </ResizablePanel>
-        
-        <ResizableHandle withHandle />
-        
-        {/* Contact Details Panel */}
-        <ResizablePanel defaultSize={25} minSize={15} maxSize={35}>
-          <ContactDetailsSidebar conversation={activeConversation} />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        <div className="flex-1 overflow-hidden">
+          <ConversationList
+            conversations={filteredConversations}
+            activeConversationId={activeConversation?.id || null}
+            onSelectConversation={handleSelectConversation}
+            isLoading={inboxLoading || convLoading}
+          />
+        </div>
+      </div>
+      
+      {/* Chat Window - expands to fill remaining space */}
+      <div className="flex-1 min-w-0 border-r border-border">
+        <ChatWindow conversation={activeConversation} />
+      </div>
+      
+      {/* Contact Details - fixed width */}
+      <div className="w-80 flex-shrink-0">
+        <ContactDetailsSidebar conversation={activeConversation} />
+      </div>
     </div>
   );
 }

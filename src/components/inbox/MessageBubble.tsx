@@ -134,7 +134,7 @@ export function MessageBubble({
         {/* Bubble */}
         <div
           className={cn(
-            "max-w-[75%] px-4 py-3 shadow-sm",
+            "max-w-[85%] min-w-[120px] px-4 py-3 shadow-sm",
             isCustomer
               ? "bg-slate-900 text-white rounded-2xl rounded-tl-none"
               : isAI
@@ -164,7 +164,7 @@ export function MessageBubble({
           {content && (
             <SafeHTML
               html={content}
-              className="text-sm whitespace-pre-wrap break-words"
+              className="text-sm whitespace-pre-wrap [word-break:break-word]"
             />
           )}
 

@@ -14,32 +14,16 @@ export function useCloseConversation() {
 
   return useMutation({
     mutationFn: async ({ conversationId, userId, sendSurvey }: CloseConversationParams) => {
-      // Update conversation status
-      const { error: updateError } = await supabase
-        .from("conversations")
-        .update({
-          status: "closed",
-          closed_by: userId,
-          closed_at: new Date().toISOString(),
-        })
-        .eq("id", conversationId);
+      const { data, error } = await supabase.functions.invoke("close-conversation", {
+        body: {
+          conversationId,
+          userId,
+          sendCsat: sendSurvey,
+        },
+      });
 
-      if (updateError) throw updateError;
-
-      // Send survey message if requested
-      if (sendSurvey) {
-        const { error: messageError } = await supabase
-          .from("messages")
-          .insert({
-            conversation_id: conversationId,
-            content: "Seu atendimento foi encerrado. Por favor, avalie nosso atendimento de 1 a 5 estrelas! ⭐",
-            sender_type: "system",
-          });
-
-        if (messageError) throw messageError;
-      }
-
-      return { conversationId };
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });

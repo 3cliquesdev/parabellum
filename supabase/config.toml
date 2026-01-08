@@ -253,3 +253,6 @@ region = "us-east-1"
 
 [functions.bulk-redistribute]
 verify_jwt = true
+
+[functions.close-conversation]
+verify_jwt = false

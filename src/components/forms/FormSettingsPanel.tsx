@@ -7,7 +7,155 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { ImageUploader } from "@/components/ImageUploader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlignLeft, AlignCenter, AlignRight, Zap } from "lucide-react";
+import { AlignLeft, AlignCenter, AlignRight, Zap, Palette, Sparkles, Moon, Sun, Flame, Leaf, Waves, Gem } from "lucide-react";
+
+// Temas pré-definidos
+const PREDEFINED_THEMES: Record<string, { name: string; icon: React.ReactNode; settings: Partial<FormSettings> }> = {
+  dark_elegant: {
+    name: "Dark Elegante",
+    icon: <Moon className="h-4 w-4" />,
+    settings: {
+      background_color: "#0a0a0a",
+      background_gradient_enabled: true,
+      background_gradient_from: "#1a1a2e",
+      background_gradient_to: "#0a0a0a",
+      background_gradient_direction: "to-b",
+      card_background_color: "#1a1a2e",
+      card_opacity: 90,
+      text_color: "#ffffff",
+      title_color: "#ffffff",
+      description_color: "#e0e0e0",
+      button_color: "#6366f1",
+      button_text_color: "#ffffff",
+      input_background_color: "#ffffff",
+      input_text_color: "#000000",
+      border_radius: 16,
+      font_family: "inter",
+      title_weight: "bold",
+    },
+  },
+  light_minimal: {
+    name: "Light Minimal",
+    icon: <Sun className="h-4 w-4" />,
+    settings: {
+      background_color: "#f8fafc",
+      background_gradient_enabled: false,
+      card_background_color: "#ffffff",
+      card_opacity: 100,
+      card_shadow: true,
+      card_shadow_intensity: 2,
+      text_color: "#1e293b",
+      title_color: "#0f172a",
+      description_color: "#475569",
+      button_color: "#0f172a",
+      button_text_color: "#ffffff",
+      input_background_color: "#f1f5f9",
+      input_text_color: "#1e293b",
+      input_border_color: "#e2e8f0",
+      border_radius: 12,
+      font_family: "inter",
+      title_weight: "semibold",
+    },
+  },
+  vibrant_gradient: {
+    name: "Vibrante",
+    icon: <Flame className="h-4 w-4" />,
+    settings: {
+      background_gradient_enabled: true,
+      background_gradient_from: "#7c3aed",
+      background_gradient_to: "#db2777",
+      background_gradient_direction: "to-br",
+      card_background_color: "#ffffff",
+      card_opacity: 95,
+      card_shadow: true,
+      card_shadow_intensity: 4,
+      text_color: "#1e1e1e",
+      title_color: "#7c3aed",
+      description_color: "#6b7280",
+      button_color: "#7c3aed",
+      button_text_color: "#ffffff",
+      input_background_color: "#faf5ff",
+      input_text_color: "#1e1e1e",
+      border_radius: 20,
+      font_family: "poppins",
+      title_weight: "bold",
+      hover_glow: true,
+    },
+  },
+  nature_calm: {
+    name: "Natureza",
+    icon: <Leaf className="h-4 w-4" />,
+    settings: {
+      background_gradient_enabled: true,
+      background_gradient_from: "#134e4a",
+      background_gradient_to: "#0f766e",
+      background_gradient_direction: "to-b",
+      card_background_color: "#ffffff",
+      card_opacity: 92,
+      card_shadow: true,
+      text_color: "#134e4a",
+      title_color: "#0f766e",
+      description_color: "#5eead4",
+      button_color: "#14b8a6",
+      button_text_color: "#ffffff",
+      input_background_color: "#f0fdfa",
+      input_text_color: "#134e4a",
+      border_radius: 16,
+      font_family: "lato",
+      title_weight: "semibold",
+    },
+  },
+  ocean_blue: {
+    name: "Oceano",
+    icon: <Waves className="h-4 w-4" />,
+    settings: {
+      background_gradient_enabled: true,
+      background_gradient_from: "#0c4a6e",
+      background_gradient_to: "#082f49",
+      background_gradient_direction: "radial",
+      card_background_color: "#0ea5e9",
+      card_opacity: 20,
+      card_border_color: "#38bdf8",
+      card_border_width: 1,
+      text_color: "#ffffff",
+      title_color: "#7dd3fc",
+      description_color: "#bae6fd",
+      button_color: "#0ea5e9",
+      button_text_color: "#ffffff",
+      input_background_color: "#ffffff",
+      input_text_color: "#0c4a6e",
+      border_radius: 12,
+      font_family: "montserrat",
+      title_weight: "bold",
+    },
+  },
+  luxury_gold: {
+    name: "Luxo",
+    icon: <Gem className="h-4 w-4" />,
+    settings: {
+      background_color: "#0c0c0c",
+      background_gradient_enabled: false,
+      card_background_color: "#1c1c1c",
+      card_opacity: 100,
+      card_border_color: "#d4af37",
+      card_border_width: 2,
+      card_shadow: true,
+      card_shadow_intensity: 3,
+      text_color: "#f5f5f5",
+      title_color: "#d4af37",
+      description_color: "#a3a3a3",
+      button_color: "#d4af37",
+      button_text_color: "#0c0c0c",
+      input_background_color: "#2a2a2a",
+      input_text_color: "#f5f5f5",
+      input_border_color: "#404040",
+      border_radius: 8,
+      font_family: "playfair",
+      title_weight: "bold",
+      letter_spacing: 1,
+    },
+  },
+};
 
 interface FormSettingsPanelProps {
   settings: FormSettings;
@@ -15,11 +163,46 @@ interface FormSettingsPanelProps {
 }
 
 export function FormSettingsPanel({ settings, onChange }: FormSettingsPanelProps) {
+  const applyTheme = (themeKey: string) => {
+    const theme = PREDEFINED_THEMES[themeKey];
+    if (theme) {
+      onChange(theme.settings);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h4 className="font-semibold mb-4">Design do Formulário</h4>
       </div>
+
+      {/* Temas Pré-definidos */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Palette className="h-4 w-4 text-primary" />
+          <Label>Temas Prontos</Label>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.entries(PREDEFINED_THEMES).map(([key, theme]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => applyTheme(key)}
+              className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-muted/30 hover:bg-muted hover:border-primary/50 transition-all text-left group"
+            >
+              <span className="text-muted-foreground group-hover:text-primary transition-colors">
+                {theme.icon}
+              </span>
+              <span className="text-xs font-medium">{theme.name}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Clique em um tema para aplicar. Personalize depois.
+        </p>
+      </div>
+
+      <Separator />
 
       {/* Logo */}
       <ImageUploader

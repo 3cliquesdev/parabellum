@@ -182,18 +182,22 @@ export function FormSettingsPanel({ settings, onChange }: FormSettingsPanelProps
           <Palette className="h-4 w-4 text-primary" />
           <Label>Temas Prontos</Label>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 relative z-10">
           {Object.entries(PREDEFINED_THEMES).map(([key, theme]) => (
             <button
               key={key}
               type="button"
-              onClick={() => applyTheme(key)}
-              className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-muted/30 hover:bg-muted hover:border-primary/50 transition-all text-left group"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                applyTheme(key);
+              }}
+              className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-muted/30 hover:bg-muted hover:border-primary/50 transition-all text-left group cursor-pointer select-none"
             >
-              <span className="text-muted-foreground group-hover:text-primary transition-colors">
+              <span className="text-muted-foreground group-hover:text-primary transition-colors pointer-events-none">
                 {theme.icon}
               </span>
-              <span className="text-xs font-medium">{theme.name}</span>
+              <span className="text-xs font-medium pointer-events-none">{theme.name}</span>
             </button>
           ))}
         </div>

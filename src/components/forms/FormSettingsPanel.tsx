@@ -8,7 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { ImageUploader } from "@/components/ImageUploader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlignLeft, AlignCenter, AlignRight, Zap, Palette, Sparkles, Moon, Sun, Flame, Leaf, Waves, Gem, AlertCircle, CheckCircle2, BarChart3, Check, ArrowRight, Send, Rocket, Star, Square, Circle, Heart, ThumbsUp, PartyPopper, FormInput, Focus } from "lucide-react";
-
+import { useToast } from "@/hooks/use-toast";
 // Temas pré-definidos
 const PREDEFINED_THEMES: Record<string, { name: string; icon: React.ReactNode; settings: Partial<FormSettings> }> = {
   dark_elegant: {
@@ -163,11 +163,31 @@ interface FormSettingsPanelProps {
 }
 
 export function FormSettingsPanel({ settings, onChange }: FormSettingsPanelProps) {
+  const { toast } = useToast();
+
   const applyTheme = (themeKey: string) => {
     const theme = PREDEFINED_THEMES[themeKey];
     if (theme) {
+      console.log("[FormSettingsPanel] Applying theme:", themeKey, theme.settings);
       onChange(theme.settings);
+      toast({
+        title: "Tema aplicado!",
+        description: `O tema "${theme.name}" foi aplicado com sucesso.`,
+      });
     }
+  };
+
+  // Helper to check if a theme is currently active (approximate match)
+  const isThemeActive = (themeKey: string): boolean => {
+    const theme = PREDEFINED_THEMES[themeKey];
+    if (!theme) return false;
+    // Check a few key properties to determine if theme matches
+    const s = theme.settings;
+    return (
+      settings.background_color === s.background_color &&
+      settings.card_background_color === s.card_background_color &&
+      settings.button_color === s.button_color
+    );
   };
 
   return (
@@ -182,24 +202,35 @@ export function FormSettingsPanel({ settings, onChange }: FormSettingsPanelProps
           <Palette className="h-4 w-4 text-primary" />
           <Label>Temas Prontos</Label>
         </div>
-        <div className="grid grid-cols-2 gap-2 relative z-10">
-          {Object.entries(PREDEFINED_THEMES).map(([key, theme]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                applyTheme(key);
-              }}
-              className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-muted/30 hover:bg-muted hover:border-primary/50 transition-all text-left group cursor-pointer select-none"
-            >
-              <span className="text-muted-foreground group-hover:text-primary transition-colors pointer-events-none">
-                {theme.icon}
-              </span>
-              <span className="text-xs font-medium pointer-events-none">{theme.name}</span>
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-2 relative z-10 pointer-events-auto">
+          {Object.entries(PREDEFINED_THEMES).map(([key, theme]) => {
+            const isActive = isThemeActive(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  applyTheme(key);
+                }}
+                className={`flex items-center gap-2 p-2.5 rounded-lg border transition-all text-left group cursor-pointer select-none ${
+                  isActive 
+                    ? "border-primary bg-primary/10 ring-2 ring-primary/30" 
+                    : "border-border bg-muted/30 hover:bg-muted hover:border-primary/50"
+                }`}
+              >
+                <span className={`transition-colors pointer-events-none ${isActive ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`}>
+                  {theme.icon}
+                </span>
+                <span className="text-xs font-medium pointer-events-none">{theme.name}</span>
+                {isActive && <Check className="h-3 w-3 text-primary ml-auto pointer-events-none" />}
+              </button>
+            );
+          })}
         </div>
         <p className="text-xs text-muted-foreground">
           Clique em um tema para aplicar. Personalize depois.

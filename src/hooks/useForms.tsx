@@ -63,9 +63,16 @@ export type LogoSize = "small" | "medium" | "large";
 export type TransitionType = "slide" | "fade" | "zoom" | "scale";
 export type FontFamily = "inter" | "poppins" | "roboto" | "montserrat" | "playfair" | "lato" | "raleway" | "oswald";
 
+export type GradientDirection = "to-b" | "to-r" | "to-br" | "to-bl" | "radial";
+
 export interface FormSettings {
   background_color?: string;
   background_image?: string;
+  // Gradiente de fundo
+  background_gradient_enabled?: boolean;
+  background_gradient_from?: string;
+  background_gradient_to?: string;
+  background_gradient_direction?: GradientDirection;
   logo_url?: string;
   logo_position?: LogoPosition;      // Posição do logo (esquerda/centro/direita)
   logo_size?: LogoSize;              // Tamanho do logo (pequeno/médio/grande)
@@ -151,6 +158,10 @@ export interface Form {
 
 export const DEFAULT_FORM_SETTINGS: FormSettings = {
   background_color: "#0a0a0a",
+  background_gradient_enabled: false,
+  background_gradient_from: "#1a1a2e",
+  background_gradient_to: "#0a0a0a",
+  background_gradient_direction: "to-b",
   button_text: "Continuar",
   button_color: "#2563EB",
   button_text_color: "#ffffff",

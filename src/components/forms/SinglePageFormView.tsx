@@ -34,6 +34,30 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Background gradient helper
+  const getBackgroundStyle = (imageUrl?: string): React.CSSProperties => {
+    if (imageUrl) {
+      return { backgroundImage: `url(${imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" };
+    }
+    if (settings.background_gradient_enabled) {
+      const from = settings.background_gradient_from || "#1a1a2e";
+      const to = settings.background_gradient_to || "#0a0a0a";
+      const dir = settings.background_gradient_direction || "to-b";
+      const directionMap: Record<string, string> = {
+        "to-b": "to bottom",
+        "to-r": "to right",
+        "to-br": "to bottom right",
+        "to-bl": "to bottom left",
+        "radial": "circle",
+      };
+      const gradient = dir === "radial" 
+        ? `radial-gradient(${directionMap[dir]}, ${from}, ${to})`
+        : `linear-gradient(${directionMap[dir]}, ${from}, ${to})`;
+      return { background: gradient };
+    }
+    return { backgroundColor: settings.background_color };
+  };
+
   // Card styles based on settings
   const cardOpacity = (settings.card_opacity ?? 90) / 100;
   const shadowIntensity = settings.card_shadow_intensity ?? 3;
@@ -216,10 +240,7 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
     <div 
       className={containerClass}
       style={{ 
-        backgroundColor: settings.background_color,
-        backgroundImage: settings.background_image ? `url(${settings.background_image})` : undefined,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        ...getBackgroundStyle(settings.background_image),
         fontFamily,
       }}
     >

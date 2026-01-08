@@ -285,7 +285,7 @@ function generateResponsePrefix(action: 'direct' | 'cautious' | 'handoff'): stri
     case 'direct':
       return ''; // Sem prefixo para respostas diretas
     case 'cautious':
-      return '📋 **Baseado nas informações disponíveis:**\n\n';
+      return '**Baseado nas informações disponíveis:**\n\n';
     case 'handoff':
       return ''; // Handoff usa mensagem própria
   }
@@ -355,17 +355,17 @@ function createTicketSuccessMessage(
   
   // FASE 5: Mensagem específica para SAQUE com dados coletados
   if (issueType === 'saque' && withdrawalData?.amount) {
-    return `✅ **Solicitação de saque registrada!**
+    return `**Solicitação de saque registrada!**
 
-📋 **Protocolo:** #${formattedId}
-💵 **Valor Solicitado:** R$ ${withdrawalData.amount.toFixed(2)}
-${withdrawalData.cpf_last4 ? `🔐 **CPF (final):** ...${withdrawalData.cpf_last4}` : ''}
-⏱️ **Prazo:** até 7 dias úteis
+**Protocolo:** #${formattedId}
+**Valor Solicitado:** R$ ${withdrawalData.amount.toFixed(2)}
+${withdrawalData.cpf_last4 ? `**CPF (final):** ...${withdrawalData.cpf_last4}` : ''}
+**Prazo:** até 7 dias úteis
 
-📧 **Você receberá um email confirmando a abertura do chamado.**
-🔔 **Quando o saque for processado, você será notificado por email também.**
+**Você receberá um email confirmando a abertura do chamado.**
+**Quando o saque for processado, você será notificado por email também.**
 
-📌 **IMPORTANTE:** O saque será creditado via PIX na chave informada, vinculada ao seu CPF. Não é possível transferir para conta de terceiros.`;
+**IMPORTANTE:** O saque será creditado via PIX na chave informada, vinculada ao seu CPF. Não é possível transferir para conta de terceiros.`;
   }
   
   const ticketMessages: Record<string, string> = {
@@ -379,7 +379,7 @@ ${withdrawalData.cpf_last4 ? `🔐 **CPF (final):** ...${withdrawalData.cpf_last
   };
   
   const baseMessage = ticketMessages[issueType] || ticketMessages['default'];
-  const orderInfo = orderId ? `\n\n🔢 **Pedido:** ${orderId}` : '';
+  const orderInfo = orderId ? `\n\n**Pedido:** ${orderId}` : '';
   
   return `${baseMessage}${orderInfo}`;
 }
@@ -529,9 +529,9 @@ serve(async (req) => {
               // Criar ticket apenas se não houver
               const { data: ticket } = await supabaseClient
                 .from('tickets')
-                .insert({
+              .insert({
                   customer_id: contact.id,
-                  subject: `💰 Solicitação Financeira - ${customerMessage.substring(0, 50)}`,
+                  subject: `Solicitação Financeira - ${customerMessage.substring(0, 50)}`,
                   description: customerMessage,
                   priority: 'high',
                   status: 'open',
@@ -558,7 +558,7 @@ serve(async (req) => {
           await supabaseClient.from('interactions').insert({
             customer_id: contact.id,
             type: 'internal_note',
-            content: `🤖→👤 Handoff automático (cache poisoning detectado): "${customerMessage}"`,
+            content: `Handoff automático (cache poisoning detectado): "${customerMessage}"`,
             channel: responseChannel
           });
           
@@ -572,7 +572,7 @@ serve(async (req) => {
           
           // 🆕 6. RETORNAR RESPOSTA IMEDIATA DE HANDOFF (não usar cache ruim!)
           const handoffMessage = isFinancial && ticketProtocol
-            ? `Entendi sua solicitação financeira. Estou transferindo você para um especialista humano que vai te ajudar com isso.\n\n📋 Protocolo criado: #${ticketProtocol}`
+            ? `Entendi sua solicitação financeira. Estou transferindo você para um especialista humano que vai te ajudar com isso.\n\nProtocolo criado: #${ticketProtocol}`
             : `Entendi sua dúvida. Estou transferindo você para um especialista humano que poderá te ajudar melhor.`;
           
           // Salvar mensagem de handoff no banco
@@ -1268,7 +1268,7 @@ Responda APENAS: skip ou search`
       if (contactHasEmail) {
         console.log('[ai-autopilot-chat] 🎯 BYPASS DA IA - Saudação direta para cliente conhecido');
         
-        const directGreeting = `Olá ${contactName}! Bem-vindo(a) de volta! 😊 Como posso te ajudar hoje?`;
+        const directGreeting = `Olá ${contactName}! Bem-vindo(a) de volta! Como posso te ajudar hoje?`;
         
         // Salvar mensagem da IA
         const { data: savedMsg } = await supabaseClient
@@ -1400,12 +1400,12 @@ Responda APENAS: skip ou search`
         if (otpError) throw otpError;
         
         const directOTPSuccessResponse = otpData?.success 
-          ? `✅ **Código validado com sucesso!**
+          ? `**Código validado com sucesso!**
 
 Olá ${contactName}! Sua identidade foi confirmada. 
 
 Agora posso te ajudar com questões financeiras. Como posso te ajudar?`
-          : `❌ **Código inválido ou expirado**
+          : `**Código inválido ou expirado**
 
 ${otpData?.message || 'O código não é válido. Verifique e tente novamente.'}
 
@@ -1501,14 +1501,14 @@ Digite **"reenviar"** se precisar de um novo código.`;
             body: { email: contactEmail, type: 'customer' }
           });
           
-          // 🔐 BYPASS DIRETO - NÃO CHAMAR A IA
-          const directOTPResponse = `🔐 **Verificação de Segurança**
+          // BYPASS DIRETO - NÃO CHAMAR A IA
+          const directOTPResponse = `**Verificação de Segurança**
 
 Olá ${contactName}! Você é nosso cliente, mas questões financeiras são delicadas.
 
 Para sua segurança, vou confirmar que é você mesmo.
 
-📧 Enviei um código de **6 dígitos** para **${maskedEmail}**.
+Enviei um código de **6 dígitos** para **${maskedEmail}**.
 
 Por favor, **digite o código** que você recebeu para continuar.`;
 
@@ -1592,18 +1592,18 @@ Por favor, **digite o código** que você recebeu para continuar.`;
       else if (!isFinancialRequest) {
         console.log('[ai-autopilot-chat] ✅ Cliente conhecido - Boas-vindas sem OTP');
         
-        priorityInstruction = `🚨🚨🚨 INSTRUÇÃO PRIORITÁRIA - IGNORE TUDO ABAIXO ATÉ SEGUIR ISSO 🚨🚨🚨
+        priorityInstruction = `=== INSTRUÇÃO PRIORITÁRIA - IGNORE TUDO ABAIXO ATÉ SEGUIR ISSO ===
 
 A PRIMEIRA coisa que você DEVE falar é uma saudação calorosa com o nome do cliente:
-"Olá ${contactName}! Bem-vindo(a) de volta! 😊 Como posso te ajudar hoje?"
+"Olá ${contactName}! Bem-vindo(a) de volta! Como posso te ajudar hoje?"
 
 → Você DEVE reconhecer que este é um cliente conhecido
 → NÃO peça email ou verificação
-🚨🚨🚨 FIM DA INSTRUÇÃO PRIORITÁRIA 🚨🚨🚨
+=== FIM DA INSTRUÇÃO PRIORITÁRIA ===
 
 `;
         
-        identityWallNote = `\n\n**✅ CLIENTE CONHECIDO:**
+        identityWallNote = `\n\n**CLIENTE CONHECIDO:**
 Cliente: ${contactName}${contactCompany}
 Email: ${contactEmail}
 Status: ${contactStatus}
@@ -1614,18 +1614,18 @@ Status: ${contactStatus}
       
     } else if (!contactHasEmail && responseChannel === 'whatsapp') {
       // FASE 4: Lead (não tem email) - seguir Identity Wall e direcionar para comercial após verificação
-      priorityInstruction = `🚨🚨🚨 INSTRUÇÃO PRIORITÁRIA - IGNORE TUDO ABAIXO ATÉ SEGUIR ISSO 🚨🚨🚨
+      priorityInstruction = `=== INSTRUÇÃO PRIORITÁRIA - IGNORE TUDO ABAIXO ATÉ SEGUIR ISSO ===
 
 Este contato NÃO tem email cadastrado. A PRIMEIRA coisa que você DEVE falar é:
 "Olá! Para garantir um atendimento personalizado e seguro, preciso que você me informe seu email."
 
 → PARE AQUI. AGUARDE o cliente fornecer o email.
 → NÃO responda dúvidas técnicas até ter o email
-🚨🚨🚨 FIM DA INSTRUÇÃO PRIORITÁRIA 🚨🚨🚨
+=== FIM DA INSTRUÇÃO PRIORITÁRIA ===
 
 `;
       
-      identityWallNote = `\n\n**🚨 LEAD NOVO - Identity Wall OBRIGATÓRIO:**
+      identityWallNote = `\n\n**LEAD NOVO - Identity Wall OBRIGATÓRIO:**
 Este cliente NÃO tem email cadastrado no sistema (é um LEAD, não um cliente existente).
 
 **FLUXO OBRIGATÓRIO DE IDENTIFICAÇÃO:**
@@ -1637,25 +1637,25 @@ Este cliente NÃO tem email cadastrado no sistema (é um LEAD, não um cliente e
 3. QUANDO cliente fornecer email: Use a ferramenta update_customer_email para registrar e enviar código de verificação
 
 4. APÓS enviar código: Informe ao cliente:
-   "📧 Perfeito! Enviamos um código de 6 dígitos para [email]. Por favor, digite o código que você recebeu."
+   "Perfeito! Enviamos um código de 6 dígitos para [email]. Por favor, digite o código que você recebeu."
 
 5. AGUARDE o cliente enviar o código de 6 dígitos
 
 6. QUANDO cliente enviar código: Use a ferramenta verify_otp_code para validar
 
 7. APÓS verificação bem-sucedida: Informe que ele será direcionado para o time comercial:
-   "✅ Identidade verificada! Vou te conectar com nosso time de vendas para te ajudar da melhor forma. Um consultor vai entrar em contato em breve!"
+   "Identidade verificada! Vou te conectar com nosso time de vendas para te ajudar da melhor forma. Um consultor vai entrar em contato em breve!"
    E então faça handoff para copilot e chame route-conversation.
 
 **IMPORTANTE:** NÃO atenda dúvidas técnicas, NÃO crie tickets, NÃO responda perguntas até o email estar verificado.
 Se o cliente insistir em pular a verificação, explique que é uma política de segurança obrigatória.`;
     }
     
-    // 🔐 PORTEIRO FINANCEIRO ATIVADO
+    // PORTEIRO FINANCEIRO ATIVADO
     if (financialBarrierActive) {
       if (contactHasEmail) {
         // Cenário: Tem email mas não tem OTP recente → Pedir verificação
-        identityWallNote += `\n\n**🔐🔐🔐 PORTEIRO FINANCEIRO - VERIFICAÇÃO OBRIGATÓRIA 🔐🔐🔐**
+        identityWallNote += `\n\n**=== PORTEIRO FINANCEIRO - VERIFICAÇÃO OBRIGATÓRIA ===**
 O cliente pediu uma operação FINANCEIRA (${customerMessage}).
 Ele TEM email cadastrado (${safeEmail}), MAS precisa verificar identidade via OTP.
 
@@ -1669,7 +1669,7 @@ Vou enviar um código de verificação para ${safeEmail}. Aguarde..."
 → AGUARDE o cliente digitar o código de 6 dígitos`;
       } else {
         // Cenário: Não tem email → Pedir email primeiro
-        identityWallNote += `\n\n**🚨🚨🚨 PORTEIRO FINANCEIRO - IDENTIFICAÇÃO OBRIGATÓRIA 🚨🚨🚨**
+        identityWallNote += `\n\n**=== PORTEIRO FINANCEIRO - IDENTIFICAÇÃO OBRIGATÓRIA ===**
 O cliente fez uma solicitação FINANCEIRA MAS NÃO ESTÁ IDENTIFICADO.
 
 **RESPOSTA OBRIGATÓRIA:**
@@ -1694,13 +1694,13 @@ ${isRecentlyVerified ? '**⚠️ CLIENTE RECÉM-VERIFICADO:** Esta é a primeira
     
     const contextualizedSystemPrompt = `${priorityInstruction}
 
-🚨 **DIRETRIZ DE SEGURANÇA E PRIVACIDADE (LGPD - IMPORTANTE):**
+**DIRETRIZ DE SEGURANÇA E PRIVACIDADE (LGPD - IMPORTANTE):**
 - NUNCA escreva o e-mail completo, telefone ou CPF do cliente na resposta
 - Se precisar confirmar a conta, use APENAS o formato mascarado fornecido (ex: ro***@gmail.com)
 - Proteja os dados do cliente como se fossem seus
 - O nome do cliente (${contactName}) é seguro para usar
 
-🔒 **REGRAS DE PROTEÇÃO DE DADOS - CRÍTICO:**
+**REGRAS DE PROTEÇÃO DE DADOS - CRÍTICO:**
 1. NUNCA mostre emails completos - sempre use formato mascarado (ex: ko***@gm***.com)
 2. NUNCA mostre CPF completo, telefone completo ou documentos completos
 3. Se cliente disser "não recebi email", "não chegou código", ou "reenviar":
@@ -1739,7 +1739,7 @@ Sua missão é AJUDAR o cliente, não se livrar dele.
 
 ---
 
-**🧠 CÉREBRO FINANCEIRO - FLUXOGRAMA OBRIGATÓRIO:**
+**CÉREBRO FINANCEIRO - FLUXOGRAMA OBRIGATÓRIO:**
 
 QUANDO cliente mencionar "reembolso", "cancelamento", "saque", "devolver dinheiro":
 
@@ -1781,16 +1781,16 @@ Você quer:
 **CENÁRIO B: SAQUE DE SALDO (Carteira Interna - Seu Armazém Drop)**
 
 ${canShowFinancialData 
-  ? `✅ Cliente VERIFICADO via OTP - Pode prosseguir com saque
+  ? `Cliente VERIFICADO via OTP - Pode prosseguir com saque
      CPF cadastrado: ${maskedCPF}
      
-     ⚠️ ATENÇÃO: Use EXATAMENTE o CPF fornecido acima: "${maskedCPF}"
+     ATENÇÃO: Use EXATAMENTE o CPF fornecido acima: "${maskedCPF}"
      NUNCA escreva "Não cadastrado" se o CPF foi fornecido.`
   : !canAccessFinancialData
-    ? `❌ BLOQUEIO: Esta IA NÃO tem permissão para acessar dados financeiros.
+    ? `BLOQUEIO: Esta IA NÃO tem permissão para acessar dados financeiros.
        → Transfira para um agente humano imediatamente com: request_human_agent
        → Motivo: "Solicitação de dados financeiros requer assistência humana"`
-    : `❌ BLOQUEIO: Cliente NÃO verificou identidade via OTP nesta sessão.
+    : `BLOQUEIO: Cliente NÃO verificou identidade via OTP nesta sessão.
        → NÃO mostre CPF ou Nome completo
        → NÃO permita criar ticket de saque
        → Informe: "Para sua segurança, preciso verificar sua identidade primeiro. Qual seu email de compra?"`}
@@ -1802,10 +1802,10 @@ ${canShowFinancialData
    
    "Vou confirmar seus dados para o saque:
    
-   👤 **Nome:** ${canAccessCustomerData ? contactName : '[Dados Protegidos]'}
-   📄 **CPF:** ${maskedCPF}
+   **Nome:** ${canAccessCustomerData ? contactName : '[Dados Protegidos]'}
+   **CPF:** ${maskedCPF}
    
-   ⚠️ **Regra de Segurança:** O saque só pode ser feito via PIX para uma chave vinculada a este CPF cadastrado. Não é possível enviar para conta de terceiros.
+   **Regra de Segurança:** O saque só pode ser feito via PIX para uma chave vinculada a este CPF cadastrado. Não é possível enviar para conta de terceiros.
    
    Os dados estão corretos?"
 
@@ -1830,7 +1830,7 @@ ${canShowFinancialData
      - withdrawal_amount: [VALOR]
      - customer_confirmation: true
      - ticket_type: "saque_carteira"
-   - Responda: "✅ Ticket #[ID] criado! O financeiro vai processar o PIX para o CPF informado em até 7 dias úteis."
+   - Responda: "Ticket #[ID] criado! O financeiro vai processar o PIX para o CPF informado em até 7 dias úteis."
 
 3. **SE CLIENTE DISSER NÃO (dados incorretos):**
    - Execute a tool request_human_agent com:
@@ -1841,12 +1841,12 @@ ${canShowFinancialData
 ---
 
 **REGRAS CRÍTICAS:**
-- ❌ NUNCA crie ticket para cancelamento Kiwify (é self-service)
-- ❌ NUNCA fale de valores com cliente não identificado
-- ❌ NUNCA pule a confirmação de dados
-- ✅ SEMPRE pergunte qual tipo (A ou B) antes de prosseguir
-- ✅ SEMPRE mostre os dados e peça confirmação para saque
-- ✅ SEMPRE envie o link da Kiwify para cancelamentos
+- NUNCA crie ticket para cancelamento Kiwify (é self-service)
+- NUNCA fale de valores com cliente não identificado
+- NUNCA pule a confirmação de dados
+- SEMPRE pergunte qual tipo (A ou B) antes de prosseguir
+- SEMPRE mostre os dados e peça confirmação para saque
+- SEMPRE envie o link da Kiwify para cancelamentos
 
 ---
 
@@ -2158,7 +2158,7 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
                 await supabaseClient.from('notifications').insert({
                   user_id: routeResult.assigned_to,
                   type: 'new_lead',
-                  title: '💰 Nova oportunidade no chat!',
+                  title: 'Nova oportunidade no chat!',
                   message: `Lead ${emailInformado} está aguardando atendimento`,
                   metadata: {
                     conversation_id: conversationId,
@@ -2171,10 +2171,10 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
                 
                 console.log('[ai-autopilot-chat] 🔔 Notificação enviada ao vendedor');
                 
-                // 🆕 MENSAGEM COMERCIAL OTIMIZADA
+                // MENSAGEM COMERCIAL OTIMIZADA
                 assistantMessage = `Não localizei uma assinatura ativa com este e-mail.
 
-Vou chamar um **especialista comercial** para te apresentar nossos planos! 🎯 Aguarde um momento.`;
+Vou chamar um **especialista comercial** para te apresentar nossos planos! Aguarde um momento.`;
               } else {
                 // Nenhum vendedor online - broadcast para todos
                 const { data: onlineSalesReps } = await supabaseClient
@@ -2195,7 +2195,7 @@ Vou chamar um **especialista comercial** para te apresentar nossos planos! 🎯 
                     await supabaseClient.from('notifications').insert({
                       user_id: rep.id,
                       type: 'new_lead',
-                      title: '💰 Nova oportunidade no chat!',
+                      title: 'Nova oportunidade no chat!',
                       message: `Lead ${emailInformado} na fila do Comercial`,
                       metadata: { 
                         conversation_id: conversationId, 
@@ -2212,9 +2212,9 @@ Vou chamar um **especialista comercial** para te apresentar nossos planos! 🎯 
                 assistantMessage = `Não localizei uma assinatura ativa com este e-mail.
 
 Nosso **time de vendas** está offline no momento.
-⏰ **Horário:** Segunda a Sexta, 09h às 18h.
+**Horário:** Segunda a Sexta, 09h às 18h.
 
-Assim que retornarmos, um consultor vai te ajudar! 🙏`;
+Assim que retornarmos, um consultor vai te ajudar!`;
               }
               continue;
             }
@@ -2245,9 +2245,9 @@ Assim que retornarmos, um consultor vai te ajudar! 🙏`;
             
             // Build response message (NEVER show code to client)
             const safeEmail = maskEmail(emailInformado);
-            assistantMessage = `✅ Encontrei seu cadastro, ${existingCustomer.first_name}!
+            assistantMessage = `Encontrei seu cadastro, ${existingCustomer.first_name}!
 
-📧 Enviei um código de 6 dígitos para **${safeEmail}**.
+Enviei um código de 6 dígitos para **${safeEmail}**.
 
 Por favor, digite o código que você recebeu para confirmar sua identidade.`;
 
@@ -2275,7 +2275,7 @@ Por favor, digite o código que você recebeu para confirmar sua identidade.`;
             
             const contactEmail = contact.email;
             if (!contactEmail) {
-              assistantMessage = '⚠️ Não encontrei seu email cadastrado. Por favor, informe seu email para que eu possa enviar o código.';
+              assistantMessage = 'Não encontrei seu email cadastrado. Por favor, informe seu email para que eu possa enviar o código.';
               continue;
             }
 
@@ -2286,15 +2286,15 @@ Por favor, digite o código que você recebeu para confirmar sua identidade.`;
 
             if (otpError || !otpData?.success) {
               console.error('[ai-autopilot-chat] ❌ Erro ao reenviar OTP:', otpError);
-              assistantMessage = '❌ Não consegui reenviar o código. Por favor, tente novamente em alguns instantes.';
+              assistantMessage = 'Não consegui reenviar o código. Por favor, tente novamente em alguns instantes.';
               continue;
             }
 
             // Build response message (NEVER show code to client)
             const safeEmail = maskEmail(contactEmail);
-            assistantMessage = `✅ Código reenviado com sucesso!
+            assistantMessage = `Código reenviado com sucesso!
 
-📧 Enviei um novo código de 6 dígitos para **${safeEmail}**.
+Enviei um novo código de 6 dígitos para **${safeEmail}**.
 
 Por favor, verifique sua caixa de entrada (e spam) e digite o código que você recebeu.`;
 
@@ -2314,7 +2314,7 @@ Por favor, verifique sua caixa de entrada (e spam) e digite o código que você 
             });
           } catch (error) {
             console.error('[ai-autopilot-chat] ❌ Erro ao reenviar OTP:', error);
-            assistantMessage = '❌ Ocorreu um erro ao reenviar o código. Por favor, tente novamente.';
+            assistantMessage = 'Ocorreu um erro ao reenviar o código. Por favor, tente novamente.';
           }
         }
         // FASE 2: Handle OTP verification
@@ -2353,7 +2353,7 @@ Por favor, verifique sua caixa de entrada (e spam) e digite o código que você 
                   .eq('id', verification.id);
               }
               
-              assistantMessage = '❌ Código inválido ou expirado. Por favor, verifique o código ou solicite um novo informando seu email novamente.';
+              assistantMessage = 'Código inválido ou expirado. Por favor, verifique o código ou solicite um novo informando seu email novamente.';
               continue;
             }
 
@@ -2376,11 +2376,11 @@ Por favor, verifique sua caixa de entrada (e spam) e digite o código que você 
               // CPF NULL - Não permitir saque, transferir para humano
               console.log('[ai-autopilot-chat] ⚠️ Cliente verificado mas sem CPF');
               
-              assistantMessage = `✅ Sua identidade foi confirmada, ${verifiedContact?.first_name || contactName}!
+              assistantMessage = `Sua identidade foi confirmada, ${verifiedContact?.first_name || contactName}!
 
-⚠️ Porém, seu cadastro está **incompleto** (CPF não cadastrado).
+Porém, seu cadastro está **incompleto** (CPF não cadastrado).
 
-Para liberar operações financeiras como saque, preciso transferir você para um especialista que vai atualizar seus dados. Aguarde um momento! 🔒`;
+Para liberar operações financeiras como saque, preciso transferir você para um especialista que vai atualizar seus dados. Aguarde um momento!`;
 
               // Handoff para humano
               await supabaseClient
@@ -2395,24 +2395,21 @@ Para liberar operações financeiras como saque, preciso transferir você para u
               await supabaseClient.from('interactions').insert({
                 customer_id: verifiedContact?.id || contact.id,
                 type: 'internal_note',
-                content: `⚠️ Cliente verificado via OTP mas SEM CPF cadastrado. Requer atualização cadastral antes de operações financeiras.`,
+                content: `Cliente verificado via OTP mas SEM CPF cadastrado. Requer atualização cadastral antes de operações financeiras.`,
                 channel: responseChannel,
                 metadata: { source: 'financial_barrier', cpf_missing: true }
               });
             } else {
               // CPF OK - Pode prosseguir com fluxo financeiro
               const maskedCPFVerified = `***.***.***-${verifiedContact.document.slice(-2)}`;
-              const balanceFormatted = `R$ ${(verifiedContact.account_balance || 0).toFixed(2)}`;
               
-              assistantMessage = `✅ Identidade verificada com sucesso, ${verifiedContact.first_name}! 🔓
+              assistantMessage = `Identidade verificada com sucesso, ${verifiedContact.first_name}!
 
 Agora posso te ajudar com operações financeiras. Você mencionou algo sobre saque ou reembolso. 
 
 Você quer:
 **A)** Cancelar sua assinatura/curso (comprado na Kiwify)?
-**B)** Sacar o saldo da sua carteira (Seu Armazém Drop)?
-
-Seu saldo disponível: ${balanceFormatted}`;
+**B)** Sacar o saldo da sua carteira (Seu Armazém Drop)?`;
               
               // Log interaction
               await supabaseClient.from('interactions').insert({
@@ -2450,24 +2447,24 @@ Seu saldo disponível: ${balanceFormatted}`;
             const createdAt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
             
             // Base estruturada para TODOS os tickets
-            let internalNote = `🤖 **TICKET CRIADO VIA IA**
+            let internalNote = `**TICKET CRIADO VIA IA**
 
-📋 **RESUMO DA SOLICITAÇÃO:**
+**RESUMO DA SOLICITAÇÃO:**
 ${args.description}
 
-👤 **CLIENTE:**
+**CLIENTE:**
 - Nome: ${contactName}
 - CPF: ${maskedCPF || 'Não cadastrado'}
 - Email: ${contact?.email || 'Não informado'}
 - Telefone: ${contact?.phone || 'Não informado'}
 
-📂 **CLASSIFICAÇÃO:**
+**CLASSIFICAÇÃO:**
 - Tipo: ${args.issue_type || 'Não especificado'}
 - Categoria: ${ticketCategory}
 ${args.order_id ? `- Pedido: ${args.order_id}` : ''}
 
-⏰ Criado em: ${createdAt}
-🤖 Via: Atendimento Automatizado (IA)`;
+Criado em: ${createdAt}
+Via: Atendimento Automatizado (IA)`;
             
             // Enriquecimento específico para SAQUE
             if (args.issue_type === 'saque' && args.withdrawal_amount) {
@@ -2475,17 +2472,17 @@ ${args.order_id ? `- Pedido: ${args.order_id}` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-💰 **DADOS DO SAQUE:**
+**DADOS DO SAQUE:**
 - Valor Solicitado: R$ ${args.withdrawal_amount.toFixed(2)}
 - Tipo da Chave PIX: ${args.pix_key_type || 'Não especificado'}
 - Chave PIX: ${args.pix_key || 'Não informada'}
-- Confirmação do Cliente: ${args.customer_confirmation ? '✅ Dados conferidos pelo cliente' : '⚠️ Aguardando confirmação'}
+- Confirmação do Cliente: ${args.customer_confirmation ? 'Dados conferidos pelo cliente' : 'Aguardando confirmação'}
 
-⚠️ **REGRAS (até 7 dias úteis):**
+**REGRAS (até 7 dias úteis):**
 - Destino: APENAS conta do titular (CPF do cliente)
 - PIX de terceiros: CANCELAR solicitação
 
-📝 **CHECKLIST FINANCEIRO:**
+**CHECKLIST FINANCEIRO:**
 - [ ] Verificar saldo disponível
 - [ ] Confirmar titularidade da chave PIX
 - [ ] Processar transferência
@@ -2623,9 +2620,9 @@ ${args.order_id ? `- Pedido: ${args.order_id}` : ''}
                 : productData?.name || 'Produto não especificado';
               
               const statusLabels: Record<string, string> = {
-                'open': '🔄 Em andamento',
-                'won': '✅ Concluído',
-                'lost': '❌ Cancelado'
+                'open': 'Em andamento',
+                'won': 'Concluído',
+                'lost': 'Cancelado'
               };
               const statusLabel = statusLabels[d.status] || d.status;
               
@@ -2775,10 +2772,10 @@ Sobre qual pedido você gostaria de saber mais?`;
                     })
                   : 'Recentemente';
 
-                return `📦 **${t.tracking_code}**
-✅ Status: Pedido embalado e enviado!
-🚛 Transportadora: ${platform}
-🕐 Saída do galpão: ${updated}`;
+                return `**${t.tracking_code}**
+Status: Pedido embalado e enviado!
+Transportadora: ${platform}
+Saída do galpão: ${updated}`;
               }).join('\n\n');
 
               if (codesFound.length === 1) {
@@ -2795,18 +2792,18 @@ Sobre qual pedido você gostaria de saber mais?`;
               const notFoundList = codesNotFound.map(c => `• ${c}`).join('\n');
               
               if (codesNotFound.length === 1) {
-                responseText += `⏳ O código **${codesNotFound[0]}** ainda não consta no sistema de romaneio.
+                responseText += `O código **${codesNotFound[0]}** ainda não consta no sistema de romaneio.
 
-📋 **O que isso significa?**
+**O que isso significa?**
 Se o pedido foi pago **até 13h**, ele ainda está sendo preparado no galpão e será enviado até o fim do dia.
 
 Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verificar se já foi despachado.`;
               } else {
-                responseText += `⏳ Os seguintes códigos ainda não constam no sistema de romaneio:
+                responseText += `Os seguintes códigos ainda não constam no sistema de romaneio:
 
 ${notFoundList}
 
-📋 **O que isso significa?**
+**O que isso significa?**
 Se os pedidos foram pagos **até 13h**, eles ainda estão sendo preparados no galpão e serão enviados até o fim do dia.
 
 Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verificar se já foram despachados.`;
@@ -2850,16 +2847,16 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
 
             // 3. REGISTRAR NOTA INTERNA
             const reasonLabels: Record<string, string> = {
-              dados_incorretos: '📋 Dados Cadastrais Incorretos',
-              solicitacao_cliente: '🙋 Solicitação do Cliente',
-              caso_complexo: '🔍 Caso Complexo',
-              dados_financeiros_incorretos: '💰 Dados Financeiros Incorretos'
+              dados_incorretos: 'Dados Cadastrais Incorretos',
+              solicitacao_cliente: 'Solicitação do Cliente',
+              caso_complexo: 'Caso Complexo',
+              dados_financeiros_incorretos: 'Dados Financeiros Incorretos'
             };
 
             await supabaseClient.from('interactions').insert({
               customer_id: contact.id,
               type: 'internal_note',
-              content: `🤖→👤 **Handoff Manual Executado**
+              content: `**Handoff Manual Executado**
 
 **Motivo:** ${reasonLabels[handoffReason] || handoffReason}
 **Contexto:** ${handoffNote}
@@ -2878,14 +2875,14 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
 
             // 4. DEFINIR MENSAGEM APROPRIADA PARA O CLIENTE
             const reasonMessages: Record<string, string> = {
-              dados_incorretos: 'Entendi! Vou transferir você para um atendente que vai ajudar a atualizar seus dados cadastrais. Aguarde um momento, por favor. 🙏',
-              dados_financeiros_incorretos: 'Por segurança, vou transferir você para um atendente humano que vai ajudar a corrigir seus dados. Aguarde um momento! 🔒',
-              solicitacao_cliente: 'Sem problemas! Estou transferindo você para um atendente humano. Aguarde um momento, por favor. 🙏',
-              caso_complexo: 'Vou transferir você para um especialista que pode te ajudar melhor com essa situação. Aguarde um momento! 🎯'
+              dados_incorretos: 'Entendi! Vou transferir você para um atendente que vai ajudar a atualizar seus dados cadastrais. Aguarde um momento, por favor.',
+              dados_financeiros_incorretos: 'Por segurança, vou transferir você para um atendente humano que vai ajudar a corrigir seus dados. Aguarde um momento!',
+              solicitacao_cliente: 'Sem problemas! Estou transferindo você para um atendente humano. Aguarde um momento, por favor.',
+              caso_complexo: 'Vou transferir você para um especialista que pode te ajudar melhor com essa situação. Aguarde um momento!'
             };
 
             assistantMessage = reasonMessages[handoffReason] || 
-              'Estou transferindo você para um atendente humano. Aguarde um momento, por favor. 🙏';
+              'Estou transferindo você para um atendente humano. Aguarde um momento, por favor.';
 
           } catch (error) {
             console.error('[ai-autopilot-chat] ❌ Erro ao executar handoff manual:', error);
@@ -3324,7 +3321,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
           .from('messages')
           .insert({
             conversation_id: conversationId,
-            content: "Desculpe, estou com dificuldades técnicas no momento. Vou te conectar com um atendente humano! 🙏",
+            content: "Desculpe, estou com dificuldades técnicas no momento. Vou te conectar com um atendente humano!",
             sender_type: 'agent',
             sender_id: null,
             is_ai_generated: true,
@@ -3386,7 +3383,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
       // Retornar resposta indicando que houve fallback
       return new Response(JSON.stringify({ 
         status: 'fallback',
-        message: "Desculpe, estou com dificuldades técnicas no momento. Vou te conectar com um atendente humano! 🙏",
+        message: "Desculpe, estou com dificuldades técnicas no momento. Vou te conectar com um atendente humano!",
         handoff_triggered: true,
         admin_notified: true
       }), {

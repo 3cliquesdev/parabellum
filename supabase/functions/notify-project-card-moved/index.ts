@@ -99,17 +99,30 @@ serve(async (req) => {
         .single();
 
       if (template) {
-        emailSubject = template.subject
-          .replace(/{{contact_name}}/g, `${contact.first_name} ${contact.last_name}`)
-          .replace(/{{project_name}}/g, board.name)
-          .replace(/{{card_title}}/g, card.title)
-          .replace(/{{column_name}}/g, newColumn.name);
+        // Replace variables - support both {{var}} and [VAR] formats
+        const replaceVars = (text: string) => {
+          return text
+            // Bracket format [VARIABLE]
+            .replace(/\[CUSTOMER_FIRST_NAME\]/g, contact.first_name || "")
+            .replace(/\[CUSTOMER_LAST_NAME\]/g, contact.last_name || "")
+            .replace(/\[CUSTOMER_NAME\]/g, `${contact.first_name} ${contact.last_name}`)
+            .replace(/\[CUSTOMER_EMAIL\]/g, contact.email || "")
+            .replace(/\[PROJECT_NAME\]/g, board.name || "")
+            .replace(/\[CARD_TITLE\]/g, card.title || "")
+            .replace(/\[COLUMN_NAME\]/g, newColumn.name || "")
+            // Curly brace format {{variable}}
+            .replace(/{{customer_first_name}}/gi, contact.first_name || "")
+            .replace(/{{customer_last_name}}/gi, contact.last_name || "")
+            .replace(/{{contact_name}}/gi, `${contact.first_name} ${contact.last_name}`)
+            .replace(/{{customer_name}}/gi, `${contact.first_name} ${contact.last_name}`)
+            .replace(/{{customer_email}}/gi, contact.email || "")
+            .replace(/{{project_name}}/gi, board.name || "")
+            .replace(/{{card_title}}/gi, card.title || "")
+            .replace(/{{column_name}}/gi, newColumn.name || "");
+        };
 
-        emailHtml = template.body
-          .replace(/{{contact_name}}/g, `${contact.first_name} ${contact.last_name}`)
-          .replace(/{{project_name}}/g, board.name)
-          .replace(/{{card_title}}/g, card.title)
-          .replace(/{{column_name}}/g, newColumn.name);
+        emailSubject = replaceVars(template.subject);
+        emailHtml = replaceVars(template.html_body);
       }
     }
 

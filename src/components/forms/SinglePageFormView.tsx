@@ -105,6 +105,19 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
   };
   const fontFamily = fontFamilyMap[settings.font_family || "inter"];
 
+  // Font weight mapping
+  const fontWeightMap: Record<string, number> = {
+    light: 300,
+    normal: 400,
+    medium: 500,
+    semibold: 600,
+    bold: 700,
+  };
+  const titleWeight = fontWeightMap[settings.title_weight || "bold"];
+  const labelWeight = fontWeightMap[settings.label_weight || "bold"];
+  const letterSpacing = `${settings.letter_spacing ?? 0}px`;
+  const lineHeight = settings.line_height ?? 1.5;
+
   // Input styles
   const inputStyles: React.CSSProperties = {
     backgroundColor: settings.input_background_color || "#ffffff",
@@ -258,10 +271,13 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
           )}
           {title && (
             <h1 
-              className="font-bold mt-4 break-words whitespace-pre-wrap"
+              className="mt-4 break-words whitespace-pre-wrap"
               style={{ 
                 color: settings.title_color || settings.text_color,
                 fontSize: `${settings.title_size ?? 24}px`,
+                fontWeight: titleWeight,
+                letterSpacing,
+                lineHeight,
               }}
             >
               {title}
@@ -274,6 +290,8 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
                 color: settings.description_color || settings.text_color, 
                 opacity: 0.7,
                 fontSize: `${settings.description_size ?? 14}px`,
+                letterSpacing,
+                lineHeight,
               }}
             >
               {description}
@@ -303,8 +321,13 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
                 className="space-y-2"
               >
                 <Label 
-                  className="text-base font-medium"
-                  style={{ color: settings.text_color }}
+                  className="text-base"
+                  style={{ 
+                    color: settings.text_color,
+                    fontWeight: labelWeight,
+                    letterSpacing,
+                    lineHeight,
+                  }}
                 >
                   {field.label}
                   {field.required && (

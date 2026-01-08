@@ -62,6 +62,7 @@ export type LogoPosition = "left" | "center" | "right";
 export type LogoSize = "small" | "medium" | "large";
 export type TransitionType = "slide" | "fade" | "zoom" | "scale";
 export type FontFamily = "inter" | "poppins" | "roboto" | "montserrat" | "playfair" | "lato" | "raleway" | "oswald";
+export type FontWeight = "light" | "normal" | "medium" | "semibold" | "bold";
 
 export type GradientDirection = "to-b" | "to-r" | "to-br" | "to-bl" | "radial";
 
@@ -100,6 +101,10 @@ export interface FormSettings {
   font_family?: FontFamily;         // Fonte do formulário
   title_size?: number;              // Tamanho do título (16-48px)
   description_size?: number;        // Tamanho da descrição (12-24px)
+  title_weight?: FontWeight;        // Peso do título
+  label_weight?: FontWeight;        // Peso dos labels
+  letter_spacing?: number;          // Espaçamento entre letras (-2 a 4)
+  line_height?: number;             // Altura de linha (1.0 a 2.0)
   // Animações
   transition_type?: TransitionType; // Tipo de transição entre campos
   transition_duration?: number;     // Duração da transição (0.2-0.8s)
@@ -188,6 +193,10 @@ export const DEFAULT_FORM_SETTINGS: FormSettings = {
   font_family: "inter",
   title_size: 24,
   description_size: 14,
+  title_weight: "bold",
+  label_weight: "bold",
+  letter_spacing: 0,
+  line_height: 1.5,
   // Animações
   transition_type: "slide",
   transition_duration: 0.3,

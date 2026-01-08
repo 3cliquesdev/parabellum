@@ -1,4 +1,4 @@
-import { FormSettings, LogoPosition, LogoSize, FontFamily, TransitionType, GradientDirection } from "@/hooks/useForms";
+import { FormSettings, LogoPosition, LogoSize, FontFamily, FontWeight, TransitionType, GradientDirection } from "@/hooks/useForms";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -315,6 +315,45 @@ export function FormSettingsPanel({ settings, onChange }: FormSettingsPanelProps
           </Select>
         </div>
 
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label>Peso do Título</Label>
+            <Select
+              value={settings.title_weight || "bold"}
+              onValueChange={(value: FontWeight) => onChange({ title_weight: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">Leve (300)</SelectItem>
+                <SelectItem value="normal">Normal (400)</SelectItem>
+                <SelectItem value="medium">Médio (500)</SelectItem>
+                <SelectItem value="semibold">Semi-Bold (600)</SelectItem>
+                <SelectItem value="bold">Bold (700)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Peso dos Labels</Label>
+            <Select
+              value={settings.label_weight || "bold"}
+              onValueChange={(value: FontWeight) => onChange({ label_weight: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">Leve (300)</SelectItem>
+                <SelectItem value="normal">Normal (400)</SelectItem>
+                <SelectItem value="medium">Médio (500)</SelectItem>
+                <SelectItem value="semibold">Semi-Bold (600)</SelectItem>
+                <SelectItem value="bold">Bold (700)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label>Tamanho do Título: {settings.title_size ?? 24}px</Label>
           <Slider
@@ -337,6 +376,38 @@ export function FormSettingsPanel({ settings, onChange }: FormSettingsPanelProps
             step={1}
             className="w-full"
           />
+        </div>
+
+        <Separator className="my-2" />
+
+        <div className="space-y-2">
+          <Label>Espaçamento entre Letras: {settings.letter_spacing ?? 0}px</Label>
+          <Slider
+            value={[settings.letter_spacing ?? 0]}
+            onValueChange={([val]) => onChange({ letter_spacing: val })}
+            min={-2}
+            max={4}
+            step={0.5}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">
+            Ajuste a distância entre caracteres
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Altura de Linha: {(settings.line_height ?? 1.5).toFixed(1)}</Label>
+          <Slider
+            value={[(settings.line_height ?? 1.5) * 10]}
+            onValueChange={([val]) => onChange({ line_height: val / 10 })}
+            min={10}
+            max={20}
+            step={1}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">
+            Espaço vertical entre linhas de texto
+          </p>
         </div>
       </div>
 

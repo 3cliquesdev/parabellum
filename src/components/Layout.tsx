@@ -1,6 +1,5 @@
 import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { ModeToggle } from "@/components/ModeToggle";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -10,10 +9,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         
         <div className="flex-1 flex flex-col bg-background min-w-0">
           {/* Header Enterprise */}
-          <header className="h-14 border-b border-border flex items-center px-4 bg-card shadow-sm flex-shrink-0">
+          <header className="h-14 border-b-2 border-slate-200 dark:border-border flex items-center px-4 bg-card shadow-sm flex-shrink-0">
             <SidebarTrigger className="text-foreground hover:bg-muted" />
-            <div className="flex-1" />
-            <ModeToggle />
           </header>
 
           {/* Main content */}

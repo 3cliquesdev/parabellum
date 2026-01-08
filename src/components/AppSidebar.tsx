@@ -266,27 +266,27 @@ export function AppSidebar() {
     }
   }, [queryClient]);
 
-  // Determine mode label and color - ENTERPRISE BLUE PALETTE
+  // Determine mode label and color
   const getModeInfo = () => {
-    if (isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente de Suporte", color: "bg-primary" };
-    if (isSupportAgent && !isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Suporte", color: "bg-primary/80" };
-    if (isFinancialManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente Financeiro", color: "bg-success" };
-    if (isFinancialAgent && !isFinancialManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Agente Financeiro", color: "bg-primary/70" };
-    if (isCSManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente de CS", color: "bg-primary" };
-    if (isConsultant && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Consultor", color: "bg-success" };
-    if (isSalesRep && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Vendas", color: "bg-primary" };
-    if (isManager && !isAdmin && !isGeneralManager) return { label: "Gerente de Vendas", color: "bg-primary" };
-    if (isGeneralManager && !isAdmin) return { label: "Gerente Geral", color: "bg-primary" };
-    if (isAdmin) return { label: "Modo Admin", color: "bg-primary" };
-    return { label: "Sistema", color: "bg-muted-foreground" };
+    if (isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente de Suporte", color: "bg-indigo-500" };
+    if (isSupportAgent && !isSupportManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Suporte", color: "bg-blue-500" };
+    if (isFinancialManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente Financeiro", color: "bg-emerald-500" };
+    if (isFinancialAgent && !isFinancialManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Agente Financeiro", color: "bg-amber-500" };
+    if (isCSManager && !isAdmin && !isManager && !isGeneralManager) return { label: "Gerente de CS", color: "bg-purple-600" };
+    if (isConsultant && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Consultor", color: "bg-green-500" };
+    if (isSalesRep && !isAdmin && !isManager && !isGeneralManager) return { label: "Modo Vendas", color: "bg-orange-500" };
+    if (isManager && !isAdmin && !isGeneralManager) return { label: "Gerente de Vendas", color: "bg-blue-600" };
+    if (isGeneralManager && !isAdmin) return { label: "Gerente Geral", color: "bg-blue-600" };
+    if (isAdmin) return { label: "Modo Admin", color: "bg-purple-500" };
+    return { label: "Sistema", color: "bg-gray-500" };
   };
 
   const getStatusColor = (status: string | null) => {
     switch (status) {
-      case 'online': return 'bg-success';
-      case 'busy': return 'bg-warning';
-      case 'offline': return 'bg-destructive';
-      default: return 'bg-muted-foreground';
+      case 'online': return 'bg-green-500';
+      case 'busy': return 'bg-yellow-500';
+      case 'offline': return 'bg-red-500';
+      default: return 'bg-gray-400';
     }
   };
 
@@ -384,10 +384,10 @@ export function AppSidebar() {
   return (
     <Sidebar className={cn(
       collapsed ? "w-[60px]" : "w-[280px]",
-      "bg-card border-r border-border"
+      "bg-card border-r-2 border-slate-200 dark:border-border"
     )} collapsible="icon">
       {/* Header com Logo e Badge de Modo */}
-      <SidebarHeader className="border-b border-border p-4">
+      <SidebarHeader className="border-b-2 border-slate-200 dark:border-border p-4">
         {!collapsed ? (
           <div className="space-y-3">
             <div className="flex items-center justify-center">

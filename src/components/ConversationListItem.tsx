@@ -66,13 +66,13 @@ function getSLAColor(lastMessageAt: Date): {
       emoji: ""
     };
   }
-  // 30-60 min: Azul info - Atenção
+  // 30-60 min: Amarelo - Atenção
   if (minutes < 60) {
     return { 
-      color: "text-primary dark:text-primary font-medium", 
-      bgColor: "bg-primary/10",
+      color: "text-yellow-600 dark:text-yellow-400 font-medium", 
+      bgColor: "bg-yellow-500/10",
       urgency: "attention",
-      emoji: "🔵"
+      emoji: "🟡"
     };
   }
   // 1-2h: Laranja - Alerta

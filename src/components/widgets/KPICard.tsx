@@ -20,13 +20,13 @@ export function KPICard({
   icon: Icon, 
   description 
 }: KPICardProps) {
-  // Color mapping - ENTERPRISE BLUE PALETTE
+  // Color mapping usando tokens do design system
   const iconColorMap: Record<string, string> = {
-    'DollarSign': 'bg-primary/10 text-primary',
-    'Users': 'bg-muted text-foreground',
+    'DollarSign': 'bg-success/10 text-success',
+    'Users': 'bg-info/10 text-info',
     'TrendingUp': 'bg-primary/10 text-primary',
-    'Target': 'bg-primary/10 text-primary',
-    'Package': 'bg-muted text-foreground',
+    'Target': 'bg-warning/10 text-warning',
+    'Package': 'bg-primary/10 text-primary',
   };
   
   const iconColor = iconColorMap[Icon.name] || 'bg-primary/10 text-primary';

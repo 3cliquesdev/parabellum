@@ -43,13 +43,13 @@ export function ProgressCell({
         </span>
         <div className="flex items-center gap-1">
           {percentage >= 100 && (
-            <Trophy className="h-4 w-4 text-success animate-pulse" />
+            <Trophy className="h-4 w-4 text-amber-500 animate-pulse" />
           )}
           {isTopPerformer && percentage < 100 && (
-            <Star className="h-4 w-4 text-primary" />
+            <Star className="h-4 w-4 text-amber-400" />
           )}
           {hasRecentSale && (
-            <Flame className="h-4 w-4 text-destructive" />
+            <Flame className="h-4 w-4 text-orange-500" />
           )}
         </div>
       </div>

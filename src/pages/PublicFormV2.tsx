@@ -483,10 +483,12 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
                 animate={transitionVariants.animate}
                 exit={transitionVariants.exit}
                 transition={{ duration: transitionDuration, ease: "easeInOut" }}
-                className="p-6 sm:p-8"
-                style={cardStyles}
+                style={{
+                  ...cardStyles,
+                  padding: `${settings.container_padding ?? 32}px`,
+                }}
               >
-                <div className="space-y-2 mb-8">
+                <div className="space-y-2" style={{ marginBottom: `${settings.field_gap ?? 24}px` }}>
                   <h1 
                     className="text-2xl sm:text-3xl lg:text-4xl font-bold"
                     style={{ color: settings.text_color }}

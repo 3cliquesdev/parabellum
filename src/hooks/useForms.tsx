@@ -96,6 +96,9 @@ export interface FormSettings {
   // Animações
   transition_type?: TransitionType; // Tipo de transição entre campos
   transition_duration?: number;     // Duração da transição (0.2-0.8s)
+  // Espaçamento avançado
+  container_padding?: number;       // Padding interno do container (16-64px)
+  field_gap?: number;               // Espaçamento entre campos (8-48px)
   // Success
   thank_you_title?: string;
   thank_you_message?: string;
@@ -173,6 +176,9 @@ export const DEFAULT_FORM_SETTINGS: FormSettings = {
   // Animações
   transition_type: "slide",
   transition_duration: 0.3,
+  // Espaçamento
+  container_padding: 32,
+  field_gap: 24,
   // Success
   thank_you_title: "Obrigado!",
   thank_you_message: "Suas respostas foram enviadas com sucesso.",

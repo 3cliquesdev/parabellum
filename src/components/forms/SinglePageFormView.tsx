@@ -266,10 +266,13 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-2xl p-6 sm:p-8"
-          style={cardStyles}
+          className="w-full max-w-2xl"
+          style={{
+            ...cardStyles,
+            padding: `${settings.container_padding ?? 32}px`,
+          }}
         >
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: `${settings.field_gap ?? 24}px` }}>
             {fields.map((field, index) => (
               <motion.div
                 key={field.id}

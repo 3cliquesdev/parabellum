@@ -1,22 +1,20 @@
 import { useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useInboxView, useInboxCounts, type InboxFilters as InboxViewFiltersType } from "@/hooks/useInboxView";
+import { useInboxView, useInboxCounts, type InboxFilters as InboxViewFiltersType, type InboxCounts } from "@/hooks/useInboxView";
 import { useConversations } from "@/hooks/useConversations";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useTeams, useUserTeams } from "@/hooks/useTeams";
-import { useTags } from "@/hooks/useTags";
 import ConversationList from "@/components/ConversationList";
 import ChatWindow from "@/components/ChatWindow";
 import ContactDetailsSidebar from "@/components/ContactDetailsSidebar";
+import { InboxSidebar } from "@/components/inbox/InboxSidebar";
 import InboxFilterPopover, { type InboxFilters } from "@/components/inbox/InboxFilterPopover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ArrowLeft, User, Search, Tag, X } from "lucide-react";
+import { ArrowLeft, User } from "lucide-react";
 import { useIsMobileBreakpoint } from "@/hooks/useBreakpoint";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import type { Tables } from "@/integrations/supabase/types";
@@ -34,95 +32,6 @@ type Conversation = Tables<"conversations"> & {
     job_title: string | null;
   } | null;
 };
-
-// Componente de dropdown de tags com pesquisa
-interface TagFilterDropdownProps {
-  tags: Array<{ id: string; name: string; color: string | null }>;
-  selectedTagId: string | null;
-  onSelect: (tagId: string | null) => void;
-}
-
-function TagFilterDropdown({ tags, selectedTagId, onSelect }: TagFilterDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const filteredTags = tags.filter((tag) =>
-    tag.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const selectedTag = tags.find((t) => t.id === selectedTagId);
-
-  return (
-    <Popover open={open} onOpenChange={(isOpen) => {
-      setOpen(isOpen);
-      if (!isOpen) setSearch("");
-    }}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Tag className="h-4 w-4" />
-          {selectedTag ? (
-            <>
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: selectedTag.color || 'hsl(var(--muted))' }}
-              />
-              <span className="max-w-24 truncate">{selectedTag.name}</span>
-              <X
-                className="h-3 w-3 hover:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelect(null);
-                }}
-              />
-            </>
-          ) : (
-            "Tags"
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-2 bg-popover border border-border z-50" align="start">
-        <div className="relative mb-2">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-          <Input
-            placeholder="Buscar tag..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-7 text-xs pl-7"
-          />
-        </div>
-        <div className="space-y-1 max-h-64 overflow-y-auto">
-          {filteredTags.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2 text-center">
-              {search ? "Nenhuma tag encontrada" : "Nenhuma tag cadastrada"}
-            </p>
-          ) : (
-            filteredTags.map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => {
-                  onSelect(selectedTagId === tag.id ? null : tag.id);
-                  setOpen(false);
-                }}
-                className={`w-full flex items-center gap-2 p-2 rounded text-sm hover:bg-muted transition-colors ${
-                  selectedTagId === tag.id ? "bg-muted" : ""
-                }`}
-              >
-                <span
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: tag.color || 'hsl(var(--muted))' }}
-                />
-                <span className="truncate">{tag.name}</span>
-                {selectedTagId === tag.id && (
-                  <span className="ml-auto text-primary">✓</span>
-                )}
-              </button>
-            ))
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 const DEFAULT_FILTERS: InboxFilters = {
   dateRange: undefined,
@@ -178,7 +87,7 @@ export default function Inbox() {
   
   // Use optimized inbox_view for list (fast)
   const { data: inboxItems, isLoading: inboxLoading } = useInboxView(inboxViewFilters);
-  const { data: counts } = useInboxCounts();
+  const { data: counts } = useInboxCounts(user?.id);
   
   // Use original hook to get full conversation data when selected
   const { data: conversations, isLoading: convLoading } = useConversations();
@@ -186,50 +95,6 @@ export default function Inbox() {
   const { data: departments } = useDepartments();
   const { data: teams } = useTeams();
   const { data: userTeams } = useUserTeams(user?.id);
-  const { data: conversationTags } = useTags('conversation');
-
-  const handleFilterChange = (value: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.set("filter", value);
-    params.delete("dept");
-    params.delete("team");
-    navigate(`/inbox?${params.toString()}`);
-  };
-
-  const handleDepartmentFilter = (deptId: string | null) => {
-    const params = new URLSearchParams(searchParams);
-    if (deptId) {
-      params.set("dept", deptId);
-      params.delete("team");
-    } else {
-      params.delete("dept");
-    }
-    navigate(`/inbox?${params.toString()}`);
-  };
-
-  const handleTeamFilter = (teamId: string | null) => {
-    const params = new URLSearchParams(searchParams);
-    if (teamId) {
-      params.set("team", teamId);
-      params.delete("dept");
-      params.delete("tag");
-    } else {
-      params.delete("team");
-    }
-    navigate(`/inbox?${params.toString()}`);
-  };
-
-  const handleTagFilter = (tagId: string | null) => {
-    const params = new URLSearchParams(searchParams);
-    if (tagId) {
-      params.set("tag", tagId);
-      params.delete("dept");
-      params.delete("team");
-    } else {
-      params.delete("tag");
-    }
-    navigate(`/inbox?${params.toString()}`);
-  };
 
   const handleSelectConversation = (conversation: Conversation | null) => {
     setActiveConversation(conversation);
@@ -260,33 +125,37 @@ export default function Inbox() {
       result = result.filter(c => c.department === departmentFilter);
     }
 
-    // Apply team filter (if user is manager of a team or member)
-    if (teamFilter) {
-      // For now, team filter would need team_members lookup
-      // This is a placeholder for team-based filtering
-    }
+    // Apply tag filter - need to check conversation_tags
+    // For now, tag filter is handled by the inboxViewFilters
 
-    // Apply AI mode filter
+    // Apply filters based on URL params
     switch (filter) {
       case "ai_queue":
-        return result.filter(c => c.ai_mode === 'autopilot');
+        return result.filter(c => c.ai_mode === 'autopilot' && c.status !== 'closed');
       
       case "human_queue":
         if (role === 'admin' || role === 'manager' || role === 'support_manager' || role === 'cs_manager') {
-          return result.filter(c => c.ai_mode === 'copilot' || c.ai_mode === 'disabled');
+          return result.filter(c => c.ai_mode !== 'autopilot' && c.status !== 'closed');
         }
         return result.filter(c => 
-          (c.ai_mode === 'copilot' || c.ai_mode === 'disabled') &&
-          c.assigned_to === user?.id
+          c.ai_mode !== 'autopilot' &&
+          c.assigned_to === user?.id &&
+          c.status !== 'closed'
         );
       
-      case "my_team":
-        // Show conversations from team members
-        if (userTeams && userTeams.length > 0) {
-          // Filter by team members - need to implement
-          return result.filter(c => c.status !== 'closed');
-        }
-        return [];
+      case "mine":
+        return result.filter(c => c.assigned_to === user?.id && c.status !== 'closed');
+      
+      case "sla":
+        // SLA critical/warning - would need sla_status field
+        return result.filter(c => c.status !== 'closed');
+      
+      case "not_responded":
+        // Last message from contact - would need last_sender_type field
+        return result.filter(c => c.status !== 'closed');
+      
+      case "unassigned":
+        return result.filter(c => !c.assigned_to && c.status !== 'closed');
       
       case "archived":
         return result.filter(c => c.status === "closed");
@@ -294,23 +163,31 @@ export default function Inbox() {
       default:
         return result.filter(c => c.status !== 'closed');
     }
-  }, [conversations, filter, departmentFilter, teamFilter, user?.id, role, userTeams]);
+  }, [conversations, filter, departmentFilter, user?.id, role]);
 
   // Use optimized counts from inbox_view
+  const totalActiveCount = (counts?.total || 0);
   const aiQueueCount = counts?.aiQueue || 0;
   const humanQueueCount = counts?.humanQueue || 0;
-  const totalActiveCount = (counts?.aiQueue || 0) + (counts?.humanQueue || 0);
-  const slaCriticalCount = counts?.slaCritical || 0;
   
   const currentFilterCount = filteredConversations.length;
   const hasHiddenConversations = currentFilterCount === 0 && totalActiveCount > 0;
 
-  const activeDepartments = departments?.filter((d) => d.is_active) || [];
-  
-  // Check if user is a team manager
-  const isTeamManager = teams?.some(t => t.manager_id === user?.id);
-  const showTeamTab = isTeamManager || (userTeams && userTeams.length > 0);
-
+  // Default sidebar counts
+  const sidebarCounts: InboxCounts = counts || {
+    total: 0,
+    mine: 0,
+    aiQueue: 0,
+    humanQueue: 0,
+    slaCritical: 0,
+    slaWarning: 0,
+    notResponded: 0,
+    unassigned: 0,
+    unread: 0,
+    archived: 0,
+    byDepartment: [],
+    byTag: [],
+  };
 
   // Mobile Layout - Stack Navigation
   if (isMobile) {
@@ -367,7 +244,7 @@ export default function Inbox() {
           </div>
           
           {/* AI Mode Tabs - Compact for mobile */}
-          <Tabs value={filter} onValueChange={handleFilterChange}>
+          <Tabs value={filter} onValueChange={(value) => navigate(`/inbox?filter=${value}`)}>
             <TabsList className="w-full">
               <TabsTrigger value="ai_queue" className="flex-1 text-xs gap-1">
                 🤖 IA
@@ -401,150 +278,56 @@ export default function Inbox() {
     );
   }
 
-  // Desktop Layout - 3 Columns
+  // Desktop Layout - 4 Columns with Sidebar (Octa style)
   return (
-    <div className="flex flex-col h-full overflow-hidden min-w-0">
-      <div className="flex-none border-b-2 border-slate-200 dark:border-border px-4 py-3 bg-card">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-foreground">Caixa de Entrada</h2>
-          <div className="text-sm text-muted-foreground">
-            {totalActiveCount} {totalActiveCount === 1 ? 'conversa ativa' : 'conversas ativas'}
-          </div>
-        </div>
+    <div className="flex h-full overflow-hidden min-w-0">
+      {/* Resizable 4-Column Layout */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+        {/* Filter Sidebar Panel */}
+        <ResizablePanel defaultSize={15} minSize={12} maxSize={20}>
+          <InboxSidebar counts={sidebarCounts} />
+        </ResizablePanel>
         
-        {/* Advanced Filters */}
-        <div className="mb-3">
-          <InboxFilterPopover filters={filters} onFiltersChange={setFilters} />
-        </div>
+        <ResizableHandle />
         
-        {hasHiddenConversations && (
-          <div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              ⚠️ Nenhuma conversa neste filtro, mas há <strong>{totalActiveCount}</strong> conversa(s) em outras abas
-            </p>
-          </div>
-        )}
-        
-        {/* AI Mode Tabs */}
-        <Tabs value={filter} onValueChange={handleFilterChange} className="mb-3">
-          <TabsList>
-            <TabsTrigger value="ai_queue" className="gap-2">
-              🤖 Fila IA
-              {aiQueueCount > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
-                  {aiQueueCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="human_queue" className="gap-2">
-              👤 Fila Humana
-              {humanQueueCount > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
-                  {humanQueueCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-            {showTeamTab && (
-              <TabsTrigger value="my_team" className="gap-2">
-                👥 Meu Time
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="all">Todas</TabsTrigger>
-            <TabsTrigger value="archived">Arquivadas</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        {/* Department & Team Filters - Separated Sections */}
-        <div className="flex gap-4 flex-wrap items-start">
-          {/* Departamentos */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Departamentos</span>
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                size="sm"
-                variant={!departmentFilter && !teamFilter ? "default" : "outline"}
-                onClick={() => {
-                  handleDepartmentFilter(null);
-                  handleTeamFilter(null);
-                }}
-              >
-                Todos
-              </Button>
-              {activeDepartments.map((dept) => (
-                <Button
-                  key={dept.id}
-                  size="sm"
-                  variant={departmentFilter === dept.id ? "default" : "outline"}
-                  onClick={() => handleDepartmentFilter(dept.id)}
-                  style={{
-                    borderColor: departmentFilter === dept.id ? dept.color || undefined : undefined,
-                  }}
-                >
-                  {dept.name}
-                </Button>
-              ))}
+        {/* Conversation List Panel */}
+        <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+          <div className="flex flex-col h-full">
+            {/* Mini Header with filters */}
+            <div className="flex-none border-b border-border px-3 py-2 bg-card">
+              <InboxFilterPopover filters={filters} onFiltersChange={setFilters} />
             </div>
-          </div>
-          
-          {/* Times - Seção separada com estilo diferenciado */}
-          {teams && teams.length > 0 && (
-            <div className="flex flex-col gap-1.5 border-l border-border pl-4">
-              <span className="text-xs font-medium text-muted-foreground">Times</span>
-              <div className="flex gap-2 flex-wrap">
-                {teams.map((team) => (
-                  <Button
-                    key={team.id}
-                    size="sm"
-                    variant={teamFilter === team.id ? "default" : "outline"}
-                    onClick={() => handleTeamFilter(team.id)}
-                    className={teamFilter !== team.id ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40" : ""}
-                    style={{
-                      borderColor: teamFilter === team.id ? team.color || undefined : undefined,
-                    }}
-                  >
-                    👥 {team.name}
-                  </Button>
-                ))}
+            
+            {hasHiddenConversations && (
+              <div className="flex-none px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800">
+                <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                  ⚠️ Nenhuma conversa neste filtro
+                </p>
               </div>
-            </div>
-          )}
-          
-          {/* Tags - Dropdown com pesquisa */}
-          {conversationTags && conversationTags.length > 0 && (
-            <div className="flex items-center gap-2 border-l border-border pl-4">
-              <TagFilterDropdown
-                tags={conversationTags}
-                selectedTagId={tagFilter}
-                onSelect={handleTagFilter}
+            )}
+            
+            <div className="flex-1 overflow-hidden">
+              <ConversationList
+                conversations={filteredConversations}
+                activeConversationId={activeConversation?.id || null}
+                onSelectConversation={handleSelectConversation}
+                isLoading={inboxLoading || convLoading}
               />
             </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Resizable 3-Column Layout */}
-      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
-        {/* Conversation List Panel */}
-        <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
-          <ConversationList
-            conversations={filteredConversations}
-            activeConversationId={activeConversation?.id || null}
-            onSelectConversation={handleSelectConversation}
-            isLoading={inboxLoading || convLoading}
-          />
+          </div>
         </ResizablePanel>
         
         <ResizableHandle withHandle />
         
         {/* Chat Window Panel */}
-        <ResizablePanel defaultSize={50} minSize={30}>
+        <ResizablePanel defaultSize={40} minSize={30}>
           <ChatWindow conversation={activeConversation} />
         </ResizablePanel>
         
         <ResizableHandle withHandle />
         
         {/* Contact Details Panel */}
-        <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
+        <ResizablePanel defaultSize={25} minSize={15} maxSize={35}>
           <ContactDetailsSidebar conversation={activeConversation} />
         </ResizablePanel>
       </ResizablePanelGroup>

@@ -304,27 +304,90 @@ export function useInboxView(filters?: InboxFilters) {
   };
 }
 
-// Hook para contagem por filtros (para badges)
-export function useInboxCounts() {
-  return useQuery({
-    queryKey: ["inbox-counts"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+// Hook para contagem por filtros (para badges) - Estilo Octa
+export interface InboxCounts {
+  total: number;
+  mine: number;
+  aiQueue: number;
+  humanQueue: number;
+  slaCritical: number;
+  slaWarning: number;
+  notResponded: number;
+  unassigned: number;
+  unread: number;
+  archived: number;
+  byDepartment: Array<{ id: string; name: string; color: string | null; count: number }>;
+  byTag: Array<{ id: string; name: string; color: string | null; count: number }>;
+}
+
+export function useInboxCounts(userId?: string) {
+  return useQuery<InboxCounts>({
+    queryKey: ["inbox-counts", userId],
+    queryFn: async (): Promise<InboxCounts> => {
+      // Buscar dados de inbox
+      const { data: inboxData, error: inboxError } = await supabase
         .from("inbox_view")
-        .select("ai_mode, status, sla_status, unread_count");
+        .select("conversation_id, ai_mode, status, sla_status, unread_count, assigned_to, department, last_sender_type");
 
-      if (error) throw error;
+      if (inboxError) throw inboxError;
 
-      const items = data || [];
+      // Buscar tags por conversa
+      const { data: tagsData } = await supabase
+        .from("conversation_tags")
+        .select("conversation_id, tag_id");
+
+      // Buscar departamentos
+      const { data: deptsData } = await supabase
+        .from("departments")
+        .select("id, name, color")
+        .eq("is_active", true) as { data: Array<{ id: string; name: string; color: string | null }> | null };
+
+      // Buscar tags - usando query separada para evitar tipo complexo
+      const tagsQuery = supabase.from("tags").select("id, name, color");
+      const { data: allTags } = await tagsQuery as unknown as { data: Array<{ id: string; name: string; color: string | null }> | null };
+
+      const items = inboxData || [];
+      const openItems = items.filter(i => i.status === "open");
+
+      // Contagem por departamento
+      const byDepartment = (deptsData || []).map(dept => ({
+        id: dept.id,
+        name: dept.name,
+        color: dept.color,
+        count: openItems.filter(i => i.department === dept.id).length
+      }));
+
+      // Contagem por tag
+      const tagCounts = new Map<string, number>();
+      const conversationTags = tagsData || [];
+      const openConversationIds = new Set(openItems.map(i => i.conversation_id));
       
+      conversationTags.forEach(ct => {
+        if (openConversationIds.has(ct.conversation_id)) {
+          tagCounts.set(ct.tag_id, (tagCounts.get(ct.tag_id) || 0) + 1);
+        }
+      });
+
+      const byTag = (allTags || []).map(tag => ({
+        id: tag.id,
+        name: tag.name,
+        color: tag.color,
+        count: tagCounts.get(tag.id) || 0
+      }));
+
       return {
-        total: items.length,
-        aiQueue: items.filter(i => i.ai_mode === "autopilot" && i.status === "open").length,
-        humanQueue: items.filter(i => i.ai_mode !== "autopilot" && i.status === "open").length,
+        total: openItems.length,
+        mine: userId ? openItems.filter(i => i.assigned_to === userId).length : 0,
+        aiQueue: openItems.filter(i => i.ai_mode === "autopilot").length,
+        humanQueue: openItems.filter(i => i.ai_mode !== "autopilot").length,
         slaCritical: items.filter(i => i.sla_status === "critical").length,
         slaWarning: items.filter(i => i.sla_status === "warning").length,
+        notResponded: openItems.filter(i => i.last_sender_type === "contact").length,
+        unassigned: openItems.filter(i => !i.assigned_to).length,
         unread: items.reduce((sum, i) => sum + (i.unread_count || 0), 0),
-        closed: items.filter(i => i.status === "closed").length,
+        archived: items.filter(i => i.status === "closed").length,
+        byDepartment,
+        byTag,
       };
     },
     staleTime: 30 * 1000,

@@ -1,31 +1,20 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CSVUploader } from "@/components/CSVUploader";
 import { ColumnMapper } from "@/components/ColumnMapper";
 import { ImportProgress } from "@/components/ImportProgress";
 import { useImportContacts } from "@/hooks/useImportContacts";
-import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Download } from "lucide-react";
+
 export default function ImportClients() {
-  const navigate = useNavigate();
-  const { hasPermission, loading: permLoading } = useRolePermissions();
   const [csvData, setCsvData] = useState<any[]>([]);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [importResult, setImportResult] = useState<any>(null);
   
   const importMutation = useImportContacts();
-
-  // Redirecionar se não tiver permissão (aguarda permissões carregarem completamente)
-  useEffect(() => {
-    // Só redireciona quando permissões definitivamente carregadas E sem permissão
-    if (!permLoading && hasPermission("contacts.import") === false) {
-      navigate('/');
-    }
-  }, [hasPermission, permLoading, navigate]);
 
   // Auto-mapear colunas quando CSV é carregado
   useEffect(() => {
@@ -170,13 +159,6 @@ exemplo@email.com;João;Silva;(11) 99999-9999;Empresa Exemplo;123.456.789-00;987
     link.click();
   };
 
-  if (permLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">

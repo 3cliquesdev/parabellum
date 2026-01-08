@@ -137,13 +137,26 @@ serve(async (req) => {
 
     if (routingError) {
       console.error('[auto-handoff] Error in routing:', routingError);
-      // Fallback: apenas mudar para copilot sem atribuir agente
+      // Fallback: mudar para waiting_human sem atribuir agente
       await supabaseClient
         .from('conversations')
-        .update({ ai_mode: 'copilot' })
+        .update({ ai_mode: 'waiting_human' })
         .eq('id', conversationId);
+      console.log('[auto-handoff] ✅ Conversa marcada como waiting_human (fallback)');
     } else {
       console.log('[auto-handoff] Routing result:', routingResult);
+      
+      // 🆕 GARANTIR que ai_mode seja waiting_human após roteamento
+      const { error: updateError } = await supabaseClient
+        .from('conversations')
+        .update({ ai_mode: 'waiting_human' })
+        .eq('id', conversationId);
+      
+      if (updateError) {
+        console.error('[auto-handoff] ⚠️ Erro ao atualizar ai_mode para waiting_human:', updateError);
+      } else {
+        console.log('[auto-handoff] ✅ Conversa marcada como waiting_human - IA pausada até agente responder');
+      }
     }
 
     // 2. Registrar nota interna com contexto do handoff

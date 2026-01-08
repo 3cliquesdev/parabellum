@@ -1480,6 +1480,7 @@ export type Database = {
           first_response_at: string | null
           id: string
           last_message_at: string
+          previous_agent_id: string | null
           related_ticket_id: string | null
           session_token: string | null
           status: Database["public"]["Enums"]["conversation_status"]
@@ -1500,6 +1501,7 @@ export type Database = {
           first_response_at?: string | null
           id?: string
           last_message_at?: string
+          previous_agent_id?: string | null
           related_ticket_id?: string | null
           session_token?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]
@@ -1520,6 +1522,7 @@ export type Database = {
           first_response_at?: string | null
           id?: string
           last_message_at?: string
+          previous_agent_id?: string | null
           related_ticket_id?: string | null
           session_token?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]
@@ -1553,6 +1556,13 @@ export type Database = {
             columns: ["department"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_previous_agent_id_fkey"
+            columns: ["previous_agent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -6168,7 +6178,7 @@ export type Database = {
     }
     Enums: {
       activity_type: "call" | "meeting" | "email" | "task" | "lunch"
-      ai_mode: "autopilot" | "copilot" | "disabled"
+      ai_mode: "autopilot" | "copilot" | "disabled" | "waiting_human"
       app_role:
         | "admin"
         | "user"
@@ -6379,7 +6389,7 @@ export const Constants = {
   public: {
     Enums: {
       activity_type: ["call", "meeting", "email", "task", "lunch"],
-      ai_mode: ["autopilot", "copilot", "disabled"],
+      ai_mode: ["autopilot", "copilot", "disabled", "waiting_human"],
       app_role: [
         "admin",
         "user",

@@ -132,15 +132,17 @@ export function useAvailabilityStatus() {
     };
   }, [user, queryClient]);
 
-  // Auto-set to online on mount + heartbeat
+  // Auto-set to online on mount + heartbeat + distribute pending conversations
   useEffect(() => {
     if (!user || isInitializedRef.current) return;
     
     isInitializedRef.current = true;
     
-    // Definir como online ao carregar
-    const setOnline = async () => {
+    // Definir como online ao carregar e distribuir conversas pendentes
+    const setOnlineAndDistribute = async () => {
       console.log("[useAvailabilityStatus] Setting user online on mount");
+      
+      // 1. Definir como online
       await supabase
         .from("profiles")
         .update({ 
@@ -150,9 +152,32 @@ export function useAvailabilityStatus() {
         .eq("id", user.id);
       
       queryClient.invalidateQueries({ queryKey: ["availability-status", user.id] });
+      
+      // 2. Chamar edge function para distribuir conversas pendentes
+      console.log("[useAvailabilityStatus] Triggering conversation distribution...");
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('distribute-pending-conversations', {
+          body: { agentId: user.id, maxConversations: 5 }
+        });
+        
+        if (error) {
+          console.error("[useAvailabilityStatus] Distribution error:", error);
+        } else if (data?.distributed > 0) {
+          console.log(`[useAvailabilityStatus] ✅ ${data.distributed} conversas distribuídas`);
+          toast({
+            title: "📥 Novas conversas atribuídas",
+            description: `Você recebeu ${data.distributed} conversa(s) que estavam aguardando atendimento.`,
+          });
+        } else {
+          console.log("[useAvailabilityStatus] Nenhuma conversa pendente para distribuir");
+        }
+      } catch (err) {
+        console.error("[useAvailabilityStatus] Distribution failed:", err);
+      }
     };
     
-    setOnline();
+    setOnlineAndDistribute();
     
     // Iniciar heartbeat
     heartbeatRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
@@ -162,7 +187,7 @@ export function useAvailabilityStatus() {
         clearInterval(heartbeatRef.current);
       }
     };
-  }, [user, queryClient, sendHeartbeat]);
+  }, [user, queryClient, sendHeartbeat, toast]);
 
   // Handle page visibility changes
   useEffect(() => {

@@ -374,6 +374,43 @@ export function FormSettingsPanel({ settings, onChange }: FormSettingsPanelProps
 
       <Separator />
 
+      {/* Espaçamento Avançado */}
+      <div className="space-y-4">
+        <h4 className="font-medium text-sm">Espaçamento</h4>
+        
+        <div className="space-y-2">
+          <Label>Padding do Container: {settings.container_padding ?? 32}px</Label>
+          <Slider
+            value={[settings.container_padding ?? 32]}
+            onValueChange={([val]) => onChange({ container_padding: val })}
+            min={16}
+            max={64}
+            step={4}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">
+            Espaço interno do container principal
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Gap entre Campos: {settings.field_gap ?? 24}px</Label>
+          <Slider
+            value={[settings.field_gap ?? 24]}
+            onValueChange={([val]) => onChange({ field_gap: val })}
+            min={8}
+            max={48}
+            step={4}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">
+            Distância entre os campos do formulário
+          </p>
+        </div>
+      </div>
+
+      <Separator />
+
       {/* Inputs */}
       <div className="space-y-4">
         <h4 className="font-medium text-sm">Campos de Entrada</h4>

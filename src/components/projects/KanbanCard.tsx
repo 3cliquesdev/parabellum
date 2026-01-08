@@ -50,13 +50,22 @@ export function KanbanCard({ card, isDragging, onClick }: KanbanCardProps) {
     !isOverdue &&
     new Date(card.due_date) <= new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
 
+  // Handle click separately from drag
+  const handleClick = (e: React.MouseEvent) => {
+    // Only trigger click if not dragging
+    if (!isSortableDragging && onClick) {
+      e.stopPropagation();
+      onClick();
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      onClick={onClick}
+      onPointerUp={handleClick}
       className={cn(
         "bg-card border rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow",
         (isDragging || isSortableDragging) && "opacity-50 shadow-lg rotate-2",

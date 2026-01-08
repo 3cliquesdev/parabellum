@@ -33,13 +33,14 @@ export function useAutoHandoff() {
         console.log('[useAutoHandoff] ✅ Handoff executado:', data.reason);
         
         const reasonMessages: Record<string, string> = {
-          critical_sentiment: 'Cliente com sentimento crítico detectado - conversa transferida para atendimento humano',
-          error_loop: 'IA não conseguiu resolver - conversa transferida para atendimento humano'
+          critical_sentiment: 'Cliente com sentimento crítico detectado - IA pausada até agente responder',
+          error_loop: 'IA não conseguiu resolver - aguardando atendimento humano'
         };
 
         toast({
           title: "🤖 → 👤 Transbordo Automático",
-          description: reasonMessages[data.reason] || 'Conversa transferida para modo assistido',
+          description: reasonMessages[data.reason] || 'IA pausada - aguardando resposta do atendente',
+          duration: 0, // Não fecha automaticamente
         });
       }
     },

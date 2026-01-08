@@ -32,7 +32,7 @@ serve(async (req) => {
     // Buscar ai_mode da conversa
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
-      .select('ai_mode')
+      .select('ai_mode, assigned_to')
       .eq('id', record.conversation_id)
       .single();
 
@@ -41,7 +41,39 @@ serve(async (req) => {
       throw convError;
     }
 
-    // Se não é autopilot, ignorar
+    // 🆕 DETECTAR RESPOSTA DO AGENTE: Se agente enviou mensagem e está em waiting_human, mudar para copilot
+    if (record.sender_type === 'agent' && conversation?.ai_mode === 'waiting_human') {
+      console.log('[message-listener] 🎉 Agente respondeu! Mudando de waiting_human para copilot');
+      
+      const { error: updateError } = await supabase
+        .from('conversations')
+        .update({ ai_mode: 'copilot' })
+        .eq('id', record.conversation_id);
+      
+      if (updateError) {
+        console.error('[message-listener] Erro ao atualizar ai_mode:', updateError);
+      } else {
+        console.log('[message-listener] ✅ ai_mode atualizado para copilot');
+      }
+      
+      // Inserir mensagem de sistema informando que o agente assumiu
+      await supabase.from('messages').insert({
+        conversation_id: record.conversation_id,
+        content: '👤 Atendente humano assumiu a conversa. A IA está agora em modo assistente.',
+        sender_type: 'system',
+        channel: 'web_chat'
+      });
+      
+      return new Response(JSON.stringify({ 
+        status: 'agent_responded', 
+        ai_mode: 'copilot',
+        message: 'Agente assumiu a conversa' 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Se não é autopilot, ignorar (inclui waiting_human, copilot, disabled)
     if (conversation?.ai_mode !== 'autopilot') {
       console.log('[message-listener] Conversation not in autopilot mode:', conversation?.ai_mode);
       return new Response(JSON.stringify({ status: 'ignored', reason: 'not_autopilot', ai_mode: conversation?.ai_mode }), {

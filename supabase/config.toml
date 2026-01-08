@@ -230,3 +230,13 @@ verify_jwt = true
 
 [functions.notify-internal-comment]
 verify_jwt = true
+
+[functions.redistribute-after-hours]
+verify_jwt = false
+
+[functions.redistribute-after-hours.cron]
+schedule = "* * * * *"
+region = "us-east-1"
+
+[functions.distribute-pending-conversations]
+verify_jwt = true

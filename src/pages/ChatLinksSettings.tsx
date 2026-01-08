@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink } from "lucide-react";
+import { Copy, ExternalLink, MessageSquare, Phone } from "lucide-react";
 
 export default function ChatLinksSettings() {
   const { data: departments } = useDepartments();
@@ -69,7 +69,12 @@ export default function ChatLinksSettings() {
 
         {/* Links por Departamento */}
         {activeDepartments.map((dept) => {
-          const deptLink = `${baseUrl}/public-chat?dept=${dept.name.toLowerCase()}`;
+          const chatLink = `${baseUrl}/public-chat?dept=${dept.name.toLowerCase()}`;
+          const whatsappNumber = dept.whatsapp_number?.replace(/\D/g, '');
+          const whatsappMessage = encodeURIComponent(`Olá, vim pelo site e gostaria de falar com o setor de ${dept.name}`);
+          const whatsappLink = whatsappNumber 
+            ? `https://wa.me/${whatsappNumber}?text=${whatsappMessage}`
+            : null;
           
           return (
             <Card key={dept.id}>
@@ -82,28 +87,52 @@ export default function ChatLinksSettings() {
                   {dept.name}
                 </CardTitle>
                 <CardDescription>
-                  Link direto - cai automaticamente neste departamento
+                  Links diretos para este departamento
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 p-3 bg-muted rounded text-sm break-all">
-                    {deptLink}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => copyLink(deptLink)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openPortal(deptLink)}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
+              <CardContent className="space-y-4">
+                {/* Link Chat */}
+                <div>
+                  <Label className="text-sm font-medium flex items-center gap-2 mb-2">
+                    <MessageSquare className="h-4 w-4 text-blue-600" />
+                    Chat ao Vivo
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 p-2 bg-muted rounded text-xs break-all">
+                      {chatLink}
+                    </code>
+                    <Button size="sm" variant="outline" onClick={() => copyLink(chatLink)}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => openPortal(chatLink)}>
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Link WhatsApp */}
+                <div>
+                  <Label className="text-sm font-medium flex items-center gap-2 mb-2">
+                    <Phone className="h-4 w-4 text-green-600" />
+                    WhatsApp Direto
+                  </Label>
+                  {whatsappLink ? (
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 p-2 bg-muted rounded text-xs break-all">
+                        {whatsappLink}
+                      </code>
+                      <Button size="sm" variant="outline" onClick={() => copyLink(whatsappLink)}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => openPortal(whatsappLink)}>
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      Nenhum WhatsApp configurado. Configure em Departamentos.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

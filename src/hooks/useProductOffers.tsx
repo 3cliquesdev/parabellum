@@ -105,3 +105,34 @@ export const useDeleteProductOffer = () => {
     },
   });
 };
+
+// Hook para mover oferta para outro produto
+export const useMoveProductOffer = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ offerId, newProductId }: { offerId: string; newProductId: string }) => {
+      const { error } = await supabase
+        .from("product_offers")
+        .update({ product_id: newProductId })
+        .eq("id", offerId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product-offers"] });
+      toast({
+        title: "Oferta movida",
+        description: "A oferta foi movida para o novo produto com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao mover oferta",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+};

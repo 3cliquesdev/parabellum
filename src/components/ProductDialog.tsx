@@ -31,7 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { useUpdateProduct } from "@/hooks/useProducts";
 import { useDeliveryGroups } from "@/hooks/useDeliveryGroups";
 import { useProductOffers } from "@/hooks/useProductOffers";
-import { Package, DollarSign } from "lucide-react";
+import { Package, DollarSign, ArrowRightLeft } from "lucide-react";
+import { MoveOfferDialog } from "@/components/products/MoveOfferDialog";
 
 const productSchema = z.object({
   delivery_group_id: z.string().optional(),
@@ -69,6 +70,15 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
   const updateProduct = useUpdateProduct();
   const { data: deliveryGroups } = useDeliveryGroups();
   const { data: offers } = useProductOffers(product?.id || null);
+
+  // State for move offer dialog
+  const [moveOfferDialogOpen, setMoveOfferDialogOpen] = useState(false);
+  const [offerToMove, setOfferToMove] = useState<{
+    id: string;
+    offer_id: string;
+    offer_name: string;
+    price: number;
+  } | null>(null);
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -217,9 +227,24 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
                 {offers.map((offer) => (
                   <div key={offer.id} className="flex items-center justify-between text-sm bg-background rounded px-2 py-1.5">
                     <span className="text-foreground truncate flex-1">{offer.offer_name}</span>
-                    <Badge variant="outline" className="text-xs ml-2 shrink-0">
-                      R$ {offer.price.toFixed(2).replace('.', ',')}
-                    </Badge>
+                    <div className="flex items-center gap-1 ml-2 shrink-0">
+                      <Badge variant="outline" className="text-xs">
+                        R$ {offer.price.toFixed(2).replace('.', ',')}
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => {
+                          setOfferToMove(offer);
+                          setMoveOfferDialogOpen(true);
+                        }}
+                        title="Mover para outro produto"
+                      >
+                        <ArrowRightLeft className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -326,6 +351,15 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
             </div>
           </form>
         </Form>
+
+        {/* Move Offer Dialog */}
+        <MoveOfferDialog
+          open={moveOfferDialogOpen}
+          onOpenChange={setMoveOfferDialogOpen}
+          offer={offerToMove}
+          currentProductId={product?.id || ""}
+          currentProductName={displayName}
+        />
       </DialogContent>
     </Dialog>
   );

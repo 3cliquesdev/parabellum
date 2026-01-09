@@ -9,6 +9,7 @@ interface CreatePlaybookData {
   support_phone?: string;
   flow_definition: any;
   is_active?: boolean;
+  is_template?: boolean;
 }
 
 export function useCreatePlaybook() {

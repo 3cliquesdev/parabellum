@@ -55,6 +55,7 @@ export default function OnboardingBuilder() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingPlaybook, setEditingPlaybook] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -87,12 +88,16 @@ export default function OnboardingBuilder() {
       setIsSaving(false);
       setShowEditor(false);
       setShowCreateDialog(false);
+      setIsCreatingTemplate(false);
       resetForm();
     };
 
     const onError = () => {
       setIsSaving(false);
     };
+
+    // Determina se deve salvar como template
+    const shouldBeTemplate = isCreatingTemplate || editingPlaybook?.is_template;
 
     if (editingPlaybook) {
       updatePlaybook.mutate(
@@ -114,6 +119,7 @@ export default function OnboardingBuilder() {
           product_id: productId,
           support_phone: supportPhone,
           flow_definition: flow,
+          is_template: shouldBeTemplate,
         },
         { onSuccess, onError }
       );
@@ -121,6 +127,12 @@ export default function OnboardingBuilder() {
   };
 
   const handleCreateNew = () => {
+    setIsCreatingTemplate(false);
+    setShowCreateDialog(true);
+  };
+
+  const handleCreateNewTemplate = () => {
+    setIsCreatingTemplate(true);
     setShowCreateDialog(true);
   };
 
@@ -136,6 +148,7 @@ export default function OnboardingBuilder() {
     setSupportPhone("5511999999999");
     setFlowDefinition(null);
     setEditingPlaybook(null);
+    setIsCreatingTemplate(false);
   };
 
   const handleToggleActive = (playbook: any) => {
@@ -257,40 +270,75 @@ export default function OnboardingBuilder() {
       {/* Biblioteca de Templates */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Biblioteca de Templates
-          </CardTitle>
-          <CardDescription>
-            Comece rápido com templates pré-configurados
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5" />
+                Biblioteca de Templates
+              </CardTitle>
+              <CardDescription>
+                Comece rápido com templates pré-configurados
+              </CardDescription>
+            </div>
+            <Button size="sm" variant="outline" onClick={handleCreateNewTemplate} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Template
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {templates.map((template) => (
-              <Card key={template.id} className="relative">
-                <CardHeader>
-                  <Badge variant="secondary" className="w-fit">Template</Badge>
-                  <CardTitle className="text-lg mt-2">{template.name}</CardTitle>
-                  <CardDescription className="text-xs">
-                    {template.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleCreateFromTemplate(template)}
-                      className="flex-1 gap-2"
-                    >
-                      <Copy className="h-3 w-3" />
-                      Usar Template
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {templates.length === 0 ? (
+              <div className="col-span-3 text-center py-8 text-muted-foreground">
+                <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>Nenhum template criado ainda.</p>
+              </div>
+            ) : (
+              templates.map((template) => (
+                <Card key={template.id} className="relative">
+                  <CardHeader>
+                    <Badge variant="secondary" className="w-fit">Template</Badge>
+                    <CardTitle className="text-lg mt-2">{template.name}</CardTitle>
+                    <CardDescription className="text-xs">
+                      {template.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEdit(template)}
+                        className="flex-1 gap-2"
+                      >
+                        <Edit className="h-3 w-3" />
+                        Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCreateFromTemplate(template)}
+                        className="flex-1 gap-2"
+                      >
+                        <Copy className="h-3 w-3" />
+                        Usar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (confirm("Excluir este template?")) {
+                            deletePlaybook.mutate(template.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

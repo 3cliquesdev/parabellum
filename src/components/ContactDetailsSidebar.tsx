@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail, Phone, Building2, Plus, FileText, Clock, AlertCircle, TrendingUp, Ticket } from "lucide-react";
+import { Mail, Phone, Building2, Plus, Clock, AlertCircle, TrendingUp, Ticket } from "lucide-react";
 import ContactTagsSection from "./inbox/ContactTagsSection";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,184 +106,150 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
 
   return (
     <div className="h-full w-full border-l bg-slate-50 dark:bg-card border-slate-200 dark:border-border flex flex-col overflow-hidden">
-      <div className="flex-none p-6 border-b border-slate-200 dark:border-border">
-          {/* Contact Info */}
-          <div className="flex flex-col items-center mb-6">
-            <Avatar className="h-20 w-20 bg-primary/10 flex items-center justify-center mb-3">
-              <span className="text-2xl font-semibold text-primary">
-                {contact.first_name?.[0] || ''}
-                {contact.last_name?.[0] || ''}
-              </span>
-            </Avatar>
-            <h3 className="text-lg font-semibold text-foreground text-center">
+      <div className="flex-none p-4 border-b border-slate-200 dark:border-border">
+        {/* Contact Info - Compact horizontal layout */}
+        <div className="flex items-start gap-3 mb-3">
+          <Avatar className="h-11 w-11 bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span className="text-base font-semibold text-primary">
+              {contact.first_name?.[0] || ''}
+              {contact.last_name?.[0] || ''}
+            </span>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-foreground truncate leading-tight">
               {contact.first_name} {contact.last_name}
             </h3>
-            <Badge variant="secondary" className="mt-2">
-              {contact.status === 'lead' ? '🎯 Lead' :
-               contact.status === 'qualified' ? '✅ Qualificado' :
-               contact.status === 'customer' ? '⭐ Cliente' :
-               contact.status === 'inactive' ? '😴 Inativo' : '❌ Churned'}
-            </Badge>
-            {contact.total_ltv && contact.total_ltv > 0 && (
-              <div className="mt-3 text-center">
-                <p className="text-xs text-muted-foreground uppercase mb-1">Lifetime Value</p>
-                <p className="text-lg font-bold text-success">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                {contact.status === 'lead' ? '🎯 Lead' :
+                 contact.status === 'qualified' ? '✅ Qualificado' :
+                 contact.status === 'customer' ? '⭐ Cliente' :
+                 contact.status === 'inactive' ? '😴 Inativo' : '❌ Churned'}
+              </Badge>
+              {contact.total_ltv && contact.total_ltv > 0 && (
+                <span className="text-xs font-bold text-success">
                   {new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
                   }).format(contact.total_ltv)}
-                </p>
-              </div>
-            )}
+                </span>
+              )}
+            </div>
           </div>
-
-          {/* Badge de Sessão Não Verificada */}
-          {!isSessionVerified && (
-            <Alert variant="default" className="mt-3 border-yellow-600 bg-yellow-50 dark:bg-yellow-950/20">
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-xs text-yellow-700 dark:text-yellow-400">
-                ⚠️ Sessão não verificada - não compartilhe dados sensíveis como senhas ou dados bancários
-              </AlertDescription>
-            </Alert>
-          )}
         </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="p-6 pt-4">
-          <Separator className="mb-4" />
+        {/* Badge de Sessão Não Verificada */}
+        {!isSessionVerified && (
+          <Alert variant="default" className="border-yellow-600 bg-yellow-50 dark:bg-yellow-950/20 py-2">
+            <AlertCircle className="h-3.5 w-3.5 text-yellow-600" />
+            <AlertDescription className="text-[10px] text-yellow-700 dark:text-yellow-400">
+              ⚠️ Sessão não verificada
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
 
-          {/* Contact Details */}
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase mb-2">
-                Informações de Contato
-              </p>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="p-4 pt-3">
+          {/* Contact Details - Compact */}
+          <div className="space-y-3">
+            <div className="space-y-1.5">
               {contact.email && (
-                <div className="flex items-center gap-2 text-sm mb-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-foreground">{contact.email}</span>
+                <div className="flex items-center gap-2 text-xs">
+                  <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="text-foreground truncate">{contact.email}</span>
                 </div>
               )}
               {contact.phone && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
+                <div className="flex items-center gap-2 text-xs">
+                  <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                   <span className="text-foreground">{contact.phone}</span>
                 </div>
               )}
             </div>
 
             {contact.organizations && (
-              <>
-                <Separator />
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase mb-2">
-                    Organização
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-foreground">
-                      {contact.organizations.name}
-                    </span>
-                  </div>
-                </div>
-              </>
+              <div className="flex items-center gap-2 text-xs">
+                <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-foreground truncate">{contact.organizations.name}</span>
+              </div>
             )}
 
-            <Separator />
+            <Separator className="my-2" />
             
             {/* Tags Section */}
             <ContactTagsSection contactId={contact.id} />
 
-            <Separator />
+            <Separator className="my-2" />
 
-            {/* Tabs Navigation */}
-            <Tabs defaultValue="tickets" className="w-full -mx-6 px-6">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="tickets" className="text-xs">
-                  <Ticket className="h-3 w-3 mr-1" />
-                  Tickets
+            {/* Tabs Navigation - Compact */}
+            <Tabs defaultValue="tickets" className="w-full -mx-4 px-4">
+              <TabsList className="grid w-full grid-cols-3 h-8">
+                <TabsTrigger value="tickets" className="text-[10px] px-1 gap-0.5">
+                  <Ticket className="h-3 w-3" />
+                  <span className="hidden sm:inline">Tickets</span>
                 </TabsTrigger>
-                <TabsTrigger value="deals" className="text-xs">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  Negócios
+                <TabsTrigger value="deals" className="text-[10px] px-1 gap-0.5">
+                  <TrendingUp className="h-3 w-3" />
+                  <span className="hidden sm:inline">Negócios</span>
                 </TabsTrigger>
-                <TabsTrigger value="timeline" className="text-xs">
-                  <Clock className="h-3 w-3 mr-1" />
-                  Timeline
+                <TabsTrigger value="timeline" className="text-[10px] px-1 gap-0.5">
+                  <Clock className="h-3 w-3" />
+                  <span className="hidden sm:inline">Timeline</span>
                 </TabsTrigger>
               </TabsList>
 
               {/* Tickets Tab */}
-              <TabsContent value="tickets" className="mt-4 space-y-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">
-                    Tickets Ativos ({openTickets.length})
-                  </p>
-                </div>
+              <TabsContent value="tickets" className="mt-3 space-y-2">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                  Tickets Ativos ({openTickets.length})
+                </p>
                 {openTickets.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {openTickets.map((ticket) => (
                       <div
                         key={ticket.id}
-                        className="p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
+                        className="p-2 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
                       >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-                            <p className="text-sm font-medium text-foreground line-clamp-1">
-                              {ticket.subject}
-                            </p>
-                          </div>
-                          <Badge {...getStatusBadge(ticket.status)} className="text-xs ml-2 flex-shrink-0">
+                        <div className="flex items-start justify-between gap-1 mb-1">
+                          <p className="text-xs font-medium text-foreground line-clamp-1 flex-1">
+                            {ticket.subject}
+                          </p>
+                          <Badge {...getStatusBadge(ticket.status)} className="text-[9px] px-1 py-0 flex-shrink-0">
                             {getStatusBadge(ticket.status).label}
                           </Badge>
                         </div>
                         
-                        {/* SLA Visual Alert */}
-                        <div className="mb-3">
+                        <div className="flex items-center justify-between">
                           <SLABadge 
                             dueDate={ticket.due_date} 
                             priority={ticket.priority}
                             size="sm"
                           />
+                          <span className="text-[10px] text-muted-foreground">
+                            {format(new Date(ticket.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                          </span>
                         </div>
-
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                          <span>{format(new Date(ticket.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}</span>
-                        </div>
-
-                        {ticket.assigned_user && (
-                          <div className="flex items-center gap-2 mt-2">
-                            <Avatar className="h-5 w-5 bg-primary/10">
-                              <span className="text-[10px] text-primary">
-                                {ticket.assigned_user.full_name[0]}
-                              </span>
-                            </Avatar>
-                            <span className="text-xs text-muted-foreground">
-                              {ticket.assigned_user.full_name}
-                            </span>
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
+                  <p className="text-xs text-muted-foreground text-center py-3">
                     Nenhum ticket ativo
                   </p>
                 )}
               </TabsContent>
 
               {/* Deals Tab */}
-              <TabsContent value="deals" className="mt-4 space-y-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">
+              <TabsContent value="deals" className="mt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase">
                     Negócios ({contactDeals?.length || 0})
                   </p>
                   <DealDialog
                     prefilledContactId={contact.id}
                     trigger={
-                      <Button variant="ghost" size="sm" className="h-7 gap-1">
+                      <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] gap-0.5">
                         <Plus className="h-3 w-3" />
                         Criar
                       </Button>
@@ -292,78 +258,74 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
                   />
                 </div>
                 {contactDeals && contactDeals.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {contactDeals.map((deal) => (
                       <div
                         key={deal.id}
-                        className="p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                        className="p-2 rounded-md bg-muted hover:bg-muted/80 transition-colors"
                       >
-                        <p className="text-sm font-medium text-foreground mb-1">
-                          {deal.title}
-                        </p>
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-xs font-medium text-foreground truncate flex-1">
+                            {deal.title}
+                          </p>
+                          <Badge
+                            variant={
+                              deal.status === "won"
+                                ? "default"
+                                : deal.status === "lost"
+                                ? "destructive"
+                                : "secondary"
+                            }
+                            className="text-[9px] px-1 py-0"
+                          >
+                            {deal.status === "open" ? "Aberto" : deal.status === "won" ? "Ganho" : "Perdido"}
+                          </Badge>
+                        </div>
                         {deal.value && (
-                          <p className="text-sm font-bold text-success">
+                          <p className="text-xs font-bold text-success mt-0.5">
                             {new Intl.NumberFormat("pt-BR", {
                               style: "currency",
                               currency: deal.currency || "BRL",
                             }).format(deal.value)}
                           </p>
                         )}
-                        <Badge
-                          variant={
-                            deal.status === "won"
-                              ? "default"
-                              : deal.status === "lost"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                          className="mt-2"
-                        >
-                          {deal.status === "open"
-                            ? "Aberto"
-                            : deal.status === "won"
-                            ? "Ganho"
-                            : "Perdido"}
-                        </Badge>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
+                  <p className="text-xs text-muted-foreground text-center py-3">
                     Nenhum negócio associado
                   </p>
                 )}
               </TabsContent>
 
               {/* Timeline Tab - Unified Timeline */}
-              <TabsContent value="timeline" className="mt-4 space-y-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">
-                    Histórico Unificado
-                  </p>
-                </div>
+              <TabsContent value="timeline" className="mt-3 space-y-2">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                  Histórico Unificado
+                </p>
                 {recentTimeline.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-1.5">
                     {recentTimeline.map((event) => (
                       <div
                         key={event.id}
-                        className="p-3 rounded-lg border-l-2 border-primary/30 bg-muted/50"
+                        className="p-2 rounded-md border-l-2 border-primary/30 bg-muted/50"
                       >
-                        <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-                          <span>{event.icon}</span>
-                          <span>{event.title}</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground line-clamp-2 mb-1">
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <span className="text-xs">{event.icon}</span>
+                          <span className="text-[10px] font-medium text-foreground truncate">{event.title}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground line-clamp-1">
                           {event.description}
                         </p>
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(event.date), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                        <span className="text-[9px] text-muted-foreground">
+                          {format(new Date(event.date), "dd/MM HH:mm", { locale: ptBR })}
                         </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
+                  <p className="text-xs text-muted-foreground text-center py-3">
                     Nenhum histórico registrado
                   </p>
                 )}

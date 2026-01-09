@@ -37,7 +37,8 @@ const roleLabels: Record<string, string> = {
   'support_manager': 'Gerente de Suporte',
   'financial_manager': 'Gerente Financeiro',
   'financial_agent': 'Agente Financeiro',
-  'cs_manager': 'Gerente de CS'
+  'cs_manager': 'Gerente de CS',
+  'ecommerce_analyst': 'Analista de E-commerce'
 };
 
 serve(async (req) => {

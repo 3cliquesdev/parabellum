@@ -17,6 +17,7 @@ const ROLE_LABELS: Record<string, { label: string; color: string }> = {
   financial_manager: { label: "Ger. Financeiro", color: "bg-emerald-500" },
   financial_agent: { label: "Ag. Financeiro", color: "bg-amber-500" },
   cs_manager: { label: "Ger. CS", color: "bg-violet-500" },
+  ecommerce_analyst: { label: "Analista E-comm", color: "bg-teal-500" },
 };
 
 export function PermissionsSummaryCard() {

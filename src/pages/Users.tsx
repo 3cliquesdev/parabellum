@@ -162,6 +162,7 @@ export default function Users() {
     financial_manager: "Gerente Financeiro",
     financial_agent: "Agente Financeiro",
     cs_manager: "Gerente de CS",
+    ecommerce_analyst: "Analista de E-commerce",
   };
 
   const getRoleBadgeVariant = (role: string): "default" | "secondary" | "outline" => {

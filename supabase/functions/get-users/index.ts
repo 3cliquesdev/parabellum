@@ -69,7 +69,8 @@ Deno.serve(async (req) => {
         'support_manager',
         'financial_manager',
         'financial_agent',
-        'cs_manager'
+        'cs_manager',
+        'ecommerce_analyst'
       ]);
 
     if (rolesError) throw rolesError;

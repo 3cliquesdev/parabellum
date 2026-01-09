@@ -21,6 +21,7 @@ const ROLE_LABELS: Record<string, { label: string; color: string }> = {
   financial_manager: { label: "Gestor Financeiro", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
   financial_agent: { label: "Agente Financeiro", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" },
   cs_manager: { label: "Gerente de CS", color: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400" },
+  ecommerce_analyst: { label: "Analista E-commerce", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
 };
 
 const CATEGORY_LABELS: Record<string, { label: string }> = {

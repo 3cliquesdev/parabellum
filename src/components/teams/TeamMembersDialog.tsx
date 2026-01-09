@@ -41,7 +41,7 @@ export default function TeamMembersDialog({ open, onOpenChange, teamId }: TeamMe
 
   // Filter only operational users (not customers)
   const operationalUsers = users?.filter(u => 
-    ["sales_rep", "consultant", "support_agent", "support_manager", "cs_manager", "admin", "manager", "general_manager", "financial_manager"].includes(u.role)
+    ["sales_rep", "consultant", "support_agent", "support_manager", "cs_manager", "admin", "manager", "general_manager", "financial_manager", "ecommerce_analyst"].includes(u.role)
   );
 
   const filteredUsers = operationalUsers?.filter(user => {
@@ -78,6 +78,7 @@ export default function TeamMembersDialog({ open, onOpenChange, teamId }: TeamMe
       support_agent: { label: "Suporte", variant: "outline" },
       financial_manager: { label: "Financeiro", variant: "secondary" },
       financial_agent: { label: "Ag. Fin.", variant: "outline" },
+      ecommerce_analyst: { label: "E-commerce", variant: "outline" },
     };
     const config = roleLabels[role] || { label: role, variant: "outline" as const };
     return <Badge variant={config.variant}>{config.label}</Badge>;

@@ -65,12 +65,40 @@ export function useMergeProduct() {
         .eq("id", sourceProductId)
         .single();
 
-      // 1. Move product_offers
-      const { error: offersError } = await supabase
+      // 1. Move product_offers (handle duplicates)
+      // Get offers from source
+      const { data: sourceOffers } = await supabase
         .from("product_offers")
-        .update({ product_id: destinationProductId })
+        .select("id, offer_id")
         .eq("product_id", sourceProductId);
-      if (offersError) throw new Error(`Erro ao mover ofertas: ${offersError.message}`);
+
+      // Get existing offer_ids in destination
+      const { data: destOffers } = await supabase
+        .from("product_offers")
+        .select("offer_id")
+        .eq("product_id", destinationProductId);
+
+      const destOfferIds = new Set(destOffers?.map((o) => o.offer_id) ?? []);
+
+      if (sourceOffers && sourceOffers.length > 0) {
+        // Separate offers: duplicates (delete) vs unique (move)
+        const duplicateIds = sourceOffers.filter((o) => destOfferIds.has(o.offer_id)).map((o) => o.id);
+        const uniqueIds = sourceOffers.filter((o) => !destOfferIds.has(o.offer_id)).map((o) => o.id);
+
+        // Delete duplicates from source
+        if (duplicateIds.length > 0) {
+          await supabase.from("product_offers").delete().in("id", duplicateIds);
+        }
+
+        // Move unique offers to destination
+        if (uniqueIds.length > 0) {
+          const { error: offersError } = await supabase
+            .from("product_offers")
+            .update({ product_id: destinationProductId })
+            .in("id", uniqueIds);
+          if (offersError) throw new Error(`Erro ao mover ofertas: ${offersError.message}`);
+        }
+      }
 
       // 2. Move product_board_mappings
       const { error: mappingsError } = await supabase

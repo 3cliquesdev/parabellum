@@ -57,6 +57,7 @@ export function MoveOfferDialog({
     await moveOffer.mutateAsync({
       offerId: offer.id,
       newProductId: selectedProductId,
+      offerExternalId: offer.offer_id,
     });
 
     onOpenChange(false);
@@ -73,7 +74,16 @@ export function MoveOfferDialog({
   if (!offer) return null;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) {
+          onOpenChange(true);
+          return;
+        }
+        handleClose();
+      }}
+    >
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

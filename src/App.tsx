@@ -9,7 +9,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import RealtimeNotifications from "./components/RealtimeNotifications";
 import { WhatsAppDisconnectMonitor } from "./components/WhatsAppDisconnectMonitor";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { UpdatePrompt } from "./components/UpdatePrompt";
+
 import { PageLoadingSkeleton } from "./components/PageLoadingSkeleton";
 
 // Lazy loaded pages - reduces initial bundle significantly
@@ -114,7 +114,6 @@ const App = () => {
     <AppErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <UpdatePrompt />
           <Toaster />
           <Sonner />
           <BrowserRouter>

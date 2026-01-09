@@ -74,18 +74,9 @@ export function useSendMessageOffline() {
           // Falhou - Background Sync vai tentar depois
         }
       } else {
-        // Offline - Registrar Background Sync
-        if ('serviceWorker' in navigator && 'sync' in ServiceWorkerRegistration.prototype) {
-          try {
-            const reg = await navigator.serviceWorker.ready;
-            await (reg as any).sync.register('sync-messages');
-          } catch (error) {
-            console.error('Erro ao registrar background sync:', error);
-          }
-        }
-
+        // Offline - mensagem fica pendente localmente
         toast({
-          title: "Mensagem salva",
+          title: "Você está offline",
           description: "Sua mensagem será enviada quando você estiver online.",
         });
       }

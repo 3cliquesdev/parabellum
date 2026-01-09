@@ -158,9 +158,28 @@ export default function PublicFormV2({ formId: propFormId, schema: propSchema, i
         },
       });
 
-      if (error) throw error;
+      // Tratar erro de limite de submissões (pode vir no error do Supabase client)
+      if (error) {
+        // Tentar parsear o body do erro para verificar se é limite atingido
+        try {
+          const errorBody = typeof error.context?.body === 'string' 
+            ? JSON.parse(error.context.body) 
+            : error.context?.body;
+          
+          if (errorBody?.error === 'submission_limit_reached') {
+            setSubmissionError({
+              type: 'limit',
+              message: errorBody.message || 'Você já preencheu este formulário anteriormente.'
+            });
+            return;
+          }
+        } catch (parseError) {
+          // Se não conseguir parsear, continua para erro genérico
+        }
+        throw error;
+      }
       
-      // Check for submission limit error
+      // Check for submission limit error (caso venha no result com success=true)
       if (result?.error === 'submission_limit_reached') {
         setSubmissionError({
           type: 'limit',

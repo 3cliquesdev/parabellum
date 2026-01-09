@@ -38,7 +38,8 @@ const roleLabels: Record<string, string> = {
   'support_manager': 'Gerente de Suporte',
   'financial_manager': 'Gerente Financeiro',
   'financial_agent': 'Agente Financeiro',
-  'cs_manager': 'Gerente de CS'
+  'cs_manager': 'Gerente de CS',
+  'ecommerce_analyst': 'Analista de E-commerce'
 };
 
 serve(async (req) => {
@@ -154,7 +155,7 @@ serve(async (req) => {
     }
 
     // Validate role
-    const allowedRoles = ['admin', 'general_manager', 'manager', 'sales_rep', 'consultant', 'support_agent', 'support_manager', 'financial_manager', 'cs_manager'];
+    const allowedRoles = ['admin', 'general_manager', 'manager', 'sales_rep', 'consultant', 'support_agent', 'support_manager', 'financial_manager', 'cs_manager', 'ecommerce_analyst'];
     if (typeof role !== 'string' || !allowedRoles.includes(role)) {
       return new Response(
         JSON.stringify({ error: `Role inválido. Deve ser um de: ${allowedRoles.join(', ')}` }),

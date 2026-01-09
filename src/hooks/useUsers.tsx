@@ -14,7 +14,9 @@ interface UserWithRole {
     | "support_agent"
     | "support_manager"
     | "financial_manager"
-    | "cs_manager";
+    | "financial_agent"
+    | "cs_manager"
+    | "ecommerce_analyst";
   full_name?: string;
   job_title?: string;
   avatar_url?: string;

@@ -18,19 +18,19 @@ import { SupportChannelsMultiSelect } from "@/components/SupportChannelsMultiSel
 import { PremiumInput } from "@/components/ui/premium-input";
 import { PasswordStrength, usePasswordStrength } from "@/components/ui/password-strength";
 import { z } from "zod";
-import { User, Mail, Lock, Briefcase, ShieldCheck, Loader2, Building2, Crown, Users, Headphones, DollarSign } from "lucide-react";
+import { User, Mail, Lock, Briefcase, ShieldCheck, Loader2, Building2, Crown, Users, Headphones, DollarSign, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const userSchema = z.object({
   email: z.string().email({ message: "Email inválido" }),
   password: z.string().min(8, { message: "Senha deve ter no mínimo 8 caracteres" }),
-  role: z.enum(["admin", "general_manager", "manager", "sales_rep", "consultant", "support_agent", "support_manager", "financial_manager", "financial_agent", "cs_manager"], { message: "Role inválida" }),
+  role: z.enum(["admin", "general_manager", "manager", "sales_rep", "consultant", "support_agent", "support_manager", "financial_manager", "financial_agent", "cs_manager", "ecommerce_analyst"], { message: "Role inválida" }),
   full_name: z.string().min(1, { message: "Nome completo é obrigatório" }),
   department: z.string().uuid({ message: "Departamento inválido" }).optional().or(z.literal("")),
 });
 
 const editUserSchema = z.object({
-  role: z.enum(["admin", "general_manager", "manager", "sales_rep", "consultant", "support_agent", "support_manager", "financial_manager", "financial_agent", "cs_manager"], { message: "Role inválida" }),
+  role: z.enum(["admin", "general_manager", "manager", "sales_rep", "consultant", "support_agent", "support_manager", "financial_manager", "financial_agent", "cs_manager", "ecommerce_analyst"], { message: "Role inválida" }),
   full_name: z.string().min(1, { message: "Nome completo é obrigatório" }),
   department: z.string().uuid({ message: "Departamento inválido" }).optional().or(z.literal("")),
 });
@@ -39,7 +39,7 @@ interface UserWithRole {
   id: string;
   email: string;
   created_at: string;
-  role: "admin" | "general_manager" | "manager" | "sales_rep" | "consultant" | "support_agent" | "support_manager" | "financial_manager" | "financial_agent" | "cs_manager";
+  role: "admin" | "general_manager" | "manager" | "sales_rep" | "consultant" | "support_agent" | "support_manager" | "financial_manager" | "financial_agent" | "cs_manager" | "ecommerce_analyst";
   full_name?: string;
   job_title?: string;
   avatar_url?: string;
@@ -70,7 +70,7 @@ const validateName = (name: string): string | null => {
 export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: UserDialogProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "general_manager" | "manager" | "sales_rep" | "consultant" | "support_agent" | "support_manager" | "financial_manager" | "financial_agent" | "cs_manager">("sales_rep");
+  const [role, setRole] = useState<"admin" | "general_manager" | "manager" | "sales_rep" | "consultant" | "support_agent" | "support_manager" | "financial_manager" | "financial_agent" | "cs_manager" | "ecommerce_analyst">("sales_rep");
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [department, setDepartment] = useState<string>("");
@@ -247,6 +247,7 @@ export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: 
           financial_manager: "Gestor Financeiro",
           financial_agent: "Agente Financeiro",
           cs_manager: "Gerente de CS",
+          ecommerce_analyst: "Analista de E-commerce",
         };
 
         toast({
@@ -297,6 +298,7 @@ export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: 
     { value: "financial_manager", label: "Gestor Financeiro", description: "Aprovação de reembolsos", icon: DollarSign },
     { value: "financial_agent", label: "Agente Financeiro", description: "Operacional financeiro", icon: DollarSign },
     { value: "cs_manager", label: "Gerente de CS", description: "Head of Success", icon: Users },
+    { value: "ecommerce_analyst", label: "Analista de E-commerce", description: "Análise de vendas e métricas", icon: ShoppingCart },
   ];
 
   return (

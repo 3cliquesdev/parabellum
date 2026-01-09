@@ -146,6 +146,10 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
 
   const isAdminOrManager = role === "admin" || role === "manager" || role === "general_manager";
   const isSalesRep = role === "sales_rep";
+  
+  // Check if user has permission to create deals
+  const canCreateDeal = isAdminOrManager || isSalesRep;
+  const isLoadingPermissions = roleLoading;
 
   // Encontrar pipeline default
   const defaultPipeline = pipelines?.find(p => p.is_default) || pipelines?.[0];
@@ -158,10 +162,10 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
       currency: deal?.currency || "BRL",
       contact_id: prefilledContactId || deal?.contact_id || "",
       organization_id: deal?.organization_id || "",
-      pipeline_id: deal?.pipeline_id || defaultPipeline?.id || "",
+      pipeline_id: deal?.pipeline_id || "",
       stage_id: deal?.stage_id || "",
       status: deal?.status || "open",
-      assigned_to: deal?.assigned_to || (isSalesRep && user?.id ? user.id : ""),
+      assigned_to: deal?.assigned_to || "",
       lost_reason: (deal as any)?.lost_reason || "",
       product_id: (deal as any)?.product_id || "",
       probability: (deal as any)?.probability || 50,
@@ -184,6 +188,31 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
   // Buscar stages do pipeline selecionado
   const { data: stages } = useStages(watchPipelineId);
 
+  // Auto-inicializar pipeline quando dados carregam (apenas para novo deal)
+  useEffect(() => {
+    if (!deal && pipelines && pipelines.length > 0 && !pipelinesLoading) {
+      const currentPipelineId = form.getValues("pipeline_id");
+      if (!currentPipelineId) {
+        const defaultPipeline = pipelines.find(p => p.is_default) || pipelines[0];
+        if (defaultPipeline) {
+          console.log("[DealDialog] Auto-setting pipeline to:", defaultPipeline.name);
+          form.setValue("pipeline_id", defaultPipeline.id);
+        }
+      }
+    }
+  }, [pipelines, pipelinesLoading, deal, form]);
+
+  // Auto-inicializar assigned_to para sales_rep quando role carrega
+  useEffect(() => {
+    if (!deal && isSalesRep && user?.id && !roleLoading) {
+      const currentAssignedTo = form.getValues("assigned_to");
+      if (!currentAssignedTo) {
+        console.log("[DealDialog] Auto-setting assigned_to for sales_rep:", user.id);
+        form.setValue("assigned_to", user.id);
+      }
+    }
+  }, [isSalesRep, user?.id, roleLoading, deal, form]);
+
   // Atualizar stage_id quando pipeline mudar
   useEffect(() => {
     if (stages && stages.length > 0 && watchPipelineId) {
@@ -191,6 +220,7 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
       const stageExists = stages.find(s => s.id === currentStageId);
       
       if (!stageExists) {
+        console.log("[DealDialog] Auto-setting stage to:", stages[0].name);
         form.setValue("stage_id", stages[0].id);
       }
     }
@@ -287,6 +317,18 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
             {deal ? "Editar Negócio" : "Novo Negócio"}
           </DialogTitle>
         </DialogHeader>
+        
+        {/* Permission check - show message if user can't create deals */}
+        {!isLoadingPermissions && !canCreateDeal && !deal && (
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-4">
+            <p className="text-sm text-destructive font-medium">
+              ⚠️ Seu perfil não tem permissão para criar negócios.
+            </p>
+            <p className="text-xs text-destructive/80 mt-1">
+              Peça ao administrador para ajustar seu acesso para "Vendedor" ou superior.
+            </p>
+          </div>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -847,7 +889,10 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createDeal.isPending || updateDeal.isPending || roleLoading}>
+              <Button 
+                type="submit" 
+                disabled={createDeal.isPending || updateDeal.isPending || roleLoading || (!canCreateDeal && !deal)}
+              >
                 {deal ? "Salvar" : "Criar"}
               </Button>
             </div>

@@ -36,6 +36,7 @@ import { SortBySelect, SortByOption } from "@/components/deals/filters/SortBySel
 import { ActiveFilterChips, generateDealFilterChips } from "@/components/ui/active-filter-chips";
 import BulkMoveDealsDialog from "@/components/deals/BulkMoveDealsDialog";
 import BulkActionsBar from "@/components/deals/BulkActionsBar";
+import BulkTransferToSellerDialog from "@/components/deals/BulkTransferToSellerDialog";
 import { TransferDealsDialog } from "@/components/deals/TransferDealsDialog";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -60,6 +61,7 @@ export default function Deals() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedDeals, setSelectedDeals] = useState<Set<string>>(new Set());
   const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
+  const [showBulkTransferDialog, setShowBulkTransferDialog] = useState(false);
   
   // Advanced filters state
   const [dealFilters, setDealFilters] = useState<DealFilters>({
@@ -682,10 +684,19 @@ export default function Deals() {
         onSuccess={clearSelection}
       />
 
+      {/* Bulk Transfer to Seller Dialog */}
+      <BulkTransferToSellerDialog
+        open={showBulkTransferDialog}
+        onOpenChange={setShowBulkTransferDialog}
+        selectedDealIds={Array.from(selectedDeals)}
+        onSuccess={clearSelection}
+      />
+
       {/* Bulk Actions Bar */}
       <BulkActionsBar
         selectedCount={selectedDeals.size}
         onMoveClick={() => setShowBulkMoveDialog(true)}
+        onTransferClick={() => setShowBulkTransferDialog(true)}
         onClearSelection={clearSelection}
       />
     </div>

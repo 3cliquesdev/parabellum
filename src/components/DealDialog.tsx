@@ -136,7 +136,7 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
   const { data: pipelines } = usePipelines();
   const { data: salesReps, isLoading: salesRepsLoading } = useSalesReps();
   const { data: products } = useProducts();
-  const { role } = useUserRole();
+  const { role, loading: roleLoading } = useUserRole();
   const { user } = useAuth();
 
   console.log("[DealDialog] Sales reps data:", { salesReps, salesRepsLoading });
@@ -196,6 +196,12 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
   const onSubmit = async (data: DealFormData) => {
     console.log("[DealDialog] onSubmit called with data:", data);
     
+    // Evitar submit enquanto role está carregando para evitar inconsistências
+    if (roleLoading) {
+      console.warn("[DealDialog] Role still loading, preventing submit");
+      return;
+    }
+    
     // Validação: garantir que stage_id e pipeline_id existem
     if (!data.stage_id) {
       console.error("[DealDialog] stage_id is required but missing", data);
@@ -215,7 +221,20 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
       return;
     }
 
-    console.log("[DealDialog] All validations passed");
+    console.log("[DealDialog] All validations passed, role:", role, "isSalesRep:", isSalesRep);
+
+    // Para sales_rep editando, preservar o assigned_to original do deal
+    // Para admins/managers, usar o valor do formulário
+    const resolvedAssignedTo = (() => {
+      if (isAdminOrManager) {
+        return data.assigned_to || null;
+      }
+      // Sales rep: preservar assigned_to original ao editar, ou usar user.id ao criar
+      if (deal) {
+        return deal.assigned_to; // Preserva o original
+      }
+      return user?.id || null; // Novo deal
+    })();
 
     const payload = {
       title: data.title,
@@ -226,7 +245,7 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
       pipeline_id: data.pipeline_id,
       stage_id: data.stage_id,
       status: data.status,
-      assigned_to: isSalesRep ? (user?.id || null) : (data.assigned_to || null),
+      assigned_to: resolvedAssignedTo,
       lost_reason: data.lost_reason || null,
       product_id: data.product_id || null,
       probability: data.probability || null,
@@ -812,7 +831,7 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createDeal.isPending || updateDeal.isPending}>
+              <Button type="submit" disabled={createDeal.isPending || updateDeal.isPending || roleLoading}>
                 {deal ? "Salvar" : "Criar"}
               </Button>
             </div>

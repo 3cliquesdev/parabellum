@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Bell, Download, Smartphone, MessageSquare } from 'lucide-react';
-import { usePWAInstall } from '@/hooks/usePWAInstall';
+import { Bell, MessageSquare } from 'lucide-react';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
 interface PublicChatOnboardingProps {
@@ -12,7 +11,6 @@ interface PublicChatOnboardingProps {
 
 export function PublicChatOnboarding({ messagesSent, messagesReceived }: PublicChatOnboardingProps) {
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const { canInstall, install, isInstalled } = usePWAInstall();
   const { requestPermission, isSupported } = useNotificationSound();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(null);
 
@@ -29,26 +27,21 @@ export function PublicChatOnboarding({ messagesSent, messagesReceived }: PublicC
 
     if (shouldShow) {
       const timer = setTimeout(() => {
-        // Only show if there's something to offer
+        // Only show if there's something to offer (notifications)
         const hasNotificationOption = isSupported && notificationPermission !== 'granted';
-        const hasPWAOption = canInstall && !isInstalled;
         
-        if (hasNotificationOption || hasPWAOption) {
+        if (hasNotificationOption) {
           setShowOnboarding(true);
         }
       }, 3000);
 
       return () => clearTimeout(timer);
     }
-  }, [messagesSent, messagesReceived, canInstall, isInstalled, isSupported, notificationPermission]);
+  }, [messagesSent, messagesReceived, isSupported, notificationPermission]);
 
   const handleEnableNotifications = async () => {
     await requestPermission();
     setNotificationPermission(Notification.permission);
-  };
-
-  const handleInstallPWA = async () => {
-    await install();
   };
 
   const handleDismiss = () => {
@@ -62,7 +55,6 @@ export function PublicChatOnboarding({ messagesSent, messagesReceived }: PublicC
   };
 
   const showNotificationButton = isSupported && notificationPermission !== 'granted';
-  const showPWAButton = canInstall && !isInstalled;
 
   if (!showOnboarding) return null;
 
@@ -92,23 +84,6 @@ export function PublicChatOnboarding({ messagesSent, messagesReceived }: PublicC
                 <p className="font-medium text-sm">Ativar notificações</p>
                 <p className="text-xs text-muted-foreground">
                   Receba alertas quando respondermos
-                </p>
-              </div>
-            </button>
-          )}
-
-          {showPWAButton && (
-            <button
-              onClick={handleInstallPWA}
-              className="w-full flex items-center gap-3 p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors text-left"
-            >
-              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                <Smartphone className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-sm">Instalar app</p>
-                <p className="text-xs text-muted-foreground">
-                  Acesse rápido pela tela inicial
                 </p>
               </div>
             </button>

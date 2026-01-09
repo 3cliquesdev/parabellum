@@ -6,17 +6,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMessagesOffline, usePendingMessages } from "@/hooks/useMessagesOffline";
 import { useSendMessageOffline } from "@/hooks/useSendMessageOffline";
 import { useToast } from "@/hooks/use-toast";
-import { Send, ArrowLeft, MessageSquare, Bot, Clock, Check, WifiOff, Settings, Bell, Download } from "lucide-react";
+import { Send, ArrowLeft, MessageSquare, Bot, Clock, Check, WifiOff, Settings, Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAutopilotTrigger } from "@/hooks/useAutopilotTrigger";
 import { cn } from "@/lib/utils";
 import { SafeHTML } from "@/components/SafeHTML";
-import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { createPublicChatClient, clearSessionToken } from "@/lib/publicSupabaseClient";
 import { RatingWidget } from "@/components/public/RatingWidget";
 import { PublicChatOnboarding } from "@/components/public/PublicChatOnboarding";
-import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import {
   DropdownMenu,
@@ -37,8 +35,7 @@ export default function PublicChatWindow() {
   const lastMessageCountRef = useRef(0);
   const hasRequestedPermissionRef = useRef(false);
 
-  // PWA & Notifications
-  const { canInstall, install } = usePWAInstall();
+  // Notifications
   const { requestPermission, showBrowserNotification, isSupported } = useNotificationSound();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(null);
 
@@ -209,7 +206,7 @@ export default function PublicChatWindow() {
     }
   };
 
-  const showSettingsMenu = canInstall || (isSupported && notificationPermission !== 'granted');
+  const showSettingsMenu = isSupported && notificationPermission && notificationPermission !== 'granted';
 
   if (!conversation) {
     return (
@@ -248,13 +245,7 @@ export default function PublicChatWindow() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canInstall && (
-                <DropdownMenuItem onClick={install}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Instalar App
-                </DropdownMenuItem>
-              )}
-              {isSupported && notificationPermission !== 'granted' && (
+              {isSupported && notificationPermission === 'default' && (
                 <DropdownMenuItem onClick={handleEnableNotifications}>
                   <Bell className="mr-2 h-4 w-4" />
                   Ativar Notificações
@@ -406,7 +397,6 @@ export default function PublicChatWindow() {
         </div>
       </div>
       
-      <PWAInstallPrompt />
       <PublicChatOnboarding messagesSent={messagesSent} messagesReceived={messagesReceived} />
     </div>
   );

@@ -257,7 +257,38 @@ export function SinglePageFormView({ schema, formId, isPreview = false, title, d
         },
       });
 
-      if (error) throw error;
+      // Tratar erro de limite de submissões (pode vir no error do Supabase client)
+      if (error) {
+        // Tentar parsear o body do erro para verificar se é limite atingido
+        try {
+          const errorBody = typeof error.context?.body === 'string' 
+            ? JSON.parse(error.context.body) 
+            : error.context?.body;
+          
+          if (errorBody?.error === 'submission_limit_reached') {
+            toast({
+              title: "Formulário já preenchido",
+              description: errorBody.message || 'Você já preencheu este formulário anteriormente.',
+              variant: "destructive",
+            });
+            return;
+          }
+        } catch (parseError) {
+          // Se não conseguir parsear, continua para erro genérico
+        }
+        throw error;
+      }
+      
+      // Check for submission limit error (caso venha no result)
+      if (result?.error === 'submission_limit_reached') {
+        toast({
+          title: "Formulário já preenchido",
+          description: result.message || 'Você já preencheu este formulário anteriormente.',
+          variant: "destructive",
+        });
+        return;
+      }
+      
       if (!result?.success) throw new Error(result?.error || 'Erro ao processar formulário');
 
       setIsSubmitted(true);

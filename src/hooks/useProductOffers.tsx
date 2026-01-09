@@ -46,6 +46,30 @@ export const useCreateProductOffer = () => {
       price: number;
       source?: string;
     }) => {
+      // Verificar se já existe essa oferta mapeada
+      const { data: existing } = await supabase
+        .from("product_offers")
+        .select("id, product_id")
+        .eq("offer_id", offer.offer_id)
+        .maybeSingle();
+
+      if (existing) {
+        // Se já existe no mesmo produto, não faz nada
+        if (existing.product_id === offer.product_id) {
+          return { ...existing, alreadyExists: true };
+        }
+        // Se existe em outro produto, move para o novo
+        const { data, error } = await supabase
+          .from("product_offers")
+          .update({ product_id: offer.product_id })
+          .eq("id", existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return { ...data, wasMoved: true };
+      }
+
       const { data, error } = await supabase
         .from("product_offers")
         .insert({
@@ -58,14 +82,27 @@ export const useCreateProductOffer = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data: any, variables) => {
       queryClient.invalidateQueries({ queryKey: ["product-offers", variables.product_id] });
       queryClient.invalidateQueries({ queryKey: ["kiwify-unmapped-offers"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast({
-        title: "Oferta adicionada",
-        description: "A oferta foi vinculada ao produto com sucesso.",
-      });
+      
+      if (data?.alreadyExists) {
+        toast({
+          title: "Oferta já vinculada",
+          description: "Esta oferta já está vinculada a este produto.",
+        });
+      } else if (data?.wasMoved) {
+        toast({
+          title: "Oferta movida",
+          description: "A oferta foi movida para este produto.",
+        });
+      } else {
+        toast({
+          title: "Oferta adicionada",
+          description: "A oferta foi vinculada ao produto com sucesso.",
+        });
+      }
     },
     onError: (error: any) => {
       toast({

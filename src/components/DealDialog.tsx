@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { DealValueInput } from "./deals/DealValueInput";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -88,15 +89,7 @@ const dealSchema = z.object({
 
 type DealFormData = z.infer<typeof dealSchema>;
 
-// Formata valor para exibição (quando não está focado)
-const formatCurrencyDisplay = (value: string | number | null | undefined): string => {
-  if (value === null || value === undefined || value === "") return "";
-  
-  const numValue = typeof value === 'number' ? value : parseInt(String(value), 10);
-  if (isNaN(numValue)) return "";
-  
-  return new Intl.NumberFormat("pt-BR").format(numValue);
-};
+// formatCurrencyDisplay movido para DealValueInput
 
 const LOST_REASONS = [
   { value: "nunca_respondeu", label: "Nunca respondeu" },
@@ -361,45 +354,18 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
               <FormField
                 control={form.control}
                 name="value"
-                render={({ field }) => {
-                  const [rawValue, setRawValue] = useState<string>("");
-                  const [isFocused, setIsFocused] = useState(false);
-                  
-                  return (
-                    <FormItem>
-                      <FormLabel>Valor (opcional)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="0"
-                          value={isFocused ? rawValue : formatCurrencyDisplay(field.value)}
-                          onFocus={() => {
-                            setIsFocused(true);
-                            // Mostra valor numérico limpo ao focar
-                            setRawValue(field.value ? String(field.value).replace(/\D/g, '') : "");
-                          }}
-                          onChange={(e) => {
-                            // Aceita apenas números
-                            const onlyNumbers = e.target.value.replace(/\D/g, '');
-                            setRawValue(onlyNumbers);
-                          }}
-                          onBlur={() => {
-                            setIsFocused(false);
-                            // Converte para número e salva
-                            if (rawValue) {
-                              const numValue = parseInt(rawValue, 10);
-                              field.onChange(numValue.toString());
-                            } else {
-                              field.onChange("");
-                            }
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Valor (opcional)</FormLabel>
+                    <FormControl>
+                      <DealValueInput
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
               
               <FormField

@@ -112,7 +112,41 @@ export const useMoveProductOffer = () => {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ offerId, newProductId }: { offerId: string; newProductId: string }) => {
+    mutationFn: async ({
+      offerId,
+      newProductId,
+      offerExternalId,
+    }: {
+      offerId: string;
+      newProductId: string;
+      offerExternalId?: string;
+    }) => {
+      // Ensure destination doesn't already have this offer_id (unique constraint)
+      let offerIdToCheck = offerExternalId;
+
+      if (!offerIdToCheck) {
+        const { data: offerRow, error: offerError } = await supabase
+          .from("product_offers")
+          .select("offer_id")
+          .eq("id", offerId)
+          .single();
+
+        if (offerError) throw offerError;
+        offerIdToCheck = offerRow.offer_id;
+      }
+
+      const { data: existing, error: existingError } = await supabase
+        .from("product_offers")
+        .select("id")
+        .eq("product_id", newProductId)
+        .eq("offer_id", offerIdToCheck)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+      if (existing?.id) {
+        throw new Error("Este produto de destino já tem essa oferta vinculada.");
+      }
+
       const { error } = await supabase
         .from("product_offers")
         .update({ product_id: newProductId })

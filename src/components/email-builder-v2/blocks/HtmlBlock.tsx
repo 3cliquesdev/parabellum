@@ -29,7 +29,7 @@ export function HtmlBlock({ block, isSelected, onUpdate, readOnly }: HtmlBlockPr
       }}
     >
       {readOnly ? (
-        <div dangerouslySetInnerHTML={{ __html: block.content.html || "" }} />
+        <div className="text-slate-800" dangerouslySetInnerHTML={{ __html: block.content.html || "" }} />
       ) : (
         <Tabs value={mode} onValueChange={(v) => setMode(v as "code" | "preview")}>
           <div className="flex items-center justify-between mb-2">
@@ -47,7 +47,7 @@ export function HtmlBlock({ block, isSelected, onUpdate, readOnly }: HtmlBlockPr
 
           <TabsContent value="preview" className="mt-0">
             {block.content.html ? (
-              <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+              <div className="text-slate-800" dangerouslySetInnerHTML={{ __html: block.content.html }} />
             ) : (
               <div className="text-center text-muted-foreground py-4 border border-dashed rounded">
                 <Code className="h-6 w-6 mx-auto mb-2 opacity-50" />

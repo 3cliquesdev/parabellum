@@ -14,6 +14,7 @@ import { BannerBlock } from "./blocks/BannerBlock";
 import { SignatureBlock } from "./blocks/SignatureBlock";
 import { SocialBlock } from "./blocks/SocialBlock";
 import { HtmlBlock } from "./blocks/HtmlBlock";
+import { ColumnsBlock } from "./blocks/ColumnsBlock";
 
 interface BlockRendererProps {
   block: EmailBlock;
@@ -68,8 +69,10 @@ export function BlockRenderer({
         return <SocialBlock block={block} isSelected={isSelected} onUpdate={onUpdate} readOnly={readOnly} />;
       case "html":
         return <HtmlBlock block={block} isSelected={isSelected} onUpdate={onUpdate} readOnly={readOnly} />;
+      case "columns":
+        return <ColumnsBlock block={block} isSelected={isSelected} onUpdate={onUpdate} readOnly={readOnly} />;
       default:
-        return <div className="p-4 bg-muted text-center">Bloco não suportado: {block.block_type}</div>;
+        return <div className="p-4 bg-slate-100 text-slate-600 text-center">Bloco não suportado: {block.block_type}</div>;
     }
   };
 

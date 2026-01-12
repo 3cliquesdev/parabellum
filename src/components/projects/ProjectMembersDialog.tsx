@@ -26,15 +26,7 @@ export function ProjectMembersDialog({ open, onOpenChange, boardId }: ProjectMem
   const { data: assignedMembers = [] } = useQuery({
     queryKey: ["project-members", boardId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("project_card_assignees")
-        .select(`
-          profile_id,
-          profiles:profile_id (id, full_name, avatar_url, email)
-        `)
-        .eq("card_id", boardId); // This will be adjusted
-
-      // Actually get via cards
+      // Get all cards from this board
       const { data: cards } = await supabase
         .from("project_cards")
         .select("id")
@@ -47,16 +39,16 @@ export function ProjectMembersDialog({ open, onOpenChange, boardId }: ProjectMem
       const { data: assignees } = await supabase
         .from("project_card_assignees")
         .select(`
-          profile_id,
-          profiles:profile_id (id, full_name, avatar_url, email)
+          user_id,
+          profiles:user_id (id, full_name, avatar_url)
         `)
         .in("card_id", cardIds);
 
-      // Deduplicate by profile_id
+      // Deduplicate by user_id
       const uniqueProfiles = new Map();
       assignees?.forEach((a: any) => {
-        if (a.profiles && !uniqueProfiles.has(a.profile_id)) {
-          uniqueProfiles.set(a.profile_id, a.profiles);
+        if (a.profiles && !uniqueProfiles.has(a.user_id)) {
+          uniqueProfiles.set(a.user_id, a.profiles);
         }
       });
 

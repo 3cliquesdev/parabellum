@@ -209,14 +209,18 @@ export function EmailTemplateBuilderV2({
           </div>
 
           {/* Canvas */}
-          <div className="flex-1 overflow-auto bg-muted/30 p-6">
+          <div className="flex-1 overflow-auto bg-slate-200 p-6">
             <div
               className={cn(
-                "mx-auto bg-white shadow-lg rounded-lg overflow-hidden transition-all",
-                "[&_*]:text-slate-900",
+                "mx-auto shadow-lg rounded-lg overflow-hidden transition-all",
                 previewMode === "desktop" ? "max-w-2xl" : "max-w-sm"
               )}
-              style={{ colorScheme: 'light' }}
+              style={{ 
+                colorScheme: 'light',
+                backgroundColor: '#ffffff',
+                color: '#1e293b'
+              }}
+              data-theme="light"
             >
               <DropZone isEmpty={blocks.length === 0}>
                 <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>

@@ -159,6 +159,7 @@ export function KanbanColumn({ column, cards, boardId, onCardClick }: KanbanColu
                 <KanbanCard
                   key={card.id}
                   card={card}
+                  boardId={boardId}
                   onClick={() => onCardClick(card.id)}
                 />
               ))}

@@ -1,87 +1,45 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/db";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as defaultClient } from "@/integrations/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export function useSendMessageOffline() {
+interface SendMessageOptions {
+  client?: SupabaseClient;
+}
+
+export function useSendMessageOffline(options: SendMessageOptions = {}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const client = options.client ?? defaultClient;
 
   return useMutation({
     mutationFn: async ({ conversationId, content }: { conversationId: string; content: string }) => {
-      const tempId = `temp-${Date.now()}`;
-      const now = new Date().toISOString();
+      if (!navigator.onLine) {
+        throw new Error("Você está offline. Conecte-se à internet para enviar mensagens.");
+      }
 
-      // 1. Salvar imediatamente no IndexedDB (UI instantânea)
-      await db.messageQueue.add({
-        conversation_id: conversationId,
-        content,
-        created_at: now,
-        status: 'pending',
-        retries: 0
-      });
+      const { data, error } = await client
+        .from('messages')
+        .insert({ 
+          conversation_id: conversationId, 
+          content, 
+          sender_type: 'contact' 
+        })
+        .select()
+        .single();
 
-      // 2. Adicionar à lista de mensagens locais (mostra com ícone de relógio)
-      await db.messages.add({
-        id: tempId,
-        conversation_id: conversationId,
-        content,
-        sender_type: 'contact',
-        created_at: now,
-        synced: false // Indica mensagem pendente
-      });
+      if (error) throw error;
+
+      // Atualizar last_message_at
+      await client
+        .from("conversations")
+        .update({ last_message_at: new Date().toISOString() })
+        .eq("id", conversationId);
 
       // Invalidar queries para atualizar UI
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
 
-      // 3. Se online, enviar imediatamente
-      if (navigator.onLine) {
-        try {
-          const { data, error } = await supabase
-            .from('messages')
-            .insert({ 
-              conversation_id: conversationId, 
-              content, 
-              sender_type: 'contact' 
-            })
-            .select()
-            .single();
-
-          if (!error && data) {
-            // Sucesso - remover temporária e atualizar com real
-            await db.messages.delete(tempId);
-            await db.messages.add({ 
-              id: data.id,
-              conversation_id: data.conversation_id,
-              content: data.content,
-              sender_type: data.sender_type,
-              sender_id: data.sender_id || undefined,
-              is_ai_generated: data.is_ai_generated || false,
-              created_at: data.created_at,
-              synced: true 
-            });
-
-            // Atualizar conversation's last_message_at
-            await supabase
-              .from("conversations")
-              .update({ last_message_at: new Date().toISOString() })
-              .eq("id", conversationId);
-
-            return data;
-          }
-        } catch (error) {
-          console.error('Erro ao enviar mensagem online:', error);
-          // Falhou - Background Sync vai tentar depois
-        }
-      } else {
-        // Offline - mensagem fica pendente localmente
-        toast({
-          title: "Você está offline",
-          description: "Sua mensagem será enviada quando você estiver online.",
-        });
-      }
-
-      return { id: tempId, synced: false };
+      return data;
     },
     onError: (error: Error) => {
       toast({

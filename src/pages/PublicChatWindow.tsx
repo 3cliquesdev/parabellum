@@ -42,9 +42,9 @@ export default function PublicChatWindow() {
   // SECURITY: Use custom Supabase client with session token
   const supabase = createPublicChatClient();
 
-  const { messages = [], isOffline } = useMessagesOffline(conversationId || null);
+  const { messages = [], isOffline } = useMessagesOffline(conversationId || null, { client: supabase });
   const pendingMessages = usePendingMessages(conversationId || null);
-  const sendMessageMutation = useSendMessageOffline();
+  const sendMessageMutation = useSendMessageOffline({ client: supabase });
   
   useAutopilotTrigger(conversationId || null);
 

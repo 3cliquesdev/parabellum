@@ -72,11 +72,11 @@ Deno.serve(async (req: Request) => {
     }
 
     // Roles que podem receber distribuição automática de conversas
+    // Nota: financial_agent removido - não devem receber conversas automaticamente
     const DISTRIBUTION_ALLOWED_ROLES = [
       'support_agent', 
       'consultant', 
-      'sales_rep', 
-      'financial_agent'
+      'sales_rep'
     ];
 
     // Buscar informações do agente

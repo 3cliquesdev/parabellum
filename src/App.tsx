@@ -99,6 +99,8 @@ const ProjectsPage = lazy(() => import("./pages/ProjectsPage"));
 const ProjectBoardPage = lazy(() => import("./pages/ProjectBoardPage"));
 const FormBoardIntegrationsPage = lazy(() => import("./pages/FormBoardIntegrationsPage"));
 const ProductBoardMappingsPage = lazy(() => import("./pages/ProductBoardMappingsPage"));
+const AISettingsPage = lazy(() => import("./pages/AISettingsPage"));
+const InstagramSettings = lazy(() => import("./pages/InstagramSettings"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -228,6 +230,8 @@ const App = () => {
               
               {/* Instagram Integration */}
               <Route path="/instagram" element={<ProtectedRoute requiredPermission="inbox.access"><Layout><InstagramDashboard /></Layout></ProtectedRoute>} />
+              <Route path="/settings/instagram" element={<ProtectedRoute requiredPermission="settings.integrations"><Layout><InstagramSettings /></Layout></ProtectedRoute>} />
+              <Route path="/settings/ai" element={<ProtectedRoute requiredPermission="settings.view"><Layout><AISettingsPage /></Layout></ProtectedRoute>} />
               
               {/* Catch-all route - must be last */}
               <Route path="*" element={<NotFound />} />

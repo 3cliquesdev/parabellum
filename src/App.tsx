@@ -10,6 +10,7 @@ import RealtimeNotifications from "./components/RealtimeNotifications";
 import { WhatsAppDisconnectMonitor } from "./components/WhatsAppDisconnectMonitor";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { useVersionCheck } from "./hooks/useVersionCheck";
+import { VersionUpdateModal } from "./components/VersionUpdateModal";
 
 import { PageLoadingSkeleton } from "./components/PageLoadingSkeleton";
 
@@ -119,8 +120,13 @@ const queryClient = new QueryClient({
 
 // Componente wrapper para usar o hook de versão
 const VersionCheckWrapper = ({ children }: { children: React.ReactNode }) => {
-  useVersionCheck();
-  return <>{children}</>;
+  const { showUpdateModal, handleUpdate } = useVersionCheck();
+  return (
+    <>
+      <VersionUpdateModal isOpen={showUpdateModal} onUpdate={handleUpdate} />
+      {children}
+    </>
+  );
 };
 
 const App = () => {

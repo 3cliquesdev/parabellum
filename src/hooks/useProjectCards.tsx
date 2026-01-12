@@ -302,22 +302,35 @@ export function useDeleteProjectCard() {
 
   return useMutation({
     mutationFn: async ({ id, board_id }: { id: string; board_id: string }) => {
+      console.log('[DeleteCard] Iniciando exclusão do card:', id);
+      
       const { error } = await supabase
         .from("project_cards")
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[DeleteCard] Erro ao excluir:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
+        throw error;
+      }
+      
+      console.log('[DeleteCard] Card excluído com sucesso:', id);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["project-cards", variables.board_id] });
-      toast({ title: "Card excluído!" });
+      toast({ title: "Card excluído com sucesso!" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('[DeleteCard] Mutation onError:', error);
       toast({
         variant: "destructive",
         title: "Erro ao excluir card",
-        description: error.message,
+        description: error?.details || error?.message || "Erro desconhecido",
       });
     },
   });

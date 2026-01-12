@@ -1,5 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { toast } from 'sonner';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface VersionInfo {
   version: string;
@@ -9,8 +8,19 @@ interface VersionInfo {
 const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
 export function useVersionCheck() {
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const initialVersionRef = useRef<VersionInfo | null>(null);
   const hasNotifiedRef = useRef(false);
+
+  const handleUpdate = useCallback(async () => {
+    // Limpa cache do service worker e caches
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+    }
+    // Força reload sem cache
+    window.location.reload();
+  }, []);
 
   const checkVersion = useCallback(async () => {
     try {
@@ -42,29 +52,7 @@ export function useVersionCheck() {
       if (hasNewVersion && !hasNotifiedRef.current) {
         hasNotifiedRef.current = true;
         console.log('[VersionCheck] Nova versão detectada:', currentVersion.version);
-        
-        toast('🚀 Nova versão disponível!', {
-          description: 'Atualize agora para ter as últimas melhorias e correções',
-          duration: Infinity,
-          position: 'bottom-center',
-          action: {
-            label: '🔄 Atualizar',
-            onClick: async () => {
-              // Limpa cache do service worker e caches
-              if ('caches' in window) {
-                const cacheNames = await caches.keys();
-                await Promise.all(cacheNames.map(name => caches.delete(name)));
-              }
-              // Força reload sem cache
-              window.location.reload();
-            }
-          },
-          onDismiss: () => {
-            setTimeout(() => {
-              hasNotifiedRef.current = false;
-            }, CHECK_INTERVAL);
-          }
-        });
+        setShowUpdateModal(true);
       }
     } catch (error) {
       console.error('[VersionCheck] Erro ao verificar versão:', error);
@@ -92,4 +80,6 @@ export function useVersionCheck() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [checkVersion]);
+
+  return { showUpdateModal, handleUpdate };
 }

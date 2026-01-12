@@ -51,17 +51,18 @@ export function WhatsAppStatusWidget() {
     );
   }
 
-  const connectedCount = instances?.filter(i => i.status === 'open').length || 0;
-  const disconnectedCount = instances?.filter(i => i.status === 'disconnected' || i.status === 'close').length || 0;
+  const connectedCount = instances?.filter(i => i.status === 'connected' || i.status === 'open').length || 0;
+  const disconnectedCount = instances?.filter(i => i.status === 'disconnected' || i.status === 'close' || i.status === 'qr_pending').length || 0;
   const totalCount = instances?.length || 0;
 
   const getStatusVariant = (status: string) => {
-    if (status === 'open') return 'default';
+    if (status === 'connected' || status === 'open') return 'default';
     return 'destructive';
   };
 
   const getStatusText = (status: string) => {
-    if (status === 'open') return 'Conectado';
+    if (status === 'connected' || status === 'open') return 'Conectado';
+    if (status === 'qr_pending') return 'Aguardando QR';
     return 'Desconectado';
   };
 
@@ -123,7 +124,7 @@ export function WhatsAppStatusWidget() {
             >
               <div className="flex items-center gap-3">
                 <div className={`h-2 w-2 rounded-full ${
-                  instance.status === 'open' ? 'bg-green-600' : 'bg-red-600'
+                  instance.status === 'connected' || instance.status === 'open' ? 'bg-green-600' : 'bg-red-600'
                 } animate-pulse`} />
                 <div>
                   <p className="text-sm font-medium">{instance.name}</p>

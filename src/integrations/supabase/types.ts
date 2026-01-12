@@ -7250,6 +7250,14 @@ export type Database = {
         Args: { p_contact_id: string }
         Returns: Json
       }
+      distribute_clients_round_robin: {
+        Args: {
+          p_consultant_ids: string[]
+          p_contact_ids: string[]
+          p_source_consultant_name: string
+        }
+        Returns: Json
+      }
       distribute_unassigned_customers_batch: {
         Args: { p_limit?: number }
         Returns: Json

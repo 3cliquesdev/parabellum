@@ -482,7 +482,6 @@ export default function KanbanCard({
                 </AlertDialog>
               </div>
             </div>
-          </div>
         </CardContent>
       </Card>
 

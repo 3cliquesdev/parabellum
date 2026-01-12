@@ -19,6 +19,7 @@ export function useTicketCounts() {
   const isConsultant = role === 'consultant';
   const isFinancialAgent = role === 'financial_agent';
   const isSupportAgent = role === 'support_agent';
+  const isEcommerceAnalyst = role === 'ecommerce_analyst';
   const isUser = role === 'user';
 
   // Get archived status names for filtering
@@ -47,8 +48,8 @@ export function useTicketCounts() {
         if (isUser) {
           // Users can only see tickets they created
           query = query.eq("created_by", user.id);
-        } else if (isFinancialAgent || isSupportAgent) {
-          // Support/Financial agents: assigned to self, unassigned, or created by self
+        } else if (isFinancialAgent || isSupportAgent || isEcommerceAnalyst) {
+          // Support/Financial/Ecommerce agents: assigned to self, unassigned, or created by self
           query = query.or(`assigned_to.eq.${user.id},assigned_to.is.null,created_by.eq.${user.id}`);
         }
         // For consultants, let RLS handle the filtering (consultant_id is in contacts table)

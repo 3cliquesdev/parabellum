@@ -35,14 +35,21 @@ const mainFilters: FilterItem[] = [
 ];
 
 export function TicketsSidebar({ selectedFilter, onFilterChange }: TicketsSidebarProps) {
-  const { data: counts } = useTicketCounts();
+  const { data: counts, isLoading: countsLoading, error: countsError } = useTicketCounts();
   const { data: statuses } = useActiveTicketStatuses();
+
+  // Log error for debugging
+  if (countsError) {
+    console.error('Erro ao carregar contagens de tickets:', countsError);
+  }
 
   // Separate active from archived statuses
   const activeStatuses = statuses?.filter(s => !s.is_archived_status) || [];
   const archivedStatuses = statuses?.filter(s => s.is_archived_status) || [];
 
-  const getCount = (key: string): number => {
+  const getCount = (key: string): string | number => {
+    if (countsLoading) return '…';
+    if (countsError) return '!';
     if (!counts) return 0;
     return (counts as any)[key] || 0;
   };
@@ -70,9 +77,9 @@ export function TicketsSidebar({ selectedFilter, onFilterChange }: TicketsSideba
         <span
           className={cn(
             "text-xs font-medium px-2 py-0.5 rounded-full min-w-[24px] text-center",
-            item.variant === 'danger' && count > 0
+            item.variant === 'danger' && typeof count === 'number' && count > 0
               ? "bg-destructive/10 text-destructive"
-              : item.variant === 'warning' && count > 0
+              : item.variant === 'warning' && typeof count === 'number' && count > 0
               ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
               : item.variant === 'success'
               ? "bg-green-500/10 text-green-600 dark:text-green-400"
@@ -121,7 +128,10 @@ export function TicketsSidebar({ selectedFilter, onFilterChange }: TicketsSideba
   };
 
   // Calculate archived total
-  const archivedTotal = archivedStatuses.reduce((sum, s) => sum + getCount(s.name), 0);
+  const archivedTotal = countsLoading ? '…' : countsError ? '!' : archivedStatuses.reduce((sum, s) => {
+    const c = getCount(s.name);
+    return sum + (typeof c === 'number' ? c : 0);
+  }, 0);
 
   return (
     <div className="h-full flex flex-col bg-card border-r border-border">

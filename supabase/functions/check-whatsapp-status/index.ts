@@ -134,7 +134,7 @@ serve(async (req) => {
       const previousStatus = instance.status;
       const currentStatus = apiStatus?.state || 'unknown';
       const isConnected = currentStatus === 'open';
-      const wasConnected = previousStatus === 'open';
+      const wasConnected = previousStatus === 'connected' || previousStatus === 'open';
 
       let actionTaken = 'none';
 
@@ -142,11 +142,11 @@ serve(async (req) => {
       if (currentStatus !== previousStatus) {
         console.log(`[check-whatsapp-status] 🔄 Status mudou: ${previousStatus} → ${currentStatus}`);
 
-        // Atualizar status no banco
+        // Atualizar status no banco (padronizado para 'connected'/'disconnected')
         const { error: updateError } = await supabase
           .from('whatsapp_instances')
           .update({
-            status: isConnected ? 'open' : 'disconnected',
+            status: isConnected ? 'connected' : 'disconnected',
             last_health_check: new Date().toISOString(),
             consecutive_failures: isConnected ? 0 : (instance.consecutive_failures || 0) + 1,
           })
@@ -215,11 +215,11 @@ serve(async (req) => {
               if (postRestartStatus?.state === 'open') {
                 actionTaken = 'restart_success';
                 
-                // Atualizar status para conectado
+                // Atualizar status para conectado (padronizado)
                 await supabase
                   .from('whatsapp_instances')
                   .update({
-                    status: 'open',
+                    status: 'connected',
                     consecutive_failures: 0,
                   })
                   .eq('id', instance.id);

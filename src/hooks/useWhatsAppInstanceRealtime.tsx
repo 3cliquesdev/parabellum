@@ -57,8 +57,8 @@ export function useWhatsAppInstanceRealtime() {
                 },
               });
             }
-            // Reconectou
-            else if (currentStatus === 'open' && (previousStatus === 'disconnected' || previousStatus === 'close')) {
+            // Reconectou (aceita tanto 'connected' quanto 'open' da API)
+            else if ((currentStatus === 'connected' || currentStatus === 'open') && (previousStatus === 'disconnected' || previousStatus === 'close')) {
               toast.success(`WhatsApp "${instance.name}" reconectado`, {
                 duration: 5000,
               });

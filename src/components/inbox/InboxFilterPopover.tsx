@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Filter, X, Search, Mic, Paperclip, Bot, Clock } from "lucide-react";
+import { Filter, X, Search, Mic, Paperclip, Bot, Clock, Archive } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +35,7 @@ export interface InboxFilters {
   hasAudio?: boolean;
   hasAttachments?: boolean;
   aiMode?: string;
+  includeArchived?: boolean;
 }
 
 interface InboxFilterPopoverProps {
@@ -111,6 +113,7 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
       hasAudio: undefined,
       hasAttachments: undefined,
       aiMode: undefined,
+      includeArchived: undefined,
     });
   };
 
@@ -128,7 +131,7 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
       </div>
 
       {/* Quick Filters */}
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 flex-wrap">
         {/* SLA Expired */}
         <Button
           variant={filters.slaExpired ? "destructive" : "outline"}
@@ -138,6 +141,17 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
         >
           <Clock className="h-3.5 w-3.5" />
           SLA
+        </Button>
+
+        {/* Include Archived */}
+        <Button
+          variant={filters.includeArchived ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => onFiltersChange({ ...filters, includeArchived: !filters.includeArchived })}
+          className="gap-1.5"
+        >
+          <Archive className="h-3.5 w-3.5" />
+          +Arquivadas
         </Button>
 
         {/* Has Audio */}

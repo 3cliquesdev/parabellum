@@ -490,7 +490,7 @@ export default function Deals() {
         {/* Fila de Deals Pendentes (apenas para quem tem permissão) */}
         {canViewPendingQueue && (
           <div className="mb-6">
-            <PendingDealsQueue />
+            <PendingDealsQueue pipelineId={selectedPipeline} />
           </div>
         )}
 

@@ -40,6 +40,7 @@ import { ptBR } from "date-fns/locale";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useSalesReps } from "@/hooks/useSalesReps";
+import { usePipelineSalesReps } from "@/hooks/usePipelineSalesReps";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -138,18 +139,33 @@ function KPICard({
 
 const INITIAL_LIMIT = 5;
 
-export function PendingDealsQueue() {
+interface PendingDealsQueueProps {
+  pipelineId?: string;
+}
+
+export function PendingDealsQueue({ pipelineId }: PendingDealsQueueProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedDeals, setSelectedDeals] = useState<string[]>([]);
   const [bulkAssignTo, setBulkAssignTo] = useState<string>("");
   const [isExpanded, setIsExpanded] = useState(false);
-  const { data: salesReps } = useSalesReps();
+  const { data: allSalesReps } = useSalesReps();
+  const { data: pipelineReps } = usePipelineSalesReps(pipelineId);
+
+  // Filter sales reps based on pipeline team configuration
+  const availableReps = useMemo(() => {
+    if (pipelineReps && pipelineReps.length > 0) {
+      const pipelineUserIds = new Set(pipelineReps.map(r => r.user_id));
+      return allSalesReps?.filter(rep => pipelineUserIds.has(rep.id)) || [];
+    }
+    // Fallback to all sales reps if no pipeline team is configured
+    return allSalesReps || [];
+  }, [pipelineReps, allSalesReps]);
 
   const { data: pendingDeals, isLoading } = useQuery({
-    queryKey: ["pending-deals"],
+    queryKey: ["pending-deals", pipelineId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("deals")
         .select(`
           id,
@@ -167,6 +183,13 @@ export function PendingDealsQueue() {
         .is("assigned_to", null)
         .eq("status", "open")
         .order("created_at", { ascending: true });
+
+      // Filter by pipeline if specified
+      if (pipelineId) {
+        query = query.eq("pipeline_id", pipelineId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as PendingDeal[];
@@ -239,13 +262,15 @@ export function PendingDealsQueue() {
   };
 
   const handleAutoDistribute = async () => {
-    if (!pendingDeals || pendingDeals.length === 0 || !salesReps || salesReps.length === 0) return;
+    if (!pendingDeals || pendingDeals.length === 0 || !availableReps || availableReps.length === 0) return;
     
-    const onlineReps = salesReps.filter(rep => rep.availability_status === "online");
+    const onlineReps = availableReps.filter(rep => rep.availability_status === "online");
     if (onlineReps.length === 0) {
       toast({
         title: "Nenhum vendedor online",
-        description: "Não há vendedores disponíveis para distribuição automática",
+        description: pipelineId 
+          ? "Não há vendedores da equipe deste pipeline disponíveis"
+          : "Não há vendedores disponíveis para distribuição automática",
         variant: "destructive",
       });
       return;
@@ -260,7 +285,7 @@ export function PendingDealsQueue() {
 
     toast({
       title: "Distribuição concluída",
-      description: `${pendingDeals.length} deals distribuídos para ${onlineReps.length} vendedores`,
+      description: `${pendingDeals.length} deals distribuídos para ${onlineReps.length} vendedores da equipe`,
     });
   };
 
@@ -317,6 +342,16 @@ export function PendingDealsQueue() {
 
   return (
     <Card className="border-primary/20 overflow-hidden">
+      {/* Warning when no team is configured for pipeline */}
+      {availableReps.length === 0 && pipelineId && (
+        <div className="flex items-center gap-2 p-4 bg-amber-500/10 border-b border-amber-500/20">
+          <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+          <span className="text-sm text-amber-600 dark:text-amber-400">
+            Nenhum vendedor configurado para este pipeline. Configure a equipe nas configurações do pipeline.
+          </span>
+        </div>
+      )}
+
       {/* Header com gradiente e KPIs */}
       <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/3 to-transparent pb-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -435,12 +470,13 @@ export function PendingDealsQueue() {
                   <TableCell>
                     <Select
                       onValueChange={(value) => handleAssign(deal.id, value)}
+                      disabled={availableReps.length === 0}
                     >
                       <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Selecionar..." />
+                        <SelectValue placeholder={availableReps.length === 0 ? "Sem equipe" : "Selecionar..."} />
                       </SelectTrigger>
                       <SelectContent>
-                        {salesReps?.map((rep) => (
+                        {availableReps?.map((rep) => (
                           <SelectItem key={rep.id} value={rep.id}>
                             <div className="flex items-center gap-2">
                               <span 
@@ -493,12 +529,12 @@ export function PendingDealsQueue() {
               {selectedDeals.length} {selectedDeals.length === 1 ? "deal selecionado" : "deals selecionados"}
             </span>
             <div className="flex items-center gap-3">
-              <Select value={bulkAssignTo} onValueChange={setBulkAssignTo}>
+              <Select value={bulkAssignTo} onValueChange={setBulkAssignTo} disabled={availableReps.length === 0}>
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Atribuir para..." />
+                  <SelectValue placeholder={availableReps.length === 0 ? "Sem equipe" : "Atribuir para..."} />
                 </SelectTrigger>
                 <SelectContent>
-                  {salesReps?.map((rep) => (
+                  {availableReps?.map((rep) => (
                     <SelectItem key={rep.id} value={rep.id}>
                       <div className="flex items-center gap-2">
                         <span 

@@ -1,77 +1,51 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as defaultClient } from "@/integrations/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export function useMessagesOffline(conversationId: string | null) {
+interface UseMessagesOptions {
+  client?: SupabaseClient;
+}
+
+export function useMessagesOffline(
+  conversationId: string | null, 
+  options: UseMessagesOptions = {}
+) {
   const queryClient = useQueryClient();
+  const client = options.client ?? defaultClient;
 
-  // 1. Buscar do IndexedDB (instantâneo, 0ms)
-  const cachedMessages = useLiveQuery(
-    () => conversationId 
-      ? db.messages.where('conversation_id').equals(conversationId).sortBy('created_at')
-      : Promise.resolve([]),
-    [conversationId]
-  );
-
-  // 2. Sincronizar com Supabase em background
-  const { data: serverMessages, error: serverError } = useQuery({
+  const { data: messages, error, isLoading } = useQuery({
     queryKey: ["messages", conversationId],
     queryFn: async () => {
       if (!conversationId) return [];
       
-      try {
-        const { data, error } = await supabase
-          .from("messages")
-          .select(`
-            *,
-            sender:profiles!sender_id(
-              id,
-              full_name,
-              avatar_url,
-              job_title
-            )
-          `)
-          .eq("conversation_id", conversationId)
-          .order("created_at", { ascending: true });
+      const { data, error } = await client
+        .from("messages")
+        .select(`
+          *,
+          sender:profiles!sender_id(id, full_name, avatar_url, job_title)
+        `)
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true });
 
-        if (error) {
-          console.error('[useMessagesOffline] Erro ao buscar mensagens:', error);
-          return null; // ✅ Retorna null ao invés de throw - fallback para cache
-        }
-
-        // Salvar no IndexedDB para próximo acesso offline
-        if (data) {
-          await db.messages.bulkPut(
-            data.map(m => ({ 
-              id: m.id,
-              conversation_id: m.conversation_id,
-              content: m.content,
-              sender_type: m.sender_type,
-              sender_id: m.sender_id || undefined,
-              is_ai_generated: m.is_ai_generated || false,
-              created_at: m.created_at,
-              synced: true 
-            }))
-          );
-        }
-
-        return data;
-      } catch (err) {
-        console.error('[useMessagesOffline] Erro ao sincronizar:', err);
-        return null; // ✅ Fallback para cache em caso de erro
+      if (error) {
+        console.error('[useMessagesOffline] Erro ao buscar mensagens:', error);
+        throw error;
       }
+      return data ?? [];
     },
-    enabled: !!conversationId && navigator.onLine,
+    enabled: !!conversationId,
+    staleTime: 5000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
-  // Realtime subscription
+  // Realtime subscription usando o client correto
   useEffect(() => {
     if (!conversationId) return;
 
-    const channel = supabase
-      .channel("schema-db-changes")
+    const channel = client
+      .channel(`messages-${conversationId}`)
       .on(
         "postgres_changes",
         {
@@ -80,36 +54,48 @@ export function useMessagesOffline(conversationId: string | null) {
           table: "messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
-          console.log("New message received:", payload);
+        () => {
           queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-          queryClient.invalidateQueries({ queryKey: ["conversations"] });
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      client.removeChannel(channel);
+    };
+  }, [conversationId, queryClient, client]);
+
+  // Revalidar ao voltar online
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[useMessagesOffline] Voltou online - revalidando mensagens');
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+    };
+    
+    const handleFocus = () => {
+      if (navigator.onLine) {
+        queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      }
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [conversationId, queryClient]);
 
-  // 3. Retornar dados mais recentes (server > cache)
   return {
-    messages: serverMessages ?? cachedMessages ?? [],
+    messages: messages ?? [],
     isOffline: !navigator.onLine,
-    hasError: !!serverError
+    hasError: !!error,
+    isLoading
   };
 }
 
-// Hook para mensagens pendentes na fila
-export function usePendingMessages(conversationId: string | null) {
-  return useLiveQuery(
-    () => conversationId
-      ? db.messageQueue
-          .where('conversation_id').equals(conversationId)
-          .and(m => m.status === 'pending' || m.status === 'sending')
-          .toArray()
-      : Promise.resolve([]),
-    [conversationId]
-  );
+// Função mantida para compatibilidade, mas retorna sempre vazio (sem mais fila local)
+export function usePendingMessages(_conversationId: string | null) {
+  return [];
 }

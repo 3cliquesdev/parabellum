@@ -37,6 +37,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { useStages } from "@/hooks/useStages";
 import { usePipelines } from "@/hooks/usePipelines";
 import { useSalesReps } from "@/hooks/useSalesReps";
+import { useAvailableSalesReps } from "@/hooks/useAvailableSalesReps";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import MoveToPipelineDialog from "@/components/deals/MoveToPipelineDialog";
@@ -137,7 +138,6 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
   const { data: contacts, isLoading: contactsLoading } = useContacts();
   const { data: organizations, isLoading: organizationsLoading } = useOrganizations();
   const { data: pipelines, isLoading: pipelinesLoading } = usePipelines();
-  const { data: salesReps, isLoading: salesRepsLoading } = useSalesReps();
   const { data: products, isLoading: productsLoading } = useProducts();
   const { role, loading: roleLoading } = useUserRole();
   const { user } = useAuth();
@@ -145,7 +145,6 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
   // Check if salesperson has no contacts assigned
   const hasNoContacts = !contactsLoading && (!contacts || contacts.length === 0);
 
-  console.log("[DealDialog] Sales reps data:", { salesReps, salesRepsLoading });
 
   const isAdminOrManager = role === "admin" || role === "manager" || role === "general_manager";
   const isSalesRep = role === "sales_rep";
@@ -190,6 +189,9 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
 
   // Buscar stages do pipeline selecionado
   const { data: stages } = useStages(watchPipelineId);
+  
+  // Get available sales reps filtered by selected pipeline
+  const { availableReps, hasPipelineTeam, isLoading: salesRepsLoading } = useAvailableSalesReps(watchPipelineId);
 
   // Auto-inicializar pipeline quando dados carregam (apenas para novo deal)
   useEffect(() => {
@@ -610,15 +612,28 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Atribuir para (opcional)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || undefined}>
+                    {hasPipelineTeam && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">
+                        Mostrando vendedores da equipe do pipeline
+                      </p>
+                    )}
+                    <Select 
+                      onValueChange={field.onChange} 
+                      value={field.value || undefined}
+                      disabled={salesRepsLoading}
+                    >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder={salesRepsLoading ? "Carregando..." : "Selecione um vendedor"} />
+                          <SelectValue placeholder={
+                            salesRepsLoading ? "Carregando..." : 
+                            availableReps.length === 0 ? "Nenhum vendedor disponível" :
+                            "Selecione um vendedor"
+                          } />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {salesReps && salesReps.length > 0 ? (
-                          salesReps.map((rep) => (
+                        {availableReps.length > 0 ? (
+                          availableReps.map((rep) => (
                             <SelectItem key={rep.id} value={rep.id}>
                               {rep.full_name} {rep.job_title && `(${rep.job_title})`}
                             </SelectItem>

@@ -19,8 +19,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowRightLeft, Loader2, AlertCircle } from "lucide-react";
-import { useSalesReps } from "@/hooks/useSalesReps";
+import { ArrowRightLeft, Loader2, AlertCircle, Users, AlertTriangle } from "lucide-react";
+import { useAvailableSalesReps } from "@/hooks/useAvailableSalesReps";
 import { usePipelines } from "@/hooks/usePipelines";
 import { useBulkTransferDeals, useTransferPreview } from "@/hooks/useBulkTransferDeals";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -38,7 +38,9 @@ export function TransferDealsDialog({ trigger }: TransferDealsDialogProps) {
   const [preview, setPreview] = useState({ count: 0, totalValue: 0 });
   const [loadingPreview, setLoadingPreview] = useState(false);
 
-  const { data: salesReps } = useSalesReps();
+  // Use pipeline-filtered reps when a specific pipeline is selected
+  const activePipelineId = pipelineId === "__all__" ? undefined : pipelineId;
+  const { availableReps, hasPipelineTeam, isLoading: repsLoading } = useAvailableSalesReps(activePipelineId);
   const { data: pipelines } = usePipelines();
   const transferMutation = useBulkTransferDeals();
   const { getPreview } = useTransferPreview();
@@ -80,8 +82,8 @@ export function TransferDealsDialog({ trigger }: TransferDealsDialogProps) {
     fetchPreview();
   }, [fromUserId, pipelineId]);
 
-  // Filter out selected "from" user from "to" options
-  const availableTargets = salesReps?.filter((rep) => rep.id !== fromUserId) || [];
+  // Filter out selected "from" user from "to" options (using pipeline-filtered reps)
+  const availableTargets = availableReps.filter((rep) => rep.id !== fromUserId);
 
   const handleTransfer = async () => {
     if (!fromUserId || !toUserId) return;
@@ -115,8 +117,8 @@ export function TransferDealsDialog({ trigger }: TransferDealsDialogProps) {
       .slice(0, 2);
   };
 
-  const fromUser = salesReps?.find((r) => r.id === fromUserId);
-  const toUser = salesReps?.find((r) => r.id === toUserId);
+  const fromUser = availableReps.find((r) => r.id === fromUserId);
+  const toUser = availableReps.find((r) => r.id === toUserId);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -140,15 +142,38 @@ export function TransferDealsDialog({ trigger }: TransferDealsDialogProps) {
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Pipeline team info */}
+          {activePipelineId && hasPipelineTeam && (
+            <div className="flex items-center gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <Users className="h-4 w-4 text-blue-500" />
+              <span className="text-xs text-blue-600 dark:text-blue-400">
+                Filtrando vendedores da equipe do pipeline selecionado
+              </span>
+            </div>
+          )}
+
+          {activePipelineId && !hasPipelineTeam && availableReps.length === 0 && !repsLoading && (
+            <div className="flex items-center gap-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <span className="text-xs text-amber-600 dark:text-amber-400">
+                Nenhum vendedor configurado para este pipeline
+              </span>
+            </div>
+          )}
+
           {/* From User */}
           <div className="space-y-2">
             <Label>De (origem)</Label>
-            <Select value={fromUserId} onValueChange={setFromUserId}>
+            <Select 
+              value={fromUserId} 
+              onValueChange={setFromUserId}
+              disabled={repsLoading}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o vendedor origem" />
+                <SelectValue placeholder={repsLoading ? "Carregando..." : "Selecione o vendedor origem"} />
               </SelectTrigger>
               <SelectContent>
-                {salesReps?.map((rep) => (
+                {availableReps.map((rep) => (
                   <SelectItem key={rep.id} value={rep.id}>
                     <div className="flex items-center gap-2">
                       <Avatar className="h-5 w-5">

@@ -43,13 +43,11 @@ serve(async (req: Request): Promise<Response> => {
         assigned_to,
         creator:profiles!tickets_created_by_fkey(
           id,
-          full_name,
-          email
+          full_name
         ),
         assignee:profiles!tickets_assigned_to_fkey(
           id,
-          full_name,
-          email
+          full_name
         )
       `)
       .eq("id", ticket_id)
@@ -70,13 +68,13 @@ serve(async (req: Request): Promise<Response> => {
     const commenterName = commenter?.full_name || 'Agente';
 
     // Collect users to notify (exclude commenter)
-    const usersToNotify: { id: string; full_name: string; email: string }[] = [];
+    const usersToNotify: { id: string; full_name: string }[] = [];
 
     // Notify ticket creator if different from commenter
     const creatorData = ticket.creator as unknown;
     const creator = Array.isArray(creatorData) ? creatorData[0] : creatorData;
     if (ticket.created_by && ticket.created_by !== commenter_id && creator) {
-      usersToNotify.push(creator as { id: string; full_name: string; email: string });
+      usersToNotify.push(creator as { id: string; full_name: string });
     }
 
     // Notify assigned agent if different from commenter and creator
@@ -86,7 +84,7 @@ serve(async (req: Request): Promise<Response> => {
         ticket.assigned_to !== commenter_id && 
         ticket.assigned_to !== ticket.created_by &&
         assignee) {
-      usersToNotify.push(assignee as { id: string; full_name: string; email: string });
+      usersToNotify.push(assignee as { id: string; full_name: string });
     }
 
     console.log('[notify-internal-comment] Users to notify:', usersToNotify.map(u => u.full_name));

@@ -13,6 +13,10 @@ import { useIsMobileBreakpoint } from "@/hooks/useBreakpoint";
 import { PageContainer } from "@/components/ui/page-container";
 import { CreateTicketDialog } from "@/components/support/CreateTicketDialog";
 import { useTicketsPresence } from "@/hooks/useTicketsPresence";
+import { TicketsBulkActionsBar } from "@/components/support/TicketsBulkActionsBar";
+import { BulkMoveToProjectDialog } from "@/components/support/BulkMoveToProjectDialog";
+import { BulkTransferTicketsDialog } from "@/components/support/BulkTransferTicketsDialog";
+import { useBulkArchiveTickets } from "@/hooks/useBulkArchiveTickets";
 
 type MobileView = 'list' | 'details';
 
@@ -27,10 +31,23 @@ export default function Support() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTicketIds, setSelectedTicketIds] = useState<string[]>([]);
+  const [moveToProjectOpen, setMoveToProjectOpen] = useState(false);
+  const [bulkTransferOpen, setBulkTransferOpen] = useState(false);
   
   const { isSupportManager } = useUserRole();
   const isMobile = useIsMobileBreakpoint();
   const { getViewersForTicket, setViewingTicket } = useTicketsPresence();
+  const bulkArchive = useBulkArchiveTickets();
+
+  const handleBulkArchive = () => {
+    bulkArchive.mutate(selectedTicketIds, {
+      onSuccess: () => setSelectedTicketIds([]),
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedTicketIds([]);
+  };
 
   // Atualizar presença quando selecionar ticket (mobile)
   useEffect(() => {
@@ -295,6 +312,33 @@ export default function Support() {
       </div>
 
       <CreateTicketDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
+
+      {/* Bulk Actions Bar */}
+      {selectedTicketIds.length > 0 && (
+        <TicketsBulkActionsBar
+          selectedCount={selectedTicketIds.length}
+          onClear={handleClearSelection}
+          onMoveToProject={() => setMoveToProjectOpen(true)}
+          onArchive={handleBulkArchive}
+          onTransfer={() => setBulkTransferOpen(true)}
+          isArchiving={bulkArchive.isPending}
+        />
+      )}
+
+      {/* Bulk Action Dialogs */}
+      <BulkMoveToProjectDialog
+        open={moveToProjectOpen}
+        onOpenChange={setMoveToProjectOpen}
+        selectedTicketIds={selectedTicketIds}
+        onSuccess={handleClearSelection}
+      />
+
+      <BulkTransferTicketsDialog
+        open={bulkTransferOpen}
+        onOpenChange={setBulkTransferOpen}
+        selectedTicketIds={selectedTicketIds}
+        onSuccess={handleClearSelection}
+      />
     </PageContainer>
   );
 }

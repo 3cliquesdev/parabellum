@@ -175,14 +175,14 @@ export default function Settings() {
             iconBgColor="bg-purple-500"
             title="Modelo AI"
             description="Escolha o modelo padrão"
-            onClick={() => navigate('/settings/integrations')}
+            onClick={() => navigate('/settings/ai')}
           />
           <SettingsCard
             icon={Brain}
             iconBgColor="bg-purple-600"
             title="Treinador AI"
             description="Estatísticas e treinamento"
-            onClick={() => navigate('/settings/integrations')}
+            onClick={() => navigate('/settings/ai')}
           />
           <SettingsCard
             icon={BookOpen}

@@ -323,7 +323,7 @@ export default function ProjectBoardPage() {
 
           <DragOverlay>
             {activeCard ? (
-              <KanbanCard card={activeCard} isDragging />
+              <KanbanCard card={activeCard} boardId={boardId || ""} isDragging />
             ) : null}
           </DragOverlay>
         </DndContext>

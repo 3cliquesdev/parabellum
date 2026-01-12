@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
@@ -10,16 +11,36 @@ import {
   Clock,
   AlertCircle,
   CheckSquare,
+  Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ProjectCard } from "@/hooks/useProjectCards";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ProjectCard, useDeleteProjectCard } from "@/hooks/useProjectCards";
 
 interface KanbanCardProps {
   card: ProjectCard;
   isDragging?: boolean;
   onClick?: () => void;
+  boardId: string;
 }
 
 const priorityConfig = {
@@ -29,7 +50,10 @@ const priorityConfig = {
   urgent: { label: "Urgente", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
 };
 
-export function KanbanCard({ card, isDragging, onClick }: KanbanCardProps) {
+export function KanbanCard({ card, isDragging, onClick, boardId }: KanbanCardProps) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const deleteCard = useDeleteProjectCard();
+
   const {
     attributes,
     listeners,
@@ -58,6 +82,15 @@ export function KanbanCard({ card, isDragging, onClick }: KanbanCardProps) {
       e.preventDefault();
       onClick();
     }
+  };
+
+  const handleDelete = () => {
+    deleteCard.mutate(
+      { id: card.id, board_id: boardId },
+      {
+        onSuccess: () => setDeleteDialogOpen(false),
+      }
+    );
   };
 
   return (
@@ -104,14 +137,38 @@ export function KanbanCard({ card, isDragging, onClick }: KanbanCardProps) {
         </div>
       )}
 
-      {/* Title */}
-      <div className="flex items-start gap-2">
+      {/* Title with Menu */}
+      <div className="flex items-start gap-2 group/card">
         {card.is_completed && (
           <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0 mt-0.5" />
         )}
         <h4 className={cn("text-sm font-medium flex-1", card.is_completed && "line-through")}>
           {card.title}
         </h4>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 group-hover/card:opacity-100 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteDialogOpen(true);
+              }}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Excluir card
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Priority Badge */}
@@ -197,6 +254,28 @@ export function KanbanCard({ card, isDragging, onClick }: KanbanCardProps) {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir card?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O card "{card.title}" e todos os seus dados serão removidos permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteCard.isPending}
+            >
+              {deleteCard.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,10 +19,10 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useSalesReps } from "@/hooks/useSalesReps";
+import { useAvailableSalesReps } from "@/hooks/useAvailableSalesReps";
 import { useBulkTransferSelectedDeals } from "@/hooks/useBulkTransferSelectedDeals";
 import { supabase } from "@/integrations/supabase/client";
-import { Users, ArrowRight } from "lucide-react";
+import { Users, ArrowRight, AlertTriangle } from "lucide-react";
 
 interface BulkTransferToSellerDialogProps {
   open: boolean;
@@ -40,8 +40,10 @@ export default function BulkTransferToSellerDialog({
   const [toUserId, setToUserId] = useState<string>("");
   const [keepHistory, setKeepHistory] = useState(true);
   const [totalValue, setTotalValue] = useState<number>(0);
+  const [dealsPipelineId, setDealsPipelineId] = useState<string | undefined>(undefined);
 
-  const { data: salesReps } = useSalesReps();
+  // Fetch pipeline info from selected deals to filter reps
+  const { availableReps, hasPipelineTeam, isLoading: repsLoading } = useAvailableSalesReps(dealsPipelineId);
   const bulkTransfer = useBulkTransferSelectedDeals();
 
   // Reset state when dialog opens
@@ -50,20 +52,28 @@ export default function BulkTransferToSellerDialog({
       setToUserId("");
       setKeepHistory(true);
       
-      // Fetch total value of selected deals
-      const fetchTotalValue = async () => {
+      // Fetch total value and pipeline_id of selected deals
+      const fetchDealsInfo = async () => {
         const { data } = await supabase
           .from("deals")
-          .select("value")
+          .select("value, pipeline_id")
           .in("id", selectedDealIds);
         
         if (data) {
           setTotalValue(data.reduce((sum, d) => sum + (d.value || 0), 0));
+          
+          // Check if all deals are from the same pipeline
+          const uniquePipelines = [...new Set(data.map(d => d.pipeline_id))];
+          if (uniquePipelines.length === 1) {
+            setDealsPipelineId(uniquePipelines[0]);
+          } else {
+            setDealsPipelineId(undefined); // Multiple pipelines, show all reps
+          }
         }
       };
       
       if (selectedDealIds.length > 0) {
-        fetchTotalValue();
+        fetchDealsInfo();
       }
     }
   }, [open, selectedDealIds]);
@@ -126,15 +136,43 @@ export default function BulkTransferToSellerDialog({
             </AlertDescription>
           </Alert>
 
+          {/* Pipeline team warning */}
+          {hasPipelineTeam && (
+            <div className="flex items-center gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <Users className="h-4 w-4 text-blue-500" />
+              <span className="text-xs text-blue-600 dark:text-blue-400">
+                Mostrando apenas vendedores da equipe do pipeline
+              </span>
+            </div>
+          )}
+
+          {/* No team warning */}
+          {dealsPipelineId && !hasPipelineTeam && availableReps.length === 0 && !repsLoading && (
+            <div className="flex items-center gap-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <span className="text-xs text-amber-600 dark:text-amber-400">
+                Nenhum vendedor configurado para este pipeline
+              </span>
+            </div>
+          )}
+
           {/* Target Seller */}
           <div className="space-y-2">
             <Label htmlFor="toUser">Transferir para</Label>
-            <Select value={toUserId} onValueChange={setToUserId}>
+            <Select 
+              value={toUserId} 
+              onValueChange={setToUserId}
+              disabled={repsLoading || availableReps.length === 0}
+            >
               <SelectTrigger id="toUser">
-                <SelectValue placeholder="Selecione o vendedor destino" />
+                <SelectValue placeholder={
+                  repsLoading ? "Carregando..." : 
+                  availableReps.length === 0 ? "Nenhum vendedor disponível" :
+                  "Selecione o vendedor destino"
+                } />
               </SelectTrigger>
               <SelectContent>
-                {salesReps?.map((rep) => (
+                {availableReps.map((rep) => (
                   <SelectItem key={rep.id} value={rep.id}>
                     <div className="flex items-center gap-2">
                       <Avatar className="h-6 w-6">

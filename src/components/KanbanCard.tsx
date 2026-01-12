@@ -246,17 +246,20 @@ export default function KanbanCard({
           )}
 
           {/* Área draggable */}
-          <div {...listeners} {...attributes}>
-            <h4 className="font-semibold text-foreground mb-2 pl-8 pr-8 line-clamp-2" title={deal.title}>{deal.title}</h4>
+          <div {...listeners} {...attributes} className="space-y-2">
+            {/* Header: Title */}
+            <h4 className="font-semibold text-foreground pl-8 pr-8 line-clamp-2 leading-tight" title={deal.title}>
+              {deal.title}
+            </h4>
 
-            {/* Customer Tags */}
+            {/* Customer Tags - more compact */}
             {customerTags && customerTags.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap mb-2">
+              <div className="flex items-center gap-1 flex-wrap">
                 {customerTags.slice(0, 3).map((ct: any) => (
                   <Badge
                     key={ct.tag_id}
                     variant="outline"
-                    className="text-xs"
+                    className="text-[10px] px-1.5 py-0"
                     style={{ 
                       borderColor: ct.tags.color,
                       color: ct.tags.color,
@@ -266,69 +269,79 @@ export default function KanbanCard({
                     {ct.tags.name}
                   </Badge>
                 ))}
+                {customerTags.length > 3 && (
+                  <span className="text-[10px] text-muted-foreground">+{customerTags.length - 3}</span>
+                )}
               </div>
             )}
             
-            {/* Value - Destacado em Verde */}
+            {/* Value - Prominent green */}
             {deal.value && (
-              <p className="text-lg font-bold text-green-600 mb-2">
+              <p className="text-base font-bold text-green-600 dark:text-green-500">
                 {new Intl.NumberFormat('pt-BR', {
                   style: 'currency',
                   currency: deal.currency || 'BRL',
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
                 }).format(deal.value)}
               </p>
             )}
 
-            {/* Contact/Lead Info */}
-            {deal.contacts ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowContactSheet(true);
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="text-sm text-primary hover:underline text-left mb-1 block"
-              >
-                {deal.contacts.first_name} {deal.contacts.last_name}
-              </button>
-            ) : (deal as any).lead_email ? (
-              <p className="text-sm text-muted-foreground mb-1 truncate">
-                {(deal as any).lead_email}
-              </p>
-            ) : null}
+            {/* Contact/Lead Info - more readable */}
+            <div className="space-y-0.5">
+              {deal.contacts ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowContactSheet(true);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="text-sm font-medium text-primary hover:underline text-left block truncate max-w-full"
+                >
+                  {deal.contacts.first_name} {deal.contacts.last_name}
+                </button>
+              ) : (deal as any).lead_email ? (
+                <p className="text-sm text-muted-foreground truncate">
+                  {(deal as any).lead_email}
+                </p>
+              ) : null}
 
-            {/* Organization */}
-            {deal.organizations && (
-              <Badge variant="secondary" className="mb-2">
-                {deal.organizations.name}
-              </Badge>
+              {/* Organization - inline badge */}
+              {deal.organizations && (
+                <Badge variant="secondary" className="text-[10px] font-normal">
+                  {deal.organizations.name}
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {/* Footer Section - Clear separation */}
+          <div className="pt-2 mt-2 border-t border-border/50 space-y-2">
+            {/* Sales Rep - More prominent */}
+            {deal.assigned_user && (
+              <div className="flex items-center gap-2">
+                <Avatar className="h-6 w-6 flex-shrink-0">
+                  <AvatarImage 
+                    src={deal.assigned_user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${deal.assigned_user.full_name}`} 
+                    alt={deal.assigned_user.full_name} 
+                  />
+                  <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                    {deal.assigned_user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium text-foreground truncate flex-1">
+                  {deal.assigned_user.full_name}
+                </span>
+              </div>
             )}
 
-            {/* Bottom Section: 2 linhas separadas */}
-            <div className="pt-3 mt-3 border-t border-border space-y-2">
-              {/* Linha 1: Vendedor */}
-              {deal.assigned_user && (
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-5 w-5">
-                    <AvatarImage 
-                      src={deal.assigned_user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${deal.assigned_user.full_name}`} 
-                      alt={deal.assigned_user.full_name} 
-                    />
-                    <AvatarFallback className="text-xs">
-                      {deal.assigned_user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-xs text-muted-foreground truncate">{deal.assigned_user.full_name}</span>
-                </div>
-              )}
-
-              {/* Linha 2: Quick Actions */}
-              <div 
-                className="flex items-center gap-1 flex-wrap" 
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
+            {/* Quick Actions - Horizontal scroll, no wrap */}
+            <div 
+              className="flex items-center gap-0.5 overflow-x-auto scrollbar-hide" 
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
                 {/* Lead/Contact Info - 360 Badge - ALWAYS visible */}
                 <LeadInfoPopover deal={deal} />
                 
@@ -437,7 +450,7 @@ export default function KanbanCard({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            className="h-7 w-7 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={(e) => e.stopPropagation()}
                             onPointerDown={(e) => e.stopPropagation()}
                           >

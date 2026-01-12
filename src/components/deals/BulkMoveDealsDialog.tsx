@@ -16,10 +16,10 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ArrowRightLeft, Loader2, Users } from "lucide-react";
+import { ArrowRightLeft, Loader2, Users, AlertTriangle } from "lucide-react";
 import { usePipelines } from "@/hooks/usePipelines";
 import { useStages } from "@/hooks/useStages";
-import { useSalesReps } from "@/hooks/useSalesReps";
+import { useAvailableSalesReps } from "@/hooks/useAvailableSalesReps";
 import { useBulkMoveDealsToPipeline } from "@/hooks/useBulkMoveDealsToPipeline";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
@@ -45,7 +45,7 @@ export default function BulkMoveDealsDialog({
 
   const { data: pipelines } = usePipelines();
   const { data: targetStages } = useStages(targetPipelineId);
-  const { data: salesReps } = useSalesReps();
+  const { availableReps, hasPipelineTeam, isLoading: repsLoading } = useAvailableSalesReps(targetPipelineId);
   const bulkMove = useBulkMoveDealsToPipeline();
 
   // Reset stage when pipeline changes
@@ -152,13 +152,37 @@ export default function BulkMoveDealsDialog({
               <Users className="h-4 w-4" />
               Atribuir a vendedor (opcional)
             </Label>
-            <Select value={assignedTo} onValueChange={setAssignedTo}>
+            
+            {/* Pipeline team info */}
+            {targetPipelineId && hasPipelineTeam && (
+              <div className="flex items-center gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <Users className="h-3 w-3 text-blue-500" />
+                <span className="text-xs text-blue-600 dark:text-blue-400">
+                  Mostrando equipe do pipeline destino
+                </span>
+              </div>
+            )}
+
+            {targetPipelineId && !hasPipelineTeam && availableReps.length === 0 && !repsLoading && (
+              <div className="flex items-center gap-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                <AlertTriangle className="h-3 w-3 text-amber-500" />
+                <span className="text-xs text-amber-600 dark:text-amber-400">
+                  Nenhum vendedor configurado para este pipeline
+                </span>
+              </div>
+            )}
+
+            <Select 
+              value={assignedTo} 
+              onValueChange={setAssignedTo}
+              disabled={repsLoading}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Manter vendedor atual" />
+                <SelectValue placeholder={repsLoading ? "Carregando..." : "Manter vendedor atual"} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__keep_current__">Manter vendedor atual</SelectItem>
-                {salesReps?.map((rep) => (
+                {availableReps.map((rep) => (
                   <SelectItem key={rep.id} value={rep.id}>
                     <div className="flex items-center gap-2">
                       <Avatar className="h-5 w-5">

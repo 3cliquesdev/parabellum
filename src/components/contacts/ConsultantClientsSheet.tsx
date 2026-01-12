@@ -19,9 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { useActiveConsultants } from "@/hooks/useConsultants";
 import { useToast } from "@/hooks/use-toast";
-import { Users, ArrowRight, Loader2 } from "lucide-react";
+import { Users, ArrowRight, Loader2, Shuffle } from "lucide-react";
 
 interface ConsultantClientsSheetProps {
   open: boolean;
@@ -29,6 +31,8 @@ interface ConsultantClientsSheetProps {
   consultantId: string;
   consultantName: string;
 }
+
+type DistributionMode = "single" | "round_robin";
 
 export function ConsultantClientsSheet({
   open,
@@ -38,6 +42,8 @@ export function ConsultantClientsSheet({
 }: ConsultantClientsSheetProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [targetConsultantId, setTargetConsultantId] = useState<string>("");
+  const [distributionMode, setDistributionMode] = useState<DistributionMode>("single");
+  const [selectedConsultantIds, setSelectedConsultantIds] = useState<string[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -59,11 +65,11 @@ export function ConsultantClientsSheet({
     enabled: open && !!consultantId,
   });
 
+  // Single transfer mutation
   const transferMutation = useMutation({
     mutationFn: async ({ contactIds, newConsultantId }: { contactIds: string[]; newConsultantId: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       
-      // Update contacts
       const { error: updateError } = await supabase
         .from("contacts")
         .update({ consultant_id: newConsultantId })
@@ -71,7 +77,6 @@ export function ConsultantClientsSheet({
 
       if (updateError) throw updateError;
 
-      // Log interactions for each contact
       const interactions = contactIds.map(contactId => ({
         customer_id: contactId,
         type: "conversation_transferred" as const,
@@ -87,15 +92,7 @@ export function ConsultantClientsSheet({
       if (interactionError) throw interactionError;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["consultant-clients", consultantId] });
-      toast({
-        title: "Clientes transferidos",
-        description: `${selectedIds.length} cliente(s) transferido(s) com sucesso`,
-      });
-      setSelectedIds([]);
-      setTargetConsultantId("");
-      onOpenChange(false);
+      handleTransferSuccess();
     },
     onError: (error: Error) => {
       toast({
@@ -105,6 +102,50 @@ export function ConsultantClientsSheet({
       });
     },
   });
+
+  // Round-robin distribution mutation
+  const roundRobinMutation = useMutation({
+    mutationFn: async ({ contactIds, consultantIds }: { contactIds: string[]; consultantIds: string[] }) => {
+      const { data, error } = await supabase.rpc('distribute_clients_round_robin', {
+        p_contact_ids: contactIds,
+        p_consultant_ids: consultantIds,
+        p_source_consultant_name: consultantName,
+      });
+
+      if (error) throw error;
+      
+      const result = data as { success: boolean; error?: string; distributed: number };
+      if (!result.success) {
+        throw new Error(result.error || 'Erro na distribuição');
+      }
+      
+      return result;
+    },
+    onSuccess: (result) => {
+      toast({
+        title: "Clientes distribuídos",
+        description: `${result.distributed} cliente(s) distribuído(s) em round-robin entre ${selectedConsultantIds.length} consultor(es)`,
+      });
+      handleTransferSuccess();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao distribuir",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleTransferSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    queryClient.invalidateQueries({ queryKey: ["consultant-clients", consultantId] });
+    setSelectedIds([]);
+    setTargetConsultantId("");
+    setSelectedConsultantIds([]);
+    setDistributionMode("single");
+    onOpenChange(false);
+  };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked && clients) {
@@ -122,12 +163,56 @@ export function ConsultantClientsSheet({
     }
   };
 
+  const handleConsultantToggle = (consultantId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedConsultantIds([...selectedConsultantIds, consultantId]);
+    } else {
+      setSelectedConsultantIds(selectedConsultantIds.filter(id => id !== consultantId));
+    }
+  };
+
   const handleTransfer = () => {
-    if (selectedIds.length === 0 || !targetConsultantId) return;
-    transferMutation.mutate({ contactIds: selectedIds, newConsultantId: targetConsultantId });
+    if (selectedIds.length === 0) return;
+
+    if (distributionMode === "single") {
+      if (!targetConsultantId) return;
+      transferMutation.mutate({ contactIds: selectedIds, newConsultantId: targetConsultantId });
+    } else {
+      if (selectedConsultantIds.length < 2) {
+        toast({
+          title: "Selecione pelo menos 2 consultores",
+          description: "Round-robin requer no mínimo 2 consultores para distribuição",
+          variant: "destructive",
+        });
+        return;
+      }
+      roundRobinMutation.mutate({ contactIds: selectedIds, consultantIds: selectedConsultantIds });
+    }
   };
 
   const allSelected = clients && clients.length > 0 && selectedIds.length === clients.length;
+  const isPending = transferMutation.isPending || roundRobinMutation.isPending;
+  
+  const canTransfer = distributionMode === "single" 
+    ? !!targetConsultantId 
+    : selectedConsultantIds.length >= 2;
+
+  // Calculate distribution preview
+  const distributionPreview = useMemo(() => {
+    if (distributionMode !== "round_robin" || selectedConsultantIds.length < 2 || selectedIds.length === 0) {
+      return null;
+    }
+    
+    const perConsultant = Math.floor(selectedIds.length / selectedConsultantIds.length);
+    const remainder = selectedIds.length % selectedConsultantIds.length;
+    
+    return availableConsultants
+      .filter(c => selectedConsultantIds.includes(c.id))
+      .map((consultant, index) => ({
+        name: consultant.full_name,
+        count: perConsultant + (index < remainder ? 1 : 0),
+      }));
+  }, [distributionMode, selectedConsultantIds, selectedIds.length, availableConsultants]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -217,33 +302,108 @@ export function ConsultantClientsSheet({
                     </Button>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Transferir para:</label>
-                    <Select value={targetConsultantId} onValueChange={setTargetConsultantId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o consultor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableConsultants.map((consultant) => (
-                          <SelectItem key={consultant.id} value={consultant.id}>
-                            {consultant.full_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Distribution Mode */}
+                  <RadioGroup 
+                    value={distributionMode} 
+                    onValueChange={(value) => setDistributionMode(value as DistributionMode)}
+                    className="space-y-3"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="single" id="single" />
+                      <Label htmlFor="single" className="cursor-pointer">
+                        Um consultor específico
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="round_robin" id="round_robin" />
+                      <Label htmlFor="round_robin" className="cursor-pointer flex items-center gap-2">
+                        <Shuffle className="h-4 w-4" />
+                        Distribuir em Round-Robin
+                      </Label>
+                    </div>
+                  </RadioGroup>
+
+                  {/* Single Consultant Select */}
+                  {distributionMode === "single" && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Transferir para:</label>
+                      <Select value={targetConsultantId} onValueChange={setTargetConsultantId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o consultor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableConsultants.map((consultant) => (
+                            <SelectItem key={consultant.id} value={consultant.id}>
+                              {consultant.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Round-Robin Consultant Selection */}
+                  {distributionMode === "round_robin" && (
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium">
+                        Selecione os consultores (mín. 2):
+                      </label>
+                      <ScrollArea className="max-h-32">
+                        <div className="space-y-2">
+                          {availableConsultants.map((consultant) => (
+                            <div
+                              key={consultant.id}
+                              className={`flex items-center gap-3 p-2 rounded-md border transition-colors ${
+                                selectedConsultantIds.includes(consultant.id)
+                                  ? "bg-primary/5 border-primary/20"
+                                  : "hover:bg-muted/50"
+                              }`}
+                            >
+                              <Checkbox
+                                checked={selectedConsultantIds.includes(consultant.id)}
+                                onCheckedChange={(checked) => 
+                                  handleConsultantToggle(consultant.id, checked as boolean)
+                                }
+                              />
+                              <span className="text-sm">{consultant.full_name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+
+                      {/* Distribution Preview */}
+                      {distributionPreview && (
+                        <div className="p-3 bg-muted/50 rounded-lg space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Prévia da distribuição:
+                          </p>
+                          {distributionPreview.map((item) => (
+                            <div key={item.name} className="flex justify-between text-sm">
+                              <span>{item.name}</span>
+                              <Badge variant="secondary">{item.count} cliente(s)</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <Button
                     className="w-full gap-2"
                     onClick={handleTransfer}
-                    disabled={!targetConsultantId || transferMutation.isPending}
+                    disabled={!canTransfer || isPending}
                   >
-                    {transferMutation.isPending ? (
+                    {isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : distributionMode === "round_robin" ? (
+                      <Shuffle className="h-4 w-4" />
                     ) : (
                       <ArrowRight className="h-4 w-4" />
                     )}
-                    Transferir {selectedIds.length} cliente(s)
+                    {distributionMode === "round_robin" 
+                      ? `Distribuir ${selectedIds.length} cliente(s)`
+                      : `Transferir ${selectedIds.length} cliente(s)`
+                    }
                   </Button>
                 </div>
               )}

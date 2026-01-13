@@ -109,7 +109,7 @@ export default function Auth() {
       // Redirection will be handled by useEffect based on role
     }
   };
-  return <div className="min-h-screen flex">
+  return <main className="min-h-screen flex">
       {/* Left Column - Brand (Hidden on Mobile) */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-slate-900 via-slate-800 to-primary/20 p-12 flex-col justify-between overflow-hidden px-[4px]">
         {/* Decorative grid pattern */}
@@ -192,5 +192,5 @@ export default function Auth() {
           </div>
         </div>
       </div>
-    </div>;
+    </main>;
 }

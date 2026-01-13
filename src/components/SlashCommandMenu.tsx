@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, ReactNode } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCannedResponses, useIncrementMacroUsage } from "@/hooks/useCannedResponses";
@@ -10,46 +10,84 @@ interface SlashCommandMenuProps {
   value: string;
   onChange: (value: string) => void;
   onKeyDown?: (e: React.KeyboardEvent) => void;
+  inputRef?: React.RefObject<HTMLInputElement | HTMLTextAreaElement>;
 }
 
-export function SlashCommandMenu({ children, value, onChange, onKeyDown }: SlashCommandMenuProps) {
+export function SlashCommandMenu({ children, value, onChange, onKeyDown, inputRef }: SlashCommandMenuProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [slashPosition, setSlashPosition] = useState(-1);
+  const [isShortcutMode, setIsShortcutMode] = useState(false);
 
   const { data: macros = [] } = useCannedResponses(searchQuery);
   const incrementUsage = useIncrementMacroUsage();
 
-  // Detectar quando usuário digita "/"
+  // Detectar atalho Ctrl+M ou Cmd+M
   useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+M (Windows/Linux) ou Cmd+M (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        
+        // Abrir menu no modo "shortcut" (inserção direta no final)
+        setSlashPosition(-1);
+        setSearchQuery("");
+        setIsShortcutMode(true);
+        setOpen(true);
+        setSelectedIndex(0);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  // Detectar quando usuário digita "/" ou "\"
+  useEffect(() => {
+    // Não sobrescrever se está no modo shortcut
+    if (isShortcutMode && open) return;
+
     const lastSlashIndex = value.lastIndexOf("/");
+    const lastBackslashIndex = value.lastIndexOf("\\");
+    const triggerIndex = Math.max(lastSlashIndex, lastBackslashIndex);
     
-    if (lastSlashIndex !== -1) {
-      const textAfterSlash = value.substring(lastSlashIndex + 1);
+    if (triggerIndex !== -1) {
+      const textAfterTrigger = value.substring(triggerIndex + 1);
       
-      // Se não tem espaço depois da barra, pode ser comando
-      if (!textAfterSlash.includes(" ") && !textAfterSlash.includes("\n")) {
-        setSlashPosition(lastSlashIndex);
-        setSearchQuery(textAfterSlash);
+      // Se não tem espaço depois do trigger, pode ser comando
+      if (!textAfterTrigger.includes(" ") && !textAfterTrigger.includes("\n")) {
+        setSlashPosition(triggerIndex);
+        setSearchQuery(textAfterTrigger);
+        setIsShortcutMode(false);
         setOpen(true);
         setSelectedIndex(0);
       } else {
         setOpen(false);
+        setIsShortcutMode(false);
       }
     } else {
       setOpen(false);
+      setIsShortcutMode(false);
     }
-  }, [value]);
+  }, [value, isShortcutMode, open]);
 
   const handleSelectMacro = async (macro: any) => {
-    // Substituir /comando pelo conteúdo da macro
-    const beforeSlash = value.substring(0, slashPosition);
-    const afterCommand = value.substring(slashPosition + searchQuery.length + 1);
-    const newValue = beforeSlash + macro.content + afterCommand;
+    let newValue: string;
+    
+    if (isShortcutMode || slashPosition === -1) {
+      // Modo shortcut: inserir no final do texto atual
+      newValue = value + macro.content;
+    } else {
+      // Modo slash/backslash: substituir /comando ou \comando pelo conteúdo
+      const beforeSlash = value.substring(0, slashPosition);
+      const afterCommand = value.substring(slashPosition + searchQuery.length + 1);
+      newValue = beforeSlash + macro.content + afterCommand;
+    }
     
     onChange(newValue);
     setOpen(false);
+    setIsShortcutMode(false);
     
     // Incrementar contador de uso
     await incrementUsage.mutateAsync(macro.id);
@@ -94,7 +132,13 @@ export function SlashCommandMenu({ children, value, onChange, onKeyDown }: Slash
               <CommandEmpty>
                 <div className="p-4 text-center text-muted-foreground">
                   <p className="text-sm">Nenhuma macro encontrada</p>
-                  <p className="text-xs mt-1">Digite "/" seguido de um atalho</p>
+                  <p className="text-xs mt-1">Digite "/" ou "\" seguido de um atalho</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">
+                    <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px]">Ctrl</kbd>
+                    {" + "}
+                    <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px]">M</kbd>
+                    {" para abrir rapidamente"}
+                  </p>
                 </div>
               </CommandEmpty>
               <CommandGroup heading="Macros Disponíveis">

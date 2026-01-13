@@ -19,6 +19,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { 
@@ -36,7 +37,8 @@ import {
   Building2,
   AlertTriangle,
   UserCog,
-  ArrowRightLeft
+  ArrowRightLeft,
+  MoreVertical
 } from "lucide-react";
 
 interface InboxSidebarCounts {
@@ -205,15 +207,51 @@ function AgentsSection({ agentStats, agentsOpen, setAgentsOpen, setRedistributeA
                 <Badge variant="secondary" className="h-5 min-w-5 px-1 text-[10px]">
                   {agent.conversationCount}
                 </Badge>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => setRedistributeAgent({ id: agent.agentId, name: agent.agentName })}
-                  title="Redistribuir conversas"
-                >
-                  <ArrowRightLeft className="h-3 w-3" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                    >
+                      <MoreVertical className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[180px]">
+                    <DropdownMenuItem 
+                      onClick={() => setRedistributeAgent({ id: agent.agentId, name: agent.agentName })}
+                      className="gap-2"
+                    >
+                      <ArrowRightLeft className="h-4 w-4" />
+                      Redistribuir conversas
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => handleStatusChange(agent.agentId, 'online')}
+                      className="gap-2"
+                      disabled={agent.status === 'online'}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                      Colocar Online
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => handleStatusChange(agent.agentId, 'busy')}
+                      className="gap-2"
+                      disabled={agent.status === 'busy'}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+                      Colocar Ocupado
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => handleStatusChange(agent.agentId, 'offline')}
+                      className="gap-2"
+                      disabled={agent.status === 'offline'}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+                      Colocar Offline
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           );

@@ -26,6 +26,8 @@ import { RevenueTimelineChart } from "@/components/widgets/premium/RevenueTimeli
 import { TopPerformersWidget } from "@/components/widgets/premium/TopPerformersWidget";
 import { TeamActivitiesWidget } from "@/components/widgets/premium/TeamActivitiesWidget";
 import { PipelineFunnelChart } from "@/components/widgets/premium/PipelineFunnelChart";
+import { ConversionFunnelCard } from "@/components/widgets/ConversionFunnelCard";
+import { useDealsConversionAnalysis } from "@/hooks/useDealsConversionAnalysis";
 
 export default function SalesManagement() {
   const navigate = useNavigate();
@@ -40,6 +42,7 @@ export default function SalesManagement() {
   const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics(dateRange);
   const { data: salesReps, isLoading: salesRepsLoading } = useSalesRepPerformance();
   const { data: rottenDeals, isLoading: rottenLoading } = useRottenDeals();
+  const { data: conversionData, isLoading: conversionLoading } = useDealsConversionAnalysis(dateRange);
   
   // Pagination state for team table
   const [currentPage, setCurrentPage] = useState(1);
@@ -126,7 +129,7 @@ export default function SalesManagement() {
         </div>
         
         {/* ROW 2: KPIs Secundários */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <PremiumKPICard
             title="Pipeline Total"
             value={formatCurrency(metrics?.pipelineTotal || 0)}
@@ -134,6 +137,14 @@ export default function SalesManagement() {
             icon={Briefcase}
             iconColor="text-primary"
             isLoading={metricsLoading}
+          />
+          <PremiumKPICard
+            title="Deals Criados"
+            value={conversionData?.totalCreated || 0}
+            subtitle="no período"
+            icon={PlusCircle}
+            iconColor="text-blue-600"
+            isLoading={conversionLoading}
           />
           <PremiumKPICard
             title="Deals Ganhos"
@@ -154,20 +165,21 @@ export default function SalesManagement() {
             variant="danger"
           />
           <PremiumKPICard
-            title="Novos Deals"
-            value={metrics?.newDealsCreated || 0}
-            subtitle="criados no período"
-            change={metrics?.newDealsChange}
-            icon={PlusCircle}
-            iconColor="text-blue-600"
-            isLoading={metricsLoading}
+            title="Criados → Ganhos"
+            value={`${(conversionData?.createdToWonRate || 0).toFixed(1)}%`}
+            subtitle={`${conversionData?.totalWon || 0} de ${conversionData?.totalCreated || 0}`}
+            icon={Target}
+            iconColor="text-purple-600"
+            isLoading={conversionLoading}
+            tooltip="Percentual de deals ganhos sobre total de deals criados no período"
           />
         </div>
         
         {/* ROW 3: Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <RevenueTimelineChart dateRange={dateRange} />
           <PipelineFunnelChart />
+          <ConversionFunnelCard dateRange={dateRange} />
         </div>
         
         {/* ROW 4: Rankings + Activities */}

@@ -137,9 +137,11 @@ export function useDealsConversionAnalysis(dateRange?: DateRange) {
             : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
       }
 
-      console.log("✅ useDealsConversionAnalysis:", {
+      console.log("✅ useDealsConversionAnalysis (count:exact):", {
         totalCreated,
         totalWon,
+        totalLost,
+        totalOpen,
         createdToWonRate: createdToWonRate.toFixed(1),
         avgTimeToWinDays,
       });
@@ -157,6 +159,6 @@ export function useDealsConversionAnalysis(dateRange?: DateRange) {
         maxTimeToWinDays,
       };
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 1, // 1 minute (reduced for faster refresh)
   });
 }

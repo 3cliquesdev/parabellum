@@ -117,6 +117,11 @@ serve(async (req) => {
         fileName = `margin_analysis_${Date.now()}`;
         break;
       
+      case 'deals_conversion_analysis':
+        data = await generateDealsConversionAnalysisReport(supabaseClient, filters);
+        fileName = `deals_conversion_${Date.now()}`;
+        break;
+      
       default:
         throw new Error(`Unknown report type: ${report_type}`);
     }
@@ -927,6 +932,80 @@ async function generateMarginAnalysisReport(supabase: any, filters: any) {
     ticket_medio: p.total_vendas > 0 ? (p.valor_bruto / p.total_vendas) : 0,
     margem_percentual: p.valor_bruto > 0 ? ((p.valor_liquido / p.valor_bruto) * 100).toFixed(1) + '%' : '0%',
   })).sort((a, b) => b.valor_bruto - a.valor_bruto);
+}
+
+// Deals Conversion Analysis Report
+async function generateDealsConversionAnalysisReport(supabase: any, filters: any) {
+  const { startDate, endDate, pipelineId } = filters;
+  
+  console.log('[deals_conversion_analysis] Starting with filters:', { startDate, endDate, pipelineId });
+  
+  let query = supabase
+    .from('deals')
+    .select('id, status, created_at, closed_at, value, pipeline_id, pipelines:pipeline_id(name)');
+
+  if (startDate) query = query.gte('created_at', startDate);
+  if (endDate) query = query.lte('created_at', endDate);
+  if (pipelineId && pipelineId !== '') query = query.eq('pipeline_id', pipelineId);
+
+  const { data: deals, error } = await query;
+  if (error) throw error;
+
+  const totalCreated = deals?.length || 0;
+  const wonDeals = deals?.filter((d: any) => d.status === 'won') || [];
+  const lostDeals = deals?.filter((d: any) => d.status === 'lost') || [];
+  const openDeals = deals?.filter((d: any) => d.status === 'open') || [];
+
+  // Calculate time to win
+  const timeToWinDays: number[] = [];
+  wonDeals.forEach((deal: any) => {
+    if (deal.closed_at && deal.created_at) {
+      const days = Math.round(
+        (new Date(deal.closed_at).getTime() - new Date(deal.created_at).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (days >= 0) timeToWinDays.push(days);
+    }
+  });
+
+  // Calculate stats
+  const avgTimeToWin = timeToWinDays.length > 0 
+    ? Math.round(timeToWinDays.reduce((a, b) => a + b, 0) / timeToWinDays.length) 
+    : 0;
+
+  const sortedTimes = [...timeToWinDays].sort((a, b) => a - b);
+  const medianTimeToWin = sortedTimes.length > 0
+    ? (sortedTimes.length % 2 !== 0
+        ? sortedTimes[Math.floor(sortedTimes.length / 2)]
+        : Math.round((sortedTimes[sortedTimes.length / 2 - 1] + sortedTimes[sortedTimes.length / 2]) / 2))
+    : 0;
+
+  const minTimeToWin = sortedTimes.length > 0 ? sortedTimes[0] : 0;
+  const maxTimeToWin = sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
+
+  const createdToWonRate = totalCreated > 0 ? (wonDeals.length / totalCreated) * 100 : 0;
+  const createdToLostRate = totalCreated > 0 ? (lostDeals.length / totalCreated) * 100 : 0;
+
+  const totalValueWon = wonDeals.reduce((sum: number, d: any) => sum + (d.value || 0), 0);
+  const totalValueLost = lostDeals.reduce((sum: number, d: any) => sum + (d.value || 0), 0);
+  const totalValueOpen = openDeals.reduce((sum: number, d: any) => sum + (d.value || 0), 0);
+
+  return [{
+    periodo_inicio: startDate || 'Todos',
+    periodo_fim: endDate || 'Todos',
+    total_criados: totalCreated,
+    total_ganhos: wonDeals.length,
+    total_perdidos: lostDeals.length,
+    total_abertos: openDeals.length,
+    taxa_conversao_criados_ganhos: createdToWonRate.toFixed(2) + '%',
+    taxa_perda_criados: createdToLostRate.toFixed(2) + '%',
+    valor_total_ganhos: totalValueWon,
+    valor_total_perdidos: totalValueLost,
+    valor_total_abertos: totalValueOpen,
+    tempo_medio_ciclo_dias: avgTimeToWin,
+    tempo_mediano_ciclo_dias: medianTimeToWin,
+    tempo_min_ciclo_dias: minTimeToWin,
+    tempo_max_ciclo_dias: maxTimeToWin,
+  }];
 }
 
 function convertToCSV(data: any[]): string {

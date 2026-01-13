@@ -25,6 +25,7 @@ interface UserWithRole {
   block_reason?: string;
   is_archived?: boolean;
   archived_at?: string;
+  availability_status?: string;
 }
 
 export function useUsers() {

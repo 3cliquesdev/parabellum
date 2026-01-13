@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, ChevronDown } from "lucide-react";
-import { format, startOfToday, startOfYesterday, endOfYesterday, startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, subDays, startOfQuarter, endOfQuarter } from "date-fns";
+import { format, startOfToday, startOfYesterday, endOfYesterday, startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, subDays, startOfQuarter, endOfQuarter, startOfDay, endOfDay, endOfToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+// Normaliza o range para dias inteiros (00:00:00 até 23:59:59.999)
+const normalizeRange = (range: DateRange | undefined): DateRange | undefined => {
+  if (!range) return undefined;
+  
+  const from = range.from ? startOfDay(range.from) : undefined;
+  let to = range.to ? endOfDay(range.to) : undefined;
+  
+  // Se só tem "from" (usuário clicou 1 dia), define "to" como fim do mesmo dia
+  if (from && !to) {
+    to = endOfDay(from);
+  }
+  
+  return { from, to };
+};
 
 export interface DateRangePickerProps {
   value: DateRange | undefined;
@@ -27,7 +42,7 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
     label: 'Hoje',
     getRange: () => ({
       from: startOfToday(),
-      to: startOfToday(),
+      to: endOfToday(),
     }),
   },
   yesterday: {
@@ -54,15 +69,15 @@ const presets: Record<PresetKey, { label: string; getRange: () => DateRange }> =
   last30Days: {
     label: 'Últimos 30 dias',
     getRange: () => ({
-      from: subDays(new Date(), 30),
-      to: new Date(),
+      from: startOfDay(subDays(new Date(), 30)),
+      to: endOfToday(),
     }),
   },
   last90Days: {
     label: 'Últimos 90 dias',
     getRange: () => ({
-      from: subDays(new Date(), 90),
-      to: new Date(),
+      from: startOfDay(subDays(new Date(), 90)),
+      to: endOfToday(),
     }),
   },
   thisMonth: {
@@ -118,14 +133,16 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
   const handlePresetChange = (preset: PresetKey) => {
     setActivePreset(preset);
     if (preset !== 'custom') {
-      onChange(presets[preset].getRange());
+      const range = presets[preset].getRange();
+      onChange(normalizeRange(range));
     }
   };
 
   const handleCalendarSelect = (range: DateRange | undefined) => {
-    onChange(range);
+    const normalized = normalizeRange(range);
+    onChange(normalized);
     setActivePreset('custom');
-    if (range?.from && range?.to) {
+    if (normalized?.from && normalized?.to) {
       setCalendarOpen(false);
     }
   };

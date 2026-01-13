@@ -4,9 +4,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, RefreshCw } from "lucide-react";
+import { Users, RefreshCw, MoreVertical, Wifi, WifiOff, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useManageAvailabilityStatus } from "@/hooks/useManageAvailabilityStatus";
 
 interface TeamMember {
   id: string;
@@ -39,6 +48,10 @@ const statusConfig = {
 
 export function TeamOnlineWidget() {
   const queryClient = useQueryClient();
+  const { isAdmin, isGeneralManager, isSupportManager, isManager } = useUserRole();
+  const manageAvailability = useManageAvailabilityStatus();
+  
+  const canManageStatus = isAdmin || isGeneralManager || isSupportManager || isManager;
 
   const { data: teamMembers, isLoading, refetch } = useQuery({
     queryKey: ["team-online-status"],
@@ -175,7 +188,16 @@ export function TeamOnlineWidget() {
                 </h4>
                 <div className="space-y-1">
                   {groupedMembers.online.map((member) => (
-                    <TeamMemberRow key={member.id} member={member} status="online" />
+                    <TeamMemberRow 
+                      key={member.id} 
+                      member={member} 
+                      status="online" 
+                      canManageStatus={canManageStatus}
+                      onChangeStatus={(newStatus) => 
+                        manageAvailability.mutate({ user_id: member.id, new_status: newStatus })
+                      }
+                      isChanging={manageAvailability.isPending}
+                    />
                   ))}
                 </div>
               </div>
@@ -189,7 +211,16 @@ export function TeamOnlineWidget() {
                 </h4>
                 <div className="space-y-1">
                   {groupedMembers.busy.map((member) => (
-                    <TeamMemberRow key={member.id} member={member} status="busy" />
+                    <TeamMemberRow 
+                      key={member.id} 
+                      member={member} 
+                      status="busy" 
+                      canManageStatus={canManageStatus}
+                      onChangeStatus={(newStatus) => 
+                        manageAvailability.mutate({ user_id: member.id, new_status: newStatus })
+                      }
+                      isChanging={manageAvailability.isPending}
+                    />
                   ))}
                 </div>
               </div>
@@ -203,7 +234,16 @@ export function TeamOnlineWidget() {
                 </h4>
                 <div className="space-y-1">
                   {groupedMembers.offline.slice(0, 3).map((member) => (
-                    <TeamMemberRow key={member.id} member={member} status="offline" />
+                    <TeamMemberRow 
+                      key={member.id} 
+                      member={member} 
+                      status="offline" 
+                      canManageStatus={canManageStatus}
+                      onChangeStatus={(newStatus) => 
+                        manageAvailability.mutate({ user_id: member.id, new_status: newStatus })
+                      }
+                      isChanging={manageAvailability.isPending}
+                    />
                   ))}
                   {groupedMembers.offline.length > 3 && (
                     <p className="text-xs text-muted-foreground text-center py-1">
@@ -228,10 +268,16 @@ export function TeamOnlineWidget() {
 
 function TeamMemberRow({ 
   member, 
-  status 
+  status,
+  canManageStatus,
+  onChangeStatus,
+  isChanging
 }: { 
   member: TeamMember; 
   status: "online" | "busy" | "offline";
+  canManageStatus: boolean;
+  onChangeStatus: (newStatus: "online" | "busy" | "offline") => void;
+  isChanging: boolean;
 }) {
   const getInitials = (name: string | null) => {
     if (!name) return "?";
@@ -244,7 +290,7 @@ function TeamMemberRow({
   };
 
   return (
-    <div className="flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors">
+    <div className="flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors group">
       <div className="relative">
         <Avatar className="h-8 w-8">
           <AvatarImage src={member.avatar_url || undefined} />
@@ -269,6 +315,48 @@ function TeamMemberRow({
           </p>
         )}
       </div>
+      
+      {canManageStatus && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+              disabled={isChanging}
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem 
+              onClick={() => onChangeStatus("online")}
+              disabled={status === "online"}
+              className="gap-2"
+            >
+              <Wifi className="h-4 w-4 text-green-500" />
+              Colocar Online
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => onChangeStatus("busy")}
+              disabled={status === "busy"}
+              className="gap-2"
+            >
+              <Clock className="h-4 w-4 text-yellow-500" />
+              Colocar Ocupado
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              onClick={() => onChangeStatus("offline")}
+              disabled={status === "offline"}
+              className="gap-2"
+            >
+              <WifiOff className="h-4 w-4 text-muted-foreground" />
+              Colocar Offline (Férias)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 }

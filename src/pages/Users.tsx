@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { UserPlus, Edit, MoreVertical, Ban, CheckCircle, Archive, ArchiveRestore, Mail, Users as UsersIcon, Shield } from "lucide-react";
+import { UserPlus, Edit, MoreVertical, Ban, CheckCircle, Archive, ArchiveRestore, Mail, Users as UsersIcon, Shield, Wifi, WifiOff, Clock } from "lucide-react";
 import UserDialog from "@/components/UserDialog";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { ArchiveUserDialog } from "@/components/ArchiveUserDialog";
@@ -24,6 +24,8 @@ import { useUsers } from "@/hooks/useUsers";
 import { useManageUserStatus } from "@/hooks/useManageUserStatus";
 import { useResendWelcomeEmail } from "@/hooks/useResendWelcomeEmail";
 import { useProfileSkills } from "@/hooks/useProfileSkills";
+import { useManageAvailabilityStatus } from "@/hooks/useManageAvailabilityStatus";
+import { cn } from "@/lib/utils";
 
 // Import type from useUsers hook
 type UserWithRole = NonNullable<ReturnType<typeof useUsers>['data']>[number];
@@ -55,6 +57,25 @@ function UserSkillsBadges({ userId }: { userId: string }) {
   );
 }
 
+// Status availability config
+const availabilityConfig = {
+  online: {
+    label: "Online",
+    color: "bg-green-500",
+    textColor: "text-green-600",
+  },
+  busy: {
+    label: "Ocupado",
+    color: "bg-yellow-500",
+    textColor: "text-yellow-600",
+  },
+  offline: {
+    label: "Offline",
+    color: "bg-muted-foreground/40",
+    textColor: "text-muted-foreground",
+  },
+};
+
 export default function Users() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
@@ -70,6 +91,7 @@ export default function Users() {
   const { data: users, isLoading } = useUsers();
   const manageUserStatus = useManageUserStatus();
   const resendWelcomeEmail = useResendWelcomeEmail();
+  const manageAvailability = useManageAvailabilityStatus();
 
   // Redirect if not admin or general_manager - only after role is loaded and confirmed
   useEffect(() => {
@@ -231,6 +253,7 @@ export default function Users() {
                     <TableHead>Usuário</TableHead>
                     <TableHead>Cargo</TableHead>
                     <TableHead>Perfil de Acesso</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Habilidades</TableHead>
                     <TableHead>Data de Criação</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -277,6 +300,49 @@ export default function Users() {
                         <Badge variant={getRoleBadgeVariant(user.role)}>
                           {roleLabels[user.role] || user.role}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const status = (user as any).availability_status || 'offline';
+                          const config = availabilityConfig[status as keyof typeof availabilityConfig] || availabilityConfig.offline;
+                          return (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 gap-2 px-2">
+                                  <div className={cn("h-2 w-2 rounded-full", config.color)} />
+                                  <span className={cn("text-xs", config.textColor)}>{config.label}</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className="w-48">
+                                <DropdownMenuItem 
+                                  onClick={() => manageAvailability.mutate({ user_id: user.id, new_status: 'online' })}
+                                  disabled={status === 'online'}
+                                  className="gap-2"
+                                >
+                                  <Wifi className="h-4 w-4 text-green-500" />
+                                  Colocar Online
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => manageAvailability.mutate({ user_id: user.id, new_status: 'busy' })}
+                                  disabled={status === 'busy'}
+                                  className="gap-2"
+                                >
+                                  <Clock className="h-4 w-4 text-yellow-500" />
+                                  Colocar Ocupado
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  onClick={() => manageAvailability.mutate({ user_id: user.id, new_status: 'offline' })}
+                                  disabled={status === 'offline'}
+                                  className="gap-2"
+                                >
+                                  <WifiOff className="h-4 w-4 text-muted-foreground" />
+                                  Colocar Offline (Férias)
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <UserSkillsBadges userId={user.id} />

@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
           block_reason: profile?.block_reason,
           is_archived: profile?.is_archived || false,
           archived_at: profile?.archived_at,
+          availability_status: profile?.availability_status || 'offline',
         };
       })
     );

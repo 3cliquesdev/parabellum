@@ -485,6 +485,7 @@ export function AppSidebar() {
                 </Button>
               } />
               <ModeToggle />
+              <SidebarVersionIndicator />
               <Button
                 variant="ghost"
                 size="icon"
@@ -495,9 +496,6 @@ export function AppSidebar() {
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
-
-            {/* Indicador de versão */}
-            <SidebarVersionIndicator />
           </div>
         ) : (
           <div className="space-y-2">
@@ -535,6 +533,7 @@ export function AppSidebar() {
                 </Button>
               } />
               <ModeToggle />
+              <SidebarVersionIndicator />
               <Button
                 variant="ghost"
                 size="icon"
@@ -545,9 +544,6 @@ export function AppSidebar() {
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
-
-            {/* Indicador de versão */}
-            <SidebarVersionIndicator />
           </div>
         )}
       </SidebarFooter>

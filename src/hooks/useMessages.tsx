@@ -147,6 +147,7 @@ export function useMessages(conversationId: string | null) {
           }
           
           // Debounce para atualizar sidebar (evita spam de re-renders)
+          // Reduzido de 300ms para 100ms para maior responsividade
           if (conversationsInvalidateTimeout) {
             clearTimeout(conversationsInvalidateTimeout);
           }
@@ -159,7 +160,11 @@ export function useMessages(conversationId: string | null) {
               queryKey: ["conversation", conversationId],
               refetchType: 'active'
             });
-          }, 300);
+            queryClient.invalidateQueries({ 
+              queryKey: ["inbox-view"],
+              refetchType: 'active'
+            });
+          }, 100);
         }
       )
       .subscribe((status) => {

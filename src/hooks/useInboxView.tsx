@@ -191,9 +191,10 @@ export function useInboxView(filters?: InboxFilters) {
       // Aplicar filtros client-side
       return applyFilters(result, filters);
     },
-    staleTime: 10000, // 10 seconds
+    staleTime: 5000, // Reduzido de 10s para 5s para maior responsividade
     refetchOnWindowFocus: true,
     refetchOnMount: true,
+    refetchInterval: 30000, // Fallback: refetch a cada 30s para garantir sincronia
   });
 
   // Realtime subscription com merge incremental e catch-up

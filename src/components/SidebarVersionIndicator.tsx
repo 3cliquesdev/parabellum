@@ -1,22 +1,19 @@
 import { useState, useEffect } from "react";
-import { Sparkles, RefreshCw, Info } from "lucide-react";
+import { Info, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BuildInfoPopover } from "@/components/BuildInfoPopover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
   getCurrentBuildId, 
   checkForUpdate, 
   forceUpdate 
 } from "@/lib/build/ensureLatestBuild";
 import { toast } from "sonner";
-import { useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 // Intervalo de verificação: 60 segundos
 const CHECK_INTERVAL_MS = 60 * 1000;
 
 export function SidebarVersionIndicator() {
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
   const [hasUpdate, setHasUpdate] = useState(false);
   const [updating, setUpdating] = useState(false);
   
@@ -65,61 +62,47 @@ export function SidebarVersionIndicator() {
     }, 500);
   };
   
-  // Versão colapsada
-  if (collapsed) {
-    return (
-      <div className="mx-2 mb-2">
-        {hasUpdate ? (
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleForceUpdate}
-            disabled={updating}
-            className="w-full h-9 relative border-primary/30 bg-primary/10 hover:bg-primary/20"
-            title="Nova versão disponível! Clique para atualizar"
-          >
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary animate-pulse" />
-          </Button>
-        ) : (
-          <div className="flex justify-center">
-            <BuildInfoPopover />
-          </div>
-        )}
-      </div>
-    );
-  }
-  
-  // Versão expandida
   return (
-    <div className="mx-3 mb-2 space-y-2">
-      {/* Banner de atualização disponível */}
-      {hasUpdate && (
-        <div className="p-2.5 bg-primary/10 border border-primary/20 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="flex items-center gap-2 text-primary text-xs font-medium">
-            <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
-            <span>Nova versão disponível!</span>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 relative"
+          title={hasUpdate ? "Nova versão disponível!" : `Versão: ${formatBuildId(buildId)}`}
+        >
+          <Info className="h-4 w-4" />
+          {/* Badge de notificação quando há update */}
+          {hasUpdate && (
+            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-3" align="end" side="top">
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Versão atual:</span>
+            <br />
+            v{formatBuildId(buildId)}
           </div>
-          <Button 
-            size="sm" 
-            className="w-full mt-2 h-7 text-xs"
-            onClick={handleForceUpdate}
-            disabled={updating}
-          >
-            <RefreshCw className={cn("h-3 w-3 mr-1", updating && "animate-spin")} />
-            Atualizar Agora
-          </Button>
+          
+          {hasUpdate ? (
+            <Button 
+              size="sm" 
+              className="w-full h-8 text-xs"
+              onClick={handleForceUpdate}
+              disabled={updating}
+            >
+              <RefreshCw className={cn("h-3 w-3 mr-1.5", updating && "animate-spin")} />
+              Atualizar Agora
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              ✓ Você está na versão mais recente
+            </p>
+          )}
         </div>
-      )}
-      
-      {/* Indicador de versão atual */}
-      <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <Info className="h-3 w-3" />
-          v{formatBuildId(buildId)}
-        </span>
-        <BuildInfoPopover />
-      </div>
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }

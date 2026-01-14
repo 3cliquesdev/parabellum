@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,20 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
   const takeControl = useTakeControl();
   const returnToAutopilot = useReturnToAutopilot();
   
+  // Buscar ticket relacionado para mostrar ticket_number
+  const { data: relatedTicket } = useQuery({
+    queryKey: ['related-ticket', conversation?.related_ticket_id],
+    queryFn: async () => {
+      if (!conversation?.related_ticket_id) return null;
+      const { data } = await supabase
+        .from('tickets')
+        .select('ticket_number, status')
+        .eq('id', conversation.related_ticket_id)
+        .single();
+      return data;
+    },
+    enabled: !!conversation?.related_ticket_id,
+  });
   // FASE 6: Tags do contato
   const { data: customerTags = [] } = useCustomerTags(conversation?.contacts?.id || null);
   
@@ -278,10 +293,13 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
                     <span className="text-xs text-slate-500 dark:text-zinc-400 truncate hidden sm:inline">
                       {contact?.email || contact?.phone}
                     </span>
-                    {conversation.related_ticket_id && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 gap-1 shrink-0">
+                    {conversation.related_ticket_id && relatedTicket && (
+                      <Badge 
+                        variant={relatedTicket.status === 'closed' || relatedTicket.status === 'resolved' ? 'secondary' : 'outline'} 
+                        className="text-[10px] px-1.5 py-0 h-5 gap-1 shrink-0"
+                      >
                         <Ticket className="h-3 w-3" />
-                        #{conversation.related_ticket_id.slice(0, 8)}
+                        #{relatedTicket.ticket_number || conversation.related_ticket_id.slice(0, 8)}
                       </Badge>
                     )}
                     {!aiModeLoading && (

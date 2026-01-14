@@ -1669,10 +1669,38 @@ Responda APENAS: skip ou search`
     // Detectar se é contexto financeiro na mensagem atual
     const isFinancialContext = FINANCIAL_ACTION_PATTERNS.some(p => p.test(customerMessage));
     
-    // 🎯 BYPASS DA IA: Saudação Direta APENAS na PRIMEIRA MENSAGEM da conversa
-    const isFirstMessage = messageHistory.length <= 1;
+    // 🎯 BYPASS DA IA: Saudação Direta na PRIMEIRA MENSAGEM da SESSÃO
+    // Usar 'messages' (dados originais do DB) em vez de 'messageHistory' (já convertido)
+    const rawMessages = messages || [];
     
-    if (intentType === 'skip' && !isFinancialContext && isFirstMessage) {
+    // Detectar "primeira mensagem desta sessão" (após fechamento ou início)
+    const lastSystemCloseIndex = rawMessages.findIndex(m => 
+      m.sender_type === 'system' && 
+      (m.content?.includes('encerrada') || m.content?.includes('arquivada') || m.content?.includes('fechada'))
+    );
+    
+    // Mensagens desde o último fechamento (ou todas se não houver fechamento)
+    const messagesAfterClose = lastSystemCloseIndex >= 0 
+      ? rawMessages.slice(0, lastSystemCloseIndex) 
+      : rawMessages;
+    
+    // É primeira mensagem da sessão se:
+    // 1. Só tem 1 mensagem após o fechamento, OU
+    // 2. IA ainda não respondeu nesta sessão (só mensagens de contato ou system)
+    const aiHasRespondedInSession = messagesAfterClose.some(m => 
+      m.sender_type === 'user' // 'user' no DB = humano ou IA (não 'contact')
+    );
+    const isFirstMessageOfSession = messagesAfterClose.length <= 1 || !aiHasRespondedInSession;
+    
+    console.log('[ai-autopilot-chat] 🔍 Session detection:', {
+      totalMessages: rawMessages.length,
+      lastSystemCloseIndex,
+      messagesAfterClose: messagesAfterClose.length,
+      aiHasRespondedInSession,
+      isFirstMessageOfSession
+    });
+    
+    if (intentType === 'skip' && !isFinancialContext && isFirstMessageOfSession) {
       // CASO 1: Cliente conhecido = saudação personalizada direta
       if (contactHasEmail) {
         console.log('[ai-autopilot-chat] 🎯 BYPASS DA IA - Saudação direta para cliente conhecido');

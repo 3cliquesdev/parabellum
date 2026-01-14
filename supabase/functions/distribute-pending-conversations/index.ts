@@ -140,9 +140,15 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[distribute-pending] Agentes online - Support: ${supportAgents.length}, Sales: ${salesAgents.length}`);
 
+    // Configurações de prioridade por tempo de espera
+    const WAIT_TIME_THRESHOLDS = [
+      { minutes: 30, priorityBoost: 3 },  // Mais de 30 min = prioridade máxima
+      { minutes: 15, priorityBoost: 2 },  // Mais de 15 min = prioridade alta
+      { minutes: 5, priorityBoost: 1 },   // Mais de 5 min = prioridade média
+    ];
+
     // Buscar conversas pendentes (sem agente atribuído)
-    // 🆕 Priorizar conversas com needs_human_review = true
-    const { data: pendingConversations, error: pendingError } = await supabaseClient
+    const { data: pendingConversationsRaw, error: pendingError } = await supabaseClient
       .from('conversations')
       .select(`
         id, 
@@ -155,16 +161,51 @@ Deno.serve(async (req: Request) => {
       `)
       .eq('status', 'open')
       .is('assigned_to', null)
-      .order('needs_human_review', { ascending: false, nullsFirst: false }) // needs_human_review = true primeiro
-      .order('created_at', { ascending: true }) // FIFO
-      .limit(maxConversations * Math.max(supportAgents.length + salesAgents.length, 1));
+      .limit(maxConversations * Math.max(supportAgents.length + salesAgents.length, 1) * 2);
+
+    // Calcular prioridade baseada em tempo de espera
+    const calculateWaitPriority = (createdAt: string, queuedAt?: string): number => {
+      const referenceTime = queuedAt ? new Date(queuedAt) : new Date(createdAt);
+      const waitTimeMinutes = (now.getTime() - referenceTime.getTime()) / (1000 * 60);
+      
+      for (const threshold of WAIT_TIME_THRESHOLDS) {
+        if (waitTimeMinutes >= threshold.minutes) {
+          return threshold.priorityBoost;
+        }
+      }
+      return 0;
+    };
+
+    // Ordenar conversas por prioridade composta
+    const pendingConversations = pendingConversationsRaw?.map(conv => ({
+      ...conv,
+      waitPriority: calculateWaitPriority(
+        conv.created_at, 
+        conv.conversation_queue?.[0]?.queued_at
+      ),
+      waitTimeMinutes: Math.round(
+        (now.getTime() - new Date(conv.conversation_queue?.[0]?.queued_at || conv.created_at).getTime()) / (1000 * 60)
+      )
+    }))
+    .sort((a, b) => {
+      // 1. needs_human_review = true primeiro
+      if (a.needs_human_review && !b.needs_human_review) return -1;
+      if (!a.needs_human_review && b.needs_human_review) return 1;
+      
+      // 2. Maior waitPriority primeiro (tempo de espera)
+      if (a.waitPriority !== b.waitPriority) return b.waitPriority - a.waitPriority;
+      
+      // 3. FIFO como desempate
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    })
+    .slice(0, maxConversations * Math.max(supportAgents.length + salesAgents.length, 1));
 
     if (pendingError) {
       console.error('[distribute-pending] Erro ao buscar conversas pendentes:', pendingError);
       throw pendingError;
     }
 
-    console.log(`[distribute-pending] ${pendingConversations?.length || 0} conversas pendentes no pool geral`);
+    console.log(`[distribute-pending] ${pendingConversations?.length || 0} conversas pendentes (ordenadas por prioridade + tempo de espera)`);
 
     if (!pendingConversations || pendingConversations.length === 0) {
       return new Response(JSON.stringify({ 
@@ -288,10 +329,12 @@ Deno.serve(async (req: Request) => {
         .delete()
         .eq('conversation_id', conv.id);
 
+      const waitInfo = conv.waitTimeMinutes > 0 ? ` (aguardando ${conv.waitTimeMinutes}min)` : '';
+      
       // Inserir mensagem de sistema
       await supabaseClient.from('messages').insert({
         conversation_id: conv.id,
-        content: `👤 ${agent.full_name} entrou na conversa e assumirá o atendimento.`,
+        content: `👤 ${agent.full_name} entrou na conversa e assumirá o atendimento.${waitInfo}`,
         sender_type: 'system',
         channel: 'web_chat'
       });

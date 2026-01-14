@@ -43,6 +43,7 @@ import {
 import {
   useEmailTemplatesV2,
   useDeleteEmailTemplateV2,
+  useDuplicateEmailTemplateV2,
   useTemplateMetrics,
 } from "@/hooks/useEmailBuilderV2";
 import { formatDistanceToNow } from "date-fns";
@@ -56,10 +57,15 @@ export function EmailTemplatesV2List({ onCreateNew }: EmailTemplatesV2ListProps)
   const navigate = useNavigate();
   const { data: templates, isLoading } = useEmailTemplatesV2();
   const deleteMutation = useDeleteEmailTemplateV2();
+  const duplicateMutation = useDuplicateEmailTemplateV2();
   
   const [search, setSearch] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
+
+  const handleDuplicate = (id: string) => {
+    duplicateMutation.mutate(id);
+  };
 
   const filteredTemplates = templates?.filter(
     (t) =>
@@ -150,6 +156,8 @@ export function EmailTemplatesV2List({ onCreateNew }: EmailTemplatesV2ListProps)
               template={template}
               onEdit={() => navigate(`/email-templates/v2/builder/${template.id}`)}
               onDelete={() => handleDelete(template.id)}
+              onDuplicate={() => handleDuplicate(template.id)}
+              isDuplicating={duplicateMutation.isPending}
               getCategoryColor={getCategoryColor}
             />
           ))}
@@ -196,6 +204,8 @@ interface TemplateCardProps {
   };
   onEdit: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
+  isDuplicating: boolean;
   getCategoryColor: (category: string | null) => string;
 }
 
@@ -203,6 +213,8 @@ function TemplateCard({
   template,
   onEdit,
   onDelete,
+  onDuplicate,
+  isDuplicating,
   getCategoryColor,
 }: TemplateCardProps) {
   const { data: metrics } = useTemplateMetrics(template.id);
@@ -244,9 +256,9 @@ function TemplateCard({
                 <Pencil className="h-4 w-4 mr-2" />
                 Editar
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={onDuplicate} disabled={isDuplicating}>
                 <Copy className="h-4 w-4 mr-2" />
-                Duplicar
+                {isDuplicating ? "Duplicando..." : "Duplicar"}
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Eye className="h-4 w-4 mr-2" />

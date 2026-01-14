@@ -220,8 +220,9 @@ export function useConversations(filters?: ConversationFilters) {
       return result;
     },
     // Reduce stale time for faster updates
-    staleTime: 10000, // 10 seconds
+    staleTime: 5000, // Reduzido de 10s para 5s para maior responsividade
     refetchOnWindowFocus: true,
+    refetchInterval: 30000, // Fallback: refetch a cada 30s para garantir sincronia
     enabled: !!user && !roleLoading,
   });
 }

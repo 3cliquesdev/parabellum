@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -20,10 +20,11 @@ import { useDroppable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Monitor, Smartphone, Save, Loader2, Layout } from "lucide-react";
+import { Monitor, Smartphone, Save, Loader2, Layout, Undo2, Redo2 } from "lucide-react";
 import { BlockSidebar } from "./BlockSidebar";
 import { BlockRenderer } from "./BlockRenderer";
 import { VariablesPicker } from "./VariablesPicker";
+import { useUndoRedo } from "@/hooks/useUndoRedo";
 import type { EmailBlock, BlockType, BlockContent, BlockStyles } from "@/types/emailBuilderV2";
 
 interface EmailTemplateBuilderV2Props {
@@ -93,7 +94,15 @@ export function EmailTemplateBuilderV2({
   onSave,
   isSaving,
 }: EmailTemplateBuilderV2Props) {
-  const [blocks, setBlocks] = useState<EmailBlock[]>(initialBlocks);
+  const { 
+    state: blocks, 
+    push: pushBlocks, 
+    undo, 
+    redo, 
+    canUndo, 
+    canRedo 
+  } = useUndoRedo({ initialState: initialBlocks, maxHistory: 50 });
+
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -102,6 +111,36 @@ export function EmailTemplateBuilderV2({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if focus is in an input/textarea/contenteditable
+      const target = e.target as HTMLElement;
+      const isEditing = target.tagName === 'INPUT' || 
+                       target.tagName === 'TEXTAREA' || 
+                       target.isContentEditable;
+      
+      if (isEditing) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -119,15 +158,15 @@ export function EmailTemplateBuilderV2({
       const newBlock = createDefaultBlock(blockType, templateId);
       
       if (over.id === "canvas-drop-zone") {
-        setBlocks([...blocks, newBlock]);
+        pushBlocks([...blocks, newBlock]);
       } else {
         const overIndex = blocks.findIndex((b) => b.id === over.id);
         if (overIndex >= 0) {
           const newBlocks = [...blocks];
           newBlocks.splice(overIndex, 0, newBlock);
-          setBlocks(newBlocks);
+          pushBlocks(newBlocks);
         } else {
-          setBlocks([...blocks, newBlock]);
+          pushBlocks([...blocks, newBlock]);
         }
       }
       setSelectedBlockId(newBlock.id);
@@ -139,31 +178,31 @@ export function EmailTemplateBuilderV2({
       const oldIndex = blocks.findIndex((b) => b.id === active.id);
       const newIndex = blocks.findIndex((b) => b.id === over.id);
       if (oldIndex >= 0 && newIndex >= 0) {
-        setBlocks(arrayMove(blocks, oldIndex, newIndex));
+        pushBlocks(arrayMove(blocks, oldIndex, newIndex));
       }
     }
   };
 
   const updateBlock = useCallback((id: string, content: Partial<BlockContent>) => {
-    setBlocks((prev) =>
-      prev.map((b) =>
+    pushBlocks(
+      blocks.map((b) =>
         b.id === id ? { ...b, content: { ...b.content, ...content } } : b
       )
     );
-  }, []);
+  }, [blocks, pushBlocks]);
 
   const updateBlockStyles = useCallback((id: string, styles: Partial<BlockStyles>) => {
-    setBlocks((prev) =>
-      prev.map((b) =>
+    pushBlocks(
+      blocks.map((b) =>
         b.id === id ? { ...b, styles: { ...b.styles, ...styles } } : b
       )
     );
-  }, []);
+  }, [blocks, pushBlocks]);
 
   const deleteBlock = useCallback((id: string) => {
-    setBlocks((prev) => prev.filter((b) => b.id !== id));
+    pushBlocks(blocks.filter((b) => b.id !== id));
     if (selectedBlockId === id) setSelectedBlockId(null);
-  }, [selectedBlockId]);
+  }, [blocks, pushBlocks, selectedBlockId]);
 
   const handleSave = () => {
     const orderedBlocks = blocks.map((block, index) => ({
@@ -187,6 +226,30 @@ export function EmailTemplateBuilderV2({
           {/* Toolbar */}
           <div className="flex items-center justify-between p-3 border-b bg-card">
             <div className="flex items-center gap-3">
+              {/* Undo/Redo buttons */}
+              <div className="flex items-center gap-1 border-r pr-3">
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={undo} 
+                  disabled={!canUndo}
+                  title="Desfazer (Ctrl+Z)"
+                >
+                  <Undo2 className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={redo} 
+                  disabled={!canRedo}
+                  title="Refazer (Ctrl+Shift+Z)"
+                >
+                  <Redo2 className="h-4 w-4" />
+                </Button>
+              </div>
+
               <Tabs value={previewMode} onValueChange={(v) => setPreviewMode(v as "desktop" | "mobile")}>
                 <TabsList className="h-8">
                   <TabsTrigger value="desktop" className="text-xs gap-1.5">

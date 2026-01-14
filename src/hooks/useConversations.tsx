@@ -44,31 +44,87 @@ export function useConversations(filters?: ConversationFilters) {
   const { role, loading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
 
-  // Realtime subscription for conversations
+  // Realtime subscription for conversations - otimizado para máxima velocidade
   useEffect(() => {
     const channel = supabase
-      .channel("conversations-realtime")
+      .channel("conversations-realtime-v2")
       .on(
         "postgres_changes",
         {
-          event: "*", // Listen to INSERT, UPDATE, DELETE
+          event: "INSERT",
+          schema: "public",
+          table: "conversations",
+        },
+        async (payload) => {
+          console.log("[Realtime] 🆕 New conversation INSERT:", payload.new.id);
+          
+          // Fetch completo com joins para adicionar imediatamente na lista
+          const { data: newConv, error } = await supabase
+            .from("conversations")
+            .select(`
+              *,
+              contacts(*, organizations(*)),
+              department_data:departments!department(id, name, color),
+              assigned_user:profiles!assigned_to(id, full_name, avatar_url, job_title, department)
+            `)
+            .eq('id', payload.new.id)
+            .single();
+          
+          if (newConv && !error) {
+            // Adicionar diretamente ao cache sem invalidar (mais rápido)
+            queryClient.setQueryData(
+              ["conversations", user?.id, role, filters],
+              (old: Conversation[] | undefined) => {
+                if (!old) return [newConv];
+                // Verificar se já existe para evitar duplicação
+                if (old.some(c => c.id === newConv.id)) return old;
+                // Adicionar no topo (mais recente primeiro)
+                return [newConv as Conversation, ...old];
+              }
+            );
+            console.log("[Realtime] ✅ Conversation added to cache instantly");
+          } else {
+            // Fallback: invalidar se fetch falhou
+            queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
           schema: "public",
           table: "conversations",
         },
         (payload) => {
-          console.log("[Realtime] Conversation change:", payload.eventType, payload);
-          // Invalidate to refetch with full joins
+          console.log("[Realtime] 🔄 Conversation UPDATE:", payload.new.id);
+          // Para updates, invalidar para refetch com dados corretos
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "conversations",
+        },
+        (payload) => {
+          console.log("[Realtime] ❌ Conversation DELETE:", payload.old.id);
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
         }
       )
       .subscribe((status) => {
-        console.log("[Realtime] Conversations subscription status:", status);
+        console.log("[Realtime] 📡 Conversations channel status:", status);
+        if (status === 'SUBSCRIBED') {
+          console.log("[Realtime] ✅ Listening for conversation changes");
+        }
       });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, user?.id, role, filters]);
 
   return useQuery({
     queryKey: ["conversations", user?.id, role, filters],

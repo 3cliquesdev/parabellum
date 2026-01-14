@@ -152,6 +152,83 @@ export function useDeleteEmailTemplateV2() {
   });
 }
 
+export function useDuplicateEmailTemplateV2() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (templateId: string) => {
+      // 1. Fetch original template
+      const { data: original, error: fetchError } = await supabase
+        .from("email_templates_v2")
+        .select("*")
+        .eq("id", templateId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // 2. Create copy of template
+      const { data: newTemplate, error: insertError } = await supabase
+        .from("email_templates_v2")
+        .insert({
+          name: `${original.name} (Cópia)`,
+          description: original.description,
+          category: original.category,
+          trigger_type: null, // Remove trigger to avoid conflicts
+          default_subject: original.default_subject,
+          default_preheader: original.default_preheader,
+          is_active: false, // Inactive by default
+          branding_id: original.branding_id,
+          sender_id: original.sender_id,
+          department_id: original.department_id,
+          ab_testing_enabled: false,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // 3. Duplicate template blocks
+      const { data: blocks } = await supabase
+        .from("email_template_blocks")
+        .select("*")
+        .eq("template_id", templateId)
+        .order("position", { ascending: true });
+
+      if (blocks && blocks.length > 0) {
+        const newBlocks = blocks.map((block) => ({
+          template_id: newTemplate.id,
+          block_type: block.block_type,
+          position: block.position,
+          content: block.content,
+          styles: block.styles,
+          responsive: block.responsive,
+          parent_block_id: null,
+          column_index: block.column_index,
+        }));
+
+        await supabase.from("email_template_blocks").insert(newBlocks);
+      }
+
+      return newTemplate;
+    },
+    onSuccess: (newTemplate) => {
+      queryClient.invalidateQueries({ queryKey: ["email-templates-v2"] });
+      toast({
+        title: "Template duplicado!",
+        description: `"${newTemplate.name}" criado com sucesso`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao duplicar",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 // =============================================
 // BLOCKS
 // =============================================

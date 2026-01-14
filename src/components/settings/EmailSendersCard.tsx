@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,12 +53,25 @@ function SenderDialog({ open, onOpenChange, sender }: SenderDialogProps) {
   const updateMutation = useUpdateEmailSender();
   
   const [formData, setFormData] = useState({
-    name: sender?.name || "",
-    from_name: sender?.from_name || "",
-    from_email: sender?.from_email || "",
-    department_id: sender?.department_id || null,
-    is_default: sender?.is_default || false,
+    name: "",
+    from_name: "",
+    from_email: "",
+    department_id: null as string | null,
+    is_default: false,
   });
+
+  // Sincroniza formData quando sender ou open mudar
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        name: sender?.name || "",
+        from_name: sender?.from_name || "",
+        from_email: sender?.from_email || "",
+        department_id: sender?.department_id || null,
+        is_default: sender?.is_default || false,
+      });
+    }
+  }, [sender, open]);
 
   const handleSubmit = async () => {
     try {

@@ -570,7 +570,7 @@ serve(async (req) => {
         .select(`
           *,
           contacts!inner(
-            id, first_name, last_name, email, phone, whatsapp_id, company, status, document
+            id, first_name, last_name, email, phone, whatsapp_id, company, status, document, kiwify_validated, kiwify_validated_at
           )
         `)
         .eq('id', conversationId)
@@ -1557,12 +1557,16 @@ Responda APENAS: skip ou search`
       } // Fechamento do else de canAccessKnowledgeBase
     }
 
-    // 5. FASE 1: Identity Wall - Verificar se contato tem email
+    // 5. FASE 1: Identity Wall - Verificar se contato tem email OU é cliente Kiwify validado
     const contactEmail = customer_context?.email || contact.email;
     const contactHasEmail = !!contactEmail;
     const contactName = customer_context?.name || `${contact.first_name} ${contact.last_name}`.trim();
     const contactCompany = contact.company ? ` da empresa ${contact.company}` : '';
     const contactStatus = contact.status || 'lead';
+    
+    // 🆕 CORREÇÃO: Cliente é "conhecido" se tem email OU se foi validado via Kiwify
+    const isKiwifyValidated = contact.kiwify_validated === true;
+    const isValidatedCustomer = contactHasEmail || isKiwifyValidated;
     
     // 🔐 LGPD: Dados mascarados para exposição à IA
     const safeEmail = maskEmail(contactEmail);
@@ -1570,9 +1574,11 @@ Responda APENAS: skip ou search`
     
     console.log('[ai-autopilot-chat] 🔐 Identity Wall Check:', {
       hasEmail: contactHasEmail,
+      isKiwifyValidated: isKiwifyValidated,
+      isValidatedCustomer: isValidatedCustomer,
       email: safeEmail,
       channel: responseChannel,
-      isKnownCustomer: contactHasEmail
+      isKnownCustomer: isValidatedCustomer
     });
     
     // ============================================================
@@ -1832,16 +1838,30 @@ Responda APENAS: skip ou search`
     });
     
     if (intentType === 'skip' && !isFinancialContext && isFirstMessageOfSession) {
-      // CASO 1: Cliente conhecido = saudação personalizada direta
-      if (contactHasEmail) {
-        console.log('[ai-autopilot-chat] 🎯 BYPASS DA IA - Saudação direta para cliente conhecido');
+      // CASO 1: Cliente conhecido (tem email OU validado Kiwify) = saudação personalizada direta
+      if (isValidatedCustomer) {
+        console.log('[ai-autopilot-chat] 🎯 BYPASS DA IA - Saudação direta para cliente conhecido', {
+          hasEmail: contactHasEmail,
+          isKiwifyValidated: isKiwifyValidated
+        });
         
-        // Buscar template do banco ou usar fallback
-        const directGreeting = await getMessageTemplate(
-          supabaseClient,
-          'saudacao_cliente_conhecido',
-          { contact_name: contactName || '' }
-        ) || `Olá ${contactName}! Bem-vindo(a) de volta! Como posso te ajudar hoje?`;
+        // Saudação diferenciada para cliente Kiwify sem email
+        let directGreeting: string;
+        if (isKiwifyValidated && !contactHasEmail) {
+          // Cliente Kiwify identificado pelo telefone
+          directGreeting = await getMessageTemplate(
+            supabaseClient,
+            'saudacao_cliente_kiwify',
+            { contact_name: contactName || '' }
+          ) || `Olá ${contactName}! 🎉\n\nIdentifiquei você automaticamente pelo seu número de WhatsApp.\n\nComo posso te ajudar hoje?`;
+        } else {
+          // Cliente com email
+          directGreeting = await getMessageTemplate(
+            supabaseClient,
+            'saudacao_cliente_conhecido',
+            { contact_name: contactName || '' }
+          ) || `Olá ${contactName}! Bem-vindo(a) de volta! Como posso te ajudar hoje?`;
+        }
         
         // Salvar mensagem da IA
         const { data: savedMsg } = await supabaseClient
@@ -1881,8 +1901,9 @@ Responda APENAS: skip ou search`
           messageId: savedMsg?.id,
           directGreeting: true,
           debug: { 
-            reason: 'known_customer_greeting_bypass',
+            reason: isKiwifyValidated && !contactHasEmail ? 'kiwify_customer_greeting_bypass' : 'known_customer_greeting_bypass',
             customer_name: contactName,
+            isKiwifyValidated: isKiwifyValidated,
             bypassed_ai: true
           }
         }), {
@@ -1890,9 +1911,9 @@ Responda APENAS: skip ou search`
         });
       }
       
-      // CASO 2: Lead novo sem email = pedir email direto
-      if (!contactHasEmail && responseChannel === 'whatsapp') {
-        console.log('[ai-autopilot-chat] 🎯 BYPASS DA IA - Pedindo email para lead novo');
+      // CASO 2: Lead novo (NÃO validado Kiwify e SEM email) = pedir email direto
+      if (!isValidatedCustomer && responseChannel === 'whatsapp') {
+        console.log('[ai-autopilot-chat] 🎯 BYPASS DA IA - Pedindo email para lead novo (não validado Kiwify)');
         
         // Buscar template do banco ou usar fallback
         const leadGreeting = await getMessageTemplate(

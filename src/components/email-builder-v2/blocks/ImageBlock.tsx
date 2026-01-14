@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { Image as ImageIcon, Upload, Link, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Upload, Link, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -211,6 +211,17 @@ export function ImageBlock({ block, isSelected, onUpdate, readOnly }: ImageBlock
           >
             Alterar Imagem
           </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => {
+              onUpdate({ src: "", alt: "", url: "" });
+              setTempUrl("");
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Remover
+          </Button>
         </div>
       )}
 
@@ -269,14 +280,27 @@ export function ImageBlock({ block, isSelected, onUpdate, readOnly }: ImageBlock
               </TabsContent>
             </Tabs>
             
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsEditing(false)}
-              className="w-full"
-            >
-              Cancelar
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsEditing(false)}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => {
+                  onUpdate({ src: "", alt: "", url: "" });
+                  setTempUrl("");
+                  setIsEditing(false);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       )}

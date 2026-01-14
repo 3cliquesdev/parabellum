@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, Settings, FlaskConical, LayoutTemplate } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, Settings, FlaskConical, LayoutTemplate, AlertTriangle } from "lucide-react";
 import {
   EmailTemplateBuilderV2,
   ABTestingPanel,
@@ -128,6 +129,17 @@ export default function EmailBuilderV2Page() {
             </Button>
           </div>
         </div>
+
+        {/* Migrated Template Warning */}
+        {template.name.includes("(Migrado)") && (
+          <Alert className="mx-4 mt-2 bg-amber-50 border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800 text-sm">
+              Este template foi migrado e usa HTML customizado. Use o modo "Editar" no bloco para modificar visualmente, 
+              ou recrie usando a biblioteca de layouts para edição por blocos.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Editor */}
         <div className="flex-1 overflow-hidden">

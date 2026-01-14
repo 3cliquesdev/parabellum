@@ -424,36 +424,47 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
     const firstName = names[0] || customerName;
     const lastName = names.slice(1).join(' ') || '';
 
-    // 🔧 FIX: Usar upsert com on_conflict para evitar duplicação em race condition
+    // 🔧 FIX: Usar INSERT simples + tratamento de erro de duplicação
+    // (ON CONFLICT não funciona bem com índices parciais)
     const { data: newContact, error: contactError } = await supabase
       .from('contacts')
-      .upsert({
+      .insert({
         first_name: firstName,
         last_name: lastName,
         phone: phoneForDatabase,        // ✅ Número real (não LID)
         whatsapp_id: jidForSending,     // ✅ JID para envio (alternativo se LID)
         source: 'whatsapp',
         status: 'lead',
-      }, {
-        onConflict: 'phone',
-        ignoreDuplicates: false
       })
       .select()
       .single();
 
     if (contactError) {
-      // Se falhou no upsert, tentar buscar novamente (pode ter sido criado por outra requisição)
-      console.warn('[handle-whatsapp-event] ⚠️ Upsert failed, trying to fetch:', contactError.message);
-      const { data: retryContact } = await supabase
-        .from('contacts')
-        .select('id, email, first_name, last_name')
-        .eq('phone', phoneForDatabase)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (retryContact && retryContact.length > 0) {
-        contactId = retryContact[0].id;
-        console.log('[handle-whatsapp-event] ✅ Found contact on retry:', contactId);
+      // Se for erro de duplicação (unique_violation), buscar o existente
+      if (contactError.code === '23505') {
+        console.log('[handle-whatsapp-event] 📞 Phone already exists, fetching existing contact...');
+        const { data: existingByPhone } = await supabase
+          .from('contacts')
+          .select('id, email, first_name, last_name')
+          .eq('phone', phoneForDatabase)
+          .order('created_at', { ascending: true })
+          .limit(1);
+        
+        if (existingByPhone && existingByPhone.length > 0) {
+          contactId = existingByPhone[0].id;
+          console.log('[handle-whatsapp-event] ✅ Found existing contact by phone:', contactId);
+          
+          // Atualizar whatsapp_id se necessário
+          if (jidForSending) {
+            await supabase
+              .from('contacts')
+              .update({ whatsapp_id: jidForSending })
+              .eq('id', contactId);
+          }
+        } else {
+          console.error('[handle-whatsapp-event] ❌ Duplicate error but contact not found');
+          throw new Error('Contact creation failed: duplicate but not found');
+        }
       } else {
         console.error('[handle-whatsapp-event] ❌ Error creating contact:', contactError);
         throw contactError;

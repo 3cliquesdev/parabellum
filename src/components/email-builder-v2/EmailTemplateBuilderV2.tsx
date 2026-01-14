@@ -187,7 +187,8 @@ export function EmailTemplateBuilderV2({
     pushBlocks(
       blocks.map((b) =>
         b.id === id ? { ...b, content: { ...b.content, ...content } } : b
-      )
+      ),
+      { merge: true, mergeKey: `content:${id}`, mergeWindowMs: 800 }
     );
   }, [blocks, pushBlocks]);
 

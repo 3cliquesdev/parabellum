@@ -868,6 +868,26 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
     }
   } else {
     console.log('[handle-whatsapp-event] ⏸️ AI skipped - Global:', isAIGloballyEnabled, 'Instance mode:', instance.ai_mode);
+    
+    // 🆕 DISTRIBUIÇÃO SEM IA: Se não tem agente atribuído, distribuir para fila humana
+    const { data: convData } = await supabase
+      .from('conversations')
+      .select('assigned_to, status')
+      .eq('id', conversationId)
+      .single();
+      
+    if (!convData?.assigned_to && convData?.status === 'open') {
+      console.log('[handle-whatsapp-event] 📢 IA desligada - Distribuindo para fila humana');
+      
+      try {
+        await supabase.functions.invoke('route-conversation', {
+          body: { conversationId }
+        });
+        console.log('[handle-whatsapp-event] ✅ Conversa enviada para distribuição');
+      } catch (routeError) {
+        console.error('[handle-whatsapp-event] ❌ Erro ao distribuir:', routeError);
+      }
+    }
   }
 }
 

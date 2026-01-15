@@ -23,6 +23,8 @@ import { Switch } from "@/components/ui/switch";
 import { usePublicTicketPortalConfig, useTogglePortal } from "@/hooks/usePublicTicketPortal";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { TourButton } from "@/components/tour/TourButton";
+import { FORMS_TOUR_ID, FORMS_TOUR_STEPS } from "@/components/tour/tours";
 
 export default function Forms() {
   const [searchParams] = useSearchParams();
@@ -182,14 +184,16 @@ export default function Forms() {
               <Sparkles className="h-4 w-4" />
               Builder 2.0
             </Button>
-            <FormDialog
-              trigger={
-                <Button className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Novo Formulário
-                </Button>
-              }
-            />
+            <div data-tour="forms-create-button">
+              <FormDialog
+                trigger={
+                  <Button className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Novo Formulário
+                  </Button>
+                }
+              />
+            </div>
           </div>
         </div>
         
@@ -258,9 +262,9 @@ export default function Forms() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredForms.map((form) => (
-            <Card key={form.id}>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3" data-tour="forms-list">
+          {filteredForms.map((form, index) => (
+            <Card key={form.id} data-tour={index === 0 ? "forms-toggle" : undefined}>
               <CardHeader>
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
@@ -295,6 +299,7 @@ export default function Forms() {
                       size="sm"
                       className="flex-1 gap-2"
                       onClick={() => copyFormLink(form.id)}
+                      data-tour={index === 0 ? "forms-copy-link" : undefined}
                     >
                       <Copy className="h-4 w-4" />
                       Copiar Link
@@ -325,6 +330,7 @@ export default function Forms() {
                       size="sm"
                       onClick={() => exportFormSubmissions(form)}
                       title="Baixar respostas (CSV)"
+                      data-tour={index === 0 ? "forms-download" : undefined}
                     >
                       <Download className="h-4 w-4" />
                     </Button>
@@ -357,6 +363,9 @@ export default function Forms() {
           ))}
         </div>
       )}
+
+      {/* Tour Button */}
+      <TourButton tourId={FORMS_TOUR_ID} steps={FORMS_TOUR_STEPS} />
     </div>
   );
 }

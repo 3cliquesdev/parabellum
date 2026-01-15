@@ -7026,6 +7026,30 @@ export type Database = {
           },
         ]
       }
+      tour_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          tour_id: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          tour_id: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          tour_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tracking_cache: {
         Row: {
           created_at: string | null

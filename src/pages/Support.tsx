@@ -19,6 +19,8 @@ import { BulkMoveToProjectDialog } from "@/components/support/BulkMoveToProjectD
 import { BulkTransferTicketsDialog } from "@/components/support/BulkTransferTicketsDialog";
 import { useBulkArchiveTickets } from "@/hooks/useBulkArchiveTickets";
 import { TicketFilterPopover, TicketFilters, defaultTicketFilters } from "@/components/support/TicketFilterPopover";
+import { TourButton } from "@/components/tour/TourButton";
+import { TICKETS_TOUR_ID, TICKETS_TOUR_STEPS } from "@/components/tour/tours";
 
 
 type MobileView = 'list' | 'details';
@@ -323,10 +325,12 @@ export default function Support() {
           
           <div className="flex items-center gap-3">
             {/* Filtros Avançados */}
-            <TicketFilterPopover 
-              filters={advancedFilters} 
-              onFiltersChange={setAdvancedFilters} 
-            />
+            <div data-tour="tickets-filter-popover">
+              <TicketFilterPopover 
+                filters={advancedFilters} 
+                onFiltersChange={setAdvancedFilters} 
+              />
+            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (
@@ -355,7 +359,7 @@ export default function Support() {
               </div>
             )}
 
-            <Button onClick={() => setCreateDialogOpen(true)} size="sm">
+            <Button onClick={() => setCreateDialogOpen(true)} size="sm" data-tour="tickets-create-button">
               <Plus className="w-4 h-4 mr-2" />
               Novo Ticket
             </Button>
@@ -366,7 +370,7 @@ export default function Support() {
       {/* Split View */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar (200px) */}
-        <div className="w-[200px] flex-shrink-0 overflow-hidden">
+        <div className="w-[200px] flex-shrink-0 overflow-hidden" data-tour="tickets-sidebar">
           <TicketsSidebar 
             selectedFilter={sidebarFilter}
             onFilterChange={setSidebarFilter}
@@ -374,7 +378,7 @@ export default function Support() {
         </div>
 
         {/* Tickets Table - Full width now */}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden" data-tour="tickets-table">
           <TicketsTable
             tickets={paginatedTickets}
             selectedTicketId={selectedTicketId}
@@ -386,6 +390,9 @@ export default function Support() {
           />
         </div>
       </div>
+
+      {/* Tour Button */}
+      <TourButton tourId={TICKETS_TOUR_ID} steps={TICKETS_TOUR_STEPS} />
 
       <CreateTicketDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
 

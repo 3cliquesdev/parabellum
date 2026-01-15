@@ -176,101 +176,90 @@ export function TourProvider({ children }: TourProviderProps) {
     >
       {children}
 
-      {/* Tour Overlay */}
-      {isActive && createPortal(
+      {/* Tour Overlay - Only render when we have a valid target */}
+      {isActive && targetRect && currentTourStep && createPortal(
         <>
-          {/* Spotlight with box-shadow overlay - replaces radial gradient */}
-          {targetRect && (
-            <div
-              className="fixed z-[9998] pointer-events-none rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background"
-              style={{
-                top: targetRect.top - 8,
-                left: targetRect.left - 8,
-                width: targetRect.width + 16,
-                height: targetRect.height + 16,
-                boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.75)',
-              }}
-            />
-          )}
-
-          {/* Fallback overlay when no target */}
-          {!targetRect && (
-            <div 
-              className="fixed inset-0 z-[9998] pointer-events-none bg-black/75"
-            />
-          )}
+          {/* Spotlight with box-shadow overlay */}
+          <div
+            className="fixed z-[9998] pointer-events-none rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background"
+            style={{
+              top: targetRect.top - 8,
+              left: targetRect.left - 8,
+              width: targetRect.width + 16,
+              height: targetRect.height + 16,
+              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.75)',
+            }}
+          />
 
           {/* Tooltip */}
-          {currentTourStep && targetRect && (
-            <Card
-              className="fixed z-[10000] w-80 shadow-2xl animate-in fade-in-0 slide-in-from-bottom-2"
-              style={{
-                top: targetRect.bottom + 16,
-                left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 336)),
-              }}
-            >
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-foreground">
-                    {currentTourStep.title}
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 -mt-1 -mr-1"
-                    onClick={endTour}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
+          <Card
+            className="fixed z-[10000] w-80 shadow-2xl animate-in fade-in-0 slide-in-from-bottom-2"
+            style={{
+              top: targetRect.bottom + 16,
+              left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 336)),
+            }}
+          >
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="font-semibold text-foreground">
+                  {currentTourStep.title}
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 -mt-1 -mr-1"
+                  onClick={endTour}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
 
-                <p className="text-sm text-muted-foreground mb-4">
-                  {currentTourStep.content}
-                </p>
+              <p className="text-sm text-muted-foreground mb-4">
+                {currentTourStep.content}
+              </p>
 
-                {/* Progress dots */}
-                <div className="flex items-center justify-center gap-1 mb-4">
-                  {steps.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => goToStep(index)}
-                      className={cn(
-                        "w-2 h-2 rounded-full transition-colors",
-                        index === currentStep
-                          ? "bg-primary"
-                          : "bg-muted hover:bg-muted-foreground/50"
-                      )}
-                    />
-                  ))}
-                </div>
+              {/* Progress dots */}
+              <div className="flex items-center justify-center gap-1 mb-4">
+                {steps.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => goToStep(index)}
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-colors",
+                      index === currentStep
+                        ? "bg-primary"
+                        : "bg-muted hover:bg-muted-foreground/50"
+                    )}
+                  />
+                ))}
+              </div>
 
-                {/* Navigation */}
-                <div className="flex justify-between items-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={prevStep}
-                    disabled={currentStep === 0}
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Anterior
-                  </Button>
+              {/* Navigation */}
+              <div className="flex justify-between items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={prevStep}
+                  disabled={currentStep === 0}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Anterior
+                </Button>
 
-                  <span className="text-xs text-muted-foreground">
-                    {currentStep + 1} / {steps.length}
-                  </span>
+                <span className="text-xs text-muted-foreground">
+                  {currentStep + 1} / {steps.length}
+                </span>
 
-                  <Button
-                    size="sm"
-                    onClick={nextStep}
-                  >
-                    {currentStep === steps.length - 1 ? 'Finalizar' : 'Próximo'}
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                <Button
+                  size="sm"
+                  onClick={nextStep}
+                >
+                  {currentStep === steps.length - 1 ? 'Finalizar' : 'Próximo'}
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </>,
         document.body
       )}

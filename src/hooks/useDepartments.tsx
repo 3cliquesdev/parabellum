@@ -12,17 +12,34 @@ export interface Department {
   updated_at: string;
 }
 
-export function useDepartments() {
+interface UseDepartmentsOptions {
+  /** Only fetch active departments (default: false for backward compatibility) */
+  activeOnly?: boolean;
+}
+
+export function useDepartments(options: UseDepartmentsOptions = {}) {
+  const { activeOnly = false } = options;
+  
   return useQuery({
-    queryKey: ["departments"],
+    queryKey: ["departments", { activeOnly }],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("departments")
-        .select("*")
-        .order("name");
+        .select("*");
+      
+      // Filter by active status if requested
+      if (activeOnly) {
+        query = query.eq("is_active", true);
+      }
+      
+      const { data, error } = await query.order("name");
 
       if (error) throw error;
       return data as Department[];
     },
+    // Cache for 5 minutes - departments rarely change
+    staleTime: 5 * 60 * 1000,
+    // Keep in cache for 10 minutes
+    gcTime: 10 * 60 * 1000,
   });
 }

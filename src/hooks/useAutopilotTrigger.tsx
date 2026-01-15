@@ -4,16 +4,25 @@ import { supabase } from '@/integrations/supabase/client';
 /**
  * Hook que automaticamente dispara resposta da IA quando cliente envia mensagem
  * em conversas no modo Autopilot (fallback caso webhook não funcione)
+ * 
+ * OTIMIZAÇÃO: Cache do ai_mode para evitar query a cada mensagem
  */
 export function useAutopilotTrigger(conversationId: string | null) {
   // 🛡️ PROTEÇÃO ANTI-LOOP: Rastrear mensagens já processadas
   const processedMessageIds = useRef(new Set<string>());
   const lastTriggerRef = useRef<number>(0);
+  
+  // ✅ OTIMIZAÇÃO: Cache do ai_mode para evitar query repetida
+  const aiModeCache = useRef<{ mode: string | null; fetchedAt: number } | null>(null);
+  const AI_MODE_CACHE_TTL = 60000; // 1 minuto de cache
 
   useEffect(() => {
     if (!conversationId) return;
 
     console.log('[useAutopilotTrigger] Monitoring conversation:', conversationId);
+    
+    // Limpar cache quando conversationId mudar
+    aiModeCache.current = null;
 
     const channel = supabase
       .channel(`autopilot-trigger-${conversationId}`)
@@ -67,22 +76,34 @@ export function useAutopilotTrigger(conversationId: string | null) {
             processedMessageIds.current.delete(newMessage.id);
           }, 60000);
 
-          // Buscar ai_mode
-          const { data: conv, error } = await supabase
-            .from('conversations')
-            .select('ai_mode')
-            .eq('id', conversationId)
-            .single();
+          // ✅ OTIMIZAÇÃO: Usar cache do ai_mode se disponível e válido
+          let aiMode: string | null = null;
+          
+          if (aiModeCache.current && (now - aiModeCache.current.fetchedAt) < AI_MODE_CACHE_TTL) {
+            // Usar cache
+            aiMode = aiModeCache.current.mode;
+            console.log('[useAutopilotTrigger] Using cached ai_mode:', aiMode);
+          } else {
+            // Buscar do banco
+            const { data: conv, error } = await supabase
+              .from('conversations')
+              .select('ai_mode')
+              .eq('id', conversationId)
+              .single();
 
-          if (error) {
-            console.error('[useAutopilotTrigger] Error fetching conversation:', error);
-            return;
+            if (error) {
+              console.error('[useAutopilotTrigger] Error fetching conversation:', error);
+              return;
+            }
+
+            aiMode = conv?.ai_mode || null;
+            // Atualizar cache
+            aiModeCache.current = { mode: aiMode, fetchedAt: now };
+            console.log('[useAutopilotTrigger] Fetched and cached ai_mode:', aiMode);
           }
 
-          console.log('[useAutopilotTrigger] Conversation mode:', conv?.ai_mode);
-
           // Trigger autopilot
-          if (conv?.ai_mode === 'autopilot') {
+          if (aiMode === 'autopilot') {
             console.log('[useAutopilotTrigger] Triggering AI response...');
             
             try {

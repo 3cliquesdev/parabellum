@@ -147,7 +147,7 @@ export function TicketsTable({
     <div className="h-full flex flex-col bg-card">
       {/* Table Header */}
       <div className="flex-none border-b border-border bg-muted/50">
-        <div className="grid grid-cols-[40px_90px_minmax(120px,1.5fr)_minmax(140px,1fr)_minmax(130px,1fr)_minmax(100px,0.8fr)_50px_80px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="grid grid-cols-[40px_140px_minmax(120px,1.5fr)_minmax(140px,1fr)_minmax(130px,1fr)_minmax(100px,0.8fr)_50px_80px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
           {onToggleSelectAll && (
             <div className="flex items-center justify-center">
               <Checkbox 
@@ -188,7 +188,7 @@ export function TicketsTable({
                 key={ticket.id}
                 onClick={() => onSelectTicket(ticket.id)}
                 className={cn(
-                  "grid grid-cols-[40px_90px_minmax(120px,1.5fr)_minmax(140px,1fr)_minmax(130px,1fr)_minmax(100px,0.8fr)_50px_80px] gap-2 px-3 py-3 cursor-pointer transition-colors items-center",
+                  "grid grid-cols-[40px_140px_minmax(120px,1.5fr)_minmax(140px,1fr)_minmax(130px,1fr)_minmax(100px,0.8fr)_50px_80px] gap-2 px-3 py-3 cursor-pointer transition-colors items-center",
                   isSelected 
                     ? "bg-primary/5 border-l-2 border-primary" 
                     : "hover:bg-accent/50 border-l-2 border-transparent",
@@ -214,7 +214,7 @@ export function TicketsTable({
                   {slaExpired && (
                     <AlertTriangle className="w-3 h-3 text-destructive flex-shrink-0" />
                   )}
-                  <span className="text-xs font-mono text-muted-foreground truncate">
+                  <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
                     {ticket.ticket_number || `#${ticket.id.slice(0, 6)}`}
                   </span>
                 </div>

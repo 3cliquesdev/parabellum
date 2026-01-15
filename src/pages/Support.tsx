@@ -8,6 +8,7 @@ import { TicketCard } from "@/components/support/TicketCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, ArrowLeft, Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useIsMobileBreakpoint } from "@/hooks/useBreakpoint";
 import { PageContainer } from "@/components/ui/page-container";
@@ -118,6 +119,89 @@ export default function Support() {
   useEffect(() => {
     setCurrentPage(1);
   }, [sidebarFilter, advancedFilters]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // Ctrl/Cmd + A: Select all tickets on the page
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        if (selectedTicketIds.length === paginatedTickets.length) {
+          setSelectedTicketIds([]);
+        } else {
+          setSelectedTicketIds(paginatedTickets.map(t => t.id));
+        }
+      }
+
+      // Ctrl/Cmd + C: Copy selected ticket numbers
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedTicketIds.length > 0) {
+        e.preventDefault();
+        const ticketNumbers = allTickets
+          .filter(t => selectedTicketIds.includes(t.id))
+          .map(t => t.ticket_number || t.id)
+          .join('\n');
+        navigator.clipboard.writeText(ticketNumbers);
+        toast.success(`${selectedTicketIds.length} ticket(s) copiado(s)`);
+      }
+
+      // Tab: Navigate to next ticket
+      if (e.key === 'Tab' && !e.shiftKey && paginatedTickets.length > 0) {
+        e.preventDefault();
+        const currentIndex = paginatedTickets.findIndex(t => t.id === selectedTicketId);
+        const nextIndex = currentIndex < paginatedTickets.length - 1 ? currentIndex + 1 : 0;
+        setSelectedTicketId(paginatedTickets[nextIndex]?.id || null);
+      }
+
+      // Shift + Tab: Navigate to previous ticket
+      if (e.key === 'Tab' && e.shiftKey && paginatedTickets.length > 0) {
+        e.preventDefault();
+        const currentIndex = paginatedTickets.findIndex(t => t.id === selectedTicketId);
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : paginatedTickets.length - 1;
+        setSelectedTicketId(paginatedTickets[prevIndex]?.id || null);
+      }
+
+      // Enter: Open selected ticket
+      if (e.key === 'Enter' && selectedTicketId) {
+        e.preventDefault();
+        // Navigate directly instead of using handleSelectTicket
+        if (isMobile) {
+          setMobileView('details');
+        } else {
+          navigate(`/support/${selectedTicketId}`);
+        }
+      }
+
+      // Escape: Clear selection
+      if (e.key === 'Escape') {
+        setSelectedTicketIds([]);
+        setSelectedTicketId(null);
+      }
+
+      // Arrow Down: Next ticket
+      if (e.key === 'ArrowDown' && paginatedTickets.length > 0) {
+        e.preventDefault();
+        const currentIndex = paginatedTickets.findIndex(t => t.id === selectedTicketId);
+        const nextIndex = Math.min(currentIndex + 1, paginatedTickets.length - 1);
+        setSelectedTicketId(paginatedTickets[nextIndex]?.id || paginatedTickets[0]?.id);
+      }
+
+      // Arrow Up: Previous ticket
+      if (e.key === 'ArrowUp' && paginatedTickets.length > 0) {
+        e.preventDefault();
+        const currentIndex = paginatedTickets.findIndex(t => t.id === selectedTicketId);
+        const prevIndex = Math.max(currentIndex - 1, 0);
+        setSelectedTicketId(paginatedTickets[prevIndex]?.id || paginatedTickets[0]?.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedTicketIds, paginatedTickets, selectedTicketId, allTickets, isMobile, navigate]);
 
   const handleSelectTicket = (ticketId: string) => {
     if (isMobile) {

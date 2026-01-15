@@ -115,8 +115,9 @@ Deno.serve(async (req) => {
       })
     );
 
-    // Filtrar apenas usuários ativos (não bloqueados)
-    const users = usersWithDetails.filter(u => u !== null && !u.is_blocked);
+    // Retornar TODOS os usuários (incluindo bloqueados e arquivados)
+    // A filtragem será feita no frontend por aba (Ativos, Bloqueados, Arquivados)
+    const users = usersWithDetails.filter(u => u !== null);
 
     return new Response(
       JSON.stringify({ users }),

@@ -28,6 +28,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { SettingsCategory } from "@/components/settings/SettingsCategory";
 import { SettingsCard } from "@/components/settings/SettingsCard";
+import { TourButton } from "@/components/tour/TourButton";
+import { SETTINGS_TOUR_ID, SETTINGS_TOUR_STEPS } from "@/components/tour/tours";
 
 export default function Settings() {
   const { hasPermission, loading } = useRolePermissions();
@@ -64,141 +66,149 @@ export default function Settings() {
       {/* Categories Grid */}
       <div className="space-y-8">
         {/* AI Section */}
-        <SettingsCategory
-          title="Inteligência Artificial"
-          icon={Brain}
-          iconColor="text-purple-500"
-        >
-          <SettingsCard
-            icon={Sparkles}
-            iconBgColor="bg-purple-500"
-            title="Modelo AI"
-            description="Escolha o modelo padrão"
-            onClick={() => navigate('/settings/ai')}
-          />
-          <SettingsCard
+        <div data-tour="settings-ai">
+          <SettingsCategory
+            title="Inteligência Artificial"
             icon={Brain}
-            iconBgColor="bg-purple-600"
-            title="Treinador AI"
-            description="Estatísticas e treinamento"
-            onClick={() => navigate('/settings/ai')}
-          />
-          <SettingsCard
-            icon={BookOpen}
-            iconBgColor="bg-purple-400"
-            title="Conhecimento"
-            description="Importe base de conhecimento"
-            onClick={() => navigate('/settings/knowledge-import')}
-          />
-        </SettingsCategory>
+            iconColor="text-purple-500"
+          >
+            <SettingsCard
+              icon={Sparkles}
+              iconBgColor="bg-purple-500"
+              title="Modelo AI"
+              description="Escolha o modelo padrão"
+              onClick={() => navigate('/settings/ai')}
+            />
+            <SettingsCard
+              icon={Brain}
+              iconBgColor="bg-purple-600"
+              title="Treinador AI"
+              description="Estatísticas e treinamento"
+              onClick={() => navigate('/settings/ai')}
+            />
+            <SettingsCard
+              icon={BookOpen}
+              iconBgColor="bg-purple-400"
+              title="Conhecimento"
+              description="Importe base de conhecimento"
+              onClick={() => navigate('/settings/knowledge-import')}
+            />
+          </SettingsCategory>
+        </div>
 
         {/* Communication Channels */}
-        <SettingsCategory
-          title="Canais de Comunicação"
-          icon={MessageCircle}
-          iconColor="text-green-500"
-        >
-          <SettingsCard
-            icon={Smartphone}
-            iconBgColor="bg-green-500"
-            title="WhatsApp"
-            description="Instâncias multi-agente"
-            onClick={() => navigate('/settings/whatsapp')}
-          />
-          <SettingsCard
-            icon={Instagram}
-            iconBgColor="bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400"
-            title="Instagram"
-            description="DMs e comentários"
-            onClick={() => navigate('/settings/instagram')}
-          />
-          <SettingsCard
+        <div data-tour="settings-channels">
+          <SettingsCategory
+            title="Canais de Comunicação"
             icon={MessageCircle}
-            iconBgColor="bg-blue-500"
-            title="Widget Chat"
-            description="Chat para seu site"
-            onClick={() => navigate('/settings/widget-builder')}
-          />
-          <SettingsCard
-            icon={Link}
-            iconBgColor="bg-cyan-500"
-            title="Links Diretos"
-            description="Links de chat público"
-            onClick={() => navigate('/settings/chat-links')}
-          />
-        </SettingsCategory>
+            iconColor="text-green-500"
+          >
+            <SettingsCard
+              icon={Smartphone}
+              iconBgColor="bg-green-500"
+              title="WhatsApp"
+              description="Instâncias multi-agente"
+              onClick={() => navigate('/settings/whatsapp')}
+            />
+            <SettingsCard
+              icon={Instagram}
+              iconBgColor="bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400"
+              title="Instagram"
+              description="DMs e comentários"
+              onClick={() => navigate('/settings/instagram')}
+            />
+            <SettingsCard
+              icon={MessageCircle}
+              iconBgColor="bg-blue-500"
+              title="Widget Chat"
+              description="Chat para seu site"
+              onClick={() => navigate('/settings/widget-builder')}
+            />
+            <SettingsCard
+              icon={Link}
+              iconBgColor="bg-cyan-500"
+              title="Links Diretos"
+              description="Links de chat público"
+              onClick={() => navigate('/settings/chat-links')}
+            />
+          </SettingsCategory>
+        </div>
 
         {/* E-commerce & Sales */}
-        <SettingsCategory
-          title="E-commerce & Vendas"
-          icon={ShoppingCart}
-          iconColor="text-orange-500"
-        >
-          <SettingsCard
+        <div data-tour="settings-ecommerce">
+          <SettingsCategory
+            title="E-commerce & Vendas"
             icon={ShoppingCart}
-            iconBgColor="bg-orange-500"
-            title="Kiwify"
-            description="Integração de pagamentos"
-            onClick={() => navigate('/settings/kiwify')}
-          />
-          <SettingsCard
-            icon={Package}
-            iconBgColor="bg-orange-600"
-            title="Produtos"
-            description="Gerencie produtos"
-            onClick={() => navigate('/settings/products')}
-          />
-          <SettingsCard
-            icon={Target}
-            iconBgColor="bg-amber-500"
-            title="Scoring"
-            description="Qualificação de leads"
-            onClick={() => navigate('/settings/scoring')}
-          />
-          <SettingsCard
-            icon={Package}
-            iconBgColor="bg-orange-400"
-            title="Grupos Entrega"
-            description="Pacotes de automação"
-            onClick={() => navigate('/settings/delivery-groups')}
-          />
-        </SettingsCategory>
+            iconColor="text-orange-500"
+          >
+            <SettingsCard
+              icon={ShoppingCart}
+              iconBgColor="bg-orange-500"
+              title="Kiwify"
+              description="Integração de pagamentos"
+              onClick={() => navigate('/settings/kiwify')}
+            />
+            <SettingsCard
+              icon={Package}
+              iconBgColor="bg-orange-600"
+              title="Produtos"
+              description="Gerencie produtos"
+              onClick={() => navigate('/settings/products')}
+            />
+            <SettingsCard
+              icon={Target}
+              iconBgColor="bg-amber-500"
+              title="Scoring"
+              description="Qualificação de leads"
+              onClick={() => navigate('/settings/scoring')}
+            />
+            <SettingsCard
+              icon={Package}
+              iconBgColor="bg-orange-400"
+              title="Grupos Entrega"
+              description="Pacotes de automação"
+              onClick={() => navigate('/settings/delivery-groups')}
+            />
+          </SettingsCategory>
+        </div>
 
         {/* Customer Service */}
-        <SettingsCategory
-          title="Atendimento"
-          icon={Headphones}
-          iconColor="text-blue-500"
-        >
-          <SettingsCard
-            icon={CircleDot}
-            iconBgColor="bg-blue-500"
-            title="Status Tickets"
-            description="Status personalizados"
-            onClick={() => navigate('/settings/ticket-statuses')}
-          />
-          <SettingsCard
-            icon={Clock}
-            iconBgColor="bg-blue-600"
-            title="SLA e Prazos"
-            description="Políticas de tempo"
-            onClick={() => navigate('/settings/sla')}
-          />
-          <SettingsCard
-            icon={Zap}
-            iconBgColor="bg-yellow-500"
-            title="Macros"
-            description="Respostas rápidas"
-            onClick={() => navigate('/settings/macros')}
-          />
-          <SettingsCard
-            icon={Database}
-            iconBgColor="bg-blue-400"
-            title="Departamentos"
-            description="Setores da empresa"
-            onClick={() => navigate('/settings/departments')}
-          />
-        </SettingsCategory>
+        <div data-tour="settings-support">
+          <SettingsCategory
+            title="Atendimento"
+            icon={Headphones}
+            iconColor="text-blue-500"
+          >
+            <SettingsCard
+              icon={CircleDot}
+              iconBgColor="bg-blue-500"
+              title="Status Tickets"
+              description="Status personalizados"
+              onClick={() => navigate('/settings/ticket-statuses')}
+            />
+            <SettingsCard
+              icon={Clock}
+              iconBgColor="bg-blue-600"
+              title="SLA e Prazos"
+              description="Políticas de tempo"
+              onClick={() => navigate('/settings/sla')}
+            />
+            <SettingsCard
+              icon={Zap}
+              iconBgColor="bg-yellow-500"
+              title="Macros"
+              description="Respostas rápidas"
+              onClick={() => navigate('/settings/macros')}
+            />
+            <SettingsCard
+              icon={Database}
+              iconBgColor="bg-blue-400"
+              title="Departamentos"
+              description="Setores da empresa"
+              onClick={() => navigate('/settings/departments')}
+            />
+          </SettingsCategory>
+        </div>
 
         {/* Email & Templates */}
         <SettingsCategory
@@ -237,33 +247,35 @@ export default function Settings() {
         </SettingsCategory>
 
         {/* Integrations & APIs */}
-        <SettingsCategory
-          title="Integrações & APIs"
-          icon={Plug}
-          iconColor="text-cyan-500"
-        >
-          <SettingsCard
+        <div data-tour="settings-integrations">
+          <SettingsCategory
+            title="Integrações & APIs"
             icon={Plug}
-            iconBgColor="bg-cyan-500"
-            title="Central"
-            description="Todas integrações"
-            onClick={() => navigate('/settings/integrations-central')}
-          />
-          <SettingsCard
-            icon={Webhook}
-            iconBgColor="bg-cyan-600"
-            title="Webhooks"
-            description="Integrações externas"
-            onClick={() => navigate('/settings/webhooks')}
-          />
-          <SettingsCard
-            icon={Database}
-            iconBgColor="bg-slate-500"
-            title="Backend"
-            description="Banco de dados"
-            onClick={() => navigate('/settings/database')}
-          />
-        </SettingsCategory>
+            iconColor="text-cyan-500"
+          >
+            <SettingsCard
+              icon={Plug}
+              iconBgColor="bg-cyan-500"
+              title="Central"
+              description="Todas integrações"
+              onClick={() => navigate('/settings/integrations-central')}
+            />
+            <SettingsCard
+              icon={Webhook}
+              iconBgColor="bg-cyan-600"
+              title="Webhooks"
+              description="Integrações externas"
+              onClick={() => navigate('/settings/webhooks')}
+            />
+            <SettingsCard
+              icon={Database}
+              iconBgColor="bg-slate-500"
+              title="Backend"
+              description="Banco de dados"
+              onClick={() => navigate('/settings/database')}
+            />
+          </SettingsCategory>
+        </div>
 
         {/* Security & Admin */}
         <SettingsCategory
@@ -287,6 +299,13 @@ export default function Settings() {
           />
         </SettingsCategory>
       </div>
+
+      {/* Tour Button */}
+      <TourButton
+        tourId={SETTINGS_TOUR_ID}
+        steps={SETTINGS_TOUR_STEPS}
+        autoStart={true}
+      />
     </div>
   );
 }

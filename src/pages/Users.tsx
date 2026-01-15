@@ -26,6 +26,8 @@ import { useResendWelcomeEmail } from "@/hooks/useResendWelcomeEmail";
 import { useProfileSkills } from "@/hooks/useProfileSkills";
 import { useManageAvailabilityStatus } from "@/hooks/useManageAvailabilityStatus";
 import { cn } from "@/lib/utils";
+import { TourButton } from "@/components/tour/TourButton";
+import { USERS_TOUR_ID, USERS_TOUR_STEPS } from "@/components/tour/tours";
 
 // Import type from useUsers hook
 type UserWithRole = NonNullable<ReturnType<typeof useUsers>['data']>[number];
@@ -204,7 +206,7 @@ export default function Users() {
           </p>
         </div>
         {mainTab === 'users' && (
-          <Button onClick={() => setDialogOpen(true)}>
+          <Button onClick={() => setDialogOpen(true)} data-tour="users-create-button">
             <UserPlus className="mr-2 h-4 w-4" />
             Novo Usuário
           </Button>
@@ -219,7 +221,7 @@ export default function Users() {
             Usuários
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="permissions" className="gap-2">
+            <TabsTrigger value="permissions" className="gap-2" data-tour="users-permissions-tab">
               <Shield className="h-4 w-4" />
               Permissões
             </TabsTrigger>
@@ -236,7 +238,7 @@ export default function Users() {
                     Lista de todos os usuários com acesso ao sistema
                   </CardDescription>
                 </div>
-                <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+                <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} data-tour="users-status-tabs">
                   <TabsList>
                     <TabsTrigger value="all">Todos</TabsTrigger>
                     <TabsTrigger value="active">Ativos</TabsTrigger>
@@ -247,7 +249,7 @@ export default function Users() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
+              <Table data-tour="users-table">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Usuário</TableHead>
@@ -350,7 +352,7 @@ export default function Users() {
                       <TableCell>
                         {new Date(user.created_at).toLocaleDateString("pt-BR")}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" data-tour="users-actions">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button 
@@ -446,6 +448,13 @@ export default function Users() {
         onOpenChange={setArchiveDialogOpen}
         userName={selectedUser?.full_name || selectedUser?.email || ''}
         onConfirm={handleArchiveConfirm}
+      />
+
+      {/* Tour Button */}
+      <TourButton
+        tourId={USERS_TOUR_ID}
+        steps={USERS_TOUR_STEPS}
+        autoStart={true}
       />
     </div>
   );

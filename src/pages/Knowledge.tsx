@@ -14,6 +14,8 @@ import { useKnowledgeStats } from "@/hooks/useKnowledgeStats";
 import { KnowledgeBrainStatus } from "@/components/KnowledgeBrainStatus";
 import KnowledgeArticleDialog from "@/components/KnowledgeArticleDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TourButton } from "@/components/tour/TourButton";
+import { KNOWLEDGE_TOUR_ID, KNOWLEDGE_TOUR_STEPS } from "@/components/tour/tours";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -89,15 +91,25 @@ export default function Knowledge() {
               onClick={() => generateEmbeddings.mutate()}
               disabled={generateEmbeddings.isPending}
               className="gap-2"
+              data-tour="knowledge-generate-embeddings"
             >
               <Sparkles className="h-4 w-4" />
               {generateEmbeddings.isPending ? 'Gerando...' : 'Gerar Embeddings'}
             </Button>
-            <Button variant="outline" onClick={() => navigate('/settings/knowledge-import')} className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/settings/knowledge-import')} 
+              className="gap-2"
+              data-tour="knowledge-import-button"
+            >
               <Upload className="h-4 w-4" />
               Importar
             </Button>
-            <Button onClick={handleCreateNew} className="gap-2">
+            <Button 
+              onClick={handleCreateNew} 
+              className="gap-2"
+              data-tour="knowledge-create-button"
+            >
               <Plus className="h-4 w-4" />
               Novo Artigo
             </Button>
@@ -106,7 +118,9 @@ export default function Knowledge() {
       </div>
 
       {/* Brain Status Widget */}
-      <KnowledgeBrainStatus />
+      <div data-tour="knowledge-brain-status">
+        <KnowledgeBrainStatus />
+      </div>
 
       {/* Alert for missing embeddings */}
       {stats && stats.articlesWithEmbedding === 0 && stats.totalArticles > 0 && (
@@ -132,7 +146,7 @@ export default function Knowledge() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
+            <div className="flex-1" data-tour="knowledge-search">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -262,6 +276,13 @@ export default function Knowledge() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Tour Button */}
+      <TourButton
+        tourId={KNOWLEDGE_TOUR_ID}
+        steps={KNOWLEDGE_TOUR_STEPS}
+        autoStart={true}
+      />
     </div>
   );
 }

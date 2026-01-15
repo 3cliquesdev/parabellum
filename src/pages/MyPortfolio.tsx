@@ -24,6 +24,8 @@ import QBRGeneratorDialog from "@/components/QBRGeneratorDialog";
 import { useChurnPrediction } from "@/hooks/useChurnPrediction";
 import { CSGoalsWidget } from "@/components/widgets/CSGoalsWidget";
 import { ChangeConsultantDialog } from "@/components/playbooks/ChangeConsultantDialog";
+import { TourButton } from "@/components/tour/TourButton";
+import { PORTFOLIO_TOUR_ID, PORTFOLIO_TOUR_STEPS } from "@/components/tour/tours";
 
 export default function MyPortfolio() {
   const navigate = useNavigate();
@@ -142,7 +144,7 @@ export default function MyPortfolio() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="portfolio-kpis">
         {/* Total Clients */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -212,7 +214,7 @@ export default function MyPortfolio() {
       {!isTeamView && <CSGoalsWidget />}
 
       {/* Widgets Row - Bento Box Layout: Attack | Meta | Defense */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-tour="portfolio-widgets">
         <ExpansionRadarWidget />
         <CommissionTrackerWidget />
         <EarlyWarningWidget />
@@ -222,7 +224,7 @@ export default function MyPortfolio() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" data-tour="portfolio-tabs">
               <TabsList>
                 <TabsTrigger value="all">Todos</TabsTrigger>
                 <TabsTrigger value="new">
@@ -254,8 +256,8 @@ export default function MyPortfolio() {
           {/* Clients Table */}
           <div className="space-y-4">
             {filteredClients && filteredClients.length > 0 ? (
-              filteredClients.map((client) => (
-                <Card key={client.id} className="hover:shadow-md transition-shadow">
+              filteredClients.map((client, index) => (
+                <Card key={client.id} className="hover:shadow-md transition-shadow" data-tour={index === 0 ? "portfolio-client-card" : undefined}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-4">
                       {/* Client Info */}
@@ -457,6 +459,13 @@ export default function MyPortfolio() {
         contactId={changeConsultantData?.contactId || ""}
         contactName={changeConsultantData?.contactName || ""}
         currentConsultantId={changeConsultantData?.currentConsultantId}
+      />
+
+      {/* Tour Button */}
+      <TourButton
+        tourId={PORTFOLIO_TOUR_ID}
+        steps={PORTFOLIO_TOUR_STEPS}
+        autoStart={true}
       />
     </div>
   );

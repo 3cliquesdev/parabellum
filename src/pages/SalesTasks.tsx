@@ -9,6 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Mail, MessageCircle, Phone, CheckCircle2, SkipForward, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { TourButton } from "@/components/tour/TourButton";
+import { SALES_TASKS_TOUR_ID, SALES_TASKS_TOUR_STEPS } from "@/components/tour/tours";
 
 const taskTypeIcons = {
   email: Mail,
@@ -79,7 +81,7 @@ export default function SalesTasks() {
       </div>
 
       {/* Filtros */}
-      <div className="mb-6 flex flex-wrap gap-3 items-center">
+      <div className="mb-6 flex flex-wrap gap-3 items-center" data-tour="sales-tasks-filters">
         <Button
           variant={selectedType === undefined ? "default" : "outline"}
           onClick={() => setSelectedType(undefined)}
@@ -136,7 +138,7 @@ export default function SalesTasks() {
         </Button>
 
         {/* Date Selector */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2" data-tour="sales-tasks-date">
           <Calendar className="h-4 w-4 text-muted-foreground" />
           <input
             type="date"
@@ -150,14 +152,18 @@ export default function SalesTasks() {
       {/* Task List */}
       {tasks && tasks.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
-          {tasks.map((task) => {
+          {tasks.map((task, index) => {
             const Icon = taskTypeIcons[task.task_type as keyof typeof taskTypeIcons];
             const contact = task.contact as any;
             const enrollment = task.enrollment as any;
             const cadence = enrollment?.cadence as any;
 
             return (
-              <Card key={task.id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={task.id} 
+                className="hover:shadow-lg transition-shadow"
+                data-tour={index === 0 ? "sales-tasks-card" : undefined}
+              >
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4">
                     {/* Contact Avatar */}
@@ -224,6 +230,7 @@ export default function SalesTasks() {
                           onClick={() => handleComplete(task.id)}
                           disabled={completeMutation.isPending}
                           className="gap-2"
+                          data-tour={index === 0 ? "sales-tasks-execute" : undefined}
                         >
                           <CheckCircle2 className="h-4 w-4" />
                           Executar
@@ -233,6 +240,7 @@ export default function SalesTasks() {
                           onClick={() => handleSkip(task.id)}
                           disabled={completeMutation.isPending}
                           className="gap-2"
+                          data-tour={index === 0 ? "sales-tasks-skip" : undefined}
                         >
                           <SkipForward className="h-4 w-4" />
                           Pular
@@ -257,6 +265,13 @@ export default function SalesTasks() {
           </CardContent>
         </Card>
       )}
+
+      {/* Tour Button */}
+      <TourButton
+        tourId={SALES_TASKS_TOUR_ID}
+        steps={SALES_TASKS_TOUR_STEPS}
+        autoStart={true}
+      />
     </div>
   );
 }

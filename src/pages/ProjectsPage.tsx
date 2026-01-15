@@ -8,6 +8,8 @@ import { useProjectBoards } from "@/hooks/useProjectBoards";
 import { ProjectBoardCard } from "@/components/projects/ProjectBoardCard";
 import { CreateBoardDialog } from "@/components/projects/CreateBoardDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TourButton } from "@/components/tour/TourButton";
+import { PROJECTS_TOUR_ID, PROJECTS_TOUR_STEPS } from "@/components/tour/tours";
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
@@ -29,7 +31,10 @@ export default function ProjectsPage() {
               Gerencie seus projetos de criação de lojas online
             </p>
           </div>
-          <Button onClick={() => setCreateDialogOpen(true)}>
+          <Button 
+            onClick={() => setCreateDialogOpen(true)}
+            data-tour="projects-create-button"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Novo Projeto
           </Button>
@@ -38,7 +43,7 @@ export default function ProjectsPage() {
         {/* Filters */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <div className="relative w-64">
+            <div className="relative w-64" data-tour="projects-search">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar projetos..."
@@ -47,7 +52,7 @@ export default function ProjectsPage() {
                 className="pl-9"
               />
             </div>
-            <Tabs value={status} onValueChange={setStatus}>
+            <Tabs value={status} onValueChange={setStatus} data-tour="projects-tabs">
               <TabsList>
                 <TabsTrigger value="all" className="gap-1.5">
                   <Filter className="h-3.5 w-3.5" />
@@ -68,7 +73,7 @@ export default function ProjectsPage() {
               </TabsList>
             </Tabs>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tour="projects-view-toggle">
             <Button
               variant={viewMode === "grid" ? "default" : "outline"}
               size="icon"
@@ -111,13 +116,14 @@ export default function ProjectsPage() {
           </div>
         ) : (
           <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"}`}>
-            {boards?.map((board) => (
-              <ProjectBoardCard
-                key={board.id}
-                board={board}
-                viewMode={viewMode}
-                onClick={() => navigate(`/projects/${board.id}`)}
-              />
+            {boards?.map((board, index) => (
+              <div key={board.id} data-tour={index === 0 ? "projects-board-card" : undefined}>
+                <ProjectBoardCard
+                  board={board}
+                  viewMode={viewMode}
+                  onClick={() => navigate(`/projects/${board.id}`)}
+                />
+              </div>
             ))}
           </div>
         )}
@@ -126,6 +132,13 @@ export default function ProjectsPage() {
       <CreateBoardDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+      />
+
+      {/* Tour Button */}
+      <TourButton
+        tourId={PROJECTS_TOUR_ID}
+        steps={PROJECTS_TOUR_STEPS}
+        autoStart={true}
       />
     </div>
   );

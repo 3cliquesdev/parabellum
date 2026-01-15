@@ -137,6 +137,20 @@ export function useTickets(
           query = query.in("channel", advancedFilters.channel as any);
         }
 
+        // Department filter
+        if (advancedFilters.departmentId) {
+          query = query.eq("department_id", advancedFilters.departmentId);
+        }
+
+        // Assigned to filter
+        if (advancedFilters.assignedTo) {
+          if (advancedFilters.assignedTo === "unassigned") {
+            query = query.is("assigned_to", null);
+          } else {
+            query = query.eq("assigned_to", advancedFilters.assignedTo);
+          }
+        }
+
         // Date range
         if (advancedFilters.dateRange?.from) {
           query = query.gte("created_at", advancedFilters.dateRange.from.toISOString());

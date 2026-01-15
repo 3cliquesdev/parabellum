@@ -9,6 +9,15 @@ import { cn } from "@/lib/utils";
 import { useTags } from "@/hooks/useTags";
 import { useActiveTicketStatuses } from "@/hooks/useTicketStatuses";
 import { getStatusIcon } from "@/lib/ticketStatusIcons";
+import { useDepartments } from "@/hooks/useDepartments";
+import { useSupportAgents } from "@/hooks/useSupportAgents";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Search, 
   Filter, 
@@ -16,7 +25,9 @@ import {
   AlertTriangle, 
   Clock,
   CalendarIcon,
-  Tag
+  Tag,
+  Building2,
+  User
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -32,6 +43,8 @@ export interface TicketFilters {
   dateRange?: DateRange;
   slaExpired: boolean;
   noTags?: boolean;
+  departmentId?: string;
+  assignedTo?: string;
 }
 
 interface TicketFilterPopoverProps {
@@ -73,6 +86,8 @@ export const defaultTicketFilters: TicketFilters = {
   dateRange: undefined,
   slaExpired: false,
   noTags: false,
+  departmentId: undefined,
+  assignedTo: undefined,
 };
 
 export function TicketFilterPopover({ filters, onFiltersChange }: TicketFilterPopoverProps) {
@@ -80,6 +95,8 @@ export function TicketFilterPopover({ filters, onFiltersChange }: TicketFilterPo
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { data: ticketTags = [] } = useTags("ticket");
   const { data: ticketStatuses = [] } = useActiveTicketStatuses();
+  const { data: departments = [] } = useDepartments({ activeOnly: true });
+  const { data: agents = [] } = useSupportAgents();
 
   // Count active filters
   const activeFilterCount = [
@@ -90,6 +107,8 @@ export function TicketFilterPopover({ filters, onFiltersChange }: TicketFilterPo
     filters.tags.length > 0,
     filters.dateRange?.from !== undefined,
     filters.slaExpired,
+    filters.departmentId !== undefined,
+    filters.assignedTo !== undefined,
   ].filter(Boolean).length;
 
   const handleSearchChange = (value: string) => {
@@ -231,6 +250,61 @@ export function TicketFilterPopover({ filters, onFiltersChange }: TicketFilterPo
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+
+            {/* Department */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Building2 className="h-3 w-3" />
+                Departamento
+              </Label>
+              <Select
+                value={filters.departmentId || "all"}
+                onValueChange={(v) => onFiltersChange({ 
+                  ...filters, 
+                  departmentId: v === "all" ? undefined : v 
+                })}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Todos os departamentos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os departamentos</SelectItem>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Responsável */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <User className="h-3 w-3" />
+                Responsável
+              </Label>
+              <Select
+                value={filters.assignedTo || "all"}
+                onValueChange={(v) => onFiltersChange({ 
+                  ...filters, 
+                  assignedTo: v === "all" ? undefined : v 
+                })}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Todos os responsáveis" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os responsáveis</SelectItem>
+                  <SelectItem value="unassigned">Não atribuído</SelectItem>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.full_name || "Sem nome"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Status */}

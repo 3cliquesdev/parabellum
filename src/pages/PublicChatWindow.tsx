@@ -113,37 +113,24 @@ export default function PublicChatWindow() {
     }
   }, [isAITyping]);
 
+  // ✅ OTIMIZAÇÃO: Mover lógica de isAITyping para o effect de messages
+  // Removida subscription duplicada - useMessagesOffline já mantém subscription ativa
+  // Apenas observamos mudanças nas mensagens para controlar isAITyping
   useEffect(() => {
-    if (!conversationId) return;
-
-    const channel = supabase
-      .channel(`public-chat-${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const newMsg = payload.new as any;
-          
-          if (newMsg.sender_type === 'contact') {
-            setIsAITyping(true);
-          }
-          
-          if (newMsg.sender_type === 'user' || newMsg.is_ai_generated) {
-            setIsAITyping(false);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [conversationId]);
+    if (messages.length === 0) return;
+    
+    const latestMessage = messages[messages.length - 1];
+    
+    // Se última mensagem é do cliente, IA está digitando
+    if (latestMessage.sender_type === 'contact') {
+      setIsAITyping(true);
+    }
+    
+    // Se última mensagem é do agente/IA, parar animação
+    if (latestMessage.sender_type === 'user' || latestMessage.is_ai_generated) {
+      setIsAITyping(false);
+    }
+  }, [messages]);
 
   const loadConversation = async () => {
     const { data, error } = await supabase

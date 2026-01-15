@@ -42,13 +42,20 @@ export default function PublicChat() {
   const { toast } = useToast();
   const deptParam = searchParams.get("dept");
   const [isCreating, setIsCreating] = useState(false);
-  const { data: departments, isLoading } = useDepartments();
+  // ✅ OTIMIZAÇÃO: Buscar apenas departamentos ativos
+  const { data: departments, isLoading } = useDepartments({
+    activeOnly: true,
+  });
   const upsertContact = useUpsertContact();
   const [isIdentified, setIsIdentified] = useState(false);
   const [storedIdentity, setStoredIdentity] = useState<StoredIdentity | null>(null);
   const [autoRouteDepartment, setAutoRouteDepartment] = useState<string | null>(null);
 
-  const activeDepartments = departments?.filter((d) => d.is_active) || [];
+  // ✅ OTIMIZAÇÃO: Já vem filtrado do hook, não precisa filtrar novamente
+  const activeDepartments = departments || [];
+
+  // ✅ OTIMIZAÇÃO: Cache de verificação de sessão (5 minutos)
+  const SESSION_VERIFICATION_CACHE_MS = 5 * 60 * 1000;
 
   // Verificar identidade armazenada no localStorage
   useEffect(() => {
@@ -68,6 +75,18 @@ export default function PublicChat() {
             
             // ✅ FIX: Validar se a conversa existe e está aberta antes de redirecionar
             if (activeConversationId) {
+              // ✅ OTIMIZAÇÃO: Verificar cache de verificação recente
+              const lastVerified = localStorage.getItem('session_verified_at');
+              const skipQuery = lastVerified && 
+                (Date.now() - parseInt(lastVerified)) < SESSION_VERIFICATION_CACHE_MS;
+              
+              if (skipQuery) {
+                // Confiar no cache - conversa foi verificada recentemente
+                console.log('[PublicChat] Usando cache de sessão, pulando query');
+                navigate(`/public-chat/${activeConversationId}`);
+                return;
+              }
+              
               const { data, error } = await supabase
                 .from('conversations')
                 .select('id, status')
@@ -76,22 +95,27 @@ export default function PublicChat() {
               
               if (data && data.status === 'open') {
                 console.log('[PublicChat] Retomando conversa válida:', activeConversationId);
+                // Salvar timestamp de verificação
+                localStorage.setItem('session_verified_at', Date.now().toString());
                 navigate(`/public-chat/${activeConversationId}`);
               } else {
                 // Conversa não existe ou está fechada - limpar
                 console.log('[PublicChat] Conversa expirada ou inválida, limpando...');
                 localStorage.removeItem('active_conversation_id');
+                localStorage.removeItem('session_verified_at');
               }
             }
           } else {
             // Identidade expirada
             localStorage.removeItem(IDENTITY_STORAGE_KEY);
             localStorage.removeItem('active_conversation_id');
+            localStorage.removeItem('session_verified_at');
           }
         } catch (error) {
           console.error("Erro ao validar sessão:", error);
           localStorage.removeItem(IDENTITY_STORAGE_KEY);
           localStorage.removeItem('active_conversation_id');
+          localStorage.removeItem('session_verified_at');
         }
       }
     };

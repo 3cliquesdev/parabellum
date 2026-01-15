@@ -165,34 +165,31 @@ serve(async (req) => {
       });
 
       // Se é lead novo (não cliente), criar deal automaticamente para o time comercial
+      // ✅ OTIMIZAÇÃO: Query combinada pipeline + stage em uma só
       if (isNewContact) {
         console.log('[create-public-conversation] Criando deal para novo lead...');
         
-        // Buscar pipeline de vendas padrão
-        const { data: salesPipeline } = await supabase
+        // Query combinada: buscar pipeline com seu primeiro estágio
+        const { data: pipelineWithStage } = await supabase
           .from('pipelines')
-          .select('id')
+          .select(`
+            id,
+            stages!inner(id, position)
+          `)
           .eq('name', 'Pipeline de Vendas - Nacional')
-          .single();
+          .order('stages.position', { ascending: true, referencedTable: 'stages' })
+          .limit(1)
+          .maybeSingle();
         
-        if (salesPipeline) {
-          // Buscar primeiro estágio do pipeline
-          const { data: firstStage } = await supabase
-            .from('stages')
-            .select('id')
-            .eq('pipeline_id', salesPipeline.id)
-            .order('position', { ascending: true })
-            .limit(1)
-            .single();
-          
+        if (pipelineWithStage && pipelineWithStage.stages?.[0]) {
           // Criar deal (auto-assign via trigger round-robin existente)
           const { data: newDeal, error: dealError } = await supabase
             .from('deals')
             .insert({
               title: `Lead Chat - ${customer_data?.first_name || 'Novo'} ${customer_data?.last_name || ''}`.trim(),
               contact_id: finalContactId,
-              pipeline_id: salesPipeline.id,
-              stage_id: firstStage?.id,
+              pipeline_id: pipelineWithStage.id,
+              stage_id: pipelineWithStage.stages[0].id,
               status: 'open',
               lead_source: 'chat_widget',
               lead_email: customer_data?.email,

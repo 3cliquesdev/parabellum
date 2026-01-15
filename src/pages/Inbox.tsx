@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, User } from "lucide-react";
 import { useIsMobileBreakpoint } from "@/hooks/useBreakpoint";
+import { TourButton } from "@/components/tour/TourButton";
+import { INBOX_TOUR_ID, INBOX_TOUR_STEPS } from "@/components/tour/tours";
 
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -283,12 +285,12 @@ export default function Inbox() {
   return (
     <div className="flex h-full overflow-hidden min-w-0">
       {/* Filter Sidebar - fixed width */}
-      <div className="w-56 flex-shrink-0 border-r border-border">
+      <div className="w-56 flex-shrink-0 border-r border-border" data-tour="inbox-filters">
         <InboxSidebar counts={sidebarCounts} />
       </div>
       
       {/* Conversation List - fixed width */}
-      <div className="w-72 flex-shrink-0 border-r border-border flex flex-col">
+      <div className="w-72 flex-shrink-0 border-r border-border flex flex-col" data-tour="inbox-conversation-list">
         {/* Mini Header with filters */}
         <div className="flex-none border-b border-border px-3 py-2 bg-card">
           <InboxFilterPopover filters={filters} onFiltersChange={setFilters} />
@@ -321,14 +323,17 @@ export default function Inbox() {
       </div>
       
       {/* Chat Window - expands to fill remaining space */}
-      <div className="flex-1 min-w-0 border-r border-border">
+      <div className="flex-1 min-w-0 border-r border-border" data-tour="inbox-chat-area">
         <ChatWindow conversation={activeConversation} />
       </div>
       
       {/* Contact Details - fixed width */}
-      <div className="w-72 flex-shrink-0">
+      <div className="w-72 flex-shrink-0" data-tour="inbox-contact-panel">
         <ContactDetailsSidebar conversation={activeConversation} />
       </div>
+
+      {/* Tour Button */}
+      <TourButton tourId={INBOX_TOUR_ID} steps={INBOX_TOUR_STEPS} />
     </div>
   );
 }

@@ -16,7 +16,7 @@ interface TourContextValue {
   isActive: boolean;
   currentStep: number;
   totalSteps: number;
-  startTour: (steps: TourStep[]) => void;
+  startTour: (steps: TourStep[], onComplete?: () => void) => void;
   endTour: () => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -42,19 +42,25 @@ export function TourProvider({ children }: TourProviderProps) {
   const [steps, setSteps] = useState<TourStep[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [onCompleteCallback, setOnCompleteCallback] = useState<(() => void) | null>(null);
 
-  const startTour = useCallback((tourSteps: TourStep[]) => {
+  const startTour = useCallback((tourSteps: TourStep[], onComplete?: () => void) => {
     setSteps(tourSteps);
     setCurrentStep(0);
     setIsActive(true);
+    setOnCompleteCallback(() => onComplete || null);
   }, []);
 
   const endTour = useCallback(() => {
+    if (onCompleteCallback) {
+      onCompleteCallback();
+    }
     setIsActive(false);
     setSteps([]);
     setCurrentStep(0);
     setTargetRect(null);
-  }, []);
+    setOnCompleteCallback(null);
+  }, [onCompleteCallback]);
 
   const nextStep = useCallback(() => {
     if (currentStep < steps.length - 1) {

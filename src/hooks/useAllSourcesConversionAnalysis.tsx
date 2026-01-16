@@ -11,10 +11,10 @@ export interface SourceAnalysis {
 }
 
 const sourceConfig: { source: Exclude<DealSource, "all">; label: string }[] = [
-  { source: "organic_new", label: "1ª Compra Kiwify Orgânica" },
-  { source: "organic_recurring", label: "Recorrente" },
+  { source: "organic", label: "Orgânica (Kiwify)" },
   { source: "form", label: "Formulários" },
   { source: "whatsapp", label: "WhatsApp" },
+  { source: "other", label: "Outros" },
 ];
 
 async function fetchSourceData(
@@ -23,14 +23,20 @@ async function fetchSourceData(
 ): Promise<DealsConversionAnalysis> {
   const applySourceFilter = (query: any) => {
     switch (source) {
-      case "organic_new":
-        return query.eq("is_organic_sale", true).eq("is_returning_customer", false);
-      case "organic_recurring":
-        return query.eq("is_organic_sale", true).eq("is_returning_customer", true);
+      case "organic":
+        // Vendas orgânicas (Kiwify direto) - independente de recorrência
+        return query.eq("is_organic_sale", true);
       case "form":
-        return query.eq("lead_source", "formulario");
+        // Leads de formulário que NÃO são orgânicos
+        return query.eq("lead_source", "formulario").eq("is_organic_sale", false);
       case "whatsapp":
-        return query.eq("lead_source", "whatsapp");
+        // Leads de WhatsApp que NÃO são orgânicos
+        return query.eq("lead_source", "whatsapp").eq("is_organic_sale", false);
+      case "other":
+        // Outros: não orgânico E lead_source diferente de formulario/whatsapp
+        return query
+          .eq("is_organic_sale", false)
+          .or("lead_source.is.null,lead_source.not.in.(formulario,whatsapp)");
       default:
         return query;
     }

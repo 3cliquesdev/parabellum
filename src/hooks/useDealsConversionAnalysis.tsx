@@ -16,7 +16,7 @@ export interface DealsConversionAnalysis {
   maxTimeToWinDays: number;
 }
 
-export type DealSource = "all" | "organic_new" | "organic_recurring" | "form" | "whatsapp";
+export type DealSource = "all" | "organic" | "form" | "whatsapp" | "other";
 
 export function useDealsConversionAnalysis(dateRange?: DateRange, source: DealSource = "all") {
   return useQuery({
@@ -35,18 +35,22 @@ export function useDealsConversionAnalysis(dateRange?: DateRange, source: DealSo
       const fromDate = dateRange?.from?.toISOString();
       const toDate = dateRange?.to?.toISOString();
 
-      // Helper to apply source filter
+      // Helper to apply source filter - categorias que cobrem todos os deals
       const applySourceFilter = (query: any) => {
-        if (source === "organic_new") {
-          // Vendas orgânicas de novos clientes (primeira compra)
-          return query.eq("is_organic_sale", true).eq("is_returning_customer", false);
-        } else if (source === "organic_recurring") {
-          // Vendas orgânicas de clientes recorrentes (já compraram antes)
-          return query.eq("is_organic_sale", true).eq("is_returning_customer", true);
+        if (source === "organic") {
+          // Vendas orgânicas (Kiwify direto) - independente de recorrência
+          return query.eq("is_organic_sale", true);
         } else if (source === "form") {
-          return query.eq("lead_source", "formulario");
+          // Leads de formulário que NÃO são orgânicos
+          return query.eq("lead_source", "formulario").eq("is_organic_sale", false);
         } else if (source === "whatsapp") {
-          return query.eq("lead_source", "whatsapp");
+          // Leads de WhatsApp que NÃO são orgânicos
+          return query.eq("lead_source", "whatsapp").eq("is_organic_sale", false);
+        } else if (source === "other") {
+          // Outros: não orgânico E lead_source diferente de formulario/whatsapp
+          return query
+            .eq("is_organic_sale", false)
+            .or("lead_source.is.null,lead_source.not.in.(formulario,whatsapp)");
         }
         return query;
       };

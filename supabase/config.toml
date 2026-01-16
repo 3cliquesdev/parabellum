@@ -259,3 +259,10 @@ verify_jwt = false
 
 [functions.notify-project-card-moved]
 verify_jwt = false
+
+[functions.check-rotten-deals]
+verify_jwt = false
+
+[functions.check-rotten-deals.cron]
+schedule = "0 8 * * *"
+region = "us-east-1"

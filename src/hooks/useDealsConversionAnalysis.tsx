@@ -16,7 +16,7 @@ export interface DealsConversionAnalysis {
   maxTimeToWinDays: number;
 }
 
-export type DealSource = "all" | "organic" | "form" | "whatsapp";
+export type DealSource = "all" | "organic_new" | "organic_recurring" | "form" | "whatsapp";
 
 export function useDealsConversionAnalysis(dateRange?: DateRange, source: DealSource = "all") {
   return useQuery({
@@ -35,16 +35,17 @@ export function useDealsConversionAnalysis(dateRange?: DateRange, source: DealSo
       const fromDate = dateRange?.from?.toISOString();
       const toDate = dateRange?.to?.toISOString();
 
-      // Helper to apply source filter - categorias que cobrem todos os deals
+      // Helper to apply source filter
       const applySourceFilter = (query: any) => {
-        if (source === "organic") {
-          // Orgânica = Kiwify direto (is_organic_sale) + Recuperação automática (lead_source NULL)
-          return query.or("is_organic_sale.eq.true,lead_source.is.null");
+        if (source === "organic_new") {
+          // Vendas orgânicas de novos clientes (primeira compra)
+          return query.eq("is_organic_sale", true).eq("is_returning_customer", false);
+        } else if (source === "organic_recurring") {
+          // Vendas orgânicas de clientes recorrentes (já compraram antes)
+          return query.eq("is_organic_sale", true).eq("is_returning_customer", true);
         } else if (source === "form") {
-          // Leads de formulário
           return query.eq("lead_source", "formulario");
         } else if (source === "whatsapp") {
-          // Leads de WhatsApp
           return query.eq("lead_source", "whatsapp");
         }
         return query;

@@ -11,7 +11,8 @@ export interface SourceAnalysis {
 }
 
 const sourceConfig: { source: Exclude<DealSource, "all">; label: string }[] = [
-  { source: "organic", label: "Orgânica (Kiwify)" },
+  { source: "organic_new", label: "1ª Compra Kiwify Orgânica" },
+  { source: "organic_recurring", label: "Recorrente" },
   { source: "form", label: "Formulários" },
   { source: "whatsapp", label: "WhatsApp" },
 ];
@@ -22,14 +23,13 @@ async function fetchSourceData(
 ): Promise<DealsConversionAnalysis> {
   const applySourceFilter = (query: any) => {
     switch (source) {
-      case "organic":
-        // Orgânica = Kiwify direto (is_organic_sale) + Recuperação automática (lead_source NULL)
-        return query.or("is_organic_sale.eq.true,lead_source.is.null");
+      case "organic_new":
+        return query.eq("is_organic_sale", true).eq("is_returning_customer", false);
+      case "organic_recurring":
+        return query.eq("is_organic_sale", true).eq("is_returning_customer", true);
       case "form":
-        // Leads de formulário
         return query.eq("lead_source", "formulario");
       case "whatsapp":
-        // Leads de WhatsApp
         return query.eq("lead_source", "whatsapp");
       default:
         return query;

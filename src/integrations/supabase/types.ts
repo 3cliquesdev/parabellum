@@ -1803,6 +1803,7 @@ export type Database = {
           affiliate_email: string | null
           affiliate_name: string | null
           assigned_to: string | null
+          became_rotten_at: string | null
           churn_risk: string | null
           closed_at: string | null
           contact_id: string | null
@@ -1829,6 +1830,8 @@ export type Database = {
           pipeline_id: string
           probability: number | null
           product_id: string | null
+          rotten_escalated_at: string | null
+          rotten_notified_at: string | null
           stage_id: string | null
           status: Database["public"]["Enums"]["deal_status"]
           success_criteria: string | null
@@ -1842,6 +1845,7 @@ export type Database = {
           affiliate_email?: string | null
           affiliate_name?: string | null
           assigned_to?: string | null
+          became_rotten_at?: string | null
           churn_risk?: string | null
           closed_at?: string | null
           contact_id?: string | null
@@ -1868,6 +1872,8 @@ export type Database = {
           pipeline_id: string
           probability?: number | null
           product_id?: string | null
+          rotten_escalated_at?: string | null
+          rotten_notified_at?: string | null
           stage_id?: string | null
           status?: Database["public"]["Enums"]["deal_status"]
           success_criteria?: string | null
@@ -1881,6 +1887,7 @@ export type Database = {
           affiliate_email?: string | null
           affiliate_name?: string | null
           assigned_to?: string | null
+          became_rotten_at?: string | null
           churn_risk?: string | null
           closed_at?: string | null
           contact_id?: string | null
@@ -1907,6 +1914,8 @@ export type Database = {
           pipeline_id?: string
           probability?: number | null
           product_id?: string | null
+          rotten_escalated_at?: string | null
+          rotten_notified_at?: string | null
           stage_id?: string | null
           status?: Database["public"]["Enums"]["deal_status"]
           success_criteria?: string | null

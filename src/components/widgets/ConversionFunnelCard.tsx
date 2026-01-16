@@ -24,10 +24,10 @@ interface ConversionFunnelCardProps {
 }
 
 const sourceIcons: Record<string, React.ReactNode> = {
-  organic_new: <ShoppingCart className="w-4 h-4 text-blue-500" />,
-  organic_recurring: <RefreshCw className="w-4 h-4 text-purple-500" />,
+  organic: <ShoppingCart className="w-4 h-4 text-blue-500" />,
   form: <FileText className="w-4 h-4 text-orange-500" />,
   whatsapp: <MessageCircle className="w-4 h-4 text-green-500" />,
+  other: <RefreshCw className="w-4 h-4 text-purple-500" />,
 };
 
 function SourceBreakdownRow({ source, label, data, isLoading }: SourceAnalysis) {
@@ -128,10 +128,10 @@ export function ConversionFunnelCard({ dateRange }: ConversionFunnelCardProps) {
       <Tabs value={source} onValueChange={(v) => setSource(v as DealSource)} className="mb-5">
         <TabsList className="grid w-full grid-cols-5 h-9">
           <TabsTrigger value="all" className="text-xs px-2">Todos</TabsTrigger>
-          <TabsTrigger value="organic_new" className="text-xs px-2" title="1ª Compra Kiwify Orgânica">1ª Orgânica</TabsTrigger>
-          <TabsTrigger value="organic_recurring" className="text-xs px-2">Recorrente</TabsTrigger>
+          <TabsTrigger value="organic" className="text-xs px-2" title="Vendas Orgânicas Kiwify">Orgânica</TabsTrigger>
           <TabsTrigger value="form" className="text-xs px-2">Formulários</TabsTrigger>
           <TabsTrigger value="whatsapp" className="text-xs px-2">WhatsApp</TabsTrigger>
+          <TabsTrigger value="other" className="text-xs px-2">Outros</TabsTrigger>
         </TabsList>
       </Tabs>
 

@@ -75,14 +75,32 @@ export function useLeadCreationMetrics(startDate: Date, endDate: Date) {
       if (lostError) throw lostError;
 
       // 4. Fetch Kiwify events (approved sales) in period
-      const { data: kiwifyEvents, error: kiwifyError } = await supabase
+      // Use a wider date range and filter by approved_date in memory
+      // because the approved_date is inside the payload JSON
+      const startDateMinus7 = new Date(startDate);
+      startDateMinus7.setDate(startDateMinus7.getDate() - 7);
+      const endDatePlus7 = new Date(endDate);
+      endDatePlus7.setDate(endDatePlus7.getDate() + 7);
+      
+      const { data: allKiwifyEvents, error: kiwifyError } = await supabase
         .from("kiwify_events")
         .select("id, event_type, customer_email, payload, linked_deal_id, created_at")
-        .in("event_type", ["paid", "order_approved"])
-        .gte("created_at", startStr)
-        .lte("created_at", endStr);
+        .in("event_type", ["paid", "order_approved", "order_paid"])
+        .gte("created_at", formatLocalDate(startDateMinus7))
+        .lte("created_at", endDatePlus7.toISOString());
 
       if (kiwifyError) throw kiwifyError;
+
+      // Filter by approved_date from payload (the actual transaction date)
+      const kiwifyEvents = (allKiwifyEvents || []).filter(event => {
+        const payload = event.payload as any;
+        const approvedDateStr = payload?.approved_date;
+        if (!approvedDateStr) return false;
+        
+        // Extract just the date part (YYYY-MM-DD)
+        const approvedDate = approvedDateStr.substring(0, 10);
+        return approvedDate >= startStr && approvedDate <= formatLocalDate(endDate);
+      });
 
       // Process deals by source
       const sourceMap = new Map<string, LeadSourceMetrics>();

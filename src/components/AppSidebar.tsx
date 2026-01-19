@@ -97,6 +97,7 @@ const universalMenuGroups: MenuGroup[] = [
       { title: "Gestão de Vendas", href: "/sales-management", icon: TrendingUp, permission: "sales.view_management" },
       { title: "Dashboard CS", href: "/cs-management", icon: BarChart3, permission: "cs.view_management" },
       { title: "Analytics", href: "/analytics", icon: BarChart3, permission: "analytics.view" },
+      { title: "Assinaturas", href: "/subscriptions", icon: RefreshCw, permission: "analytics.view" },
     ]
   },
   {

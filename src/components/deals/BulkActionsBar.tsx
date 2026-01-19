@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRightLeft, X, Users, ChevronDown } from "lucide-react";
+import { ArrowRightLeft, X, Users, ChevronDown, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ interface BulkActionsBarProps {
   selectedCount: number;
   onMoveClick: () => void;
   onTransferClick: () => void;
+  onMarkAsLostClick: () => void;
   onClearSelection: () => void;
 }
 
@@ -19,6 +20,7 @@ export default function BulkActionsBar({
   selectedCount,
   onMoveClick,
   onTransferClick,
+  onMarkAsLostClick,
   onClearSelection,
 }: BulkActionsBarProps) {
   return (
@@ -53,6 +55,10 @@ export default function BulkActionsBar({
                 <DropdownMenuItem onClick={onTransferClick} className="gap-2 cursor-pointer">
                   <Users className="h-4 w-4" />
                   Transferir para Vendedor
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onMarkAsLostClick} className="gap-2 cursor-pointer text-destructive focus:text-destructive">
+                  <XCircle className="h-4 w-4" />
+                  Marcar como Perdido
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

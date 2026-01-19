@@ -40,6 +40,7 @@ function countActiveFilters(filters: DealFilters): number {
   if (filters.probabilityMin !== undefined || filters.probabilityMax !== undefined) count++;
   if (filters.createdDateRange?.from || filters.createdDateRange?.to) count++;
   if (filters.expectedCloseDateRange?.from || filters.expectedCloseDateRange?.to) count++;
+  if (filters.updatedDateRange?.from || filters.updatedDateRange?.to) count++;
   if (filters.leadSource && filters.leadSource.length > 0) count++;
   if (filters.assignedTo && filters.assignedTo.length > 0) count++;
   if (filters.search && filters.search.trim().length > 0) count++;
@@ -78,6 +79,13 @@ export function AdvancedDealFiltersModal({
       status: [],
       stageIds: [],
       sortBy: "created_at_desc",
+      createdDateRange: undefined,
+      expectedCloseDateRange: undefined,
+      updatedDateRange: undefined,
+      valueMin: undefined,
+      valueMax: undefined,
+      probabilityMin: undefined,
+      probabilityMax: undefined,
     };
     setLocalFilters(clearedFilters);
   };
@@ -228,6 +236,18 @@ export function AdvancedDealFiltersModal({
                     <DatePickerWithRange
                       date={localFilters.expectedCloseDateRange}
                       onDateChange={(range) => setLocalFilters({ ...localFilters, expectedCloseDateRange: range })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Última Atualização</Label>
+                    <DatePresetButtons
+                      value={localFilters.updatedDateRange}
+                      onChange={(range) => setLocalFilters({ ...localFilters, updatedDateRange: range })}
+                      mode="past"
+                    />
+                    <DatePickerWithRange
+                      date={localFilters.updatedDateRange}
+                      onDateChange={(range) => setLocalFilters({ ...localFilters, updatedDateRange: range })}
                     />
                   </div>
                 </div>

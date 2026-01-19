@@ -37,6 +37,7 @@ import { ActiveFilterChips, generateDealFilterChips } from "@/components/ui/acti
 import BulkMoveDealsDialog from "@/components/deals/BulkMoveDealsDialog";
 import BulkActionsBar from "@/components/deals/BulkActionsBar";
 import BulkTransferToSellerDialog from "@/components/deals/BulkTransferToSellerDialog";
+import { BulkMarkAsLostDialog } from "@/components/deals/BulkMarkAsLostDialog";
 import { TransferDealsDialog } from "@/components/deals/TransferDealsDialog";
 import { CleanupInvalidAssignmentsDialog } from "@/components/deals/CleanupInvalidAssignmentsDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,6 +64,7 @@ export default function Deals() {
   const [selectedDeals, setSelectedDeals] = useState<Set<string>>(new Set());
   const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
   const [showBulkTransferDialog, setShowBulkTransferDialog] = useState(false);
+  const [showBulkLostDialog, setShowBulkLostDialog] = useState(false);
   
   // Advanced filters state
   const [dealFilters, setDealFilters] = useState<DealFilters>({
@@ -751,11 +753,21 @@ export default function Deals() {
         onSuccess={clearSelection}
       />
 
+      {/* Bulk Mark as Lost Dialog */}
+      <BulkMarkAsLostDialog
+        open={showBulkLostDialog}
+        onOpenChange={setShowBulkLostDialog}
+        selectedDealIds={Array.from(selectedDeals)}
+        pipelineId={selectedPipeline}
+        onSuccess={clearSelection}
+      />
+
       {/* Bulk Actions Bar */}
       <BulkActionsBar
         selectedCount={selectedDeals.size}
         onMoveClick={() => setShowBulkMoveDialog(true)}
         onTransferClick={() => setShowBulkTransferDialog(true)}
+        onMarkAsLostClick={() => setShowBulkLostDialog(true)}
         onClearSelection={clearSelection}
       />
     </div>

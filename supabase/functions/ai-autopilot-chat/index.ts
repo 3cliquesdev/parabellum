@@ -1568,7 +1568,9 @@ Responda APENAS: skip ou search`
     // 🆕 CORREÇÃO: Cliente é "conhecido" se tem email OU se foi validado via Kiwify OU se está na base como customer
     const isKiwifyValidated = contact.kiwify_validated === true;
     const isCustomerInDatabase = contact.status === 'customer';
-    const isValidatedCustomer = contactHasEmail || isKiwifyValidated || isCustomerInDatabase;
+    // 🆕 Cliente identificado pelo telefone (webhook já verificou que existe no banco)
+    const isPhoneVerified = customer_context?.isVerified === true;
+    const isValidatedCustomer = contactHasEmail || isKiwifyValidated || isCustomerInDatabase || isPhoneVerified;
     
     // 🔐 LGPD: Dados mascarados para exposição à IA
     const safeEmail = maskEmail(contactEmail);
@@ -1578,6 +1580,7 @@ Responda APENAS: skip ou search`
       hasEmail: contactHasEmail,
       isKiwifyValidated: isKiwifyValidated,
       isCustomerInDatabase: isCustomerInDatabase,
+      isPhoneVerified: isPhoneVerified,
       isValidatedCustomer: isValidatedCustomer,
       email: safeEmail,
       channel: responseChannel,
@@ -1937,8 +1940,16 @@ Responda APENAS: skip ou search`
             supabaseClient,
             'saudacao_cliente_base',
             { contact_name: contactName || '' }
-          ) || `Olá, ${contactName}! 👋\n\nQue bom ter você de volta! Como posso te ajudar hoje?`;
+          ) || `Olá, ${contactName}! Que bom ter você de volta! Como posso te ajudar hoje?`;
           greetingReason = 'database_customer_greeting_bypass';
+        } else if (isPhoneVerified) {
+          // 🆕 Cliente identificado pelo telefone (sem email) - saudação sem pedir email
+          directGreeting = await getMessageTemplate(
+            supabaseClient,
+            'saudacao_cliente_telefone',
+            { contact_name: contactName || '' }
+          ) || `Olá, ${contactName}! Bem-vindo(a)! Como posso te ajudar hoje?`;
+          greetingReason = 'phone_verified_customer_bypass';
         } else {
           // Fallback (não deveria chegar aqui)
           directGreeting = `Olá ${contactName}! Como posso te ajudar hoje?`;
@@ -2347,8 +2358,9 @@ Por favor, **digite o código** que você recebeu para continuar.`;
       console.log('[ai-autopilot-chat] ✅ Cliente identificado - Atendimento normal sem OTP');
     }
     
-    if (!contactHasEmail && responseChannel === 'whatsapp') {
-      // FASE 4: Lead (não tem email) - seguir Identity Wall e direcionar para comercial após verificação
+    // 🆕 CORREÇÃO: Só pedir email se NÃO for cliente conhecido pelo telefone
+    if (!contactHasEmail && !isPhoneVerified && !isCustomerInDatabase && !isKiwifyValidated && responseChannel === 'whatsapp') {
+      // FASE 4: Lead NOVO (não tem email E não está no banco por telefone) - seguir Identity Wall
       priorityInstruction = `=== INSTRUÇÃO PRIORITÁRIA - IGNORE TUDO ABAIXO ATÉ SEGUIR ISSO ===
 
 Este contato NÃO tem email cadastrado. A PRIMEIRA coisa que você DEVE falar é:
@@ -2385,6 +2397,9 @@ Este cliente NÃO tem email cadastrado no sistema (é um LEAD, não um cliente e
 
 **IMPORTANTE:** NÃO atenda dúvidas técnicas, NÃO crie tickets, NÃO responda perguntas até o email estar verificado.
 Se o cliente insistir em pular a verificação, explique que é uma política de segurança obrigatória.`;
+    } else if (isPhoneVerified && !contactHasEmail && !isKiwifyValidated) {
+      // 🆕 Cliente identificado pelo telefone (sem email) - atendimento normal, sem pedir email
+      console.log('[ai-autopilot-chat] ✅ Cliente identificado por telefone - bypass Identity Wall');
     }
     
     // PORTEIRO FINANCEIRO ATIVADO

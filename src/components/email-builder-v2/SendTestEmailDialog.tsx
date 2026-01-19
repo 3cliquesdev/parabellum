@@ -84,12 +84,14 @@ export function SendTestEmailDialog({
 
     try {
       // Call the send-email edge function
+      // useRawHtml: true = usa o HTML exatamente como foi criado no template, sem adicionar branding duplicado
       const { data, error } = await supabase.functions.invoke("send-email", {
         body: {
           to: testEmail,
           subject: `[TESTE] ${finalSubject}`,
           html: generatedHtml,
           isTest: true,
+          useRawHtml: true, // Template já está completo, não adicionar header/footer
           templateId,
         },
       });

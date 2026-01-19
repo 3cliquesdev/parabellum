@@ -266,3 +266,6 @@ verify_jwt = false
 [functions.check-rotten-deals.cron]
 schedule = "0 8 * * *"
 region = "us-east-1"
+
+[functions.sync-whatsapp-history]
+verify_jwt = true

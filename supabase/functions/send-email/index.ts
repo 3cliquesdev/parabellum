@@ -16,6 +16,7 @@ interface SendEmailRequest {
   is_customer_email?: boolean; // Default: true - usa branding de cliente
   branding_id?: string; // Opcional: branding específico
   isTest?: boolean; // Flag para emails de teste (não requer customer_id)
+  useRawHtml?: boolean; // Flag para usar HTML exatamente como enviado (templates personalizados)
 }
 
 interface EmailBranding {
@@ -44,10 +45,11 @@ serve(async (req) => {
       playbook_execution_id,
       is_customer_email = true,
       branding_id,
-      isTest = false
+      isTest = false,
+      useRawHtml = false
     }: SendEmailRequest = await req.json();
 
-    console.log('[send-email] Request received:', { to, subject, customer_id, playbook_execution_id, is_customer_email, branding_id, isTest });
+    console.log('[send-email] Request received:', { to, subject, customer_id, playbook_execution_id, is_customer_email, branding_id, isTest, useRawHtml });
 
     // Validação básica
     if (!to || !subject || !html) {
@@ -130,48 +132,60 @@ serve(async (req) => {
         ? `<img src="${logoUrl}" alt="${brandName}" width="100" style="display: block; max-width: 100px; height: auto;" />`
         : '';
 
-    const emailHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <div style="max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, ${headerColor} 0%, ${primaryColor} 100%); padding: 30px; text-align: center;">
-              ${headerContent}
+    // Se useRawHtml = true, usar HTML exatamente como enviado (templates personalizados)
+    // Caso contrário, envolver com branding padrão do sistema
+    let emailHtml: string;
+
+    if (useRawHtml) {
+      // Template personalizado - usar exatamente como está, sem adicionar header/footer
+      console.log('[send-email] Using raw HTML from custom template (no branding wrapper)');
+      emailHtml = html;
+    } else {
+      // Emails do sistema - aplicar branding padrão
+      console.log('[send-email] Applying default branding wrapper');
+      emailHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+          </head>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, ${headerColor} 0%, ${primaryColor} 100%); padding: 30px; text-align: center;">
+                ${headerContent}
+              </div>
+              <div style="padding: 30px; background: #f8fafc;">
+                ${html}
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: ${headerColor};">
+                <tr>
+                  <td align="center" style="padding: 25px;">
+                    ${footerLogoContent ? `
+                      <table cellpadding="0" cellspacing="0" border="0" align="center">
+                        <tr>
+                          <td style="padding: 0 8px;">
+                            ${footerLogoContent}
+                          </td>
+                        </tr>
+                      </table>
+                    ` : ''}
+                    <p style="color: #ffffff; margin: 15px 0 10px 0; font-size: 14px; font-weight: 600;">
+                      ${brandName}
+                    </p>
+                    <p style="color: #94a3b8; margin: 0 0 5px 0; font-size: 12px;">
+                      ${footerText}
+                    </p>
+                    <p style="color: #64748b; margin: 0; font-size: 11px;">
+                      Ambiente Seguro
+                    </p>
+                  </td>
+                </tr>
+              </table>
             </div>
-            <div style="padding: 30px; background: #f8fafc;">
-              ${html}
-            </div>
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: ${headerColor};">
-              <tr>
-                <td align="center" style="padding: 25px;">
-                  ${footerLogoContent ? `
-                    <table cellpadding="0" cellspacing="0" border="0" align="center">
-                      <tr>
-                        <td style="padding: 0 8px;">
-                          ${footerLogoContent}
-                        </td>
-                      </tr>
-                    </table>
-                  ` : ''}
-                  <p style="color: #ffffff; margin: 15px 0 10px 0; font-size: 14px; font-weight: 600;">
-                    ${brandName}
-                  </p>
-                  <p style="color: #94a3b8; margin: 0 0 5px 0; font-size: 12px;">
-                    ${footerText}
-                  </p>
-                  <p style="color: #64748b; margin: 0; font-size: 11px;">
-                    Ambiente Seguro
-                  </p>
-                </td>
-              </tr>
-            </table>
-          </div>
-        </body>
-      </html>
-    `;
+          </body>
+        </html>
+      `;
+    }
 
     // Função para sanitizar nome removendo caracteres não-ASCII
     const sanitizeName = (name: string): string => {

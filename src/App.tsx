@@ -44,6 +44,7 @@ const WidgetBuilder = lazy(() => import("./pages/WidgetBuilder"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Automations = lazy(() => import("./pages/Automations"));
 const Analytics = lazy(() => import("./pages/Analytics"));
+const Subscriptions = lazy(() => import("./pages/Subscriptions"));
 const TVMode = lazy(() => import("./pages/TVMode"));
 const SetupPassword = lazy(() => import("./pages/SetupPassword"));
 const Goals = lazy(() => import("./pages/Goals"));
@@ -182,6 +183,7 @@ const App = () => {
               <Route path="/onboarding-builder" element={<ProtectedRoute requiredPermission="playbooks.view"><Layout><OnboardingBuilder /></Layout></ProtectedRoute>} />
               <Route path="/playbook-executions" element={<ProtectedRoute requiredPermission="playbooks.view_executions"><Layout><PlaybookExecutions /></Layout></ProtectedRoute>} />
               <Route path="/analytics" element={<ProtectedRoute requiredPermission="analytics.view"><Layout><Analytics /></Layout></ProtectedRoute>} />
+              <Route path="/subscriptions" element={<ProtectedRoute requiredPermission="analytics.view"><Layout><Subscriptions /></Layout></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requiredPermission="analytics.export"><Layout><Reports /></Layout></ProtectedRoute>} />
               <Route path="/reports/consultant-distribution" element={<ProtectedRoute requiredPermission="reports.distribution"><Layout><ConsultantDistribution /></Layout></ProtectedRoute>} />
               <Route path="/reports/fiscal-export" element={<ProtectedRoute requiredPermission="reports.fiscal_export"><Layout><FiscalExport /></Layout></ProtectedRoute>} />

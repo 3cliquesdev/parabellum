@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Plus, MoreVertical, Smartphone, Settings, Trash2, QrCode, AlertTriangle, Zap, Activity, RefreshCw, Webhook, Stethoscope, Inbox, Send, Bot, Sparkles, BotOff } from "lucide-react";
+import { Plus, MoreVertical, Smartphone, Settings, Trash2, QrCode, AlertTriangle, Zap, Activity, RefreshCw, Webhook, Stethoscope, Inbox, Send, Bot, Sparkles, BotOff, History, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useUpdateWhatsAppInstance } from "@/hooks/useWhatsAppInstances";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import { useWhatsAppInstances, useDeleteWhatsAppInstance, useConnectWhatsAppInst
 import { useTestWhatsAppConnection } from "@/hooks/useTestWhatsAppConnection";
 import { useSyncWhatsAppInstances } from "@/hooks/useSyncWhatsAppInstances";
 import { useReconfigureWebhook, useTestWebhook } from "@/hooks/useWhatsAppWebhook";
+import { useSyncWhatsAppHistory } from "@/hooks/useSyncWhatsAppHistory";
 import { WhatsAppInstanceDialog } from "@/components/WhatsAppInstanceDialog";
 import { QRCodeModal } from "@/components/QRCodeModal";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -40,6 +41,7 @@ export default function WhatsAppSettings() {
   const reconfigureWebhookMutation = useReconfigureWebhook();
   const testWebhookMutation = useTestWebhook();
   const updateMutation = useUpdateWhatsAppInstance();
+  const syncHistoryMutation = useSyncWhatsAppHistory();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
@@ -446,6 +448,19 @@ export default function WhatsAppSettings() {
                           🔧 Reconfigurar Webhook
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        {instance.status === 'connected' && (
+                          <DropdownMenuItem 
+                            onClick={() => syncHistoryMutation.mutate({ instanceId: instance.id, limit: 50 })}
+                            disabled={syncHistoryMutation.isPending}
+                          >
+                            {syncHistoryMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <History className="w-4 h-4 mr-2" />
+                            )}
+                            📥 Importar Conversas Antigas
+                          </DropdownMenuItem>
+                        )}
                         {instance.status !== 'connected' && (
                           <DropdownMenuItem onClick={() => handleConnect(instance)}>
                             <QrCode className="w-4 h-4 mr-2" />

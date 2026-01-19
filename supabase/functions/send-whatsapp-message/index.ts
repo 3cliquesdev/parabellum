@@ -149,6 +149,119 @@ serve(async (req) => {
           rate_limited: !canSend
         });
         
+        // 🆕 PROCESSAMENTO IMEDIATO DA FILA (sem depender de cron)
+        console.log('[send-whatsapp-message] 🚀 Processando fila imediatamente...');
+        
+        const { data: pendingMessages } = await supabase
+          .from('message_queue')
+          .select('*')
+          .eq('status', 'pending')
+          .eq('instance_id', body.instance_id)
+          .lte('scheduled_at', new Date().toISOString())
+          .order('priority', { ascending: true })
+          .order('scheduled_at', { ascending: true })
+          .limit(5);
+        
+        let processedCount = 0;
+        let failedCount = 0;
+        
+        for (const msg of pendingMessages || []) {
+          try {
+            // Marcar como processando
+            await supabase
+              .from('message_queue')
+              .update({ status: 'processing' })
+              .eq('id', msg.id);
+            
+            // Buscar instância para este envio
+            const { data: msgInstance } = await supabase
+              .from('whatsapp_instances')
+              .select('*')
+              .eq('id', msg.instance_id)
+              .single();
+            
+            if (!msgInstance) {
+              console.error('[send-whatsapp-message] ❌ Instância não encontrada:', msg.instance_id);
+              await supabase
+                .from('message_queue')
+                .update({ status: 'failed', error_message: 'Instância não encontrada' })
+                .eq('id', msg.id);
+              failedCount++;
+              continue;
+            }
+            
+            // Preparar número para envio
+            const targetNumber = msg.phone_number;
+            const evolutionUrl = `${msgInstance.api_url}/message/sendText/${msgInstance.instance_name}`;
+            
+            console.log('[send-whatsapp-message] 📤 Enviando da fila:', { 
+              queue_id: msg.id, 
+              phone: targetNumber 
+            });
+            
+            const evolutionPayload = {
+              number: targetNumber,
+              text: msg.message,
+              delay: msg.metadata?.delay || 1200,
+              linkPreview: false
+            };
+            
+            const sendResponse = await fetch(evolutionUrl, {
+              method: 'POST',
+              headers: {
+                'apikey': msgInstance.api_token,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(evolutionPayload),
+            });
+            
+            const sendResult = await sendResponse.json();
+            
+            if (sendResponse.ok) {
+              console.log('[send-whatsapp-message] ✅ Mensagem enviada:', msg.id);
+              await supabase
+                .from('message_queue')
+                .update({ 
+                  status: 'sent', 
+                  sent_at: new Date().toISOString(),
+                  metadata: { ...msg.metadata, evolution_response: sendResult }
+                })
+                .eq('id', msg.id);
+              processedCount++;
+            } else {
+              console.error('[send-whatsapp-message] ❌ Falha Evolution API:', sendResult);
+              await supabase
+                .from('message_queue')
+                .update({ 
+                  status: 'failed', 
+                  retry_count: (msg.retry_count || 0) + 1,
+                  error_message: JSON.stringify(sendResult)
+                })
+                .eq('id', msg.id);
+              failedCount++;
+            }
+            
+            // Rate limiting: delay entre mensagens (2s)
+            if ((pendingMessages?.length || 0) > 1) {
+              await new Promise(r => setTimeout(r, 2000));
+            }
+            
+          } catch (sendError) {
+            console.error('[send-whatsapp-message] ❌ Erro ao processar:', msg.id, sendError);
+            await supabase
+              .from('message_queue')
+              .update({ 
+                status: 'failed', 
+                retry_count: (msg.retry_count || 0) + 1,
+                error_message: sendError instanceof Error ? sendError.message : 'Unknown error'
+              })
+              .eq('id', msg.id);
+            failedCount++;
+          }
+        }
+        
+        console.log('[send-whatsapp-message] 📊 Fila processada:', { processedCount, failedCount });
+        
         return new Response(
           JSON.stringify({
             success: true,
@@ -156,7 +269,11 @@ serve(async (req) => {
             queue_id: queuedMessage.id,
             scheduled_at: queuedMessage.scheduled_at,
             rate_limited: !canSend,
-            wait_ms: canSend ? 0 : waitMs
+            wait_ms: canSend ? 0 : waitMs,
+            immediate_processing: {
+              processed: processedCount,
+              failed: failedCount
+            }
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

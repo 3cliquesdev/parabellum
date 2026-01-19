@@ -404,12 +404,12 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
     console.log('[handle-whatsapp-event] ✅ Existing contact found:', contactId, 
       existingContacts && existingContacts.length > 1 ? `(${existingContacts.length} duplicates exist)` : '');
     
-    // ✅ SE TEM EMAIL VINCULADO = CLIENTE JÁ VERIFICADO
-    if (existingContact.email) {
-      isKnownCustomer = true;
-      contactName = `${existingContact.first_name || ''} ${existingContact.last_name || ''}`.trim() || customerName;
-      console.log(`[handle-whatsapp-event] 🎯 Cliente conhecido: ${contactName} (${existingContact.email})`);
-    }
+    // ✅ NOVO FLUXO: Cliente conhecido = telefone existe no banco (independente de ter email)
+    // O roteamento é feito pela existência do telefone: existe = Suporte, não existe = Comercial
+    isKnownCustomer = true;
+    contactName = `${existingContact.first_name || ''} ${existingContact.last_name || ''}`.trim() || customerName;
+    console.log(`[handle-whatsapp-event] 🎯 Cliente conhecido (telefone no banco): ${contactName}${existingContact.email ? ` (${existingContact.email})` : ' (sem email)'}`);
+    
     
     // 🔧 Atualizar whatsapp_id se mudou (caso de LID)
     if (jidForSending && existingContact.id) {
@@ -568,20 +568,23 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
     }
   }
 
-  // 🔐 FLUXO DE VERIFICAÇÃO OTP
+  // ============================================================
+  // 🔐 FLUXO OTP - APENAS para verificação de identidade quando cliente envia email
+  // OTP FINANCEIRO foi movido para ai-autopilot-chat (acionado pela IA)
+  // ============================================================
+  
+  // 1. Se está aguardando OTP (cliente enviou email e precisa confirmar), validar código
   if (metadata.awaiting_otp) {
     console.log('[handle-whatsapp-event] 🔐 Validating OTP...');
     await handleOTPValidation(supabase, conversationId, messageText, metadata, instance);
     return; // Não processar mais nada após validação OTP
   }
 
-  // 🔄 FLUXO DE REENVIO OTP - Quando bloqueado, permitir "reenviar" após 10 minutos
-  // ✅ FIX: Clientes conhecidos (com email já verificado) ignoram completamente o bloqueio OTP
+  // 2. Se OTP bloqueado para clientes conhecidos, limpar metadata obsoleta
   let currentMetadata = { ...metadata };
   
   if (currentMetadata.otp_blocked && isKnownCustomer) {
-    // 🧹 Limpar metadata obsoleta de cliente já verificado
-    console.log('[handle-whatsapp-event] 🧹 Limpando OTP metadata obsoleta de cliente verificado');
+    console.log('[handle-whatsapp-event] 🧹 Limpando OTP metadata obsoleta de cliente conhecido');
     
     const cleanedMetadata = {
       ...currentMetadata,
@@ -593,31 +596,22 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
     
     await supabase
       .from('conversations')
-      .update({
-        customer_metadata: cleanedMetadata
-      })
+      .update({ customer_metadata: cleanedMetadata })
       .eq('id', conversationId);
     
-    // Atualizar metadata local para continuar o fluxo corretamente
     currentMetadata = cleanedMetadata;
   }
   
-  // Agora processar o bloqueio apenas se ainda for válido (cliente NÃO conhecido)
+  // 3. Se ainda bloqueado (novo lead), permitir reenvio após 10 minutos
   if (currentMetadata.otp_blocked) {
     const isResetRequest = /reenviar|novo c[óo]digo|tentar novamente/i.test(messageText);
     const blockedAt = currentMetadata.otp_blocked_at ? new Date(currentMetadata.otp_blocked_at) : null;
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     const canResend = blockedAt && blockedAt < tenMinutesAgo;
     
-    console.log(`[handle-whatsapp-event] 🚫 OTP blocked - Reset request: ${isResetRequest}, Can resend: ${canResend}`);
-    
     if (isResetRequest && canResend) {
-      // ✅ Permitir nova tentativa
-      console.log('[handle-whatsapp-event] 🔄 Resetting OTP block - allowing new attempt');
-      
       const claimedEmail = currentMetadata.claimant_email;
       
-      // Gerar novo código OTP
       try {
         const { data: otpResponse, error: otpError } = await supabase.functions.invoke('send-verification-code', {
           body: { email: claimedEmail, type: 'customer' },
@@ -626,7 +620,6 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
         if (!otpError && otpResponse?.success) {
           const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
           
-          // Atualizar metadata - resetar bloqueio
           await supabase
             .from('conversations')
             .update({
@@ -638,7 +631,7 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
                 otp_attempts: 0,
                 otp_expires_at: expiresAt.toISOString(),
               },
-              ai_mode: 'autopilot', // Voltar para autopilot
+              ai_mode: 'autopilot',
             })
             .eq('id', conversationId);
           
@@ -647,10 +640,9 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
             instance,
             phoneForDatabase,
             jidForSending,
-            `🔄 *Novo Código Enviado!*\n\nEnviamos um novo código de 6 dígitos para:\n*${claimedEmail.replace(/(.{3}).*@/, '$1***@')}*\n\n⏰ Válido por 10 minutos.\n\nDigite o código para confirmar sua identidade.`
+            `🔄 *Novo Código Enviado!*\n\nEnviamos um novo código de 6 dígitos para:\n*${claimedEmail.replace(/(.{3}).*@/, '$1***@')}*\n\n⏰ Válido por 10 minutos.`
           );
           
-          // Inserir mensagem
           await supabase.from('messages').insert({
             conversation_id: conversationId,
             content: messageText,
@@ -665,8 +657,6 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
       }
     }
     
-    // 🚫 Ainda bloqueado - informar cliente
-    // FIX: Usar Date.now() como fallback e garantir que nunca seja negativo
     const blockedAtTime = blockedAt?.getTime() || Date.now();
     const minutesUntilResend = canResend ? 0 : Math.max(0, Math.ceil((blockedAtTime + 10 * 60 * 1000 - Date.now()) / 60000));
     
@@ -677,10 +667,9 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
       jidForSending,
       canResend 
         ? `🔄 Para receber um novo código de verificação, digite *"reenviar"*.`
-        : `🚫 *Verificação Bloqueada*\n\nAguarde ${minutesUntilResend} minuto(s) para solicitar um novo código.\n\nOu aguarde um atendente confirmar sua identidade.`
+        : `🚫 *Verificação Bloqueada*\n\nAguarde ${minutesUntilResend} minuto(s) para solicitar um novo código.`
     );
     
-    // Inserir mensagem
     await supabase.from('messages').insert({
       conversation_id: conversationId,
       content: messageText,
@@ -688,157 +677,122 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
       sender_id: null,
     });
     
-    return; // Não processar mais nada
+    return;
   }
 
-  // 🔍 DETECÇÃO DE EMAIL NA MENSAGEM - APENAS PARA VISITANTES
-  // FASE 4: Se cliente já tem email cadastrado, pular TODO o fluxo de verificação
+  // ============================================================
+  // 🔍 DETECÇÃO DE EMAIL - Quando LEAD envia email para se identificar
+  // NOTA: Cliente conhecido (isKnownCustomer = telefone no banco) pula este fluxo
+  // ============================================================
   if (!isKnownCustomer) {
     const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
     const emailMatch = messageText.match(emailRegex);
 
     if (emailMatch) {
       const claimedEmail = emailMatch[0].toLowerCase();
-      console.log('[handle-whatsapp-event] 📧 Email detected:', claimedEmail);
+      console.log('[handle-whatsapp-event] 📧 Lead enviou email para identificação:', claimedEmail);
 
       // Verificar se email já existe no banco
       const { data: existingEmailContact } = await supabase
-      .from('contacts')
-      .select('id, first_name, last_name, email')
-      .eq('email', claimedEmail)
-      .single();
+        .from('contacts')
+        .select('id, first_name, last_name, email')
+        .eq('email', claimedEmail)
+        .single();
 
-    if (existingEmailContact && existingEmailContact.id !== contactId) {
-      // 🚨 EMAIL JÁ EXISTE - INICIAR DESAFIO OTP
-      console.log('[handle-whatsapp-event] 🚨 Email belongs to existing customer - triggering OTP challenge');
-      
-      // FASE 2: Enviar OTP via email e capturar código retornado (código único gerado pelo send-verification-code)
-      let otpSentViaEmail = false;
-      let otpCode: string | null = null;
-      let devMode = false;
-      
-      try {
-        console.log('[handle-whatsapp-event] 📤 Invocando send-verification-code...');
-        const { data: otpResponse, error: otpError } = await supabase.functions.invoke('send-verification-code', {
-          body: { email: claimedEmail, type: 'customer' },
-        });
+      if (existingEmailContact && existingEmailContact.id !== contactId) {
+        // Email existe - iniciar desafio OTP para confirmar identidade
+        console.log('[handle-whatsapp-event] 🚨 Email pertence a cliente existente - OTP challenge');
         
-        console.log('[handle-whatsapp-event] 📥 Resposta:', JSON.stringify(otpResponse));
+        let otpSentViaEmail = false;
+        let otpCode: string | null = null;
         
-        if (!otpError && otpResponse?.success) {
-          otpSentViaEmail = true;
-          otpCode = otpResponse.code; // FASE 2: Usar o código ÚNICO gerado pelo send-verification-code
-          devMode = otpResponse.dev_mode || false;
-          
-          console.log('[handle-whatsapp-event] ✅ OTP gerado e salvo pelo send-verification-code');
-          console.log('[handle-whatsapp-event] 🔑 Código OTP:', otpCode);
-          console.log('[handle-whatsapp-event] 📧 Email enviado:', otpSentViaEmail);
-          console.log('[handle-whatsapp-event] 🔧 Dev mode:', devMode);
-        } else if (otpError?.message?.includes('429') || otpError?.status === 429 || otpResponse?.error?.includes('Limite')) {
-          // FASE 1: Tratamento específico para rate limit (429)
-          console.error('[handle-whatsapp-event] ⏰ Rate limit atingido (429)');
-          
-          await sendWhatsAppMessage(
-            supabase,
-            instance,
-            phoneForDatabase,
-            jidForSending,
-            `⏰ *Limite de verificações atingido*\n\n` +
-            `Você solicitou muitos códigos recentemente. ` +
-            `Por favor, aguarde 1 hora antes de tentar novamente.\n\n` +
-            `Se precisar de ajuda urgente, um atendente humano vai te ajudar.`
-          );
-          
-          // Mudar para copilot para agente assumir
-          await supabase
-            .from('conversations')
-            .update({ ai_mode: 'copilot' })
-            .eq('id', conversationId);
-          
-          console.log('[handle-whatsapp-event] 🔄 Conversa mudou para Copilot devido ao rate limit');
-          return new Response(JSON.stringify({ success: true, rate_limited: true }), {
-            headers: { 'Content-Type': 'application/json' },
+        try {
+          const { data: otpResponse, error: otpError } = await supabase.functions.invoke('send-verification-code', {
+            body: { email: claimedEmail, type: 'customer' },
           });
-        } else {
-          console.error('[handle-whatsapp-event] ❌ Erro ao enviar OTP:', otpError);
+          
+          if (!otpError && otpResponse?.success) {
+            otpSentViaEmail = true;
+            otpCode = otpResponse.code;
+          } else if (otpError?.message?.includes('429') || otpError?.status === 429) {
+            await sendWhatsAppMessage(
+              supabase,
+              instance,
+              phoneForDatabase,
+              jidForSending,
+              `⏰ *Limite de verificações atingido*\n\nAguarde 1 hora antes de tentar novamente.`
+            );
+            
+            await supabase
+              .from('conversations')
+              .update({ ai_mode: 'copilot' })
+              .eq('id', conversationId);
+            
+            return;
+          }
+        } catch (emailError) {
+          console.error('[handle-whatsapp-event] ❌ Erro ao enviar OTP:', emailError);
         }
-      } catch (emailError) {
-        console.error('[handle-whatsapp-event] ❌ Exceção ao enviar OTP:', emailError);
-      }
 
-      // Calcular expiration e atualizar metadata da conversa
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
-      await supabase
-        .from('conversations')
-        .update({
-          customer_metadata: {
-            ...metadata,
-            awaiting_otp: true,
-            claimant_email: claimedEmail,
-            claimed_contact_id: existingEmailContact.id,
-            otp_attempts: 0,
-            otp_expires_at: expiresAt.toISOString(),
-          },
-        })
-        .eq('id', conversationId);
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        await supabase
+          .from('conversations')
+          .update({
+            customer_metadata: {
+              ...metadata,
+              awaiting_otp: true,
+              claimant_email: claimedEmail,
+              claimed_contact_id: existingEmailContact.id,
+              otp_attempts: 0,
+              otp_expires_at: expiresAt.toISOString(),
+            },
+          })
+          .eq('id', conversationId);
 
-      // FASE 2 & 3: Mensagem WhatsApp adaptada ao contexto
-      let whatsappMessage: string;
-      
-      if (!otpSentViaEmail && otpCode) {
-        // FASE 3: Email falhou - enviar código via WhatsApp como fallback
-        whatsappMessage = `🔐 *Verificação de Identidade*\n\nLocalizei um cadastro com este e-mail.\n\n⚠️ O envio por email falhou.\n\n🔑 Seu código de verificação é: *${otpCode}*\n\nDigite o código aqui para confirmar sua identidade.`;
-        console.log('[handle-whatsapp-event] 📱 FALLBACK: Enviando OTP via WhatsApp porque email falhou');
-      } else if (otpSentViaEmail) {
-        // Modo normal: email enviado com sucesso
-        whatsappMessage = `🔐 *Verificação de Identidade*\n\nLocalizei um cadastro com este e-mail. Por segurança, enviei um código de 6 dígitos para *${claimedEmail}*.\n\nDigite o código aqui para confirmar sua identidade e acessar seu histórico.`;
-        console.log('[handle-whatsapp-event] ✅ Modo normal: OTP enviado via email');
-      } else {
-        // Erro crítico: nem email nem código disponível
-        whatsappMessage = `🔐 *Verificação de Identidade*\n\n❌ Houve um erro ao gerar o código de verificação. Por favor, tente novamente em alguns minutos.`;
-        console.error('[handle-whatsapp-event] ❌ ERRO CRÍTICO: Nem email nem código disponível');
-      }
-      
-      // Log dev mode internally (never show code to client)
-      if (devMode) {
-        console.log('[handle-whatsapp-event] ⚠️ DEV MODE: Código OTP não enviado por email - verifique logs do servidor');
-      }
-      
-      await sendWhatsAppMessage(
-        supabase,
-        instance,
-        phoneForDatabase,
-        jidForSending,
-        whatsappMessage
-      );
+        let whatsappMessage: string;
+        
+        if (!otpSentViaEmail && otpCode) {
+          whatsappMessage = `🔐 *Verificação de Identidade*\n\nLocalizei um cadastro com este e-mail.\n\n🔑 Seu código: *${otpCode}*\n\nDigite para confirmar.`;
+        } else if (otpSentViaEmail) {
+          whatsappMessage = `🔐 *Verificação de Identidade*\n\nLocalizei um cadastro com este e-mail. Enviei um código de 6 dígitos para *${claimedEmail}*.\n\nDigite o código para confirmar sua identidade.`;
+        } else {
+          whatsappMessage = `🔐 *Verificação de Identidade*\n\n❌ Houve um erro ao gerar o código. Tente novamente em alguns minutos.`;
+        }
+        
+        await sendWhatsAppMessage(supabase, instance, phoneForDatabase, jidForSending, whatsappMessage);
+        await supabase.from('messages').insert({
+          conversation_id: conversationId,
+          content: messageText,
+          sender_type: 'contact',
+          sender_id: null,
+        });
 
-      // Inserir mensagem do sistema
-      await supabase.from('messages').insert({
-        conversation_id: conversationId,
-        content: messageText,
-        sender_type: 'contact',
-        sender_id: null,
-      });
-
-      return; // Não processar mais nada - aguardando OTP
+        return;
       }
     }
   } else {
-    // FASE 4: Cliente conhecido - pular completamente a verificação
-    console.log('[handle-whatsapp-event] ✅ Cliente conhecido - email já verificado anteriormente');
-    console.log('[handle-whatsapp-event] ⏭️ Pulando Identity Wall - permitindo acesso direto');
+    console.log('[handle-whatsapp-event] ✅ Cliente conhecido (telefone no banco) - prosseguindo normalmente');
   }
 
-  // 4. FASE 2: Vincular instância e atribuir conversa (normal flow)
-  // 🔧 KIWIFY VALIDATION: Verificar se o contato tem compra na Kiwify ANTES de atribuir
+  // ============================================================
+  // 🚀 ROTEAMENTO SIMPLIFICADO: Baseado no telefone existir no banco
+  // Telefone existe = Cliente = Suporte
+  // Telefone novo = Lead = Comercial
+  // ============================================================
   const SUPORTE_DEPT_ID = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a';
   const COMERCIAL_DEPT_ID = 'f446e202-bdc3-4bb3-aeda-8c0aa04ee53c';
 
-  let isKiwifyCustomer = false;
-  let targetDepartmentId = COMERCIAL_DEPT_ID; // Default: lead vai para Comercial
+  // isKnownCustomer já foi definido lá em cima baseado no telefone existir no banco
+  let targetDepartmentId = isKnownCustomer ? SUPORTE_DEPT_ID : COMERCIAL_DEPT_ID;
+  
+  console.log('[handle-whatsapp-event] 🎯 ROTEAMENTO:', {
+    telefone_no_banco: isKnownCustomer,
+    departamento: isKnownCustomer ? 'Suporte (cliente)' : 'Comercial (lead)',
+    phone: phoneForDatabase
+  });
 
+  // Validação Kiwify adicional para enriquecer dados do cliente
   try {
-    console.log('[handle-whatsapp-event] 🔍 Validando contato na Kiwify...');
     const { data: kiwifyValidation, error: kiwifyError } = await supabase.functions.invoke('validate-by-kiwify-phone', {
       body: { 
         phone: phoneForDatabase,
@@ -846,21 +800,16 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
       }
     });
 
-    if (kiwifyError) {
-      console.error('[handle-whatsapp-event] ⚠️ Erro na validação Kiwify:', kiwifyError);
-    } else if (kiwifyValidation?.found) {
-      isKiwifyCustomer = true;
+    if (!kiwifyError && kiwifyValidation?.found) {
+      // Cliente tem compra Kiwify - confirma que vai para Suporte
       targetDepartmentId = SUPORTE_DEPT_ID;
-      console.log(`[handle-whatsapp-event] ✅ Cliente Kiwify identificado - direcionando para Suporte`);
-      console.log(`[handle-whatsapp-event] 📦 Produtos:`, kiwifyValidation.customer?.products);
-    } else {
-      console.log(`[handle-whatsapp-event] 📋 Lead sem compra Kiwify - direcionando para Comercial`);
+      console.log(`[handle-whatsapp-event] ✅ Cliente Kiwify confirmado - Suporte`);
     }
   } catch (kiwifyErr) {
-    console.error('[handle-whatsapp-event] ⚠️ Exceção na validação Kiwify:', kiwifyErr);
+    console.warn('[handle-whatsapp-event] ⚠️ Validação Kiwify falhou (não crítico):', kiwifyErr);
   }
 
-  // 🔧 FIX: Buscar ai_mode ATUAL da conversa para NÃO sobrescrever se atendente já assumiu
+  // Buscar estado atual da conversa
   const { data: currentConv } = await supabase
     .from('conversations')
     .select('ai_mode, assigned_to, department')
@@ -871,11 +820,10 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
     whatsapp_instance_id: instance.id,
   };
 
-  // 🔧 KIWIFY: Definir departamento baseado na validação Kiwify
-  // Só atualizar se a conversa ainda não tiver departamento definido
+  // Só definir departamento se ainda não tiver
   if (!currentConv?.department) {
     updateData.department = targetDepartmentId;
-    console.log('[handle-whatsapp-event] 🏢 Definindo departamento:', isKiwifyCustomer ? 'Suporte (cliente Kiwify)' : 'Comercial (lead)');
+    console.log('[handle-whatsapp-event] 🏢 Definindo departamento:', isKnownCustomer ? 'Suporte' : 'Comercial');
   } else {
     console.log('[handle-whatsapp-event] ⚠️ Preservando departamento existente:', currentConv.department);
   }

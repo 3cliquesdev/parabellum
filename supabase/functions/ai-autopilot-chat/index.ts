@@ -2372,31 +2372,29 @@ Este contato NÃO tem email cadastrado. A PRIMEIRA coisa que você DEVE falar é
 
 `;
       
-      identityWallNote = `\n\n**LEAD NOVO - Identity Wall OBRIGATÓRIO:**
-Este cliente NÃO tem email cadastrado no sistema (é um LEAD, não um cliente existente).
+      identityWallNote = `\n\n**LEAD NOVO - Identificação por Email (SEM OTP):**
+Este cliente NÃO tem email cadastrado no sistema.
 
-**FLUXO OBRIGATÓRIO DE IDENTIFICAÇÃO:**
+**FLUXO DE IDENTIFICAÇÃO:**
 1. PRIMEIRA MENSAGEM: Cumprimente "${contactName}" e solicite o email de forma educada e direta:
-   "Olá ${contactName}! Para garantir um atendimento personalizado e seguro, preciso que você me informe seu email."
+   "Olá ${contactName}! Para garantir um atendimento personalizado, preciso que você me informe seu email."
    
 2. AGUARDE o cliente fornecer o email
 
-3. QUANDO cliente fornecer email: Use a ferramenta verify_customer_email para registrar e buscar na base
+3. QUANDO cliente fornecer email: Use a ferramenta verify_customer_email para buscar na base
 
 4. **SE EMAIL NÃO ENCONTRADO NA BASE:**
-   - Sistema vai perguntar automaticamente: "Não encontrei esse email na nossa base de clientes. Poderia confirmar se esse email está correto?"
-   - Se cliente responder "SIM", "correto", "está certo" → Use a ferramenta confirm_email_not_found com confirmed=true (vai transferir para comercial)
-   - Se cliente informar um email DIFERENTE → Use verify_customer_email com o novo email
-   - Se cliente responder "não", "errado", "digitei errado" → Use confirm_email_not_found com confirmed=false (vai pedir novo email)
+   - Sistema vai perguntar: "Não encontrei esse email na nossa base de clientes. Poderia confirmar se esse email está correto?"
+   - Se cliente responder "SIM", "correto" → Use confirm_email_not_found com confirmed=true (transfere para comercial)
+   - Se cliente informar email DIFERENTE → Use verify_customer_email com o novo email
+   - Se cliente responder "não", "errado" → Use confirm_email_not_found com confirmed=false (pede novo email)
 
 5. **SE EMAIL ENCONTRADO NA BASE:**
-   - OTP será enviado automaticamente
-   - Informe: "Enviamos um código de 6 dígitos para [email]. Por favor, digite o código que você recebeu."
-   - AGUARDE o cliente enviar o código de 6 dígitos
-   - Use a ferramenta verify_otp_code para validar
+   - Cumprimente o cliente pelo nome e pergunte como pode ajudar
+   - NÃO precisa de OTP para atendimento normal (rastreio, dúvidas, etc.)
+   - OTP só será pedido se cliente solicitar operação FINANCEIRA (saque, reembolso)
 
-**IMPORTANTE:** NÃO atenda dúvidas técnicas, NÃO crie tickets, NÃO responda perguntas até o email estar verificado.
-Se o cliente insistir em pular a verificação, explique que é uma política de segurança obrigatória.`;
+**IMPORTANTE:** NÃO atenda dúvidas técnicas até o email ser verificado na base.`;
     } else if (isPhoneVerified && !contactHasEmail && !isKiwifyValidated) {
       // 🆕 Cliente identificado pelo telefone (sem email) - atendimento normal, sem pedir email
       console.log('[ai-autopilot-chat] ✅ Cliente identificado por telefone - bypass Identity Wall');
@@ -2404,17 +2402,24 @@ Se o cliente insistir em pular a verificação, explique que é uma política de
     
     // PORTEIRO FINANCEIRO ATIVADO
     if (financialBarrierActive) {
-      if (contactHasEmail) {
-        // Cenário: Tem email mas não tem OTP recente → Pedir verificação
-        identityWallNote += `\n\n**=== PORTEIRO FINANCEIRO - VERIFICAÇÃO OBRIGATÓRIA ===**
+      // Verificar se cliente já foi identificado por email (novo fluxo)
+      const hasEmailVerifiedInDb = conversation.customer_metadata?.email_verified_in_db === true;
+      const verifiedEmail = conversation.customer_metadata?.verified_email;
+      
+      if (contactHasEmail || hasEmailVerifiedInDb) {
+        const emailToUse = contactEmail || verifiedEmail;
+        const maskedEmailForPrompt = emailToUse ? maskEmail(emailToUse) : 'seu email cadastrado';
+        
+        // Cenário: Cliente identificado por email → Agora sim precisa OTP para financeiro
+        identityWallNote += `\n\n**=== PORTEIRO FINANCEIRO - VERIFICAÇÃO OTP OBRIGATÓRIA ===**
 O cliente pediu uma operação FINANCEIRA (${customerMessage}).
-Ele TEM email cadastrado (${safeEmail}), MAS precisa verificar identidade via OTP.
+Email verificado: ${maskedEmailForPrompt}
 
 **RESPOSTA OBRIGATÓRIA:**
 "Para sua segurança, preciso confirmar sua identidade antes de prosseguir com operações financeiras. 
-Vou enviar um código de verificação para ${safeEmail}. Aguarde..."
+Vou enviar um código de verificação para ${maskedEmailForPrompt}."
 
-→ Use a tool update_customer_email para disparar o OTP (sistema já conhece o email)
+→ Use a ferramenta send_financial_otp para disparar o OTP
 → NÃO mostre CPF, Nome, Saldo ou qualquer dado sensível
 → NÃO permita criar ticket de saque
 → AGUARDE o cliente digitar o código de 6 dígitos`;
@@ -2695,15 +2700,13 @@ Resolução desejada: Reembolso integral"
 ---
 
 **Você tem acesso às seguintes ferramentas:**
-- create_ticket: Use APENAS quando cliente pedir explicitamente ajuda humana OU problema financeiro concreto OU você não conseguir responder após tentar. Para SAQUE, use SOMENTE após coletar e confirmar todos os dados (veja FLUXO ESPECIAL acima).
-- verify_customer_email: Use APENAS quando cliente FORNECER email novo pela primeira vez. Verifica se existe e envia OTP.
-- resend_otp: Use quando cliente disser "não recebi email" ou pedir reenvio. Reenvia código para email JÁ cadastrado. NÃO pede email novamente.
+- create_ticket: Use APENAS quando cliente pedir explicitamente ajuda humana OU problema financeiro concreto OU você não conseguir responder após tentar. Para SAQUE, use SOMENTE após OTP validado e dados confirmados.
+- verify_customer_email: Use quando cliente FORNECER email para identificação. Verifica se existe na base. Se existir, cliente é identificado SEM OTP. OTP só é necessário para operações financeiras.
+- send_financial_otp: Use quando cliente JÁ IDENTIFICADO por email solicitar operação FINANCEIRA (saque, reembolso). Envia OTP para confirmar identidade antes de prosseguir.
+- resend_otp: Use quando cliente disser "não recebi email" ou pedir reenvio. Reenvia código para email JÁ cadastrado.
 - verify_otp_code: Valide códigos OTP de 6 dígitos
-- request_human_agent: Transfira para atendente humano quando: 1) Cliente disser que dados estão INCORRETOS, 2) Cliente pedir explicitamente atendente humano, 3) Situação muito complexa que você não consegue resolver. Use com reason: "dados_financeiros_incorretos", "solicitacao_cliente", ou "caso_complexo".
-- check_tracking: Consulta rastreio de pedidos no sistema de romaneio. Use quando cliente perguntar sobre entrega, onde está o pedido, rastreio, ou status de envio. REGRAS IMPORTANTES:
-  1. Se ENCONTRAR código no sistema = pedido JÁ FOI EMBALADO e SAIU DO GALPÃO, está em transporte
-  2. Se NÃO ENCONTRAR = pedido ainda está sendo preparado (se pago até 13h, sai até fim do dia - peça para voltar mais tarde)
-  Aceita MÚLTIPLOS códigos de rastreio de uma vez. Extraia TODOS os códigos que o cliente enviar.
+- request_human_agent: Transfira para atendente humano quando: 1) Cliente disser que dados estão INCORRETOS, 2) Cliente pedir explicitamente atendente humano, 3) Situação muito complexa que você não consegue resolver.
+- check_tracking: Consulta rastreio de pedidos. Use quando cliente perguntar sobre entrega ou status de envio.
 
 ${knowledgeContext}${identityWallNote}
 
@@ -2821,6 +2824,19 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
         function: {
           name: 'resend_otp',
           description: 'Reenvia código OTP para o email JÁ CADASTRADO do cliente. Use quando cliente disser "não recebi email", "não chegou código", "reenviar código". NÃO pede email novamente.',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        }
+      },
+      // 🆕 TOOL: Enviar OTP para operações financeiras (quando cliente já está identificado)
+      {
+        type: 'function',
+        function: {
+          name: 'send_financial_otp',
+          description: 'Envia código OTP para email JÁ VERIFICADO quando cliente solicita operação FINANCEIRA (saque, reembolso, etc). Use apenas após cliente já ter sido identificado por email na base. NÃO use para identificação inicial - para isso use verify_customer_email.',
           parameters: {
             type: 'object',
             properties: {},
@@ -2984,58 +3000,40 @@ Se estiver correto, vou te transferir para nosso time comercial. Se digitou erra
                 .eq('id', conversationId);
             }
 
-            // Enviar OTP para o email encontrado - SEMPRE com branding de CLIENTE
-            const { data: otpData, error: otpError } = await supabaseClient.functions.invoke('send-verification-code', {
-              body: { email: emailInformado, type: 'customer' }
-            });
-
-            if (otpError || !otpData?.success) {
-              assistantMessage = 'Não consegui enviar o código de verificação. Por favor, tente novamente.';
-              continue;
-            }
-
-            console.log('[ai-autopilot-chat] ✅ OTP enviado para cliente verificado');
+            // 🆕 NOVO FLUXO: Email encontrado = Cliente identificado SEM OTP
+            // OTP será pedido APENAS quando cliente solicitar operação financeira
+            console.log('[ai-autopilot-chat] ✅ Cliente identificado por email - SEM OTP (novo fluxo)');
             
-            // 🔐 MARCAR OTP PENDENTE NA METADATA (para validação contextual)
+            // Marcar como cliente verificado por email na base (sem awaiting_otp)
             const currentMetadata = conversation.customer_metadata || {};
-            const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutos
             await supabaseClient
               .from('conversations')
               .update({ 
                 customer_metadata: {
                   ...currentMetadata,
-                  awaiting_otp: true,
-                  otp_expires_at: otpExpiresAt,
-                  claimant_email: emailInformado
+                  email_verified_in_db: true,        // Email conferido na base
+                  verified_email: emailInformado,     // Email do cliente
+                  verified_customer_id: existingCustomer.id,
+                  verified_customer_name: existingCustomer.first_name,
+                  verified_at: new Date().toISOString()
+                  // NÃO definimos awaiting_otp aqui - só quando for financeiro
                 }
               })
               .eq('id', conversationId);
             
-            console.log('[ai-autopilot-chat] 🔐 OTP pendente marcado na metadata (verify_customer_email tool)');
+            console.log('[ai-autopilot-chat] ✅ Cliente marcado como verificado (email_verified_in_db)');
             
-            // Build response message usando template do banco (NEVER show code to client)
-            const safeEmail = maskEmail(emailInformado);
-            assistantMessage = await getMessageTemplate(
-              supabaseClient,
-              'otp_enviado',
-              { masked_email: safeEmail, contact_name: existingCustomer.first_name || '' }
-            ) || `Encontrei seu cadastro, ${existingCustomer.first_name}!
+            // Resposta direta SEM pedir OTP
+            assistantMessage = `Perfeito, ${existingCustomer.first_name}! Encontrei seu cadastro.
 
-Enviei um código de 6 dígitos para **${safeEmail}**.
-
-Por favor, digite o código que você recebeu para confirmar sua identidade.`;
-
-            // Log dev mode internally (never show code to client)
-            if (otpData.dev_mode) {
-              console.log('[ai-autopilot-chat] ⚠️ DEV MODE: Código OTP não foi enviado por email - verifique configuração do Resend');
-            }
+Como posso te ajudar hoje?`;
             
             await supabaseClient.from('interactions').insert({
               customer_id: existingCustomer.id,
               type: 'note',
-              content: `Verificação financeira iniciada - OTP enviado para ${emailInformado}`,
+              content: `Cliente identificado por email: ${emailInformado}`,
               channel: responseChannel,
-              metadata: { source: 'financial_barrier', otp_sent: true }
+              metadata: { source: 'email_verification', verified_in_db: true }
             });
           } catch (error) {
             console.error('[ai-autopilot-chat] ❌ Erro ao processar email:', error);
@@ -3110,6 +3108,73 @@ Por favor, verifique sua caixa de entrada (e spam) e digite o código que você 
           } catch (error) {
             console.error('[ai-autopilot-chat] ❌ Erro ao reenviar OTP:', error);
             assistantMessage = 'Ocorreu um erro ao reenviar o código. Por favor, tente novamente.';
+          }
+        }
+        // 🆕 TOOL HANDLER: Enviar OTP para operações financeiras
+        else if (toolCall.function.name === 'send_financial_otp') {
+          try {
+            console.log('[ai-autopilot-chat] 🔐 Enviando OTP financeiro...');
+            
+            // Buscar email do cliente (do contato ou da metadata da conversa)
+            const hasEmailVerifiedInDb = conversation.customer_metadata?.email_verified_in_db === true;
+            const verifiedEmail = conversation.customer_metadata?.verified_email;
+            const emailToUse = contact.email || verifiedEmail;
+            
+            if (!emailToUse) {
+              assistantMessage = 'Não encontrei seu email cadastrado. Por favor, informe seu email para que eu possa enviar o código de verificação.';
+              continue;
+            }
+
+            // Enviar OTP
+            const { data: otpData, error: otpError } = await supabaseClient.functions.invoke('send-verification-code', {
+              body: { email: emailToUse, type: 'customer' }
+            });
+
+            if (otpError || !otpData?.success) {
+              console.error('[ai-autopilot-chat] ❌ Erro ao enviar OTP financeiro:', otpError);
+              assistantMessage = 'Não consegui enviar o código de verificação. Por favor, tente novamente em alguns instantes.';
+              continue;
+            }
+
+            // Marcar OTP pendente na metadata
+            const currentMetadata = conversation.customer_metadata || {};
+            const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutos
+            await supabaseClient
+              .from('conversations')
+              .update({ 
+                customer_metadata: {
+                  ...currentMetadata,
+                  awaiting_otp: true,
+                  otp_expires_at: otpExpiresAt,
+                  claimant_email: emailToUse,
+                  financial_otp_requested: true // Marca que é OTP financeiro
+                }
+              })
+              .eq('id', conversationId);
+            
+            console.log('[ai-autopilot-chat] 🔐 OTP financeiro enviado e marcado na metadata');
+
+            // Resposta
+            const safeEmail = maskEmail(emailToUse);
+            assistantMessage = `Para sua seguranca, enviei um codigo de 6 digitos para **${safeEmail}**.
+
+Por favor, digite o codigo que voce recebeu para confirmar sua identidade.`;
+
+            // Log dev mode internally
+            if (otpData.dev_mode) {
+              console.log('[ai-autopilot-chat] ⚠️ DEV MODE: Código OTP financeiro não enviado - verifique configuração do Resend');
+            }
+            
+            await supabaseClient.from('interactions').insert({
+              customer_id: contact.id,
+              type: 'note',
+              content: `Verificacao financeira iniciada - OTP enviado para ${safeEmail}`,
+              channel: responseChannel,
+              metadata: { source: 'financial_otp', email_masked: safeEmail }
+            });
+          } catch (error) {
+            console.error('[ai-autopilot-chat] ❌ Erro ao enviar OTP financeiro:', error);
+            assistantMessage = 'Ocorreu um erro ao enviar o código. Por favor, tente novamente.';
           }
         }
         // TOOL: Confirmar email não encontrado - transferir para comercial ou pedir novo email

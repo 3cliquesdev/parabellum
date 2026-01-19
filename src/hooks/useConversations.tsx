@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useDepartmentsByRole, hasFullInboxAccess } from "@/hooks/useDepartmentsByRole";
 import type { Tables } from "@/integrations/supabase/types";
 import type { DateRange } from "react-day-picker";
 
@@ -43,6 +44,7 @@ export function useConversations(filters?: ConversationFilters) {
   const { user } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
+  const { departmentIds, isLoading: deptLoading } = useDepartmentsByRole(role);
 
   // Realtime subscription for conversations - otimizado para máxima velocidade
   useEffect(() => {
@@ -138,10 +140,28 @@ export function useConversations(filters?: ConversationFilters) {
           assigned_user:profiles!assigned_to(id, full_name, avatar_url, job_title, department)
         `);
 
-      // Role-based filtering for sales_rep
-      if (role && (role as string) === "sales_rep" && user?.id) {
-        query = query.eq("assigned_to", user.id);
+      // Role-based filtering por departamento
+      if (role && user?.id && !hasFullInboxAccess(role)) {
+        // Roles operacionais: ver apenas conversas atribuídas a eles OU não atribuídas do seu departamento
+        if (role === "sales_rep" || role === "support_agent" || role === "financial_agent") {
+          if (departmentIds && departmentIds.length > 0) {
+            // Conversa atribuída ao usuário OU (não atribuída E do departamento permitido)
+            query = query.or(
+              `assigned_to.eq.${user.id},and(assigned_to.is.null,department.in.(${departmentIds.join(",")}))`
+            );
+          } else {
+            // Se não há departamentos configurados, ver apenas as atribuídas ao usuário
+            query = query.eq("assigned_to", user.id);
+          }
+        } else if (role === "consultant") {
+          // Consultant: ver apenas conversas atribuídas a ele
+          query = query.eq("assigned_to", user.id);
+        } else if (role === "user") {
+          // User genérico: ver apenas atribuídas a ele
+          query = query.eq("assigned_to", user.id);
+        }
       }
+      // Roles de gestão (admin, manager, general_manager, support_manager, cs_manager) = ver tudo
 
       // Apply filters if provided
       if (filters) {
@@ -223,7 +243,7 @@ export function useConversations(filters?: ConversationFilters) {
     staleTime: 5000, // Reduzido de 10s para 5s para maior responsividade
     refetchOnWindowFocus: true,
     refetchInterval: 30000, // Fallback: refetch a cada 30s para garantir sincronia
-    enabled: !!user && !roleLoading,
+    enabled: !!user && !roleLoading && !deptLoading,
   });
 }
 

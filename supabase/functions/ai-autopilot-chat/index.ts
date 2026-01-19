@@ -2223,30 +2223,29 @@ Digite **"reenviar"** se precisar de um novo código.`;
           current_channel: responseChannel
         });
         
-        try {
-          // Enviar OTP automaticamente
-          await supabaseClient.functions.invoke('send-verification-code', {
-            body: { email: contactEmail, type: 'customer' }
-          });
-          
-          // 🔐 MARCAR OTP PENDENTE NA METADATA (para validação contextual)
-          const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutos
-          await supabaseClient
-            .from('conversations')
-            .update({ 
-              customer_metadata: {
-                ...conversationMetadata,
-                awaiting_otp: true,
-                otp_expires_at: otpExpiresAt,
-                claimant_email: contactEmail
-              }
-            })
-            .eq('id', conversationId);
-          
-          console.log('[ai-autopilot-chat] 🔐 OTP pendente marcado na metadata (financial barrier)');
-          
-          // BYPASS DIRETO - NÃO CHAMAR A IA
-          const directOTPResponse = `**Verificação de Segurança**
+        // Enviar OTP automaticamente
+        await supabaseClient.functions.invoke('send-verification-code', {
+          body: { email: contactEmail, type: 'customer' }
+        });
+        
+        // 🔐 MARCAR OTP PENDENTE NA METADATA (para validação contextual)
+        const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutos
+        await supabaseClient
+          .from('conversations')
+          .update({ 
+            customer_metadata: {
+              ...conversationMetadata,
+              awaiting_otp: true,
+              otp_expires_at: otpExpiresAt,
+              claimant_email: contactEmail
+            }
+          })
+          .eq('id', conversationId);
+        
+        console.log('[ai-autopilot-chat] 🔐 OTP pendente marcado na metadata (financial barrier)');
+        
+        // BYPASS DIRETO - NÃO CHAMAR A IA
+        const directOTPResponse = `**Verificação de Segurança**
 
 Olá ${contactName}! Você é nosso cliente, mas questões financeiras são delicadas.
 
@@ -2256,61 +2255,60 @@ Enviei um código de **6 dígitos** para **${maskedEmail}**.
 
 Por favor, **digite o código** que você recebeu para continuar.`;
 
-          // Salvar mensagem no banco
-          const { data: savedMsg } = await supabaseClient
-            .from('messages')
-            .insert({
-              conversation_id: conversationId,
-              content: directOTPResponse,
-              sender_type: 'user',
-              is_ai_generated: true,
-              channel: responseChannel
-            })
-            .select()
-            .single();
+        // Salvar mensagem no banco
+        const { data: savedMsg } = await supabaseClient
+          .from('messages')
+          .insert({
+            conversation_id: conversationId,
+            content: directOTPResponse,
+            sender_type: 'user',
+            is_ai_generated: true,
+            channel: responseChannel
+          })
+          .select()
+          .single();
+        
+        // Enviar via WhatsApp se necessário
+        if (responseChannel === 'whatsapp' && contact?.phone) {
+          const whatsappInstance = await getWhatsAppInstanceForConversation(
+            supabaseClient, 
+            conversationId, 
+            conversation.whatsapp_instance_id
+          );
           
-          // Enviar via WhatsApp se necessário
-          if (responseChannel === 'whatsapp' && contact?.phone) {
-            const whatsappInstance = await getWhatsAppInstanceForConversation(
-              supabaseClient, 
-              conversationId, 
-              conversation.whatsapp_instance_id
-            );
-            
-            if (whatsappInstance) {
-              await supabaseClient.functions.invoke('send-whatsapp-message', {
-                body: {
-                  instance_id: whatsappInstance.id,
-                  phone_number: contact.phone,
-                  whatsapp_id: contact.whatsapp_id,
-                  message: directOTPResponse
-                }
-              });
-            }
+          if (whatsappInstance) {
+            await supabaseClient.functions.invoke('send-whatsapp-message', {
+              body: {
+                instance_id: whatsappInstance.id,
+                phone_number: contact.phone,
+                whatsapp_id: contact.whatsapp_id,
+                message: directOTPResponse
+              }
+            });
           }
-          
-          // ⚡ RETURN EARLY - NÃO CONTINUAR PARA A IA
-          return new Response(JSON.stringify({
-            response: directOTPResponse,
-            messageId: savedMsg?.id,
-            awaitingOTP: true,
-            debug: { 
-              reason: 'financial_barrier_auto_otp_all_channels',
-              email_sent_to: maskedEmail,
-              bypassed_ai: true,
-              contact_name: contactName,
-              channel: responseChannel,
-              is_contact_verified: isContactVerified,
-              can_access_financial: canAccessFinancialFeatures
-            }
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-          
-        } catch (error) {
-          console.error('[ai-autopilot-chat] ❌ Erro ao disparar OTP financeiro:', error);
-          // Se falhar, continua para IA tentar lidar
         }
+        
+        // ⚡ RETURN EARLY - NÃO CONTINUAR PARA A IA
+        return new Response(JSON.stringify({
+          response: directOTPResponse,
+          messageId: savedMsg?.id,
+          awaitingOTP: true,
+          debug: { 
+            reason: 'financial_barrier_auto_otp_all_channels',
+            email_sent_to: maskedEmail,
+            bypassed_ai: true,
+            contact_name: contactName,
+            channel: responseChannel,
+            is_contact_verified: isContactVerified,
+            can_access_financial: canAccessFinancialFeatures
+          }
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+        
+      } catch (error) {
+        console.error('[ai-autopilot-chat] ❌ Erro ao disparar OTP financeiro:', error);
+        // Se falhar, continua para IA tentar lidar
       }
     }
     

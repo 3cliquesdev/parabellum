@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useDepartmentsByRole, hasFullInboxAccess } from "@/hooks/useDepartmentsByRole";
 import type { DateRange } from "react-day-picker";
 
 export interface InboxViewItem {
@@ -45,13 +46,41 @@ export interface InboxFilters {
 
 const QUERY_KEY = ["inbox-view"];
 
-// Função para buscar dados do inbox com cursor opcional
-async function fetchInboxData(cursor?: string): Promise<InboxViewItem[]> {
+interface FetchOptions {
+  cursor?: string;
+  userId?: string;
+  role?: string | null;
+  departmentIds?: string[] | null;
+}
+
+// Função para buscar dados do inbox com filtros de role
+async function fetchInboxData(options: FetchOptions = {}): Promise<InboxViewItem[]> {
+  const { cursor, userId, role, departmentIds } = options;
+
   let query = supabase
     .from("inbox_view")
     .select("*")
     .order("updated_at", { ascending: false })
     .limit(200);
+
+  // Aplicar filtros de role no nível do banco
+  if (role && userId && !hasFullInboxAccess(role)) {
+    if (role === "sales_rep" || role === "support_agent" || role === "financial_agent") {
+      if (departmentIds && departmentIds.length > 0) {
+        // Conversa atribuída ao usuário OU (não atribuída E do departamento permitido)
+        query = query.or(
+          `assigned_to.eq.${userId},and(assigned_to.is.null,department.in.(${departmentIds.join(",")}))`
+        );
+      } else {
+        // Sem departamentos configurados: apenas as atribuídas ao usuário
+        query = query.eq("assigned_to", userId);
+      }
+    } else if (role === "consultant" || role === "user") {
+      // Consultant/User: apenas conversas atribuídas a ele
+      query = query.eq("assigned_to", userId);
+    }
+  }
+  // Roles de gestão = sem filtro (ver tudo)
 
   if (cursor) {
     query = query.gt("updated_at", cursor);
@@ -162,14 +191,22 @@ function mergeInboxItems(existing: InboxViewItem[], incoming: InboxViewItem[]): 
 
 export function useInboxView(filters?: InboxFilters) {
   const { user } = useAuth();
-  const { role } = useUserRole();
+  const { role, loading: roleLoading } = useUserRole();
+  const { departmentIds, isLoading: deptLoading } = useDepartmentsByRole(role);
   const queryClient = useQueryClient();
   const lastSeenRef = useRef<string | null>(null);
 
+  // Memoizar opções de fetch para evitar recriações desnecessárias
+  const fetchOptions = useMemo(() => ({
+    userId: user?.id,
+    role,
+    departmentIds,
+  }), [user?.id, role, departmentIds]);
+
   const query = useQuery({
-    queryKey: [...QUERY_KEY, user?.id, role, filters],
+    queryKey: [...QUERY_KEY, user?.id, role, departmentIds, filters],
     queryFn: async () => {
-      const data = await fetchInboxData();
+      const data = await fetchInboxData(fetchOptions);
       
       // Atualizar cursor com o registro mais recente
       if (data.length > 0) {
@@ -191,10 +228,11 @@ export function useInboxView(filters?: InboxFilters) {
       // Aplicar filtros client-side
       return applyFilters(result, filters);
     },
-    staleTime: 5000, // Reduzido de 10s para 5s para maior responsividade
+    staleTime: 5000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
-    refetchInterval: 30000, // Fallback: refetch a cada 30s para garantir sincronia
+    refetchInterval: 30000,
+    enabled: !!user && !roleLoading && !deptLoading,
   });
 
   // Realtime subscription com merge incremental e catch-up
@@ -216,11 +254,16 @@ export function useInboxView(filters?: InboxFilters) {
           const row = (payload.new || payload.old) as InboxViewItem;
           if (!row?.conversation_id) return;
 
+          // Verificar se a conversa deve ser visível para este role/departamento
+          const shouldShow = hasFullInboxAccess(role) || 
+            row.assigned_to === user?.id ||
+            (row.assigned_to === null && departmentIds?.includes(row.department || ""));
+
           // Merge incremental no cache
           queryClient.setQueryData<InboxViewItem[]>(
-            [...QUERY_KEY, user?.id, role, filters],
+            [...QUERY_KEY, user?.id, role, departmentIds, filters],
             (prev = []) => {
-              if (payload.eventType === "DELETE") {
+              if (payload.eventType === "DELETE" || !shouldShow) {
                 return prev.filter(item => item.conversation_id !== row.conversation_id);
               }
               return mergeInboxItems(prev, [row as InboxViewItem]);
@@ -240,11 +283,14 @@ export function useInboxView(filters?: InboxFilters) {
         if (status === "SUBSCRIBED" && lastSeenRef.current) {
           console.log("[Realtime] Running catch-up from cursor:", lastSeenRef.current);
           try {
-            const catchUpData = await fetchInboxData(lastSeenRef.current);
+            const catchUpData = await fetchInboxData({ 
+              cursor: lastSeenRef.current,
+              ...fetchOptions 
+            });
             if (catchUpData.length > 0) {
               console.log("[Realtime] Catch-up found", catchUpData.length, "new records");
               queryClient.setQueryData<InboxViewItem[]>(
-                [...QUERY_KEY, user?.id, role, filters],
+                [...QUERY_KEY, user?.id, role, departmentIds, filters],
                 (prev = []) => mergeInboxItems(prev, catchUpData)
               );
               lastSeenRef.current = catchUpData[0].updated_at;
@@ -259,17 +305,17 @@ export function useInboxView(filters?: InboxFilters) {
       console.log("[Realtime] Removing inbox_view channel");
       supabase.removeChannel(channel);
     };
-  }, [queryClient, user?.id, role, filters]);
+  }, [queryClient, user?.id, role, departmentIds, filters, fetchOptions]);
 
   // Visibility change listener - refetch quando aba volta ao foco
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && lastSeenRef.current) {
         console.log("[Visibility] Tab became visible, running catch-up...");
-        fetchInboxData(lastSeenRef.current).then(data => {
+        fetchInboxData({ cursor: lastSeenRef.current, ...fetchOptions }).then(data => {
           if (data.length > 0) {
             queryClient.setQueryData<InboxViewItem[]>(
-              [...QUERY_KEY, user?.id, role, filters],
+              [...QUERY_KEY, user?.id, role, departmentIds, filters],
               (prev = []) => mergeInboxItems(prev, data)
             );
             lastSeenRef.current = data[0].updated_at;
@@ -280,7 +326,7 @@ export function useInboxView(filters?: InboxFilters) {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [queryClient, user?.id, role, filters]);
+  }, [queryClient, user?.id, role, departmentIds, filters, fetchOptions]);
 
   // Função para resetar unread count ao abrir conversa
   const resetUnreadCount = useCallback(async (conversationId: string) => {
@@ -290,7 +336,7 @@ export function useInboxView(filters?: InboxFilters) {
       });
       // Atualização otimista no cache
       queryClient.setQueryData<InboxViewItem[]>(
-        [...QUERY_KEY, user?.id, role, filters],
+        [...QUERY_KEY, user?.id, role, departmentIds, filters],
         (prev = []) => prev.map(item => 
           item.conversation_id === conversationId 
             ? { ...item, unread_count: 0 } 
@@ -300,7 +346,7 @@ export function useInboxView(filters?: InboxFilters) {
     } catch (error) {
       console.error("Failed to reset unread count:", error);
     }
-  }, [queryClient, user?.id, role, filters]);
+  }, [queryClient, user?.id, role, departmentIds, filters]);
 
   return {
     ...query,
@@ -325,13 +371,33 @@ export interface InboxCounts {
 }
 
 export function useInboxCounts(userId?: string) {
+  const { role } = useUserRole();
+  const { departmentIds } = useDepartmentsByRole(role);
+
   return useQuery<InboxCounts>({
-    queryKey: ["inbox-counts", userId],
+    queryKey: ["inbox-counts", userId, role, departmentIds],
     queryFn: async (): Promise<InboxCounts> => {
-      // Buscar dados de inbox
-      const { data: inboxData, error: inboxError } = await supabase
+      // Buscar dados de inbox com filtro de role
+      let query = supabase
         .from("inbox_view")
         .select("conversation_id, ai_mode, status, sla_status, unread_count, assigned_to, department, last_sender_type");
+
+      // Aplicar filtros de role no nível do banco
+      if (role && userId && !hasFullInboxAccess(role)) {
+        if (role === "sales_rep" || role === "support_agent" || role === "financial_agent") {
+          if (departmentIds && departmentIds.length > 0) {
+            query = query.or(
+              `assigned_to.eq.${userId},and(assigned_to.is.null,department.in.(${departmentIds.join(",")}))`
+            );
+          } else {
+            query = query.eq("assigned_to", userId);
+          }
+        } else if (role === "consultant" || role === "user") {
+          query = query.eq("assigned_to", userId);
+        }
+      }
+
+      const { data: inboxData, error: inboxError } = await query;
 
       if (inboxError) throw inboxError;
 

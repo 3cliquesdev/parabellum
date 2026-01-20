@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatLocalDate } from "@/lib/dateUtils";
+import { fetchProductMappings, getMappedProductWithSourceType } from "@/lib/kiwifyProductMapping";
 
 export interface WhoSoldCategory {
   category: string;
+  sourceType: string;
+  isRecurring: boolean;
   label: string;
   color: string;
   sales: number;
@@ -12,12 +15,14 @@ export interface WhoSoldCategory {
   avgTicket: number;
 }
 
-// Categories for "Who Sold" ranking
+// Categories for "Who Sold" ranking with New/Recurring split
 const CATEGORY_CONFIG: Record<string, { label: string; color: string; priority: number }> = {
-  organico: { label: "Orgânico", color: "#8B5CF6", priority: 1 },
-  afiliado: { label: "Afiliados/Parceiros", color: "#F59E0B", priority: 2 },
-  recorrencia: { label: "Recorrência", color: "#06B6D4", priority: 3 },
-  formulario: { label: "Formulários", color: "#10B981", priority: 4 },
+  afiliado_novo: { label: "Afiliados - Novas", color: "#F59E0B", priority: 1 },
+  afiliado_recorrente: { label: "Afiliados - Recorrentes", color: "#FBBF24", priority: 2 },
+  organico_novo: { label: "Orgânico - Novas", color: "#8B5CF6", priority: 3 },
+  organico_recorrente: { label: "Orgânico - Recorrentes", color: "#A78BFA", priority: 4 },
+  comercial_novo: { label: "Comercial - Novas", color: "#10B981", priority: 5 },
+  comercial_recorrente: { label: "Comercial - Recorrentes", color: "#34D399", priority: 6 },
 };
 
 export function useWhoSoldMetrics(startDate: Date, endDate: Date) {
@@ -27,13 +32,16 @@ export function useWhoSoldMetrics(startDate: Date, endDate: Date) {
       const startStr = formatLocalDate(startDate);
       const endStr = formatLocalDate(endDate);
 
+      // Fetch product mappings (includes sourceType)
+      const { offerMap, productIdMap } = await fetchProductMappings();
+
       // Use 7-day margin strategy for database query (same as other Kiwify hooks)
       const marginStart = new Date(startDate);
       marginStart.setDate(marginStart.getDate() - 7);
       const marginEnd = new Date(endDate);
       marginEnd.setDate(marginEnd.getDate() + 7);
 
-      // Fetch paid events from kiwify_events (same source as Assinaturas)
+      // Fetch ALL paid events (gross sales including refunds)
       const { data: kiwifyEvents, error } = await supabase
         .from("kiwify_events")
         .select("*")
@@ -45,7 +53,7 @@ export function useWhoSoldMetrics(startDate: Date, endDate: Date) {
 
       // Deduplicate by order_id and filter by approved_date
       const seenOrders = new Set<string>();
-      const categoryMap = new Map<string, { sales: number; revenue: number }>();
+      const categoryMap = new Map<string, { sales: number; revenue: number; sourceType: string; isRecurring: boolean }>();
       let totalRevenue = 0;
 
       for (const event of kiwifyEvents || []) {
@@ -68,55 +76,39 @@ export function useWhoSoldMetrics(startDate: Date, endDate: Date) {
         const grossValue = Number(commissions.product_base_price || 0) / 100;
         totalRevenue += grossValue;
 
-        // Detect category based on payload analysis (same logic as useKiwifyCompleteMetrics)
-        let category = "organico";
+        // Get sourceType from product mapping (the source of truth)
+        const mapped = getMappedProductWithSourceType(payload, offerMap, productIdMap);
+        const sourceType = mapped.sourceType;
 
-        // 1. Check for affiliate commission
-        const affiliateStore = commissions.commissioned_stores?.find(
-          (s: any) => s.type === "affiliate"
-        );
-        const affiliateCommission = Number(affiliateStore?.value || 0) / 100;
+        // Detect if it's a renewal (recurring sale)
+        const chargesCompleted = payload.Subscription?.charges?.completed || [];
+        const isRecurring = chargesCompleted.length > 1;
 
-        if (affiliateCommission > 0) {
-          category = "afiliado";
-        } else {
-          // 2. Check for recurrence (renewal)
-          const chargesCompleted = payload.Subscription?.charges?.completed || [];
-          const isRenewal = chargesCompleted.length > 1;
-
-          if (isRenewal) {
-            category = "recorrencia";
-          } else {
-            // 3. Check lead_source for form-originated sales
-            const leadSource = (payload.lead_source || "").toLowerCase();
-            if (
-              leadSource.includes("formulario") ||
-              leadSource.includes("form") ||
-              leadSource.includes("webchat") ||
-              leadSource.includes("chat_widget")
-            ) {
-              category = "formulario";
-            }
-            // Default: organico
-          }
-        }
+        // Create composite category key
+        const categoryKey = `${sourceType}_${isRecurring ? 'recorrente' : 'novo'}`;
 
         // Accumulate stats
-        if (!categoryMap.has(category)) {
-          categoryMap.set(category, { sales: 0, revenue: 0 });
+        if (!categoryMap.has(categoryKey)) {
+          categoryMap.set(categoryKey, { sales: 0, revenue: 0, sourceType, isRecurring });
         }
 
-        const stats = categoryMap.get(category)!;
+        const stats = categoryMap.get(categoryKey)!;
         stats.sales++;
         stats.revenue += grossValue;
       }
 
       // Convert to array with labels and percentages
       const result: WhoSoldCategory[] = Array.from(categoryMap.entries())
-        .map(([category, stats]) => {
-          const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.organico;
+        .map(([categoryKey, stats]) => {
+          const config = CATEGORY_CONFIG[categoryKey] || {
+            label: categoryKey,
+            color: "#6B7280",
+            priority: 99,
+          };
           return {
-            category,
+            category: categoryKey,
+            sourceType: stats.sourceType,
+            isRecurring: stats.isRecurring,
             label: config.label,
             color: config.color,
             sales: stats.sales,

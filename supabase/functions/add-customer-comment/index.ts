@@ -15,9 +15,24 @@ serve(async (req) => {
   try {
     const { ticket_id, contact_id, content } = await req.json();
 
+    console.log('[add-customer-comment] Dados recebidos:', {
+      ticket_id: ticket_id || 'VAZIO',
+      contact_id: contact_id || 'VAZIO',
+      content_length: content?.length || 0
+    });
+
     if (!ticket_id || !contact_id || !content) {
+      const missing = [];
+      if (!ticket_id) missing.push('ticket_id');
+      if (!contact_id) missing.push('contact_id');
+      if (!content) missing.push('content');
+      
+      console.error('[add-customer-comment] Campos obrigatórios faltando:', missing);
       return new Response(
-        JSON.stringify({ error: 'ticket_id, contact_id, and content are required' }),
+        JSON.stringify({ 
+          error: `Campos obrigatórios faltando: ${missing.join(', ')}`,
+          missing_fields: missing
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

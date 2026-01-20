@@ -88,8 +88,25 @@ export default function MyTicketDetail({
   const handleSendComment = async () => {
     if (!newComment.trim()) return;
     
+    // Validação crítica do contactId
+    if (!contactId) {
+      console.error('[MyTicketDetail] contactId está vazio ou undefined');
+      toast({
+        title: "Erro de identificação",
+        description: "Sua sessão expirou. Por favor, volte e identifique-se novamente.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setSending(true);
     try {
+      console.log('[MyTicketDetail] Enviando comentário:', {
+        ticket_id: ticket.id,
+        contact_id: contactId,
+        content_length: newComment.trim().length
+      });
+
       const { data, error } = await supabase.functions.invoke('add-customer-comment', {
         body: {
           ticket_id: ticket.id,
@@ -98,9 +115,28 @@ export default function MyTicketDetail({
         }
       });
 
-      if (error) throw error;
+      console.log('[MyTicketDetail] Resposta da edge function:', { data, error });
 
-      if (data.success) {
+      if (error) {
+        console.error('[MyTicketDetail] Erro de invocação:', error);
+        throw error;
+      }
+
+      if (data?.error) {
+        // Tratar erros específicos da edge function
+        if (data.error === 'Unauthorized') {
+          throw new Error('Você não tem permissão para comentar neste ticket.');
+        }
+        if (data.error === 'Ticket not found') {
+          throw new Error('Ticket não encontrado.');
+        }
+        if (data.error === 'Cannot add comment to closed ticket') {
+          throw new Error('Não é possível comentar em um ticket fechado.');
+        }
+        throw new Error(data.error);
+      }
+
+      if (data?.success) {
         setNewComment("");
         toast({
           title: "Resposta enviada",
@@ -108,13 +144,13 @@ export default function MyTicketDetail({
         });
         onCommentAdded();
       } else {
-        throw new Error(data.error || "Erro ao enviar resposta");
+        throw new Error("Resposta inesperada do servidor");
       }
     } catch (error: unknown) {
-      console.error('Error sending comment:', error);
+      console.error('[MyTicketDetail] Erro completo:', error);
       toast({
-        title: "Erro",
-        description: error instanceof Error ? error.message : "Não foi possível enviar sua resposta.",
+        title: "Erro ao enviar",
+        description: error instanceof Error ? error.message : "Não foi possível enviar sua resposta. Tente novamente.",
         variant: "destructive"
       });
     } finally {

@@ -208,16 +208,31 @@ export default function MyTickets() {
 
   // Selected ticket detail view
   if (selectedTicket) {
+    // Verificar se temos contactId válido antes de renderizar
+    if (!identity?.contact_id) {
+      console.error('[MyTickets] contactId inválido ao tentar ver ticket:', identity);
+      localStorage.removeItem(IDENTITY_STORAGE_KEY);
+      setIsIdentified(false);
+      setIdentity(null);
+      setSelectedTicket(null);
+      toast({
+        title: "Sessão expirada",
+        description: "Por favor, identifique-se novamente para ver seus tickets.",
+        variant: "destructive"
+      });
+      return null;
+    }
+
     return (
       <MyTicketDetail
         ticket={selectedTicket}
-        contactId={identity?.contact_id || ""}
+        contactId={identity.contact_id}
         onBack={() => {
           setSelectedTicket(null);
           fetchTickets(); // Refresh list
         }}
         onCommentAdded={handleCommentAdded}
-        customerName={`${identity?.first_name} ${identity?.last_name}`}
+        customerName={`${identity.first_name} ${identity.last_name}`}
       />
     );
   }

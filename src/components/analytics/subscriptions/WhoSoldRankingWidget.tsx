@@ -19,14 +19,28 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-// Configuração de categorias baseada em comissão de afiliado (alinhado com menu Assinaturas)
-// Afiliado = affiliateCommission > 0, Orgânico = affiliateCommission === 0
-const CATEGORY_CONFIG: Record<string, { label: string; color: string; priority: number }> = {
-  afiliado_novo: { label: "Afiliados (Novo)", color: "#f97316", priority: 1 },
-  afiliado_recorrente: { label: "Afiliados (Recorrente)", color: "#ea580c", priority: 2 },
-  organico_novo: { label: "Orgânico (Novo)", color: "#8b5cf6", priority: 3 },
-  organico_recorrente: { label: "Orgânico (Recorrente)", color: "#7c3aed", priority: 4 },
-};
+// Gera cor consistente baseada no nome da categoria (hash do nome)
+function getCategoryColor(category: string): string {
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = category.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  const colors = [
+    '#8B5CF6', // Roxo
+    '#F97316', // Laranja
+    '#3B82F6', // Azul
+    '#10B981', // Verde
+    '#EC4899', // Rosa
+    '#EAB308', // Amarelo
+    '#6366F1', // Indigo
+    '#14B8A6', // Teal
+    '#EF4444', // Vermelho
+    '#06B6D4', // Cyan
+  ];
+  
+  return colors[Math.abs(hash) % colors.length];
+}
 
 interface CategoryMetrics {
   category: string;
@@ -39,56 +53,35 @@ interface CategoryMetrics {
 }
 
 export function WhoSoldRankingWidget({ subscriptionData, isLoading }: WhoSoldRankingWidgetProps) {
-  // Processar dados usando affiliateCommission de SubscriptionData (mesma lógica do menu Assinaturas)
-  // NÃO busca payloads extras - usa dados já calculados em useKiwifySubscriptions
+  // Processar dados agrupando por productCategory (nome do produto mapeado)
+  // Isso garante que os dados sejam EXATAMENTE iguais ao menu Assinaturas
   const categories = useMemo((): CategoryMetrics[] => {
     if (!subscriptionData?.subscriptions || subscriptionData.subscriptions.length === 0) {
       return [];
     }
 
+    // Agrupar por productCategory (exatamente como o menu Assinaturas)
     const categoryMap = new Map<string, { sales: number; revenue: number }>();
 
     for (const sub of subscriptionData.subscriptions) {
-      // Classificação alinhada com menu Assinaturas:
-      // - Afiliado = tem comissão de afiliado (affiliateCommission > 0)
-      // - Orgânico = sem comissão de afiliado
-      const isAffiliate = sub.affiliateCommission > 0;
-      const sourceType = isAffiliate ? 'afiliado' : 'organico';
+      // Usa productCategory que é o nome do produto mapeado em product_offers → products.name
+      const categoryName = sub.productCategory || 'Não mapeado';
 
-      // Para determinar novo vs recorrente, verificamos se existe na classificação do hook
-      // Usamos a lista de IDs de novas assinaturas vs renovações do metrics
-      // Simplificação: se não há como saber, assumimos "novo" para produtos únicos
-      // O hook calcula isso via charges.completed.length
-      
-      // Como o SubscriptionData não expõe saleType diretamente, 
-      // vamos derivar: renovação = qualquer subscription recorrente com mais de 1 cobrança
-      // Infelizmente, o SubscriptionData atual não expõe isso, então precisamos simplificar
-      // Por ora, classificamos tudo como "novo" (podemos melhorar depois)
-      const isRecorrente = false; // TODO: adicionar saleType ao SubscriptionData
-
-      const categoryKey = `${sourceType}_${isRecorrente ? 'recorrente' : 'novo'}`;
-
-      const existing = categoryMap.get(categoryKey) || { sales: 0, revenue: 0 };
+      const existing = categoryMap.get(categoryName) || { sales: 0, revenue: 0 };
       existing.sales += 1;
       existing.revenue += sub.grossValue;
-      categoryMap.set(categoryKey, existing);
+      categoryMap.set(categoryName, existing);
     }
 
     // Converter para array e calcular métricas
     const totalRevenue = Array.from(categoryMap.values()).reduce((sum, c) => sum + c.revenue, 0);
 
     const result: CategoryMetrics[] = [];
-    for (const [key, data] of categoryMap.entries()) {
-      const config = CATEGORY_CONFIG[key] || {
-        label: key.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        color: '#6b7280',
-        priority: 99,
-      };
-
+    for (const [categoryName, data] of categoryMap.entries()) {
       result.push({
-        category: key,
-        label: config.label,
-        color: config.color,
+        category: categoryName,
+        label: categoryName,
+        color: getCategoryColor(categoryName),
         sales: data.sales,
         revenue: data.revenue,
         percentage: totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0,
@@ -96,8 +89,8 @@ export function WhoSoldRankingWidget({ subscriptionData, isLoading }: WhoSoldRan
       });
     }
 
-    // Ordenar por receita decrescente
-    return result.sort((a, b) => b.revenue - a.revenue);
+    // Ordenar por vendas decrescente (igual ao menu Assinaturas)
+    return result.sort((a, b) => b.sales - a.sales);
   }, [subscriptionData?.subscriptions]);
 
   if (isLoading) {

@@ -136,6 +136,8 @@ const presetOrder: PresetKey[] = ['today', 'yesterday', 'thisWeek', 'lastWeek', 
 export function DateRangePicker({ value, onChange, className }: DateRangePickerProps) {
   const [activePreset, setActivePreset] = useState<PresetKey>('thisMonth');
   const [calendarOpen, setCalendarOpen] = useState(false);
+  // Estado interno para seleção em progresso - evita re-render do pai durante seleção
+  const [draftRange, setDraftRange] = useState<DateRange | undefined>(value);
 
   const handlePresetChange = (preset: PresetKey) => {
     setActivePreset(preset);
@@ -146,18 +148,31 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
   };
 
   const handleCalendarSelect = (range: DateRange | undefined) => {
-    // Durante seleção: NÃO força to = from
+    // Atualiza APENAS o estado interno durante a seleção
     const partial = normalizePartialRange(range);
+    setDraftRange(partial);
     setActivePreset('custom');
     
     // Se range completo (usuário selecionou ambas as datas), finaliza
     if (partial?.from && partial?.to) {
       onChange(normalizeFinalRange(range));
       setCalendarOpen(false);
-    } else {
-      // Range incompleto - mantém aberto e passa range parcial
-      onChange(partial);
     }
+    // NÃO chama onChange quando incompleto - evita re-render do pai
+  };
+
+  // Sincroniza draftRange quando o calendário abre
+  const handleCalendarOpenChange = (open: boolean) => {
+    if (open) {
+      // Ao abrir, inicializa com o valor atual
+      setDraftRange(value);
+    } else {
+      // Ao fechar sem completar, descarta seleção incompleta
+      if (draftRange?.from && !draftRange?.to) {
+        setDraftRange(value);
+      }
+    }
+    setCalendarOpen(open);
   };
 
   const getDisplayLabel = () => {
@@ -194,7 +209,7 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
       </DropdownMenu>
 
       {/* Calendário Personalizado */}
-      <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+      <Popover open={calendarOpen} onOpenChange={handleCalendarOpenChange}>
         <PopoverTrigger asChild>
           <Button
             variant={activePreset === 'custom' ? "default" : "outline"}
@@ -212,14 +227,14 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0 z-50" align="end">
           {/* Instrução quando aguardando data final */}
-          {value?.from && !value?.to && (
+          {draftRange?.from && !draftRange?.to && (
             <div className="px-4 py-2 text-sm text-muted-foreground border-b bg-muted/50">
               Agora selecione a data final
             </div>
           )}
           <Calendar
             mode="range"
-            selected={value}
+            selected={draftRange}
             onSelect={handleCalendarSelect}
             numberOfMonths={2}
             locale={ptBR}

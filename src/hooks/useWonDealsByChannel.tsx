@@ -78,10 +78,35 @@ const SOURCE_LABELS: Record<string, string> = {
   referral: "Referral",
 };
 
-function getChannelInfo(source: string | null): { channel: string; color: string } {
+// Classifica canal considerando flag is_organic_sale (prioridade sobre lead_source)
+function getChannelForDeal(deal: { lead_source?: string | null; is_organic_sale?: boolean | null }): { channel: string; color: string } {
+  const source = deal.lead_source?.toLowerCase().trim();
+  
+  // PRIORIDADE 1: Se is_organic_sale = false, é venda de afiliado
+  if (deal.is_organic_sale === false) {
+    return { channel: "Afiliados", color: "#f97316" };
+  }
+  
+  // PRIORIDADE 2: Classificar por lead_source
   if (!source) return { channel: "Outros", color: "#6b7280" };
-  const normalized = source.toLowerCase().trim();
-  return SOURCE_TO_CHANNEL[normalized] || { channel: "Outros", color: "#6b7280" };
+  
+  // Recorrência
+  if (source === "kiwify_recorrencia" || source === "kiwify_renovacao") {
+    return { channel: "Recorrência", color: "#06b6d4" };
+  }
+  
+  // Orgânico (vendas diretas do produtor, confirmado SEM afiliado)
+  if (source === "kiwify_direto" || source === "kiwify_organic" || source === "kiwify_checkout") {
+    return { channel: "Orgânico", color: "#8b5cf6" };
+  }
+  
+  // Comercial (time de vendas)
+  if (["whatsapp", "manual", "comercial"].includes(source)) {
+    return { channel: "Comercial", color: "#3b82f6" };
+  }
+  
+  // Fallback para mapeamento existente
+  return SOURCE_TO_CHANNEL[source] || { channel: "Outros", color: "#6b7280" };
 }
 
 function getSourceLabel(source: string | null): string {
@@ -144,7 +169,8 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
       (deals || []).forEach((deal) => {
         const revenue = deal.net_value || deal.value || 0;
         const source = deal.lead_source;
-        const { channel, color } = getChannelInfo(source);
+        // Usa nova função que considera is_organic_sale
+        const { channel, color } = getChannelForDeal(deal);
 
         // Agrupa por canal
         const existing = channelMap.get(channel) || { deals: 0, revenue: 0, color };
@@ -162,7 +188,7 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
           revenue: existingSource.revenue + revenue,
         });
 
-        // Contadores por tipo
+        // Contadores por tipo (usando classificação correta)
         if (channel === "Orgânico") organicDeals++;
         else if (channel === "Comercial") commercialDeals++;
         else if (channel === "Afiliados") affiliateDeals++;
@@ -184,18 +210,18 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
             revenue: existingRep.revenue + revenue,
           });
         } else {
-          // Vendas sem atribuição - agrupar por tipo
+          // Vendas sem atribuição - agrupar por tipo (usando canal já classificado corretamente)
           const orgKey = channel === "Recorrência" ? "__recorrencia__" : 
                         channel === "Afiliados" ? "__afiliados__" :
                         "__organico__";
           const orgLabel = channel === "Recorrência" ? "Vendas Recorrência" :
                           channel === "Afiliados" ? "Vendas Afiliados" :
-                          "Vendas Orgânicas";
+                          "Vendas Diretas"; // Renomeado de "Vendas Orgânicas" para clareza
           const existingOrg = salesRepMap.get(orgKey) || { 
             repName: orgLabel, 
             deals: 0, 
             revenue: 0,
-            isOrganic: true 
+            isOrganic: channel !== "Afiliados" // Afiliados não são "orgânicos"
           };
           salesRepMap.set(orgKey, {
             ...existingOrg,

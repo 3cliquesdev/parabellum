@@ -52,23 +52,30 @@ export function useLeadsBySource(startDate: Date, endDate: Date) {
 
       const { data: deals, error } = await supabase
         .from("deals")
-        .select("lead_source")
+        .select("lead_source, is_organic_sale")
         .gte("created_at", startStr)
         .lte("created_at", endStr);
 
       if (error) throw error;
 
-      // Count by CATEGORY (not raw source) to avoid duplicates like "WhatsApp/Comercial" appearing twice
+      // Count by CATEGORY - prioriza is_organic_sale para classificar afiliados
       const categoryMap = new Map<string, { count: number; label: string; color: string }>();
       let total = 0;
 
       (deals || []).forEach((deal) => {
         const source = (deal.lead_source || "manual").toLowerCase();
-        const config = SOURCE_CONFIG[source] || {
-          label: "Outros",
-          color: "#6B7280",
-          category: "outros",
-        };
+        
+        // PRIORIDADE: Se is_organic_sale = false, é afiliado (independente do lead_source)
+        let config: { label: string; color: string; category: string };
+        if (deal.is_organic_sale === false) {
+          config = { label: "Afiliados/Parceiros", color: "#F59E0B", category: "afiliados" };
+        } else {
+          config = SOURCE_CONFIG[source] || {
+            label: "Outros",
+            color: "#6B7280",
+            category: "outros",
+          };
+        }
         
         const existing = categoryMap.get(config.category) || {
           count: 0,

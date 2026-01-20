@@ -71,18 +71,26 @@ export function useDealsConversionAnalysis(dateRange?: DateRange, source: DealSo
         supabase.from("deals").select("*", { count: "exact", head: true }).eq("status", "open")
       );
 
-      // Apply date filters to all queries
+      // Apply date filters - CORRIGIDO: usar campo correto por tipo de métrica
+      // Criados e Abertos: filtrar por created_at
+      // Ganhos e Perdidos: filtrar por closed_at (quando foram fechados)
       if (fromDate) {
         createdQuery = createdQuery.gte("created_at", fromDate);
-        wonQuery = wonQuery.gte("created_at", fromDate);
-        lostQuery = lostQuery.gte("created_at", fromDate);
         openQuery = openQuery.gte("created_at", fromDate);
       }
       if (toDate) {
         createdQuery = createdQuery.lte("created_at", toDate);
-        wonQuery = wonQuery.lte("created_at", toDate);
-        lostQuery = lostQuery.lte("created_at", toDate);
         openQuery = openQuery.lte("created_at", toDate);
+      }
+
+      // Ganhos e Perdidos: filtrar por closed_at
+      if (fromDate) {
+        wonQuery = wonQuery.gte("closed_at", fromDate);
+        lostQuery = lostQuery.gte("closed_at", fromDate);
+      }
+      if (toDate) {
+        wonQuery = wonQuery.lte("closed_at", toDate);
+        lostQuery = lostQuery.lte("closed_at", toDate);
       }
 
       // Execute all count queries in parallel
@@ -116,11 +124,12 @@ export function useDealsConversionAnalysis(dateRange?: DateRange, source: DealSo
           .not("closed_at", "is", null)
       );
 
+      // Usar closed_at para filtrar deals ganhos (quando foram fechados)
       if (fromDate) {
-        wonDealsQuery = wonDealsQuery.gte("created_at", fromDate);
+        wonDealsQuery = wonDealsQuery.gte("closed_at", fromDate);
       }
       if (toDate) {
-        wonDealsQuery = wonDealsQuery.lte("created_at", toDate);
+        wonDealsQuery = wonDealsQuery.lte("closed_at", toDate);
       }
 
       const { data: wonDeals } = await wonDealsQuery;

@@ -25,6 +25,14 @@ export function OrphanOffersWidget() {
       offer_name: planName,
       price: 0,
       source: 'kiwify',
+    }, {
+      onSuccess: () => {
+        setSelectedProducts(prev => {
+          const newState = { ...prev };
+          delete newState[planId];
+          return newState;
+        });
+      }
     });
   };
 

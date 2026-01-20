@@ -1,9 +1,16 @@
 import { useKiwifySubscriptions } from "@/hooks/useKiwifySubscriptions";
 import { useAllSourcesConversionAnalysis } from "@/hooks/useAllSourcesConversionAnalysis";
 import { DateRange } from "react-day-picker";
-import { FileDown } from "lucide-react";
+import { Download, FileText, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useExportPDF } from "@/hooks/useExportPDF";
+import { useExportXML, type XMLReportData } from "@/hooks/useExportXML";
 import { toast } from "sonner";
 import { CompactMetricsGrid, type CompactMetric } from "@/components/ui/CompactMetricsGrid";
 import { 
@@ -46,8 +53,10 @@ export function SalesSubscriptionsTab({ startDate, endDate }: SalesSubscriptions
   const dateRange: DateRange = { from: startDate, to: endDate };
   const { totals: conversionTotals, isLoading: conversionLoading } = useAllSourcesConversionAnalysis(dateRange);
   
-  const { exportToPDF, isExporting } = useExportPDF();
+  const { exportToPDF, isExporting: isExportingPDF } = useExportPDF();
+  const { exportToXML, isExporting: isExportingXML } = useExportXML();
   const isLoading = subscriptionLoading || conversionLoading;
+  const isExporting = isExportingPDF || isExportingXML;
 
   const handleExportPDF = async () => {
     try {
@@ -58,6 +67,53 @@ export function SalesSubscriptionsTab({ startDate, endDate }: SalesSubscriptions
       toast.success("PDF exportado com sucesso!");
     } catch (error) {
       toast.error("Erro ao exportar PDF. Tente novamente.");
+    }
+  };
+
+  const handleExportXML = async () => {
+    try {
+      const totalCreated = conversionTotals?.totalCreated || 0;
+      const totalWon = conversionTotals?.totalWon || 0;
+      const totalLost = conversionTotals?.totalLost || 0;
+      const totalOpen = conversionTotals?.totalOpen || 0;
+
+      const totalGross = subscriptionData?.subscriptions?.reduce((sum, s) => sum + (s.grossValue || 0), 0) || 0;
+      const totalNet = subscriptionData?.subscriptions?.reduce((sum, s) => sum + (s.netValue || 0), 0) || 0;
+      const newCustomers = subscriptionData?.clientesNovos || 0;
+      const recurring = subscriptionData?.clientesRecorrentes || 0;
+      const kiwifyTotal = subscriptionData?.vendasLiquidas || 0;
+
+      const conversionRate = totalCreated > 0 
+        ? ((totalWon / totalCreated) * 100).toFixed(1) + "%"
+        : "0%";
+
+      const xmlData: XMLReportData = {
+        periodo: { inicio: startDate, fim: endDate },
+        resumo: {
+          dealsCreados: totalCreated,
+          dealsGanhos: totalWon,
+          dealsAbertos: totalOpen,
+          dealsPerdidos: totalLost,
+          taxaConversao: conversionRate,
+        },
+        receita: {
+          bruta: totalGross,
+          liquida: totalNet,
+        },
+        clientes: {
+          total: kiwifyTotal,
+          novos: newCustomers,
+          recorrentes: recurring,
+        },
+      };
+
+      await exportToXML(xmlData, {
+        filename: "Relatorio_Vendas_Assinaturas",
+        title: "Relatório de Vendas e Assinaturas",
+      });
+      toast.success("XML exportado com sucesso!");
+    } catch (error) {
+      toast.error("Erro ao exportar XML. Tente novamente.");
     }
   };
 
@@ -188,16 +244,24 @@ export function SalesSubscriptionsTab({ startDate, endDate }: SalesSubscriptions
             Métricas consolidadas de conversão e receita
           </p>
         </div>
-        <Button
-          onClick={handleExportPDF}
-          disabled={isExporting}
-          variant="outline"
-          size="sm"
-          className="gap-2"
-        >
-          <FileDown className="h-4 w-4" />
-          {isExporting ? "Exportando..." : "PDF"}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" disabled={isExporting} className="gap-2">
+              <Download className="h-4 w-4" />
+              {isExporting ? "Exportando..." : "Exportar"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-popover">
+            <DropdownMenuItem onClick={handleExportPDF} disabled={isExportingPDF}>
+              <FileText className="h-4 w-4 mr-2" />
+              PDF (Visual)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportXML} disabled={isExportingXML}>
+              <FileCode className="h-4 w-4 mr-2" />
+              XML (Dados)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Dashboard Content */}

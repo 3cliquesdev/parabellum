@@ -24,6 +24,30 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // Code splitting agressivo para chunks menores
+        manualChunks: {
+          // Vendor: React core (usado em todas as páginas)
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          
+          // Vendor: Supabase (backend)
+          'vendor-supabase': ['@supabase/supabase-js'],
+          
+          // Vendor: TanStack Query (state management)
+          'vendor-query': ['@tanstack/react-query'],
+          
+          // Vendor: Framer Motion (animações)
+          'vendor-motion': ['framer-motion'],
+          
+          // Vendor: Recharts (gráficos - usado só em analytics)
+          'vendor-charts': ['recharts'],
+          
+          // Vendor: Date-fns (utilitários de data)
+          'vendor-dates': ['date-fns'],
+        },
+      },
+    },
   },
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),

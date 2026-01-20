@@ -205,8 +205,37 @@ export function AppSidebar() {
   const { theme } = useTheme();
 
   // ============= PREFETCH STRATEGY =============
-  // Prefetch data on hover for faster navigation
+  // Prefetch BOTH module chunks AND data on hover for instant navigation
   const handlePrefetch = useCallback((route: string) => {
+    // 1. Prefetch do módulo (chunk) da página - instant load
+    const modulePrefetches: Record<string, () => Promise<unknown>> = {
+      '/': () => import('../pages/Dashboard'),
+      '/inbox': () => import('../pages/Inbox'),
+      '/contacts': () => import('../pages/Contacts'),
+      '/deals': () => import('../pages/Deals'),
+      '/support': () => import('../pages/Support'),
+      '/analytics': () => import('../pages/Analytics'),
+      '/subscriptions': () => import('../pages/Subscriptions'),
+      '/sales-management': () => import('../pages/SalesManagement'),
+      '/cs-management': () => import('../pages/CSManagement'),
+      '/my-portfolio': () => import('../pages/MyPortfolio'),
+      '/settings': () => import('../pages/Settings'),
+      '/forms': () => import('../pages/Forms'),
+      '/email-templates': () => import('../pages/EmailTemplates'),
+      '/automations': () => import('../pages/Automations'),
+      '/projects': () => import('../pages/ProjectsPage'),
+      '/quotes': () => import('../pages/Quotes'),
+      '/organizations': () => import('../pages/Organizations'),
+      '/users': () => import('../pages/Users'),
+      '/knowledge': () => import('../pages/Knowledge'),
+    };
+    
+    // Prefetch do módulo se existir
+    if (modulePrefetches[route]) {
+      modulePrefetches[route]().catch(() => {/* ignore errors */});
+    }
+
+    // 2. Prefetch de dados (já existente)
     switch(route) {
       case '/inbox':
         queryClient.prefetchQuery({

@@ -135,14 +135,35 @@ export function isMapped(
   productIdMap: Map<string, ProductMapping>
 ): boolean {
   const offerId = payload?.Subscription?.plan?.id || payload?.Product?.product_offer_id;
+  if (offerId && offerMap.has(offerId)) return true;
+
+  const productId = payload?.Product?.product_id;
+  if (productId && productIdMap.has(productId)) return true;
+
+  return false;
+}
+
+/**
+ * Get the mapped product with sourceType for attribution analysis.
+ * Returns sourceType from product_offers table for accurate channel attribution.
+ */
+export function getMappedProductWithSourceType(
+  payload: any,
+  offerMap: Map<string, ProductMapping>,
+  productIdMap: Map<string, ProductMapping>
+): { name: string; category: string; sourceType: 'organico' | 'afiliado' | 'comercial' } {
+  const offerId = payload?.Subscription?.plan?.id || payload?.Product?.product_offer_id;
   if (offerId && offerMap.has(offerId)) {
-    return true;
+    const mapped = offerMap.get(offerId)!;
+    return { name: mapped.productName, category: mapped.category, sourceType: mapped.sourceType };
   }
 
   const productId = payload?.Product?.product_id;
   if (productId && productIdMap.has(productId)) {
-    return true;
+    const mapped = productIdMap.get(productId)!;
+    return { name: mapped.productName, category: mapped.category, sourceType: mapped.sourceType };
   }
 
-  return false;
+  // Fallback: unmapped = organic
+  return { name: 'Produto não mapeado', category: 'Outros', sourceType: 'organico' };
 }

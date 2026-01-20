@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Loader2, Edit, Trash2, Package, ExternalLink, Activity, Kanban, GitMerge } from "lucide-react";
+import { Shield, Loader2, Edit, Trash2, Package, ExternalLink, Activity, Kanban, GitMerge, Plus } from "lucide-react";
 import { useProducts, useDeleteProduct } from "@/hooks/useProducts";
 import { ProductDialog } from "@/components/ProductDialog";
 import { ProductMappingDiagnostic } from "@/components/products/ProductMappingDiagnostic";
@@ -140,11 +140,21 @@ export default function Products() {
 
   return (
     <div className="min-h-screen p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-foreground">Gestão de Produtos</h1>
-        <p className="text-muted-foreground mt-2">
-          Configure playbooks e regras de distribuição para produtos da Kiwify
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Gestão de Produtos</h1>
+          <p className="text-muted-foreground mt-2">
+            Configure playbooks e regras de distribuição para produtos
+          </p>
+        </div>
+        <Button onClick={() => {
+          setSelectedProduct(null);
+          setInitialProductData(null);
+          setDialogOpen(true);
+        }}>
+          <Plus className="h-4 w-4 mr-2" />
+          Novo Produto
+        </Button>
       </div>
 
       <Tabs defaultValue="products" className="space-y-6">

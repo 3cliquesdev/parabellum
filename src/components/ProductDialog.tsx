@@ -32,9 +32,11 @@ import { useUpdateProduct } from "@/hooks/useProducts";
 import { useDeliveryGroups } from "@/hooks/useDeliveryGroups";
 import { useProductOffers } from "@/hooks/useProductOffers";
 import { Package, DollarSign, ArrowRightLeft } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { MoveOfferDialog } from "@/components/products/MoveOfferDialog";
 
 const productSchema = z.object({
+  name: z.string().optional(),
   delivery_group_id: z.string().optional(),
   requires_account_manager: z.boolean(),
   is_active: z.boolean(),
@@ -83,6 +85,7 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
+      name: "",
       delivery_group_id: product?.delivery_group_id || "none",
       requires_account_manager: product?.requires_account_manager || false,
       is_active: product?.is_active ?? true,
@@ -92,11 +95,12 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
   // Reset form when product changes
   useEffect(() => {
     form.reset({
+      name: initialData?.name || "",
       delivery_group_id: product?.delivery_group_id || "none",
       requires_account_manager: product?.requires_account_manager || false,
       is_active: product?.is_active ?? true,
     });
-  }, [product, form]);
+  }, [product, initialData, form]);
 
   const [isCreating, setIsCreating] = useState(false);
 
@@ -105,15 +109,26 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
     let targetProductId: string;
     let targetExternalId: string | null;
 
-    // Se produto não existe, criar primeiro
-    if (!product && initialData?.external_id) {
+    // Criar novo produto (manual ou Kiwify)
+    if (!product) {
+      const productName = data.name || initialData?.name || 'Novo Produto';
+      
+      if (!productName.trim()) {
+        toast({
+          title: "Nome obrigatório",
+          description: "Informe um nome para o produto",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       setIsCreating(true);
       try {
         const { data: newProduct, error } = await supabase
           .from('products')
           .insert({
-            name: initialData.name || 'Produto Kiwify',
-            external_id: initialData.external_id,
+            name: productName,
+            external_id: initialData?.external_id || null,
             is_active: data.is_active,
             requires_account_manager: data.requires_account_manager,
             delivery_group_id: delivery_group_id,
@@ -134,13 +149,13 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
         targetExternalId = newProduct.external_id;
         
         toast({
-          title: "✅ Produto mapeado",
-          description: `${initialData.name} foi criado com sucesso`,
+          title: "Produto criado",
+          description: `${productName} foi cadastrado com sucesso`,
         });
       } finally {
         setIsCreating(false);
       }
-    } else if (product) {
+    } else {
       // Atualizar produto existente
       await updateProduct.mutateAsync({
         id: product.id,
@@ -153,8 +168,6 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
 
       targetProductId = product.id;
       targetExternalId = product.external_id;
-    } else {
-      return; // Nenhum dado válido
     }
 
     // Vincular deals ao produto após mapeamento
@@ -196,30 +209,33 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
-            {product ? "Configurar Produto" : "Cadastrar Produto Kiwify"}
+            {product ? "Configurar Produto" : (initialData?.external_id ? "Cadastrar Produto Kiwify" : "Novo Produto")}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
             {product 
               ? "Configure grupo de entrega e opções do produto já cadastrado."
-              : "Cadastre este produto Kiwify no sistema para vincular deals e automações."}
+              : initialData?.external_id 
+                ? "Cadastre este produto Kiwify no sistema para vincular deals e automações."
+                : "Crie um produto manual para gerenciar playbooks e automações."}
           </p>
         </DialogHeader>
 
-        {/* Product Info - Read Only */}
-        <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Package className="h-5 w-5 text-primary" />
+        {/* Product Info - Editable for new manual products */}
+        {(product || initialData?.external_id) ? (
+          <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Package className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground">{displayName}</h3>
+                {displayId && (
+                  <p className="text-xs text-muted-foreground font-mono">
+                    ID: {displayId}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-foreground">{displayName}</h3>
-              {displayId && (
-                <p className="text-xs text-muted-foreground font-mono">
-                  ID: {displayId}
-                </p>
-              )}
-            </div>
-          </div>
 
           {/* Offers Display */}
           {offers && offers.length > 0 && (
@@ -259,14 +275,31 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
           {(!offers || offers.length === 0) && (
             <div className="pt-3 border-t">
               <p className="text-xs text-muted-foreground">
-                ℹ️ Nenhuma oferta adicional vinculada
+                Nenhuma oferta adicional vinculada
               </p>
             </div>
           )}
         </div>
+        ) : null}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Nome - apenas para criação manual */}
+            {!product && !initialData?.external_id && (
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium">Nome do Produto</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: Consultoria Premium" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
+
             {/* Delivery Group (Playbook) */}
             <FormField
               control={form.control}
@@ -350,7 +383,7 @@ export function ProductDialog({ open, onOpenChange, product, initialData }: Prod
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={updateProduct.isPending || isCreating || (!product?.external_id && !initialData?.external_id)}>
+              <Button type="submit" disabled={updateProduct.isPending || isCreating}>
                 {(updateProduct.isPending || isCreating) ? "Salvando..." : (product ? "Salvar" : "Cadastrar")}
               </Button>
             </div>

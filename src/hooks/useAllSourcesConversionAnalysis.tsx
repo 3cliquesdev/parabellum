@@ -24,24 +24,47 @@ async function fetchSourceData(
   dateRange: DateRange | undefined,
   source: Exclude<DealSource, "all">
 ): Promise<DealsConversionAnalysis> {
+  // CATEGORIAS MUTUAMENTE EXCLUSIVAS - Hierarquia de prioridade
+  // Para evitar que um deal seja contado em múltiplas categorias
   const applySourceFilter = (query: any) => {
     switch (source) {
-      case "organic_new":
-        return query.eq("is_organic_sale", true).eq("is_returning_customer", false);
-      case "organic_recurring":
-        return query.eq("is_organic_sale", true).eq("is_returning_customer", true);
-      case "affiliate":
-        // Afiliados: não é orgânico E não é fonte comercial
-        return query.eq("is_organic_sale", false).not("lead_source", "in", "(formulario,whatsapp,webchat,manual,comercial)");
-      case "form":
-        return query.eq("lead_source", "formulario");
       case "whatsapp":
+        // Prioridade 1: WhatsApp sempre ganha
         return query.eq("lead_source", "whatsapp");
+        
+      case "form":
+        // Prioridade 2: Formulários (já excluídos do WhatsApp por lead_source diferente)
+        return query.eq("lead_source", "formulario");
+        
+      case "affiliate":
+        // Prioridade 3: Afiliados - is_organic=false COM lead_source explícito (não NULL)
+        // Exclui: form, whatsapp, manual, comercial, webchat, indicacao E NULL
+        return query
+          .eq("is_organic_sale", false)
+          .not("lead_source", "in", "(formulario,whatsapp,webchat,manual,comercial,indicacao)")
+          .not("lead_source", "is", null);
+        
+      case "organic_new":
+        // Prioridade 4: 1ª Orgânica - EXCLUI quem já foi para form/whatsapp
+        return query
+          .eq("is_organic_sale", true)
+          .eq("is_returning_customer", false)
+          .not("lead_source", "in", "(formulario,whatsapp)");
+        
+      case "organic_recurring":
+        // Prioridade 5: Recorrente - EXCLUI quem já foi para form/whatsapp
+        return query
+          .eq("is_organic_sale", true)
+          .eq("is_returning_customer", true)
+          .not("lead_source", "in", "(formulario,whatsapp)");
+        
       case "other":
-        // Outros: fontes manuais OU sem fonte definida (NULL)
+        // Prioridade 6: Outros - tudo que sobrou
+        // Inclui: lead_source comercial/manual/etc OU (is_organic=false com NULL)
         return query.or(
-          `lead_source.in.(manual,comercial,webchat,indicacao),lead_source.is.null`
+          `lead_source.in.(manual,comercial,webchat,indicacao),and(is_organic_sale.eq.false,lead_source.is.null)`
         );
+        
       default:
         return query;
     }

@@ -26,10 +26,27 @@ interface SalesRepData {
   isOrganic: boolean;
 }
 
+interface CommercialBreakdownItem {
+  channel: string;
+  icon: string;
+  deals: number;
+  revenue: number;
+  color: string;
+}
+
+interface CommercialBreakdown {
+  whatsapp: CommercialBreakdownItem;
+  manual: CommercialBreakdownItem;
+  webchat: CommercialBreakdownItem;
+  recuperacao: CommercialBreakdownItem;
+  formularios: CommercialBreakdownItem;
+}
+
 interface WonDealsData {
   byChannel: ChannelData[];
   bySource: SourceData[];
   bySalesRep: SalesRepData[];
+  commercialBreakdown: CommercialBreakdown;
   totals: {
     totalDeals: number;
     totalRevenue: number;
@@ -37,6 +54,8 @@ interface WonDealsData {
     commercialDeals: number;
     affiliateDeals: number;
     recurringDeals: number;
+    recuperacaoDeals: number;
+    formulariosDeals: number;
   };
 }
 
@@ -196,6 +215,17 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
       let commercialDeals = 0;
       let affiliateDeals = 0;
       let recurringDeals = 0;
+      let recuperacaoDeals = 0;
+      let formulariosDeals = 0;
+
+      // Breakdown detalhado do Comercial
+      const commercialBreakdown: CommercialBreakdown = {
+        whatsapp: { channel: "WhatsApp", icon: "📱", deals: 0, revenue: 0, color: "#25D366" },
+        manual: { channel: "Manual", icon: "✋", deals: 0, revenue: 0, color: "#3b82f6" },
+        webchat: { channel: "Webchat", icon: "💬", deals: 0, revenue: 0, color: "#8b5cf6" },
+        recuperacao: { channel: "Recuperação", icon: "🔄", deals: 0, revenue: 0, color: "#a855f7" },
+        formularios: { channel: "Formulários", icon: "📋", deals: 0, revenue: 0, color: "#22c55e" },
+      };
 
       (deals || []).forEach((deal) => {
         const revenue = deal.net_value || deal.value || 0;
@@ -224,6 +254,29 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
         else if (channel === "Comercial") commercialDeals++;
         else if (channel === "Afiliados") affiliateDeals++;
         else if (channel === "Recorrência") recurringDeals++;
+        else if (channel === "Recuperação") recuperacaoDeals++;
+        else if (channel === "Formulários") formulariosDeals++;
+
+        // Preencher breakdown comercial (detalhamento do time)
+        const sourceNorm = (deal.lead_source || "").toLowerCase().trim();
+        const titleNorm = (deal.title || "").toLowerCase();
+        
+        if (sourceNorm === "whatsapp") {
+          commercialBreakdown.whatsapp.deals++;
+          commercialBreakdown.whatsapp.revenue += revenue;
+        } else if (sourceNorm === "manual" || sourceNorm === "comercial") {
+          commercialBreakdown.manual.deals++;
+          commercialBreakdown.manual.revenue += revenue;
+        } else if (sourceNorm === "webchat") {
+          commercialBreakdown.webchat.deals++;
+          commercialBreakdown.webchat.revenue += revenue;
+        } else if (titleNorm.startsWith("recuperação") || titleNorm.startsWith("recuperacao")) {
+          commercialBreakdown.recuperacao.deals++;
+          commercialBreakdown.recuperacao.revenue += revenue;
+        } else if (sourceNorm === "formulario" || sourceNorm === "form" || sourceNorm === "chat_widget") {
+          commercialBreakdown.formularios.deals++;
+          commercialBreakdown.formularios.revenue += revenue;
+        }
 
         // Agrupa por vendedor
         const profile = deal.profiles as { id: string; full_name: string } | null;
@@ -302,6 +355,7 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
         byChannel,
         bySource,
         bySalesRep,
+        commercialBreakdown,
         totals: {
           totalDeals,
           totalRevenue,
@@ -309,6 +363,8 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
           commercialDeals,
           affiliateDeals,
           recurringDeals,
+          recuperacaoDeals,
+          formulariosDeals,
         },
       };
     },

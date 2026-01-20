@@ -19,13 +19,15 @@ import {
 } from "lucide-react";
 
 // Widgets
-import { ConversionFunnelWidget } from "./subscriptions/ConversionFunnelWidget";
 import { LeadsBySourceChart } from "./subscriptions/LeadsBySourceChart";
 import { NewVsRecurringChart } from "./subscriptions/NewVsRecurringChart";
 import { ProductPerformanceTable } from "./subscriptions/ProductPerformanceTable";
 import { SalesRepRankingWidget } from "./subscriptions/SalesRepRankingWidget";
 import { WhoSoldRankingWidget } from "./subscriptions/WhoSoldRankingWidget";
 import { WonDealsByChannelWidget } from "./subscriptions/WonDealsByChannelWidget";
+// Premium widgets (do Dashboard de Vendas)
+import { ConversionFunnelCard } from "@/components/widgets/ConversionFunnelCard";
+import { StageConversionChart } from "@/components/widgets/StageConversionChart";
 
 interface SalesSubscriptionsTabProps {
   startDate: Date;
@@ -202,14 +204,13 @@ export function SalesSubscriptionsTab({ startDate, endDate }: SalesSubscriptions
         <CompactMetricsGrid label="Resumo do Funil" metrics={resumoMetrics} columns={4} />
         <CompactMetricsGrid label="Receita e Breakdown" metrics={receitaMetrics} columns={4} />
 
-        {/* Conversion Funnel */}
-        <ConversionFunnelWidget
-          leadMetrics={leadMetrics}
-          subscriptionData={subscriptionData}
-          isLoading={isLoading}
-        />
+        {/* Premium Conversion Section: Funnel + Stage Chart */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ConversionFunnelCard dateRange={dateRange} />
+          <StageConversionChart />
+        </div>
 
-        {/* Won Deals Breakdown by Channel & Seller */}
+        {/* Won Deals Breakdown by Channel & Seller (com breakdown comercial) */}
         <WonDealsByChannelWidget startDate={startDate} endDate={endDate} />
 
         {/* Charts Grid */}

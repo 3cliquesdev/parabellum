@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { SubscriptionMetrics, ProductCategory } from "@/hooks/useKiwifySubscriptions";
-import { Users, ShoppingCart, DollarSign, RotateCcw, UserPlus, UserCheck, Repeat, Star, Package, Info } from "lucide-react";
+import { Users, ShoppingCart, DollarSign, RotateCcw, UserPlus, Repeat, Star, Package, Info } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -21,15 +21,16 @@ const formatCurrency = (value: number) => {
 
 interface MetricCardData {
   title: string;
-  subtitle: string;
   value: string;
   icon: typeof Users;
   color: string;
   bgColor: string;
+  percent?: string;
+  percentColor?: string;
   tooltip?: {
-    brutas: number;
-    reembolsadas: number;
-    liquidas: number;
+    brutas?: number;
+    reembolsadas?: number;
+    liquidas?: number;
     note?: string;
   };
 }
@@ -37,177 +38,193 @@ interface MetricCardData {
 export function SubscriptionMetricsCards({ data }: SubscriptionMetricsCardsProps) {
   if (!data) return null;
 
+  const vendasBrutas = data.vendasBrutas ?? 0;
+  const vendasLiquidas = data.vendasLiquidas ?? 0;
+  const totalReembolsos = data.reembolsos?.length ?? 0;
+  const totalClientes = data.totalAssinaturas ?? 0;
+  const clientesNovos = data.clientesNovos ?? 0;
+  const novasAssinaturas = data.novasAssinaturas ?? 0;
+  const renovacoes = data.renovacoes ?? 0;
+  const produtosUnicos = data.produtosUnicos ?? 0;
+
+  // Calcular percentuais
+  const percentLiquidas = vendasBrutas > 0 ? ((vendasLiquidas / vendasBrutas) * 100).toFixed(1) : '0';
+  const percentReembolsos = vendasBrutas > 0 ? ((totalReembolsos / vendasBrutas) * 100).toFixed(1) : '0';
+  const percentClientesNovos = totalClientes > 0 ? ((clientesNovos / totalClientes) * 100).toFixed(0) : '0';
+  const percentNovasAssinaturas = vendasLiquidas > 0 ? ((novasAssinaturas / vendasLiquidas) * 100).toFixed(0) : '0';
+  const percentRenovacoes = vendasLiquidas > 0 ? ((renovacoes / vendasLiquidas) * 100).toFixed(0) : '0';
+  const percentProdutosUnicos = vendasLiquidas > 0 ? ((produtosUnicos / vendasLiquidas) * 100).toFixed(0) : '0';
+
   // Calcular reembolsos por tipo
   const reembolsosNovasAssinaturas = (data.novasAssinaturasBrutas ?? 0) - (data.novasAssinaturas ?? 0);
   const reembolsosRenovacoes = (data.renovacoesBrutas ?? 0) - (data.renovacoes ?? 0);
   const reembolsosProdutosUnicos = (data.produtosUnicosBrutos ?? 0) - (data.produtosUnicos ?? 0);
 
-  // Primeira linha: Clientes
-  const clientesMetrics: MetricCardData[] = [
+  // Linha 1: Resumo do Período
+  const resumoMetrics: MetricCardData[] = [
     {
       title: 'Clientes Únicos',
-      subtitle: 'Emails distintos',
-      value: (data.totalAssinaturas ?? 0).toLocaleString('pt-BR'),
+      value: totalClientes.toLocaleString('pt-BR'),
       icon: Users,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
     },
     {
-      title: 'Clientes Novos',
-      subtitle: 'Primeira compra',
-      value: (data.clientesNovos ?? 0).toLocaleString('pt-BR'),
-      icon: UserPlus,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
-    },
-    {
-      title: 'Clientes Recorrentes',
-      subtitle: 'Compraram antes',
-      value: (data.clientesRecorrentes ?? 0).toLocaleString('pt-BR'),
-      icon: UserCheck,
-      color: 'text-violet-600',
-      bgColor: 'bg-violet-50',
-    },
-  ];
-
-  // Segunda linha: Vendas
-  const vendasMetrics: MetricCardData[] = [
-    {
       title: 'Vendas Brutas',
-      subtitle: 'Total de orders',
-      value: (data.vendasBrutas ?? 0).toLocaleString('pt-BR'),
+      value: vendasBrutas.toLocaleString('pt-BR'),
       icon: ShoppingCart,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
     },
     {
       title: 'Vendas Líquidas',
-      subtitle: 'Após reembolsos',
-      value: (data.vendasLiquidas ?? 0).toLocaleString('pt-BR'),
+      value: vendasLiquidas.toLocaleString('pt-BR'),
       icon: DollarSign,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
+      percent: `${percentLiquidas}%`,
+      percentColor: 'text-green-600',
     },
     {
       title: 'Reembolsos',
-      subtitle: 'Devoluções',
-      value: (data.reembolsos?.length ?? 0).toLocaleString('pt-BR'),
+      value: totalReembolsos.toLocaleString('pt-BR'),
       icon: RotateCcw,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
+      percent: `${percentReembolsos}%`,
+      percentColor: 'text-red-500',
     },
   ];
 
-  // Terceira linha: Classificação por Tipo (alinhado com Kiwify) - COM TOOLTIPS
-  const tipoVendaMetrics: MetricCardData[] = [
+  // Linha 2: Detalhamento
+  const detalhamentoMetrics: MetricCardData[] = [
     {
-      title: 'Vendas de Assinatura',
-      subtitle: 'Primeira cobrança',
-      value: (data.novasAssinaturas ?? 0).toLocaleString('pt-BR'),
+      title: 'Clientes Novos',
+      value: clientesNovos.toLocaleString('pt-BR'),
+      icon: UserPlus,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
+      percent: `${percentClientesNovos}%`,
+      percentColor: 'text-emerald-600',
+      tooltip: {
+        note: `${percentClientesNovos}% dos clientes únicos são novos (primeira compra)`,
+      },
+    },
+    {
+      title: 'Novas Assinaturas',
+      value: novasAssinaturas.toLocaleString('pt-BR'),
       icon: Star,
       color: 'text-amber-600',
       bgColor: 'bg-amber-50',
+      percent: `${percentNovasAssinaturas}%`,
+      percentColor: 'text-amber-600',
       tooltip: {
         brutas: data.novasAssinaturasBrutas ?? 0,
         reembolsadas: reembolsosNovasAssinaturas,
-        liquidas: data.novasAssinaturas ?? 0,
-        note: 'Kiwify mostra assinaturas ativas agora. Aqui mostramos vendas criadas no período.',
+        liquidas: novasAssinaturas,
+        note: 'Primeira cobrança de assinatura. Kiwify mostra ativas agora; aqui mostramos vendas no período.',
       },
     },
     {
       title: 'Renovações',
-      subtitle: 'Cobranças recorrentes',
-      value: (data.renovacoes ?? 0).toLocaleString('pt-BR'),
+      value: renovacoes.toLocaleString('pt-BR'),
       icon: Repeat,
       color: 'text-cyan-600',
       bgColor: 'bg-cyan-50',
+      percent: `${percentRenovacoes}%`,
+      percentColor: 'text-cyan-600',
       tooltip: {
         brutas: data.renovacoesBrutas ?? 0,
         reembolsadas: reembolsosRenovacoes,
-        liquidas: data.renovacoes ?? 0,
+        liquidas: renovacoes,
+        note: 'Cobranças recorrentes de assinaturas existentes.',
       },
     },
     {
       title: 'Produtos Únicos',
-      subtitle: 'Sem recorrência',
-      value: (data.produtosUnicos ?? 0).toLocaleString('pt-BR'),
+      value: produtosUnicos.toLocaleString('pt-BR'),
       icon: Package,
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
+      percent: `${percentProdutosUnicos}%`,
+      percentColor: 'text-orange-600',
       tooltip: {
         brutas: data.produtosUnicosBrutos ?? 0,
         reembolsadas: reembolsosProdutosUnicos,
-        liquidas: data.produtosUnicos ?? 0,
+        liquidas: produtosUnicos,
+        note: 'Vendas de produtos sem recorrência.',
       },
     },
   ];
 
-  const renderMetricCard = (metric: MetricCardData) => (
-    <Card key={metric.title}>
-      <CardContent className="pt-4 pb-4">
-        <div className="flex flex-col items-center text-center relative">
-          {/* Tooltip indicator for cards with tooltip data */}
-          {metric.tooltip && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="absolute top-0 right-0 cursor-help">
-                    <Info className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[250px]">
-                  <div className="text-xs space-y-1">
-                    <p className="font-medium">
-                      Brutas: {metric.tooltip.brutas} | Reembolsadas: {metric.tooltip.reembolsadas}
-                    </p>
-                    <p className="text-muted-foreground">
-                      = <span className="font-semibold text-foreground">{metric.tooltip.liquidas}</span> líquidas
-                    </p>
-                    {metric.tooltip.note && (
-                      <p className="text-muted-foreground/80 pt-1 border-t border-border/50 mt-1">
-                        {metric.tooltip.note}
-                      </p>
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          
-          <div className={`p-2 rounded-full ${metric.bgColor} mb-2`}>
+  const renderCompactCard = (metric: MetricCardData) => (
+    <Card key={metric.title} className="overflow-hidden">
+      <CardContent className="p-3">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg shrink-0 ${metric.bgColor}`}>
             <metric.icon className={`h-4 w-4 ${metric.color}`} />
           </div>
-          <p className="text-2xl font-bold">{metric.value}</p>
-          <p className="text-xs font-medium text-muted-foreground">{metric.title}</p>
-          <p className="text-xs text-muted-foreground/70">{metric.subtitle}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xl font-bold leading-none">{metric.value}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">{metric.title}</p>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {metric.percent && (
+              <span className={`text-sm font-medium ${metric.percentColor || 'text-muted-foreground'}`}>
+                {metric.percent}
+              </span>
+            )}
+            {metric.tooltip && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help">
+                      <Info className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[250px]">
+                    <div className="text-xs space-y-1">
+                      {metric.tooltip.brutas !== undefined && (
+                        <>
+                          <p className="font-medium">
+                            Brutas: {metric.tooltip.brutas} | Reembolsadas: {metric.tooltip.reembolsadas}
+                          </p>
+                          <p className="text-muted-foreground">
+                            = <span className="font-semibold text-foreground">{metric.tooltip.liquidas}</span> líquidas
+                          </p>
+                        </>
+                      )}
+                      {metric.tooltip.note && (
+                        <p className={`text-muted-foreground/80 ${metric.tooltip.brutas !== undefined ? 'pt-1 border-t border-border/50 mt-1' : ''}`}>
+                          {metric.tooltip.note}
+                        </p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
   );
 
   return (
-    <div className="space-y-4">
-      {/* Linha 1: Clientes */}
+    <div className="space-y-3">
+      {/* Linha 1: Resumo do Período */}
       <div>
-        <p className="text-sm font-medium text-muted-foreground mb-2">Clientes</p>
-        <div className="grid grid-cols-3 gap-4">
-          {clientesMetrics.map(renderMetricCard)}
+        <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Resumo do Período</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {resumoMetrics.map(renderCompactCard)}
         </div>
       </div>
 
-      {/* Linha 2: Vendas */}
+      {/* Linha 2: Detalhamento */}
       <div>
-        <p className="text-sm font-medium text-muted-foreground mb-2">Vendas</p>
-        <div className="grid grid-cols-3 gap-4">
-          {vendasMetrics.map(renderMetricCard)}
-        </div>
-      </div>
-
-      {/* Linha 3: Tipo de Venda (métricas Kiwify) */}
-      <div>
-        <p className="text-sm font-medium text-muted-foreground mb-2">Tipo de Venda</p>
-        <div className="grid grid-cols-3 gap-4">
-          {tipoVendaMetrics.map(renderMetricCard)}
+        <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Detalhamento por Tipo</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {detalhamentoMetrics.map(renderCompactCard)}
         </div>
       </div>
     </div>

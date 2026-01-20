@@ -17,8 +17,8 @@ const STORAGE_KEYS = {
   FORCE_UPDATE_COUNT: 'app_force_update_count',
 } as const;
 
-// Intervalo mínimo entre checks (5 segundos para evitar loop)
-const MIN_CHECK_INTERVAL_MS = 5000;
+// Intervalo mínimo entre checks (1 segundo para preview mais responsivo)
+const MIN_CHECK_INTERVAL_MS = 1000;
 
 // Máximo de force updates consecutivos para evitar loop infinito
 const MAX_FORCE_UPDATES = 3;

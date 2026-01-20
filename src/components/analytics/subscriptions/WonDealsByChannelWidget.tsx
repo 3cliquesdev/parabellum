@@ -55,7 +55,7 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
     );
   }
 
-  const { byChannel, bySalesRep, totals } = data;
+  const { byChannel, bySalesRep, commercialBreakdown, totals } = data;
 
   // Separar vendedores reais de categorias orgânicas
   const realSalesReps = bySalesRep.filter(rep => !rep.isOrganic);
@@ -64,6 +64,10 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
   // Top vendedor para destaque
   const topSeller = realSalesReps[0];
   const maxRevenue = topSeller?.revenue || 1;
+
+  // Breakdown comercial para exibição (apenas itens com vendas)
+  const breakdownItems = Object.values(commercialBreakdown).filter(item => item.deals > 0);
+  const maxBreakdownRevenue = Math.max(...breakdownItems.map(i => i.revenue), 1);
 
   return (
     <Card>
@@ -117,38 +121,83 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
             </ResponsiveContainer>
           </div>
 
-          {/* Breakdown por Canal */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              Detalhamento por Canal
-            </h4>
-            <div className="space-y-2">
-              {byChannel.map((channel) => (
-                <div
-                  key={channel.channel}
-                  className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: channel.color }}
-                    />
-                    <span className="text-sm font-medium">{channel.channel}</span>
+          {/* Breakdown por Canal + Detalhamento Comercial */}
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Detalhamento por Canal
+              </h4>
+              <div className="space-y-2">
+                {byChannel.map((channel) => (
+                  <div
+                    key={channel.channel}
+                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: channel.color }}
+                      />
+                      <span className="text-sm font-medium">{channel.channel}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-muted-foreground">
+                        {channel.deals} deals
+                      </span>
+                      <span className="text-sm font-medium">
+                        {formatCurrency(channel.revenue)}
+                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {channel.percentage.toFixed(0)}%
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-muted-foreground">
-                      {channel.deals} deals
-                    </span>
-                    <span className="text-sm font-medium">
-                      {formatCurrency(channel.revenue)}
-                    </span>
-                    <Badge variant="outline" className="text-xs">
-                      {channel.percentage.toFixed(0)}%
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+
+            {/* Detalhamento COMERCIAL (sub-canais do time) */}
+            {breakdownItems.length > 0 && (
+              <div className="space-y-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-800/50">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-500" />
+                  <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                    Detalhamento Comercial (Por Canal)
+                  </h4>
+                </div>
+                <div className="space-y-2">
+                  {breakdownItems.map((item) => (
+                    <div
+                      key={item.channel}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-white dark:bg-card border border-border/50"
+                    >
+                      <span className="text-lg">{item.icon}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium">{item.channel}</span>
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-muted-foreground">{item.deals} deals</span>
+                            <span className="font-medium text-green-600">{formatCurrency(item.revenue)}</span>
+                          </div>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ 
+                              width: `${(item.revenue / maxBreakdownRevenue) * 100}%`,
+                              backgroundColor: item.color 
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  💡 WhatsApp, Manual, Webchat, Recuperação e Formulários são canais onde o time comercial atua ativamente.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

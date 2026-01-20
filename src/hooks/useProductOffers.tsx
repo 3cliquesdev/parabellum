@@ -113,11 +113,16 @@ export const useCreateProductOffer = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data: any, variables) => {
+    onSuccess: async (data: any, variables) => {
+      // Force complete invalidation of ALL subscription query variations
+      await queryClient.invalidateQueries({ 
+        queryKey: ["kiwify-subscriptions"],
+        refetchType: 'all'
+      });
+      
       queryClient.invalidateQueries({ queryKey: ["product-offers", variables.product_id] });
       queryClient.invalidateQueries({ queryKey: ["unmapped-kiwify-offers"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["kiwify-subscriptions"] });
       
       const duplicatesMsg = data?.duplicatesRemoved 
         ? ` (${data.duplicatesRemoved} duplicata(s) removida(s))` 
@@ -164,9 +169,12 @@ export const useDeleteProductOffer = () => {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ 
+        queryKey: ["kiwify-subscriptions"],
+        refetchType: 'all'
+      });
       queryClient.invalidateQueries({ queryKey: ["product-offers"] });
-      queryClient.invalidateQueries({ queryKey: ["kiwify-subscriptions"] });
       toast({
         title: "Oferta removida",
         description: "A oferta foi removida do produto.",
@@ -240,11 +248,14 @@ export const useMoveProductOffer = () => {
       if (error) throw error;
       return { merged: false };
     },
-    onSuccess: (result) => {
-      // Invalida todas as queries relacionadas a ofertas e produtos
+    onSuccess: async (result) => {
+      // Force complete invalidation of ALL subscription query variations
+      await queryClient.invalidateQueries({ 
+        queryKey: ["kiwify-subscriptions"],
+        refetchType: 'all'
+      });
       queryClient.invalidateQueries({ queryKey: ["product-offers"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["kiwify-subscriptions"] });
       toast({
         title: result?.merged ? "Oferta mesclada" : "Oferta movida",
         description: result?.merged 

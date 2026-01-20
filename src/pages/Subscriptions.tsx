@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import { DateRange } from "react-day-picker";
 const CATEGORIES: ProductCategory[] = ['Associado Premium', 'Shopee Creation', 'Híbrido', 'Uni 3 Cliques', 'Outros'];
 
 export default function Subscriptions() {
+  const queryClient = useQueryClient();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(subMonths(new Date(), 1)),
     to: endOfMonth(new Date()),
@@ -30,6 +32,15 @@ export default function Subscriptions() {
     dateRange?.from,
     dateRange?.to
   );
+
+  // Force complete refresh - invalidates cache first, then refetches
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ 
+      queryKey: ["kiwify-subscriptions"],
+      refetchType: 'all'
+    });
+    await refetch();
+  };
 
   // Filter subscriptions
   const filteredSubscriptions = useMemo(() => {
@@ -127,9 +138,9 @@ export default function Subscriptions() {
           <Button 
             variant="outline" 
             size="icon"
-            onClick={() => refetch()} 
+            onClick={handleRefresh} 
             disabled={isFetching}
-            title="Atualizar dados"
+            title="Atualizar dados (limpa cache)"
           >
             <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
           </Button>

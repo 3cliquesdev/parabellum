@@ -85,7 +85,7 @@ export const useCreateProductOffer = () => {
     },
     onSuccess: (data: any, variables) => {
       queryClient.invalidateQueries({ queryKey: ["product-offers", variables.product_id] });
-      queryClient.invalidateQueries({ queryKey: ["kiwify-unmapped-offers"] });
+      queryClient.invalidateQueries({ queryKey: ["unmapped-kiwify-offers"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       
       if (data?.alreadyExists) {

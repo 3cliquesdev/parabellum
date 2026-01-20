@@ -1,338 +1,145 @@
-import { ConversionRateWidget } from "@/components/widgets/ConversionRateWidget";
-import { AIInsightsWidget } from "@/components/widgets/AIInsightsWidget";
-import { YoYComparisonWidget } from "@/components/widgets/YoYComparisonWidget";
-import { ChannelQualityWidget } from "@/components/widgets/ChannelQualityWidget";
-import { SalesLeaderboard } from "@/components/widgets/SalesLeaderboard";
-import { AIUsageWidget } from "@/components/widgets/AIUsageWidget";
-import { SentimentDistributionWidget } from "@/components/widgets/SentimentDistributionWidget";
-import { SupportKPIsWidget } from "@/components/widgets/SupportKPIsWidget";
-import { VolumeResolutionWidget } from "@/components/widgets/VolumeResolutionWidget";
-import { BusyHoursHeatmap } from "@/components/widgets/BusyHoursHeatmap";
-
-import { RevenueByChannelWidget } from "@/components/widgets/RevenueByChannelWidget";
-import { TeamPerformanceTable } from "@/components/widgets/TeamPerformanceTable";
-import { ChurnAnalyticsWidget } from "@/components/widgets/ChurnAnalyticsWidget";
-import { CadencePerformanceWidget } from "@/components/widgets/CadencePerformanceWidget";
-import { ChannelPerformanceComparison } from "@/components/widgets/ChannelPerformanceComparison";
-
-import { SLAComplianceWidget } from "@/components/widgets/SLAComplianceWidget";
-import { TeamEfficiencyWidget } from "@/components/widgets/TeamEfficiencyWidget";
-import { AIEconomyWidget } from "@/components/widgets/AIEconomyWidget";
-import { TopTopicsWidget } from "@/components/widgets/TopTopicsWidget";
-import { OnboardingFunnelWidget } from "@/components/widgets/OnboardingFunnelWidget";
-import { WhatsAppTrafficWidget } from "@/components/widgets/WhatsAppTrafficWidget";
-import { AIExecutiveSummary } from "@/components/widgets/AIExecutiveSummary";
-import { DateRangePicker } from "@/components/DateRangePicker";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
-import { BarChart3, Sparkles, Headphones, TrendingUp, Brain, Rocket, MessageCircle, DollarSign, Target, FileText } from "lucide-react";
+import { BarChart3, Sparkles, LayoutGrid, TrendingUp, Headphones, UserMinus, Target, Settings } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRange } from "react-day-picker";
-import { KiwifyFinancialReport } from "@/components/widgets/KiwifyFinancialReport";
-import { ChurnWidget } from "@/components/widgets/ChurnWidget";
-import { useKiwifyCompleteMetrics } from "@/hooks/useKiwifyCompleteMetrics";
-import { DailyMetricsTab } from "@/components/analytics/DailyMetricsTab";
-import { SubscriptionsAnalyticsTab } from "@/components/analytics/SubscriptionsAnalyticsTab";
+import { TeamPerformanceTable } from "@/components/widgets/TeamPerformanceTable";
+
+// Unified Tabs
+import { GlobalFilters } from "@/components/analytics/GlobalFilters";
+import { UnifiedOverviewTab } from "@/components/analytics/UnifiedOverviewTab";
+import { SalesSubscriptionsTab } from "@/components/analytics/SalesSubscriptionsTab";
+import { ChurnAnalysisTab } from "@/components/analytics/ChurnAnalysisTab";
+import { PerformanceTab } from "@/components/analytics/PerformanceTab";
+import { SupportTab } from "@/components/analytics/SupportTab";
+import { AdvancedTab } from "@/components/analytics/AdvancedTab";
+
 export default function Analytics() {
   const { role, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<string>('support');
+  const [activeTab, setActiveTab] = useState<string>('overview');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const end = new Date();
     const start = new Date();
-    start.setMonth(start.getMonth() - 1); // Default: último mês
+    start.setMonth(start.getMonth() - 1);
     return { from: start, to: end };
   });
 
-  // Calculate period from dateRange
-  const { startDate, endDate, daysBack } = useMemo(() => {
+  const { startDate, endDate } = useMemo(() => {
     if (dateRange?.from && dateRange?.to) {
-      return {
-        startDate: dateRange.from,
-        endDate: dateRange.to,
-        daysBack: Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
-      };
-    } else {
-      const end = new Date();
-      const start = new Date();
-      start.setMonth(start.getMonth() - 1);
-      return { 
-        startDate: start, 
-        endDate: end,
-        daysBack: 30
-      };
+      return { startDate: dateRange.from, endDate: dateRange.to };
     }
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 1);
+    return { startDate: start, endDate: end };
   }, [dateRange]);
 
-  // Kiwify metrics for financial tab
-  const { data: kiwifyMetrics } = useKiwifyCompleteMetrics(startDate, endDate);
-
   useEffect(() => {
-  if (!roleLoading && role !== null && role === 'sales_rep') {
-    navigate('/');
+    if (!roleLoading && role !== null && role === 'sales_rep') {
+      navigate('/');
     }
   }, [roleLoading, role, navigate]);
 
   if (roleLoading) {
     return (
       <div className="container mx-auto p-6 space-y-6">
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-4 w-96" />
-        </div>
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-16 w-full" />
         <Skeleton className="h-64 w-full" />
-        <div className="grid gap-6 md:grid-cols-2">
-          <Skeleton className="h-96" />
-          <Skeleton className="h-96" />
-        </div>
-        <Skeleton className="h-80 w-full" />
       </div>
     );
   }
 
-  if (role === 'sales_rep') {
-    return null;
-  }
+  if (role === 'sales_rep') return null;
 
   return (
-    <div className="container mx-auto p-6 min-w-0 max-w-full overflow-x-hidden">
-      <div className="space-y-8 min-w-0 max-w-full">
-        {/* Header Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
-                <BarChart3 className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-                  Analytics 2.0
-                  <Sparkles className="h-6 w-6 text-primary" />
-                </h1>
-                <p className="text-muted-foreground">
-                  Business Intelligence com Métricas Operacionais Avançadas
-                </p>
-              </div>
-            </div>
-
-            {/* The Time Machine - Controle de Tempo Global */}
-            <div className="w-full max-w-2xl">
-              <DateRangePicker 
-                value={dateRange}
-                onChange={setDateRange}
-              />
-            </div>
+    <div className="container mx-auto p-6 min-w-0 max-w-full overflow-x-hidden bg-slate-50/50 dark:bg-background">
+      <div className="space-y-6 min-w-0 max-w-full">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 shadow-sm">
+            <BarChart3 className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              Dashboard Premium
+              <Sparkles className="h-5 w-5 text-primary" />
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Business Intelligence Unificado
+            </p>
           </div>
         </div>
 
+        {/* Global Filters */}
+        <GlobalFilters
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          sourceFilter={sourceFilter}
+          onSourceFilterChange={setSourceFilter}
+        />
+
+        {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-8">
-            <TabsTrigger value="metrics" className="flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Métricas
+          <TabsList className="grid w-full grid-cols-6 h-12 bg-card shadow-sm">
+            <TabsTrigger value="overview" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline">Visão Geral</span>
             </TabsTrigger>
-            <TabsTrigger value="subscriptions" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Assinaturas
-            </TabsTrigger>
-            <TabsTrigger value="support" className="flex items-center gap-2">
-              <Headphones className="h-4 w-4" />
-              Suporte
-            </TabsTrigger>
-            <TabsTrigger value="ai" className="flex items-center gap-2">
-              <Brain className="h-4 w-4" />
-              IA
-            </TabsTrigger>
-            <TabsTrigger value="onboarding" className="flex items-center gap-2">
-              <Rocket className="h-4 w-4" />
-              Onboarding
-            </TabsTrigger>
-            <TabsTrigger value="whatsapp" className="flex items-center gap-2">
-              <MessageCircle className="h-4 w-4" />
-              WhatsApp
-            </TabsTrigger>
-            <TabsTrigger value="sales" className="flex items-center gap-2">
+            <TabsTrigger value="sales" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <TrendingUp className="h-4 w-4" />
-              Vendas
+              <span className="hidden sm:inline">Vendas</span>
             </TabsTrigger>
-            <TabsTrigger value="financial" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Financeiro
+            <TabsTrigger value="churn" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <UserMinus className="h-4 w-4" />
+              <span className="hidden sm:inline">Churn</span>
+            </TabsTrigger>
+            <TabsTrigger value="performance" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Target className="h-4 w-4" />
+              <span className="hidden sm:inline">Performance</span>
+            </TabsTrigger>
+            <TabsTrigger value="support" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Headphones className="h-4 w-4" />
+              <span className="hidden sm:inline">Suporte</span>
+            </TabsTrigger>
+            <TabsTrigger value="advanced" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Avançado</span>
             </TabsTrigger>
           </TabsList>
 
-          {/* TAB 0: Métricas Diárias - Criados vs Ganhos */}
-          <TabsContent value="metrics" className="space-y-6">
-            <DailyMetricsTab startDate={startDate} endDate={endDate} />
+          <TabsContent value="overview" className="space-y-6">
+            <UnifiedOverviewTab startDate={startDate} endDate={endDate} />
           </TabsContent>
 
-          {/* TAB 1: Assinaturas - Análise de Vendas e Assinaturas */}
-          <TabsContent value="subscriptions" className="space-y-6">
-            <SubscriptionsAnalyticsTab startDate={startDate} endDate={endDate} />
-          </TabsContent>
-
-          {/* TAB 2: Support Performance */}
-          <TabsContent value="support" className="space-y-6">
-            {/* AI Executive Summary */}
-            <AIExecutiveSummary 
-              data={{ 
-                context: 'support',
-                message: 'Aguardando coleta de KPIs para análise. Clique em "Gerar Análise" para processar.',
-              }}
-              context="support"
-              startDate={startDate}
-              endDate={endDate}
-            />
-
-            {/* The 3 Clocks: FRT, MTTR, CSAT */}
-            <SupportKPIsWidget startDate={startDate} endDate={endDate} />
-
-            {/* SLA Compliance + Team Efficiency */}
-            <div className="grid gap-6 md:grid-cols-2 min-w-0">
-              <SLAComplianceWidget startDate={startDate} endDate={endDate} />
-              <TeamEfficiencyWidget startDate={startDate} endDate={endDate} />
-            </div>
-
-            {/* Volume vs Resolution + Busy Hours Heatmap */}
-            <div className="grid gap-6 md:grid-cols-2 min-w-0">
-              <VolumeResolutionWidget startDate={startDate} endDate={endDate} />
-              <BusyHoursHeatmap startDate={startDate} endDate={endDate} />
-            </div>
-
-            {/* AI Insights + Sentiment Distribution */}
-            <div className="grid gap-6 md:grid-cols-2 min-w-0">
-              <AIInsightsWidget startDate={startDate} endDate={endDate} />
-              <SentimentDistributionWidget startDate={startDate} endDate={endDate} />
-            </div>
-
-            {/* Churn Analytics */}
-            <ChurnAnalyticsWidget />
-          </TabsContent>
-
-          {/* TAB 2: AI Analytics */}
-          <TabsContent value="ai" className="space-y-6">
-            {/* AI Executive Summary */}
-            <AIExecutiveSummary 
-              data={{ 
-                context: 'ai',
-                message: 'Aguardando coleta de métricas de IA para análise. Clique em "Gerar Análise" para processar.',
-              }}
-              context="ai"
-              startDate={startDate}
-              endDate={endDate}
-            />
-
-            {/* AI Economy Chart */}
-            <AIEconomyWidget startDate={startDate} endDate={endDate} />
-
-            {/* AI Usage + Top Topics */}
-            <div className="grid gap-6 md:grid-cols-2 min-w-0">
-              <AIUsageWidget startDate={startDate} endDate={endDate} />
-              <TopTopicsWidget startDate={startDate} endDate={endDate} />
-            </div>
-          </TabsContent>
-
-          {/* TAB 3: Onboarding Funnel */}
-          <TabsContent value="onboarding" className="space-y-6">
-            {/* AI Executive Summary */}
-            <AIExecutiveSummary 
-              data={{ 
-                context: 'onboarding',
-                message: 'Aguardando coleta de dados de onboarding para análise. Clique em "Gerar Análise" para processar.',
-              }}
-              context="onboarding"
-              startDate={startDate}
-              endDate={endDate}
-            />
-
-            <OnboardingFunnelWidget startDate={startDate} endDate={endDate} />
-          </TabsContent>
-
-          {/* TAB 4: WhatsApp Traffic */}
-          <TabsContent value="whatsapp" className="space-y-6">
-            {/* AI Executive Summary */}
-            <AIExecutiveSummary 
-              data={{ 
-                context: 'whatsapp',
-                message: 'Aguardando coleta de dados de WhatsApp para análise. Clique em "Gerar Análise" para processar.',
-              }}
-              context="whatsapp"
-              startDate={startDate}
-              endDate={endDate}
-            />
-
-            <WhatsAppTrafficWidget startDate={startDate} endDate={endDate} />
-          </TabsContent>
-
-          {/* TAB 5: Sales Performance */}
           <TabsContent value="sales" className="space-y-6">
-            {/* AI Executive Summary */}
-            <AIExecutiveSummary 
-              data={{ 
-                context: 'sales',
-                message: 'Aguardando coleta de métricas de vendas para análise. Clique em "Gerar Análise" para processar.',
-              }}
-              context="sales"
-              startDate={startDate}
-              endDate={endDate}
-            />
-
-            {/* Cadence Performance - Full Width */}
-            <CadencePerformanceWidget />
-            
-            {/* Channel Performance Comparison - Full Width */}
-            <ChannelPerformanceComparison startDate={startDate} endDate={endDate} />
-            
-
-            {/* Revenue by Channel + Channel Quality */}
-            <div className="grid gap-6 md:grid-cols-2 min-w-0">
-              <RevenueByChannelWidget startDate={startDate} endDate={endDate} />
-              <ChannelQualityWidget startDate={startDate} endDate={endDate} />
-            </div>
-
-            {/* Conversion Rate Trend */}
-            <ConversionRateWidget daysBack={daysBack} />
-
-            {/* YoY Comparison */}
-            <YoYComparisonWidget startDate={startDate} endDate={endDate} />
-
-            {/* Sales Leaderboard */}
-            <SalesLeaderboard />
+            <SalesSubscriptionsTab startDate={startDate} endDate={endDate} />
           </TabsContent>
 
-          {/* TAB 6: Financeiro Kiwify */}
-          <TabsContent value="financial" className="space-y-6">
-            {/* AI Executive Summary */}
-            <AIExecutiveSummary 
-              data={kiwifyMetrics ? {
-                vendasAprovadas: kiwifyMetrics.vendasAprovadas,
-                vendasNovas: kiwifyMetrics.vendasNovas,
-                renovacoes: kiwifyMetrics.renovacoes,
-                receitaBruta: `R$ ${kiwifyMetrics.receitaBruta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                receitaLiquida: `R$ ${kiwifyMetrics.receitaLiquida.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                taxaKiwify: `R$ ${kiwifyMetrics.taxaKiwify.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${kiwifyMetrics.percentualTaxaKiwify.toFixed(1)}%)`,
-                comissaoAfiliados: `R$ ${kiwifyMetrics.comissaoAfiliados.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${kiwifyMetrics.percentualComissao.toFixed(1)}%)`,
-                reembolsos: `${kiwifyMetrics.reembolsos.quantidade} (R$ ${kiwifyMetrics.reembolsos.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`,
-                chargebacks: `${kiwifyMetrics.chargebacks.quantidade} (R$ ${kiwifyMetrics.chargebacks.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`,
-                taxaChurn: `${kiwifyMetrics.taxaChurn.toFixed(1)}%`,
-                topProdutos: kiwifyMetrics.porProduto.slice(0, 5).map(p => `${p.product_name}: ${p.vendas} vendas, R$ ${p.bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`),
-                topAfiliados: kiwifyMetrics.topAffiliates.slice(0, 5).map(a => `${a.affiliateName}: ${a.salesCount} vendas, R$ ${a.totalCommission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`),
-              } : { message: 'Carregando dados financeiros...' }}
-              context="financial"
-              startDate={startDate}
-              endDate={endDate}
-            />
+          <TabsContent value="churn" className="space-y-6">
+            <ChurnAnalysisTab startDate={startDate} endDate={endDate} />
+          </TabsContent>
 
-            {/* Relatório Financeiro Completo */}
-            <KiwifyFinancialReport startDate={startDate} endDate={endDate} />
+          <TabsContent value="performance" className="space-y-6">
+            <PerformanceTab startDate={startDate} endDate={endDate} />
+          </TabsContent>
+
+          <TabsContent value="support" className="space-y-6">
+            <SupportTab startDate={startDate} endDate={endDate} />
+          </TabsContent>
+
+          <TabsContent value="advanced" className="space-y-6">
+            <AdvancedTab startDate={startDate} endDate={endDate} />
           </TabsContent>
         </Tabs>
 
-        {/* Team Performance Table - Always Visible */}
-        <div className="w-full border-t pt-6">
+        {/* Team Performance - Always Visible */}
+        <div className="border-t pt-6">
           <TeamPerformanceTable startDate={startDate} endDate={endDate} />
         </div>
       </div>

@@ -154,17 +154,35 @@ export function forceReload(): void {
 export async function hardRefresh(): Promise<void> {
   console.log("[ensureLatestBuild] Executando Hard Refresh...");
   
-  // Limpar absolutamente tudo
+  // Limpar caches do Service Worker/PWA
   await clearAllCaches();
   
-  // Limpar todo localStorage
+  // Preservar sessão de autenticação do Supabase antes de limpar
+  const supabaseAuthKey = Object.keys(localStorage).find(key => 
+    key.startsWith('sb-') && key.endsWith('-auth-token')
+  );
+  const supabaseAuthValue = supabaseAuthKey ? localStorage.getItem(supabaseAuthKey) : null;
+  
+  console.log("[ensureLatestBuild] Preservando sessão de autenticação:", supabaseAuthKey ? "encontrada" : "não encontrada");
+  
+  // Limpar localStorage (exceto auth que será restaurado)
   try {
     localStorage.clear();
   } catch (e) {
     console.warn("[ensureLatestBuild] Erro ao limpar localStorage:", e);
   }
   
-  // Limpar sessionStorage
+  // Restaurar sessão de autenticação para evitar logout
+  if (supabaseAuthKey && supabaseAuthValue) {
+    try {
+      localStorage.setItem(supabaseAuthKey, supabaseAuthValue);
+      console.log("[ensureLatestBuild] Sessão de autenticação restaurada");
+    } catch (e) {
+      console.warn("[ensureLatestBuild] Erro ao restaurar sessão:", e);
+    }
+  }
+  
+  // Limpar sessionStorage (não afeta auth do Supabase que usa localStorage)
   try {
     sessionStorage.clear();
   } catch (e) {

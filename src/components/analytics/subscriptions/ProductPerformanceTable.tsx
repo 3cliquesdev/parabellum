@@ -89,7 +89,7 @@ export function ProductPerformanceTable({ subscriptionData, isLoading }: Product
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[200px]">Produto</TableHead>
+                  <TableHead className="min-w-[300px]">Produto</TableHead>
                   <TableHead className="text-right">Vendas</TableHead>
                   <TableHead className="text-right">Receita Bruta</TableHead>
                   <TableHead className="text-right">Receita Líquida</TableHead>
@@ -111,7 +111,7 @@ export function ProductPerformanceTable({ subscriptionData, isLoading }: Product
                               #{index + 1}
                             </Badge>
                           )}
-                          <span className="truncate max-w-[180px]" title={product.productName}>
+                          <span title={product.productName}>
                             {product.productName}
                           </span>
                         </div>

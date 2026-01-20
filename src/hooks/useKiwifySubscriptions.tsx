@@ -121,6 +121,11 @@ export function useKiwifySubscriptions(startDate?: Date, endDate?: Date) {
       }
       
       console.log(`[useKiwifySubscriptions] Loaded ${offerToProductName.size} offer mappings`);
+      // Debug specific known offer IDs
+      console.log('[useKiwifySubscriptions] Sample mappings:', {
+        'guilherme_cirilo_9b5b202f': offerToProductName.get('9b5b202f-2735-4d14-906f-fa24c5ec6e09'),
+        'order_bump_5c8c6c69': offerToProductName.get('5c8c6c69-db5b-4f28-9929-5bccc70e94c7'),
+      });
       
       // Fetch paid events
       let paidQuery = supabase

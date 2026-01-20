@@ -58,32 +58,37 @@ export function useLeadsBySource(startDate: Date, endDate: Date) {
 
       if (error) throw error;
 
-      // Count by source
-      const sourceMap = new Map<string, number>();
+      // Count by CATEGORY (not raw source) to avoid duplicates like "WhatsApp/Comercial" appearing twice
+      const categoryMap = new Map<string, { count: number; label: string; color: string }>();
       let total = 0;
 
       (deals || []).forEach((deal) => {
-        const source = deal.lead_source || "manual";
-        sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
+        const source = (deal.lead_source || "manual").toLowerCase();
+        const config = SOURCE_CONFIG[source] || {
+          label: "Outros",
+          color: "#6B7280",
+          category: "outros",
+        };
+        
+        const existing = categoryMap.get(config.category) || {
+          count: 0,
+          label: config.label,
+          color: config.color,
+        };
+        existing.count++;
+        categoryMap.set(config.category, existing);
         total++;
       });
 
       // Convert to array with labels and colors
-      const result: LeadBySource[] = Array.from(sourceMap.entries())
-        .map(([source, count]) => {
-          const config = SOURCE_CONFIG[source.toLowerCase()] || {
-            label: source.charAt(0).toUpperCase() + source.slice(1),
-            color: "#6B7280",
-            category: "outros",
-          };
-          return {
-            source,
-            label: config.label,
-            count,
-            percentage: total > 0 ? (count / total) * 100 : 0,
-            color: config.color,
-          };
-        })
+      const result: LeadBySource[] = Array.from(categoryMap.entries())
+        .map(([category, data]) => ({
+          source: category,
+          label: data.label,
+          count: data.count,
+          percentage: total > 0 ? (data.count / total) * 100 : 0,
+          color: data.color,
+        }))
         .sort((a, b) => b.count - a.count);
 
       return result;

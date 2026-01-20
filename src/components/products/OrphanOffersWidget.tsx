@@ -129,6 +129,7 @@ export function OrphanOffersWidget() {
 
             <div className="flex items-center gap-2">
               <Select
+                key={`select-${offer.plan_id}-${selectedProducts[offer.plan_id] || 'empty'}`}
                 value={selectedProducts[offer.plan_id] || ''}
                 onValueChange={(value) => 
                   setSelectedProducts(prev => ({ ...prev, [offer.plan_id]: value }))
@@ -137,7 +138,12 @@ export function OrphanOffersWidget() {
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Selecionar produto..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent 
+                  position="popper" 
+                  side="bottom" 
+                  align="start"
+                  className="max-h-60"
+                >
                   {products?.map((product) => (
                     <SelectItem key={product.id} value={product.id}>
                       {product.name}

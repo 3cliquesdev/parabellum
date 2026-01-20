@@ -77,6 +77,24 @@ ensureLatestBuild().catch((e) => {
   console.warn('[Main] ⚠️ Erro no ensureLatestBuild:', e);
 });
 
+// 6. Verificar build quando a janela ganha foco (útil no Preview do editor)
+window.addEventListener('focus', () => {
+  console.log('[Main] 👀 Janela focada, verificando build...');
+  ensureLatestBuild().catch((e) => {
+    console.warn('[Main] ⚠️ Erro no ensureLatestBuild (focus):', e);
+  });
+});
+
+// 7. Verificar build quando visibilidade muda (tab ativa)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    console.log('[Main] 👁️ Tab visível, verificando build...');
+    ensureLatestBuild().catch((e) => {
+      console.warn('[Main] ⚠️ Erro no ensureLatestBuild (visibility):', e);
+    });
+  }
+});
+
 console.log('[Main] 🚀 App iniciando');
 
 createRoot(document.getElementById("root")!).render(

@@ -96,11 +96,18 @@ export function OrphanOffersWidget() {
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium truncate">{offer.plan_name}</span>
-                  <Badge variant={offer.detected_source_type === 'afiliado' ? 'secondary' : 'outline'}>
-                    {offer.detected_source_type}
-                  </Badge>
+                <div className="flex flex-col gap-0.5">
+                  {offer.kiwify_product_name && (
+                    <span className="text-xs text-muted-foreground">
+                      Produto: {offer.kiwify_product_name}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium truncate">{offer.plan_name}</span>
+                    <Badge variant={offer.detected_source_type === 'afiliado' ? 'secondary' : 'outline'}>
+                      {offer.detected_source_type}
+                    </Badge>
+                  </div>
                 </div>
                 <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">

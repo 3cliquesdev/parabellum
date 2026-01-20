@@ -32,7 +32,7 @@ import { SalesRepRankingWidget } from "./subscriptions/SalesRepRankingWidget";
 import { WhoSoldRankingWidget } from "./subscriptions/WhoSoldRankingWidget";
 import { WonDealsByChannelWidget } from "./subscriptions/WonDealsByChannelWidget";
 // Premium widgets (do Dashboard de Vendas)
-import { ConversionFunnelCard } from "@/components/widgets/ConversionFunnelCard";
+import { VisualFunnelChart } from "@/components/widgets/VisualFunnelChart";
 import { StageConversionChart } from "@/components/widgets/StageConversionChart";
 
 interface SalesSubscriptionsTabProps {
@@ -270,26 +270,28 @@ export function SalesSubscriptionsTab({ startDate, endDate }: SalesSubscriptions
         <CompactMetricsGrid label="Resumo do Funil" metrics={resumoMetrics} columns={4} />
         <CompactMetricsGrid label="Receita e Breakdown" metrics={receitaMetrics} columns={4} />
 
-        {/* Premium Conversion Section: Funnel + Stage Chart */}
+        {/* 1. Detalhamento por Canal (com Insight + Quem Ganhou os Deals) */}
+        <WonDealsByChannelWidget startDate={startDate} endDate={endDate} />
+
+        {/* 2. Funil de Conversão Visual + Conversão por Etapa */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ConversionFunnelCard dateRange={dateRange} />
+          <VisualFunnelChart dateRange={dateRange} />
           <StageConversionChart />
         </div>
 
-        {/* Won Deals Breakdown by Channel & Seller (com breakdown comercial) */}
-        <WonDealsByChannelWidget startDate={startDate} endDate={endDate} />
-
-        {/* Charts Grid */}
+        {/* 3. Leads por Fonte + Novos vs Recorrentes */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <LeadsBySourceChart startDate={startDate} endDate={endDate} />
           <NewVsRecurringChart data={subscriptionData} isLoading={subscriptionLoading} />
         </div>
 
-        {/* Rankings */}
+        {/* 4. Quem Vendeu (Produtos) */}
         <WhoSoldRankingWidget subscriptionData={subscriptionData} isLoading={subscriptionLoading} />
+
+        {/* 5. Performance por Produto */}
         <ProductPerformanceTable subscriptionData={subscriptionData} isLoading={subscriptionLoading} />
 
-        {/* Sales Rep Ranking */}
+        {/* 6. Ranking de Vendedores */}
         <SalesRepRankingWidget startDate={startDate} endDate={endDate} />
       </div>
     </div>

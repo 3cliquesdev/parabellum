@@ -202,7 +202,19 @@ export function useTickets(
 
       // Client-side search filter
       if (advancedFilters?.search) {
-        const searchLower = advancedFilters.search.toLowerCase();
+        let searchLower = advancedFilters.search.toLowerCase();
+        
+        // Normalizar busca: remover # do início se presente
+        if (searchLower.startsWith('#')) {
+          searchLower = searchLower.slice(1);
+        }
+        
+        // Extrair apenas número final para busca flexível (ex: "00210" de "TK-2026-00210" ou "210")
+        let numericPattern = '';
+        const numericMatch = searchLower.match(/(\d+)$/);
+        if (numericMatch) {
+          numericPattern = numericMatch[1].padStart(5, '0');
+        }
         
         // Se busca no histórico está ativa, buscar também nos comentários
         let ticketIdsFromComments: Set<string> = new Set();
@@ -230,6 +242,7 @@ export function useTickets(
           const basicMatch = (
             ticketId.includes(searchLower) ||
             ticketNumber.includes(searchLower) ||
+            (numericPattern && ticketNumber.includes(numericPattern)) ||
             subject.includes(searchLower) ||
             description.includes(searchLower) ||
             customerFirstName.includes(searchLower) ||

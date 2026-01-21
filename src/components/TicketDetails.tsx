@@ -25,8 +25,12 @@ import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useUsers } from "@/hooks/useUsers";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 import ReactMarkdown from 'react-markdown';
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface TicketDetailsProps {
   ticket: any;
@@ -67,6 +71,9 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
   const { data: users = [] } = useUsers();
   const smartReply = useSmartReply();
   const { isFinancialManager, isSupportAgent } = useUserRole();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [suggestedReply, setSuggestedReply] = useState<string>("");
   const [attachments, setAttachments] = useState(ticket.attachments || []);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
@@ -107,6 +114,50 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
       id: ticket.id,
       updates: { attachments: newAttachments },
     });
+  };
+
+  const handleRemoveAttachment = async (attachment: any, index: number) => {
+    const newAttachments = attachments.filter((_: any, i: number) => i !== index);
+    setAttachments(newAttachments);
+    
+    try {
+      // Salvar no banco
+      await updateTicket.mutateAsync({
+        id: ticket.id,
+        updates: { attachments: newAttachments },
+      });
+      
+      // Registrar evento no histórico
+      await supabase.functions.invoke('notify-ticket-event', {
+        body: {
+          ticket_id: ticket.id,
+          event_type: 'attachment_removed',
+          actor_id: user?.id,
+          metadata: {
+            file_name: attachment.name,
+            file_type: attachment.type,
+            file_url: attachment.url,
+          }
+        }
+      });
+
+      // Invalidar query de eventos para atualizar timeline
+      queryClient.invalidateQueries({ queryKey: ["ticket-events", ticket.id] });
+      
+      toast({
+        title: "Evidência removida",
+        description: `Arquivo "${attachment.name}" foi removido e registrado no histórico.`,
+      });
+    } catch (error) {
+      console.error('[TicketDetails] Error removing attachment:', error);
+      // Reverter em caso de erro
+      setAttachments(attachments);
+      toast({
+        title: "Erro ao remover",
+        description: "Não foi possível remover a evidência.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSmartReply = () => {
@@ -393,6 +444,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
         <TicketAttachments
           attachments={attachments}
           onAttachmentsChange={handleAttachmentsChange}
+          onRemoveAttachment={handleRemoveAttachment}
           readonly={ticket.status === 'resolved' || ticket.status === 'closed'}
           requireEvidence={isFinancialTicket}
         />

@@ -12,7 +12,8 @@ import {
   GitMerge,
   Building2,
   Clock,
-  Loader2
+  Loader2,
+  Trash2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -71,6 +72,11 @@ const eventConfig: Record<string, { icon: React.ReactNode; label: string; color:
     icon: <Building2 className="h-4 w-4" />,
     label: 'Transferido',
     color: 'bg-indigo-500',
+  },
+  attachment_removed: {
+    icon: <Trash2 className="h-4 w-4" />,
+    label: 'Evidência removida',
+    color: 'bg-red-500',
   },
 };
 
@@ -132,6 +138,14 @@ function EventDescription({ event }: { event: TicketEvent }) {
 
     case 'transferred':
       return <span><strong>{actorName}</strong> transferiu o ticket para outro departamento</span>;
+
+    case 'attachment_removed':
+      return (
+        <span>
+          <strong>{actorName}</strong> removeu evidência{' '}
+          <Badge variant="outline" className="ml-1">{event.metadata?.file_name || 'arquivo'}</Badge>
+        </span>
+      );
 
     default:
       return <span><strong>{actorName}</strong> realizou uma ação</span>;

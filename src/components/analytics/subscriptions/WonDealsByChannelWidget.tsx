@@ -91,128 +91,160 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {/* Grid principal: Gráfico + Breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Gráfico de Pizza */}
-          <div className="flex flex-col items-center">
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">
-              Distribuição por Canal
-            </h4>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={byChannel}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="deals"
-                  nameKey="channel"
-                >
-                  {byChannel.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number, name: string, props: any) => [
-                    `${value} deals (${props.payload.percentage.toFixed(0)}%)`,
-                    name,
-                  ]}
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Breakdown Comercial + Kiwify */}
-          <div className="space-y-4">
-            {/* Detalhamento COMERCIAL (sub-canais do time) */}
-            {breakdownItems.length > 0 && (
-              <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/15">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  <h4 className="text-sm font-medium text-foreground">
-                    Detalhamento Comercial (Por Canal)
-                  </h4>
-                </div>
-                <div className="space-y-2">
-                  {breakdownItems.map((item) => (
-                    <div
-                      key={item.channel}
-                      className="flex items-center gap-3 p-2 rounded-lg bg-card border border-border/50"
-                    >
-                      <span className="text-lg">{item.icon}</span>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium text-foreground">{item.channel}</span>
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className="text-foreground/70">{item.deals} deals</span>
-                            <span className="font-medium text-success">{formatCurrency(item.revenue)}</span>
-                          </div>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ 
-                              width: `${(item.revenue / maxBreakdownRevenue) * 100}%`,
-                              backgroundColor: item.color 
-                            }}
-                          />
+        {/* ROW 1: Detalhamentos LADO A LADO (desktop) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Detalhamento COMERCIAL (sub-canais do time) */}
+          {breakdownItems.length > 0 && (
+            <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/15">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                <h4 className="text-sm font-medium text-foreground">
+                  Detalhamento Comercial (Por Canal)
+                </h4>
+              </div>
+              <div className="space-y-2">
+                {breakdownItems.map((item) => (
+                  <div
+                    key={item.channel}
+                    className="flex items-center gap-3 p-2 rounded-lg bg-card border border-border/50"
+                  >
+                    <span className="text-lg">{item.icon}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-foreground">{item.channel}</span>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-foreground/70">{item.deals} deals</span>
+                          <span className="font-medium text-success">{formatCurrency(item.revenue)}</span>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-foreground/70">
-                  💡 WhatsApp, Manual, Webchat, Recuperação e Formulários são canais onde o time comercial atua ativamente.
-                </p>
-              </div>
-            )}
-
-            {/* Detalhamento KIWIFY (sub-canais não-comerciais) */}
-            {kiwifyItems.length > 0 && (
-              <div className="space-y-3 p-3 rounded-lg bg-warning/5 border border-warning/15">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag className="h-4 w-4 text-warning" />
-                  <h4 className="text-sm font-medium text-foreground">
-                    Detalhamento Kiwify (Por Canal)
-                  </h4>
-                </div>
-                <div className="space-y-2">
-                  {kiwifyItems.map((item) => (
-                    <div
-                      key={item.channel}
-                      className="flex items-center gap-3 p-2 rounded-lg bg-card border border-border/50"
-                    >
-                      <span className="text-lg">{item.icon}</span>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium text-foreground">{item.channel}</span>
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className="text-foreground/70">{item.deals} deals</span>
-                            <span className="font-medium text-success">{formatCurrency(item.revenue)}</span>
-                          </div>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ 
-                              width: `${(item.revenue / maxKiwifyRevenue) * 100}%`,
-                              backgroundColor: item.color 
-                            }}
-                          />
-                        </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ 
+                            width: `${(item.revenue / maxBreakdownRevenue) * 100}%`,
+                            backgroundColor: item.color 
+                          }}
+                        />
                       </div>
                     </div>
-                  ))}
-                </div>
-                <p className="text-xs text-foreground/70">
-                  💡 Afiliados, Recorrência e Orgânico são vendas via Kiwify que não passam pelo time comercial.
-                </p>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
+              <p className="text-xs text-foreground/70">
+                💡 WhatsApp, Manual, Webchat, Recuperação e Formulários são canais onde o time comercial atua ativamente.
+              </p>
+            </div>
+          )}
+
+          {/* Detalhamento KIWIFY (sub-canais não-comerciais) */}
+          {kiwifyItems.length > 0 && (
+            <div className="space-y-3 p-3 rounded-lg bg-warning/5 border border-warning/15">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4 text-warning" />
+                <h4 className="text-sm font-medium text-foreground">
+                  Detalhamento Kiwify (Por Canal)
+                </h4>
+              </div>
+              <div className="space-y-2">
+                {kiwifyItems.map((item) => (
+                  <div
+                    key={item.channel}
+                    className="flex items-center gap-3 p-2 rounded-lg bg-card border border-border/50"
+                  >
+                    <span className="text-lg">{item.icon}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-foreground">{item.channel}</span>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-foreground/70">{item.deals} deals</span>
+                          <span className="font-medium text-success">{formatCurrency(item.revenue)}</span>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ 
+                            width: `${(item.revenue / maxKiwifyRevenue) * 100}%`,
+                            backgroundColor: item.color 
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-foreground/70">
+                💡 Afiliados, Recorrência e Orgânico são vendas via Kiwify que não passam pelo time comercial.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* ROW 2: Insight (logo abaixo dos detalhamentos) */}
+        {(() => {
+          const totalComercialDeals = 
+            commercialBreakdown.whatsapp.deals + 
+            commercialBreakdown.manual.deals + 
+            commercialBreakdown.webchat.deals + 
+            commercialBreakdown.recuperacao.deals + 
+            commercialBreakdown.formularios.deals;
+          
+          const totalComercialRevenue = 
+            commercialBreakdown.whatsapp.revenue + 
+            commercialBreakdown.manual.revenue + 
+            commercialBreakdown.webchat.revenue + 
+            commercialBreakdown.recuperacao.revenue + 
+            commercialBreakdown.formularios.revenue;
+          
+          const percentualAutomatico = totals.totalDeals > 0 
+            ? ((totals.organicDeals + totals.recurringDeals + totals.affiliateDeals) / totals.totalDeals * 100).toFixed(0)
+            : "0";
+          
+          return (
+            <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
+              <p className="text-sm text-foreground">
+                💡 <strong>Insight:</strong>{" "}
+                {percentualAutomatico}% das vendas são automáticas (orgânico + afiliados + recorrência), 
+                sem intervenção do time comercial.
+                {totalComercialDeals > 0 && (
+                  <> O time comercial converteu {totalComercialDeals} deals 
+                  ({formatCurrency(totalComercialRevenue)}).</>
+                )}
+              </p>
+            </div>
+          );
+        })()}
+
+        {/* ROW 3: Gráfico de Pizza (por último nesta seção) */}
+        <div className="flex flex-col items-center">
+          <h4 className="text-sm font-medium text-muted-foreground mb-2">
+            Distribuição por Canal
+          </h4>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie
+                data={byChannel}
+                cx="50%"
+                cy="50%"
+                innerRadius={50}
+                outerRadius={80}
+                paddingAngle={2}
+                dataKey="deals"
+                nameKey="channel"
+              >
+                {byChannel.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: number, name: string, props: any) => [
+                  `${value} deals (${props.payload.percentage.toFixed(0)}%)`,
+                  name,
+                ]}
+              />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Ranking de Vendedores do Time Comercial */}
@@ -287,42 +319,6 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
             </div>
           </div>
         )}
-
-        {/* Insight resumido - usa commercialBreakdown para cálculo correto */}
-        {(() => {
-          // Cálculo correto: soma do breakdown comercial (WhatsApp + Manual + Webchat + Recuperação + Formulários)
-          const totalComercialDeals = 
-            commercialBreakdown.whatsapp.deals + 
-            commercialBreakdown.manual.deals + 
-            commercialBreakdown.webchat.deals + 
-            commercialBreakdown.recuperacao.deals + 
-            commercialBreakdown.formularios.deals;
-          
-          const totalComercialRevenue = 
-            commercialBreakdown.whatsapp.revenue + 
-            commercialBreakdown.manual.revenue + 
-            commercialBreakdown.webchat.revenue + 
-            commercialBreakdown.recuperacao.revenue + 
-            commercialBreakdown.formularios.revenue;
-          
-          const percentualAutomatico = totals.totalDeals > 0 
-            ? ((totals.organicDeals + totals.recurringDeals + totals.affiliateDeals) / totals.totalDeals * 100).toFixed(0)
-            : "0";
-          
-          return (
-            <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
-              <p className="text-sm text-foreground">
-                💡 <strong>Insight:</strong>{" "}
-                {percentualAutomatico}% das vendas são automáticas (orgânico + afiliados + recorrência), 
-                sem intervenção do time comercial.
-                {totalComercialDeals > 0 && (
-                  <> O time comercial converteu {totalComercialDeals} deals 
-                  ({formatCurrency(totalComercialRevenue)}).</>
-                )}
-              </p>
-            </div>
-          );
-        })()}
       </CardContent>
     </Card>
   );

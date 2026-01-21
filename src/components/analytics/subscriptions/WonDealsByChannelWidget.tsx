@@ -125,41 +125,8 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
             </ResponsiveContainer>
           </div>
 
-          {/* Breakdown por Canal + Detalhamento Comercial */}
+          {/* Breakdown Comercial + Kiwify */}
           <div className="space-y-4">
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-muted-foreground">
-                Detalhamento por Canal
-              </h4>
-              <div className="space-y-2">
-                {byChannel.map((channel) => (
-                  <div
-                    key={channel.channel}
-                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: channel.color }}
-                      />
-                      <span className="text-sm font-medium">{channel.channel}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm text-foreground/70">
-                        {channel.deals} deals
-                      </span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(channel.revenue)}
-                      </span>
-                      <Badge variant="outline" className="text-xs">
-                        {channel.percentage.toFixed(0)}%
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Detalhamento COMERCIAL (sub-canais do time) */}
             {breakdownItems.length > 0 && (
               <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/15">

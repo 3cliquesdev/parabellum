@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/hooks/useTickets";
 import { TicketsTable } from "@/components/support/TicketsTable";
@@ -38,6 +39,9 @@ export default function Support() {
   const [advancedFilters, setAdvancedFilters] = useState<TicketFilters>(defaultTicketFilters);
   const [bulkTransferOpen, setBulkTransferOpen] = useState(false);
   
+  // Debounce search to avoid querying on every keystroke
+  const debouncedSearch = useDebouncedValue(advancedFilters.search, 500);
+  
   const { isSupportManager } = useUserRole();
   const isMobile = useIsMobileBreakpoint();
   const { getViewersForTicket, setViewingTicket } = useTicketsPresence();
@@ -63,12 +67,17 @@ export default function Support() {
     }
   }, [isMobile, mobileView, selectedTicketId, setViewingTicket]);
 
-  // Convert sidebar filter to hook parameters, merging with advanced filters
+  // Convert sidebar filter to hook parameters, merging with advanced filters (debounced)
+  const debouncedFilters = useMemo(() => ({
+    ...advancedFilters,
+    search: debouncedSearch,
+  }), [advancedFilters, debouncedSearch]);
+
   const getHookParams = () => {
-    // Base filters from advanced popover
+    // Base filters from advanced popover with debounced search
     const baseFilters: TicketFilters = {
-      ...advancedFilters,
-      search: advancedFilters.search || searchTerm,
+      ...debouncedFilters,
+      search: debouncedFilters.search || searchTerm,
     };
 
     switch (sidebarFilter) {

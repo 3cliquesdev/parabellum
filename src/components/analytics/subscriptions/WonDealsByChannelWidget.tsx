@@ -2,9 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWonDealsByChannel } from "@/hooks/useWonDealsByChannel";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-import { Trophy, Users, TrendingUp, RefreshCw, ShoppingBag } from "lucide-react";
+import { Trophy, Users, TrendingUp, RefreshCw, ShoppingBag, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-
+import { Alert, AlertDescription } from "@/components/ui/alert";
 interface WonDealsByChannelWidgetProps {
   startDate?: Date;
   endDate?: Date;
@@ -43,7 +43,7 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Trophy className="h-5 w-5 text-warning" />
-            Quem Ganhou os Deals
+            Deals Ganhos
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -79,7 +79,7 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <Trophy className="h-5 w-5 text-warning" />
-            Quem Ganhou os Deals
+            Deals Ganhos
             <Badge variant="secondary" className="ml-2">
               {totals.totalDeals} vendas
             </Badge>
@@ -88,9 +88,41 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
              {formatCurrency(totals.totalRevenue)} em receita
           </span>
         </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Desempenho do time comercial e vendas automáticas (CRM + Kiwify)
+        </p>
       </CardHeader>
 
       <CardContent className="space-y-6">
+        {/* ALERTA: Deals sem atribuição que deveriam ter vendedor */}
+        {(() => {
+          // Deals de Recuperação/Formulário em Kiwify = sem vendedor atribuído
+          // Comparar: totais do sistema vs o que o time comercial tem atribuído
+          const recuperacaoNoComercial = commercialBreakdown.recuperacao?.deals || 0;
+          const formulariosNoComercial = commercialBreakdown.formularios?.deals || 0;
+          
+          // Se há deals de recuperação/formulário nos totais mas NÃO estão no breakdown comercial
+          const dealsRecuperacaoSemVendedor = totals.recuperacaoDeals - recuperacaoNoComercial;
+          const dealsFormularioSemVendedor = totals.formulariosDeals - formulariosNoComercial;
+          const totalSemAtribuicao = Math.max(0, dealsRecuperacaoSemVendedor) + Math.max(0, dealsFormularioSemVendedor);
+          
+          if (totalSemAtribuicao > 0) {
+            return (
+              <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  <strong>{totalSemAtribuicao} deals comerciais sem vendedor atribuído:</strong>{" "}
+                  {dealsRecuperacaoSemVendedor > 0 && `${dealsRecuperacaoSemVendedor} de Recuperação`}
+                  {dealsRecuperacaoSemVendedor > 0 && dealsFormularioSemVendedor > 0 && " + "}
+                  {dealsFormularioSemVendedor > 0 && `${dealsFormularioSemVendedor} de Formulário`}.
+                  {" "}Esses deals aparecem em "Kiwify" mas deveriam estar em "Comercial".
+                </AlertDescription>
+              </Alert>
+            );
+          }
+          return null;
+        })()}
+
         {/* ROW 1: Detalhamentos LADO A LADO (desktop) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Detalhamento COMERCIAL (sub-canais do time) */}

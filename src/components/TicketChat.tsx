@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useTicketComments } from "@/hooks/useTicketComments";
 import { useCreateComment } from "@/hooks/useCreateComment";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Lock, MessageSquare, Paperclip, FileText, Image, File } from "lucide-react";
+import { Mail, Lock, MessageSquare, Paperclip, FileText, Image, File, User } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { SafeHTML } from "@/components/SafeHTML";
@@ -131,82 +131,103 @@ export function TicketChat({ ticketId, channel = 'platform' }: TicketChatProps) 
                 Nenhum comentário ainda. Seja o primeiro a responder!
               </p>
             ) : (
-              comments.map((comment) => (
-                <div 
-                  key={comment.id} 
-                  className={`flex gap-3 p-3 rounded-lg ${
-                    comment.is_internal 
-                      ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800' 
-                      : ''
-                  }`}
-                >
-                  <Avatar className="w-8 h-8">
-                    <AvatarImage src={comment.created_by_user?.avatar_url} />
-                    <AvatarFallback>
-                      {comment.created_by_user?.full_name?.[0] || '?'}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">
-                        {comment.created_by_user?.full_name || 'Usuário'}
-                      </span>
-                      {comment.is_internal && (
-                        <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900 dark:text-amber-200 dark:border-amber-700">
-                          <Lock className="w-3 h-3 mr-1" />
-                          Nota Interna
-                        </Badge>
+              comments.map((comment) => {
+                const isCustomer = comment.is_customer_comment;
+                const isInternal = comment.is_internal;
+                
+                return (
+                  <div 
+                    key={comment.id} 
+                    className={`flex gap-3 p-3 rounded-lg ${
+                      isInternal 
+                        ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800' 
+                        : isCustomer
+                          ? 'bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800'
+                          : ''
+                    } ${isCustomer ? 'flex-row-reverse' : ''}`}
+                  >
+                    <Avatar className="w-8 h-8">
+                      {isCustomer ? (
+                        <AvatarFallback className="bg-blue-500 text-white">
+                          <User className="w-4 h-4" />
+                        </AvatarFallback>
+                      ) : (
+                        <>
+                          <AvatarImage src={comment.created_by_user?.avatar_url} />
+                          <AvatarFallback>
+                            {comment.display_name?.[0] || '?'}
+                          </AvatarFallback>
+                        </>
                       )}
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(comment.created_at), {
-                          addSuffix: true,
-                          locale: ptBR,
-                        })}
-                      </span>
-                    </div>
-                    <SafeHTML 
-                      html={comment.content}
-                      className="text-sm whitespace-pre-wrap"
-                    />
-                    
-                    {/* Renderizar anexos se existirem */}
-                    {comment.attachments && Array.isArray(comment.attachments) && comment.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-border/50">
-                        {(comment.attachments as unknown as CommentAttachment[]).map((att, idx) => {
-                          const FileIcon = getFileIcon(att.type);
-                          const isImage = att.type.startsWith('image/');
-                          
-                          return (
-                            <a 
-                              key={idx}
-                              href={att.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg text-xs hover:bg-muted/80 transition-colors group"
-                            >
-                              {isImage ? (
-                                <img 
-                                  src={att.url} 
-                                  alt={att.name}
-                                  className="w-8 h-8 object-cover rounded"
-                                />
-                              ) : (
-                                <FileIcon className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
-                              )}
-                              <div className="flex flex-col">
-                                <span className="font-medium truncate max-w-[150px]">{att.name}</span>
-                                <span className="text-muted-foreground">{formatFileSize(att.size)}</span>
-                              </div>
-                              <Paperclip className="w-3 h-3 text-muted-foreground ml-1" />
-                            </a>
-                          );
-                        })}
+                    </Avatar>
+
+                    <div className={`flex-1 space-y-1 ${isCustomer ? 'text-right' : ''}`}>
+                      <div className={`flex items-center gap-2 flex-wrap ${isCustomer ? 'justify-end' : ''}`}>
+                        <span className="font-medium text-sm">
+                          {comment.display_name || 'Usuário'}
+                        </span>
+                        {isCustomer && (
+                          <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700">
+                            <User className="w-3 h-3 mr-1" />
+                            Cliente
+                          </Badge>
+                        )}
+                        {isInternal && (
+                          <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900 dark:text-amber-200 dark:border-amber-700">
+                            <Lock className="w-3 h-3 mr-1" />
+                            Nota Interna
+                          </Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(comment.created_at), {
+                            addSuffix: true,
+                            locale: ptBR,
+                          })}
+                        </span>
                       </div>
-                    )}
+                      <SafeHTML 
+                        html={comment.content}
+                        className={`text-sm whitespace-pre-wrap ${isCustomer ? 'text-left' : ''}`}
+                      />
+                      
+                      {/* Renderizar anexos se existirem */}
+                      {comment.attachments && Array.isArray(comment.attachments) && comment.attachments.length > 0 && (
+                        <div className={`flex flex-wrap gap-2 mt-2 pt-2 border-t border-border/50 ${isCustomer ? 'justify-end' : ''}`}>
+                          {(comment.attachments as unknown as CommentAttachment[]).map((att, idx) => {
+                            const FileIcon = getFileIcon(att.type);
+                            const isImage = att.type.startsWith('image/');
+                            
+                            return (
+                              <a 
+                                key={idx}
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg text-xs hover:bg-muted/80 transition-colors group"
+                              >
+                                {isImage ? (
+                                  <img 
+                                    src={att.url} 
+                                    alt={att.name}
+                                    className="w-8 h-8 object-cover rounded"
+                                  />
+                                ) : (
+                                  <FileIcon className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
+                                )}
+                                <div className="flex flex-col">
+                                  <span className="font-medium truncate max-w-[150px]">{att.name}</span>
+                                  <span className="text-muted-foreground">{formatFileSize(att.size)}</span>
+                                </div>
+                                <Paperclip className="w-3 h-3 text-muted-foreground ml-1" />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </ScrollArea>

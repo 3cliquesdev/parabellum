@@ -55,7 +55,7 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
     );
   }
 
-  const { byChannel, bySalesRep, commercialBreakdown, totals } = data;
+  const { byChannel, bySalesRep, commercialBreakdown, kiwifyBreakdown, totals } = data;
 
   // Separar vendedores reais de categorias orgânicas
   const realSalesReps = bySalesRep.filter(rep => !rep.isOrganic);
@@ -68,6 +68,10 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
   // Breakdown comercial para exibição (apenas itens com vendas)
   const breakdownItems = Object.values(commercialBreakdown).filter(item => item.deals > 0);
   const maxBreakdownRevenue = Math.max(...breakdownItems.map(i => i.revenue), 1);
+
+  // Breakdown Kiwify para exibição (apenas itens com vendas)
+  const kiwifyItems = Object.values(kiwifyBreakdown).filter(item => item.deals > 0);
+  const maxKiwifyRevenue = Math.max(...kiwifyItems.map(i => i.revenue), 1);
 
   return (
     <Card>
@@ -195,6 +199,49 @@ export function WonDealsByChannelWidget({ startDate, endDate }: WonDealsByChanne
                 </div>
                 <p className="text-xs text-foreground/70">
                   💡 WhatsApp, Manual, Webchat, Recuperação e Formulários são canais onde o time comercial atua ativamente.
+                </p>
+              </div>
+            )}
+
+            {/* Detalhamento KIWIFY (sub-canais não-comerciais) */}
+            {kiwifyItems.length > 0 && (
+              <div className="space-y-3 p-3 rounded-lg bg-warning/5 border border-warning/15">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4 text-warning" />
+                  <h4 className="text-sm font-medium text-foreground">
+                    Detalhamento Kiwify (Por Canal)
+                  </h4>
+                </div>
+                <div className="space-y-2">
+                  {kiwifyItems.map((item) => (
+                    <div
+                      key={item.channel}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-card border border-border/50"
+                    >
+                      <span className="text-lg">{item.icon}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-foreground">{item.channel}</span>
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-foreground/70">{item.deals} deals</span>
+                            <span className="font-medium text-success">{formatCurrency(item.revenue)}</span>
+                          </div>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ 
+                              width: `${(item.revenue / maxKiwifyRevenue) * 100}%`,
+                              backgroundColor: item.color 
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-foreground/70">
+                  💡 Afiliados, Recorrência e Orgânico são vendas via Kiwify que não passam pelo time comercial.
                 </p>
               </div>
             )}

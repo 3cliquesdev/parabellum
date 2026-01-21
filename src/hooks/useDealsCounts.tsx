@@ -31,7 +31,7 @@ export interface DealsCounts {
 export function useDealsCounts(startDate: Date | undefined, endDate: Date | undefined) {
   return useQuery({
     queryKey: [
-      "deals-counts-v2",
+      "deals-counts-v3",
       startDate ? formatLocalDate(startDate) : null,
       endDate ? formatLocalDate(endDate) : null,
     ],

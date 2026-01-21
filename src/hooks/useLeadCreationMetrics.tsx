@@ -37,7 +37,7 @@ function formatLocalDate(date: Date): string {
 
 export function useLeadCreationMetrics(startDate: Date, endDate: Date) {
   return useQuery({
-    queryKey: ["lead-creation-metrics", formatLocalDate(startDate), formatLocalDate(endDate)],
+    queryKey: ["lead-creation-metrics-v2", formatLocalDate(startDate), formatLocalDate(endDate)],
     queryFn: async (): Promise<DailyMetrics> => {
       const startStr = formatLocalDate(startDate);
       const endStr = formatLocalDate(endDate);

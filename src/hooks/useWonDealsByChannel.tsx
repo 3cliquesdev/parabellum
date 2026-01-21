@@ -42,11 +42,26 @@ interface CommercialBreakdown {
   formularios: CommercialBreakdownItem;
 }
 
+interface KiwifyBreakdownItem {
+  channel: string;
+  icon: string;
+  deals: number;
+  revenue: number;
+  color: string;
+}
+
+interface KiwifyBreakdown {
+  afiliados: KiwifyBreakdownItem;
+  recorrencia: KiwifyBreakdownItem;
+  organico: KiwifyBreakdownItem;
+}
+
 interface WonDealsData {
   byChannel: ChannelData[];
   bySource: SourceData[];
   bySalesRep: SalesRepData[];
   commercialBreakdown: CommercialBreakdown;
+  kiwifyBreakdown: KiwifyBreakdown;
   totals: {
     totalDeals: number;
     totalRevenue: number;
@@ -242,6 +257,13 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
         formularios: { channel: "Formulários", icon: "📋", deals: 0, revenue: 0, color: "#22c55e" },
       };
 
+      // Breakdown detalhado do Kiwify (canais não-comerciais)
+      const kiwifyBreakdown: KiwifyBreakdown = {
+        afiliados: { channel: "Afiliados", icon: "🤝", deals: 0, revenue: 0, color: "#f97316" },
+        recorrencia: { channel: "Recorrência", icon: "🔄", deals: 0, revenue: 0, color: "#06b6d4" },
+        organico: { channel: "Orgânico", icon: "🎯", deals: 0, revenue: 0, color: "#8b5cf6" },
+      };
+
       (deals || []).forEach((deal) => {
         const revenue = deal.net_value || deal.value || 0;
         const source = deal.lead_source;
@@ -267,10 +289,21 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
         // Contadores por tipo (usando classificação correta)
         // Nota: Recuperação e Formulários agora são contados como Comercial no gráfico
         // mas mantemos os contadores individuais para o breakdown detalhado
-        if (channel === "Orgânico") organicDeals++;
-        else if (channel === "Comercial") commercialDeals++;
-        else if (channel === "Afiliados") affiliateDeals++;
-        else if (channel === "Recorrência") recurringDeals++;
+        if (channel === "Orgânico") {
+          organicDeals++;
+          kiwifyBreakdown.organico.deals++;
+          kiwifyBreakdown.organico.revenue += revenue;
+        } else if (channel === "Comercial") {
+          commercialDeals++;
+        } else if (channel === "Afiliados") {
+          affiliateDeals++;
+          kiwifyBreakdown.afiliados.deals++;
+          kiwifyBreakdown.afiliados.revenue += revenue;
+        } else if (channel === "Recorrência") {
+          recurringDeals++;
+          kiwifyBreakdown.recorrencia.deals++;
+          kiwifyBreakdown.recorrencia.revenue += revenue;
+        }
 
         // Preencher breakdown comercial e contadores específicos
         const sourceNorm = (deal.lead_source || "").toLowerCase().trim();
@@ -373,6 +406,7 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
         bySource,
         bySalesRep,
         commercialBreakdown,
+        kiwifyBreakdown,
         totals: {
           totalDeals,
           totalRevenue,

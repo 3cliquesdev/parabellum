@@ -36,6 +36,7 @@ interface CommercialBreakdownItem {
 
 interface CommercialBreakdown {
   whatsapp: CommercialBreakdownItem;
+  ofertaComercial: CommercialBreakdownItem;
   manual: CommercialBreakdownItem;
   webchat: CommercialBreakdownItem;
   recuperacao: CommercialBreakdownItem;
@@ -196,7 +197,7 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
   const endKey = endDate ? formatLocalDate(endDate) : undefined;
 
   return useQuery({
-    queryKey: ["won-deals-by-channel-v5", startKey, endKey],
+    queryKey: ["won-deals-by-channel-v6", startKey, endKey],
     staleTime: 30 * 1000, // Cache de 30 segundos
     refetchOnWindowFocus: false, // Evitar spam de requests
     retry: 3, // Retry em caso de falha de rede
@@ -273,6 +274,7 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
       // Breakdown detalhado do Comercial
       const commercialBreakdown: CommercialBreakdown = {
         whatsapp: { channel: "WhatsApp", icon: "📱", deals: 0, revenue: 0, color: "#25D366" },
+        ofertaComercial: { channel: "Oferta Comercial", icon: "🧾", deals: 0, revenue: 0, color: "#0ea5e9" },
         manual: { channel: "Manual", icon: "✋", deals: 0, revenue: 0, color: "#3b82f6" },
         webchat: { channel: "Webchat", icon: "💬", deals: 0, revenue: 0, color: "#8b5cf6" },
         recuperacao: { channel: "Recuperação", icon: "🔄", deals: 0, revenue: 0, color: "#a855f7" },
@@ -327,32 +329,40 @@ export function useWonDealsByChannel(startDate?: Date, endDate?: Date) {
           kiwifyBreakdown.recorrencia.revenue += revenue;
         }
 
-        // Preencher breakdown comercial APENAS para deals COM vendedor
-        if (deal.assigned_to) {
+        // Preencher breakdown comercial para TODOS os deals classificados como Comercial
+        if (channel === "Comercial") {
           const sourceNorm = (deal.lead_source || "").toLowerCase().trim();
           const titleNorm = (deal.title || "").toLowerCase();
+          const hasAssignedTo = !!deal.assigned_to;
           
-          if (sourceNorm === "whatsapp") {
-            commercialBreakdown.whatsapp.deals++;
-            commercialBreakdown.whatsapp.revenue += revenue;
-          } else if (sourceNorm === "manual" || sourceNorm === "comercial") {
-            commercialBreakdown.manual.deals++;
-            commercialBreakdown.manual.revenue += revenue;
-          } else if (sourceNorm === "webchat") {
-            commercialBreakdown.webchat.deals++;
-            commercialBreakdown.webchat.revenue += revenue;
-          } else if (titleNorm.startsWith("recuperação") || titleNorm.startsWith("recuperacao") || titleNorm.startsWith("winback")) {
-            commercialBreakdown.recuperacao.deals++;
-            commercialBreakdown.recuperacao.revenue += revenue;
-            recuperacaoDeals++;
-          } else if (sourceNorm === "formulario" || sourceNorm === "form" || sourceNorm === "chat_widget") {
-            commercialBreakdown.formularios.deals++;
-            commercialBreakdown.formularios.revenue += revenue;
-            formulariosDeals++;
+          // Se tem vendedor atribuído, usa lógica de subcanais por lead_source
+          if (hasAssignedTo) {
+            if (sourceNorm === "whatsapp") {
+              commercialBreakdown.whatsapp.deals++;
+              commercialBreakdown.whatsapp.revenue += revenue;
+            } else if (sourceNorm === "manual" || sourceNorm === "comercial") {
+              commercialBreakdown.manual.deals++;
+              commercialBreakdown.manual.revenue += revenue;
+            } else if (sourceNorm === "webchat") {
+              commercialBreakdown.webchat.deals++;
+              commercialBreakdown.webchat.revenue += revenue;
+            } else if (titleNorm.startsWith("recuperação") || titleNorm.startsWith("recuperacao") || titleNorm.startsWith("winback")) {
+              commercialBreakdown.recuperacao.deals++;
+              commercialBreakdown.recuperacao.revenue += revenue;
+              recuperacaoDeals++;
+            } else if (sourceNorm === "formulario" || sourceNorm === "form" || sourceNorm === "chat_widget") {
+              commercialBreakdown.formularios.deals++;
+              commercialBreakdown.formularios.revenue += revenue;
+              formulariosDeals++;
+            } else {
+              // Outros canais com vendedor → Manual
+              commercialBreakdown.manual.deals++;
+              commercialBreakdown.manual.revenue += revenue;
+            }
           } else {
-            // Outros canais com vendedor → Manual/Outros
-            commercialBreakdown.manual.deals++;
-            commercialBreakdown.manual.revenue += revenue;
+            // Comercial SEM vendedor (via kiwify_offer_id mapeado) → Oferta Comercial
+            commercialBreakdown.ofertaComercial.deals++;
+            commercialBreakdown.ofertaComercial.revenue += revenue;
           }
         }
 

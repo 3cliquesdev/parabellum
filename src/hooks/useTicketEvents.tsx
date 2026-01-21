@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface TicketEvent {
   id: string;
   ticket_id: string;
-  event_type: 'created' | 'assigned' | 'status_changed' | 'priority_changed' | 'comment_added' | 'transferred' | 'merged';
+  event_type: 'created' | 'assigned' | 'status_changed' | 'priority_changed' | 'comment_added' | 'transferred' | 'merged' | 'attachment_removed';
   actor_id: string | null;
   old_value: string | null;
   new_value: string | null;

@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface TicketEventPayload {
   ticket_id: string;
-  event_type: 'created' | 'assigned' | 'status_changed' | 'transferred' | 'resolved' | 'closed';
+  event_type: 'created' | 'assigned' | 'status_changed' | 'transferred' | 'resolved' | 'closed' | 'attachment_removed';
   actor_id: string;
   old_value?: string;
   new_value?: string;
@@ -123,6 +123,9 @@ serve(async (req) => {
           break;
         case 'closed':
           description = `Ticket #${ticket.ticket_number} fechado por ${actorName}`;
+          break;
+        case 'attachment_removed':
+          description = `Arquivo "${metadata?.file_name || 'evidência'}" removido do ticket #${ticket.ticket_number} por ${actorName}`;
           break;
       }
 

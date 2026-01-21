@@ -17,6 +17,7 @@ interface Attachment {
 interface TicketAttachmentsProps {
   attachments: Attachment[];
   onAttachmentsChange: (attachments: Attachment[]) => void;
+  onRemoveAttachment?: (attachment: Attachment, index: number) => void;
   readonly?: boolean;
   requireEvidence?: boolean;
 }
@@ -24,6 +25,7 @@ interface TicketAttachmentsProps {
 export function TicketAttachments({ 
   attachments = [], 
   onAttachmentsChange, 
+  onRemoveAttachment,
   readonly = false,
   requireEvidence = false 
 }: TicketAttachmentsProps) {
@@ -147,7 +149,7 @@ export function TicketAttachments({
                   </div>
                 )}
                 
-                {/* Overlay with actions - Evidências não podem ser removidas */}
+                {/* Overlay with actions */}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                   <Button
                     size="sm"
@@ -156,6 +158,15 @@ export function TicketAttachments({
                   >
                     <ExternalLink className="w-4 h-4" />
                   </Button>
+                  {!readonly && onRemoveAttachment && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => onRemoveAttachment(attachment, index)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
 
                 {/* File type badge */}

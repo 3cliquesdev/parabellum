@@ -33,7 +33,16 @@ export function SubscriptionsAnalyticsTab({ startDate, endDate }: SubscriptionsA
   const isLoading = subscriptionLoading || dealsLoading;
 
   const handleExportPDF = async () => {
+    // Bloquear exportação enquanto dados carregam
+    if (isLoading) {
+      toast.warning("Aguarde os dados carregarem antes de exportar.");
+      return;
+    }
+    
     try {
+      // Pequeno delay para garantir que DOM está totalmente renderizado
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       await exportToPDF("subscriptions-dashboard", {
         filename: "Relatorio_Vendas_Assinaturas",
         title: "Relatório de Vendas e Assinaturas",

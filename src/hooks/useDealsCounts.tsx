@@ -38,6 +38,9 @@ export function useDealsCounts(startDate: Date | undefined, endDate: Date | unde
     enabled: !!startDate && !!endDate,
     staleTime: 60 * 1000, // Cache de 60 segundos para performance
     refetchOnWindowFocus: false, // Não refetch ao focar (usa cache)
+    retry: 3, // Retry em caso de falha de rede
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Backoff exponencial
+    placeholderData: (previousData) => previousData, // Manter dados anteriores durante refetch
     queryFn: async (): Promise<DealsCounts> => {
       if (!startDate || !endDate) {
         return {
@@ -62,36 +65,51 @@ export function useDealsCounts(startDate: Date | undefined, endDate: Date | unde
         .lte("created_at", endDateTime);
 
       if (createdError) {
-        console.error("❌ useDealsCounts error:", createdError);
+        console.error("❌ useDealsCounts [created] error:", createdError);
         throw createdError;
       }
 
       // Query 2: Contar deals GANHOS FECHADOS no período (por closed_at)
       // ⚠️ LÓGICA TRAVADA: Usar closed_at - aprovado pelo usuário em 20/01/2026
       // Baseline: 240 deals ganhos em 15/01/2026
-      const { count: totalWon } = await supabase
+      const { count: totalWon, error: wonError } = await supabase
         .from("deals")
         .select("*", { count: "exact", head: true })
         .eq("status", "won")
         .gte("closed_at", startDateTime)
         .lte("closed_at", endDateTime);
 
+      if (wonError) {
+        console.error("❌ useDealsCounts [won] error:", wonError, { startDateTime, endDateTime });
+        throw wonError;
+      }
+
       // Query 3: Contar deals PERDIDOS FECHADOS no período (por closed_at)
       // ⚠️ LÓGICA TRAVADA: Usar closed_at - mesma lógica de ganhos
-      const { count: totalLost } = await supabase
+      const { count: totalLost, error: lostError } = await supabase
         .from("deals")
         .select("*", { count: "exact", head: true })
         .eq("status", "lost")
         .gte("closed_at", startDateTime)
         .lte("closed_at", endDateTime);
 
+      if (lostError) {
+        console.error("❌ useDealsCounts [lost] error:", lostError, { startDateTime, endDateTime });
+        throw lostError;
+      }
+
       // Query 4: Contar deals ABERTOS criados no período
-      const { count: totalOpen } = await supabase
+      const { count: totalOpen, error: openError } = await supabase
         .from("deals")
         .select("*", { count: "exact", head: true })
         .eq("status", "open")
         .gte("created_at", startDateTime)
         .lte("created_at", endDateTime);
+
+      if (openError) {
+        console.error("❌ useDealsCounts [open] error:", openError, { startDateTime, endDateTime });
+        throw openError;
+      }
 
       const created = totalCreated || 0;
       const won = totalWon || 0;

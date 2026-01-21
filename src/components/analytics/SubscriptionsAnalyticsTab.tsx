@@ -1,7 +1,5 @@
 import { useKiwifySubscriptions, SubscriptionMetrics } from "@/hooks/useKiwifySubscriptions";
-import { useDealsConversionAnalysis } from "@/hooks/useDealsConversionAnalysis";
-import { useLeadCreationMetrics } from "@/hooks/useLeadCreationMetrics";
-import { DateRange } from "react-day-picker";
+import { useDealsCounts } from "@/hooks/useDealsCounts";
 import { FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useExportPDF } from "@/hooks/useExportPDF";
@@ -27,14 +25,12 @@ interface SubscriptionsAnalyticsTabProps {
 export function SubscriptionsAnalyticsTab({ startDate, endDate }: SubscriptionsAnalyticsTabProps) {
   // Data hooks - USANDO A MESMA FONTE DO MENU /subscriptions
   const { data: subscriptionData, isLoading: subscriptionLoading } = useKiwifySubscriptions(startDate, endDate);
-  const dateRange: DateRange = { from: startDate, to: endDate };
-  const { data: conversionData, isLoading: conversionLoading } = useDealsConversionAnalysis(dateRange);
-  const { data: leadMetrics, isLoading: leadLoading } = useLeadCreationMetrics(startDate, endDate);
+  const { data: dealsCounts, isLoading: dealsLoading } = useDealsCounts(startDate, endDate);
   
   // PDF Export
   const { exportToPDF, isExporting } = useExportPDF();
 
-  const isLoading = subscriptionLoading || conversionLoading || leadLoading;
+  const isLoading = subscriptionLoading || dealsLoading;
 
   const handleExportPDF = async () => {
     try {
@@ -75,7 +71,7 @@ export function SubscriptionsAnalyticsTab({ startDate, endDate }: SubscriptionsA
       <div id="subscriptions-dashboard" className="space-y-6 bg-background">
         {/* ROW 1: Conversion Funnel (Full Width) */}
         <ConversionFunnelWidget
-          leadMetrics={leadMetrics}
+          leadMetrics={{ totalCreated: dealsCounts?.totalCreated || 0 }}
           subscriptionData={subscriptionData}
           isLoading={isLoading}
         />

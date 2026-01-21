@@ -12,7 +12,6 @@
 
 import { useKiwifySubscriptions } from "@/hooks/useKiwifySubscriptions";
 import { useDealsCounts } from "@/hooks/useDealsCounts";
-import { useLeadCreationMetrics } from "@/hooks/useLeadCreationMetrics";
 import { DateRange } from "react-day-picker";
 import { Download, FileText, FileCode, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -72,13 +71,10 @@ export function SalesSubscriptionsTab({ startDate, endDate }: SalesSubscriptions
   // ⚠️ LÓGICA TRAVADA: Usar useDealsCounts (query simples + cache 60s)
   const { data: dealsCounts, isLoading: dealsLoading } = useDealsCounts(startDate, endDate);
   
-  // Dados de leads para o funil completo
-  const { data: leadMetrics, isLoading: leadsLoading } = useLeadCreationMetrics(startDate, endDate);
-  
   const { exportToPDF, isExporting: isExportingPDF } = useExportPDF();
   const { exportToXML, isExporting: isExportingXML } = useExportXML();
   const { exportToExcel, isExporting: isExportingExcel } = useExportExcel();
-  const isLoading = subscriptionLoading || dealsLoading || leadsLoading;
+  const isLoading = subscriptionLoading || dealsLoading;
   const isExporting = isExportingPDF || isExportingXML || isExportingExcel;
 
   const handleExportPDF = async () => {
@@ -358,7 +354,7 @@ export function SalesSubscriptionsTab({ startDate, endDate }: SalesSubscriptions
 
         {/* 0. Funil de Conversão Completo (210 vendas, 9 reembolsos, novos/recorrentes) */}
         <ConversionFunnelWidget 
-          leadMetrics={leadMetrics}
+          leadMetrics={{ totalCreated: dealsCounts?.totalCreated || 0 }}
           subscriptionData={subscriptionData}
           isLoading={isLoading}
         />

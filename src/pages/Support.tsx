@@ -99,14 +99,19 @@ export default function Support() {
       case 'my_open':
         return { 
           assignedFilter: 'mine' as const,
-          advancedFilters: { ...baseFilters, status: baseFilters.status.length > 0 ? baseFilters.status : ['open', 'in_progress', 'waiting_customer'] }
+          advancedFilters: { ...baseFilters, status: baseFilters.status.length > 0 ? baseFilters.status : ['open', 'in_progress', 'waiting_customer', 'returned'] }
+        };
+      case 'created_by_me':
+        return { 
+          assignedFilter: 'created_by_me' as const,
+          advancedFilters: { ...baseFilters, status: baseFilters.status.length > 0 ? baseFilters.status : ['open', 'in_progress', 'waiting_customer', 'returned'] }
         };
       case 'unassigned':
         return { assignedFilter: 'unassigned' as const, advancedFilters: baseFilters };
       case 'sla_expired':
         return { advancedFilters: { ...baseFilters, slaExpired: true } };
       case 'no_tags':
-        return { advancedFilters: { ...baseFilters, noTags: true, status: baseFilters.status.length > 0 ? baseFilters.status : ['open', 'in_progress', 'waiting_customer'] } };
+        return { advancedFilters: { ...baseFilters, noTags: true, status: baseFilters.status.length > 0 ? baseFilters.status : ['open', 'in_progress', 'waiting_customer', 'returned'] } };
       case 'archived':
         return { advancedFilters: { ...baseFilters, status: ['resolved', 'closed'] } };
       case 'open':
@@ -114,9 +119,10 @@ export default function Support() {
       case 'waiting_customer':
       case 'resolved':
       case 'closed':
+      case 'returned':
         return { advancedFilters: { ...baseFilters, status: [sidebarFilter] } };
       case 'all':
-        return { advancedFilters: { ...baseFilters, status: baseFilters.status.length > 0 ? baseFilters.status : ['open', 'in_progress', 'waiting_customer'] } };
+        return { advancedFilters: { ...baseFilters, status: baseFilters.status.length > 0 ? baseFilters.status : ['open', 'in_progress', 'waiting_customer', 'returned'] } };
       default:
         return { advancedFilters: baseFilters };
     }

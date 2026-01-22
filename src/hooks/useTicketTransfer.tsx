@@ -17,14 +17,34 @@ export function useTicketTransfer() {
 
   return useMutation({
     mutationFn: async ({ ticket_id, department_id, internal_note, assigned_to }: TransferData) => {
-      // Buscar departamento anterior
+      // Buscar dados atuais do ticket
       const { data: currentTicket } = await supabase
         .from("tickets")
-        .select("department_id, departments(name)")
+        .select("department_id, assigned_to, departments(name)")
         .eq("id", ticket_id)
         .single();
       
       const previousDepartment = (currentTicket?.departments as any)?.name || "Desconhecido";
+      const previousAssignedTo = currentTicket?.assigned_to;
+
+      // Verificar se é um "retorno" - se o assigned_to foi responsável antes
+      let isReturning = false;
+      if (assigned_to) {
+        const { data: previousEvents } = await supabase
+          .from("ticket_events")
+          .select("metadata")
+          .eq("ticket_id", ticket_id)
+          .eq("event_type", "transferred")
+          .order("created_at", { ascending: false });
+        
+        isReturning = previousEvents?.some(event => {
+          const meta = event.metadata as any;
+          return meta?.previous_assigned_to === assigned_to;
+        }) || false;
+      }
+
+      // Definir status baseado se é retorno ou não
+      const newStatus = isReturning ? 'returned' : 'in_progress';
 
       // Buscar nome do assignee se fornecido
       let assigneeName: string | null = null;
@@ -41,7 +61,7 @@ export function useTicketTransfer() {
         .from("tickets")
         .update({
           department_id,
-          status: 'in_progress',
+          status: newStatus as any, // Dynamic status from ticket_statuses table
           assigned_to: assigned_to ?? null,
         })
         .eq("id", ticket_id)
@@ -76,6 +96,8 @@ export function useTicketTransfer() {
             metadata: {
               from_department: previousDepartment,
               to_department: data.department?.name,
+              previous_assigned_to: previousAssignedTo,
+              is_return: isReturning,
               internal_note,
             },
           },

@@ -70,6 +70,7 @@ export function useTicketCounts() {
       const counts: TicketCounts = {
         total: 0,
         my_open: 0,
+        created_by_me: 0,
         unassigned: 0,
         sla_expired: 0,
         archived: 0,
@@ -107,6 +108,11 @@ export function useTicketCounts() {
         // My open tickets
         if (ticket.assigned_to === user.id && !isArchived) {
           counts.my_open++;
+        }
+
+        // Tickets que o usuário criou (para acompanhamento)
+        if (ticket.created_by === user.id && !isArchived) {
+          counts.created_by_me++;
         }
 
         // Unassigned (apenas ativos)

@@ -16,6 +16,7 @@ import { MergeTicketDialog } from "@/components/MergeTicketDialog";
 import { ChannelBadge } from "@/components/ChannelBadge";
 import { TicketTimeline } from "@/components/TicketTimeline";
 import { TicketTagsCard } from "@/components/TicketTagsCard";
+import { RemovedAttachmentsHistory } from "@/components/RemovedAttachmentsHistory";
 import { useTicketPresence } from "@/hooks/useTicketPresence";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -70,7 +71,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
   const updateTicket = useUpdateTicket();
   const { data: users = [] } = useUsers();
   const smartReply = useSmartReply();
-  const { isFinancialManager, isSupportAgent } = useUserRole();
+  const { isFinancialManager, isSupportAgent, isAdmin } = useUserRole();
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -448,6 +449,9 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
           readonly={ticket.status === 'resolved' || ticket.status === 'closed'}
           requireEvidence={isFinancialTicket}
         />
+
+        {/* Removed Attachments History - Only visible to admin */}
+        {isAdmin && <RemovedAttachmentsHistory ticketId={ticket.id} />}
 
         {/* Ticket Timeline/History */}
         <TicketTimeline ticketId={ticket.id} />

@@ -13,7 +13,8 @@ import {
   Building2,
   Clock,
   Loader2,
-  Trash2
+  Trash2,
+  RotateCcw
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -77,6 +78,11 @@ const eventConfig: Record<string, { icon: React.ReactNode; label: string; color:
     icon: <Trash2 className="h-4 w-4" />,
     label: 'Evidência removida',
     color: 'bg-red-500',
+  },
+  attachment_restored: {
+    icon: <RotateCcw className="h-4 w-4" />,
+    label: 'Evidência restaurada',
+    color: 'bg-green-500',
   },
 };
 
@@ -144,6 +150,14 @@ function EventDescription({ event }: { event: TicketEvent }) {
         <span>
           <strong>{actorName}</strong> removeu evidência{' '}
           <Badge variant="outline" className="ml-1">{event.metadata?.file_name || 'arquivo'}</Badge>
+        </span>
+      );
+
+    case 'attachment_restored':
+      return (
+        <span>
+          <strong>{actorName}</strong> restaurou evidência{' '}
+          <Badge variant="outline" className="ml-1 border-green-500 text-green-600">{event.metadata?.file_name || 'arquivo'}</Badge>
         </span>
       );
 

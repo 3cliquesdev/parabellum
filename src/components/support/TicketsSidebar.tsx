@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useTicketCounts } from "@/hooks/useTicketCounts";
 import { useActiveTicketStatuses } from "@/hooks/useTicketStatuses";
 import { getStatusIcon } from "@/lib/ticketStatusIcons";
+import { useSavedTicketFilters, useDeleteSavedTicketFilter } from "@/hooks/useSavedTicketFilters";
 import { 
   Inbox, 
   User, 
@@ -9,7 +11,12 @@ import {
   FolderOpen,
   Archive,
   Tag,
+  Bookmark,
+  Trash2,
+  Pin,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export type SidebarFilter = string;
 
@@ -39,6 +46,8 @@ const mainFilters: FilterItem[] = [
 export function TicketsSidebar({ selectedFilter, onFilterChange }: TicketsSidebarProps) {
   const { data: counts, isLoading: countsLoading, error: countsError } = useTicketCounts();
   const { data: statuses } = useActiveTicketStatuses();
+  const { data: savedFilters } = useSavedTicketFilters();
+  const deleteFilter = useDeleteSavedTicketFilter();
 
   // Log error for debugging
   if (countsError) {
@@ -136,59 +145,113 @@ export function TicketsSidebar({ selectedFilter, onFilterChange }: TicketsSideba
   }, 0);
 
   return (
-    <div className="h-full flex flex-col bg-card border-r border-border">
-      {/* Main Filters */}
-      <div className="p-3 space-y-1">
-        {mainFilters.map(renderFilterItem)}
-      </div>
-
-      {/* Divider */}
-      <div className="px-3 py-2">
-        <div className="border-t border-border" />
-      </div>
-
-      {/* Active Status Filters (dynamic) */}
-      <div className="px-3 pb-3">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-3">
-          Por Status
-        </p>
-        <div className="space-y-1">
-          {activeStatuses.map(status => renderStatusItem(status))}
+    <ScrollArea className="h-full">
+      <div className="flex flex-col bg-card border-r border-border min-h-full">
+        {/* Main Filters */}
+        <div className="p-3 space-y-1">
+          {mainFilters.map(renderFilterItem)}
         </div>
-      </div>
 
-      {/* Divider */}
-      <div className="px-3 py-2">
-        <div className="border-t border-border" />
-      </div>
+        {/* Divider */}
+        <div className="px-3 py-2">
+          <div className="border-t border-border" />
+        </div>
 
-      {/* Archived Section (dynamic) */}
-      <div className="px-3 pb-3">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-3">
-          Arquivados
-        </p>
-        <div className="space-y-1">
-          {/* All archived button */}
-          <button
-            onClick={() => onFilterChange('archived')}
-            className={cn(
-              "w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors text-left",
-              selectedFilter === 'archived'
-                ? "bg-primary/10 text-primary font-medium" 
-                : "text-muted-foreground hover:bg-accent hover:text-foreground"
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <Archive className="w-4 h-4" />
-              <span>Todos arquivados</span>
+        {/* Active Status Filters (dynamic) */}
+        <div className="px-3 pb-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-3">
+            Por Status
+          </p>
+          <div className="space-y-1">
+            {activeStatuses.map(status => renderStatusItem(status))}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="px-3 py-2">
+          <div className="border-t border-border" />
+        </div>
+
+        {/* Saved Filters Section */}
+        {savedFilters && savedFilters.length > 0 && (
+          <>
+            <div className="px-3 pb-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-3 flex items-center gap-1">
+                <Bookmark className="w-3 h-3" />
+                Personalizadas
+              </p>
+              <div className="space-y-1">
+                {savedFilters.map((filter) => {
+                  const isSelected = selectedFilter === `saved:${filter.id}`;
+                  return (
+                    <div
+                      key={filter.id}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors group",
+                        isSelected 
+                          ? "bg-primary/10 text-primary font-medium" 
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      )}
+                    >
+                      <button
+                        onClick={() => onFilterChange(`saved:${filter.id}`)}
+                        className="flex items-center gap-2 flex-1 text-left truncate"
+                      >
+                        {filter.is_pinned && <Pin className="w-3 h-3 flex-shrink-0" />}
+                        <span className="truncate">{filter.name}</span>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteFilter.mutate(filter.id);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full min-w-[24px] text-center bg-muted text-muted-foreground">
-              {archivedTotal}
-            </span>
-          </button>
-          {archivedStatuses.map(status => renderStatusItem(status, true))}
+
+            {/* Divider */}
+            <div className="px-3 py-2">
+              <div className="border-t border-border" />
+            </div>
+          </>
+        )}
+
+        {/* Archived Section (dynamic) */}
+        <div className="px-3 pb-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-3">
+            Arquivados
+          </p>
+          <div className="space-y-1">
+            {/* All archived button */}
+            <button
+              onClick={() => onFilterChange('archived')}
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors text-left",
+                selectedFilter === 'archived'
+                  ? "bg-primary/10 text-primary font-medium" 
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Archive className="w-4 h-4" />
+                <span>Todos arquivados</span>
+              </div>
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full min-w-[24px] text-center bg-muted text-muted-foreground">
+                {archivedTotal}
+              </span>
+            </button>
+            {archivedStatuses.map(status => renderStatusItem(status, true))}
+          </div>
         </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }

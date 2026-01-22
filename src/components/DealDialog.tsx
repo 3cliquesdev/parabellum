@@ -33,7 +33,6 @@ import { Slider } from "@/components/ui/slider";
 import { 
   Target, 
   ArrowRightLeft, 
-  Package, 
   ExternalLink, 
   Star, 
   CreditCard, 
@@ -952,37 +951,6 @@ export default function DealDialog({ deal, trigger, open: externalOpen, onOpenCh
                         </SelectItem>
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* ═══════════════════════════════════════════════════ */}
-            {/* SEÇÃO: RASTREIO DE ENVIO                           */}
-            {/* ═══════════════════════════════════════════════════ */}
-            <div className="border-t pt-4 mt-4">
-              <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                <Package className="h-4 w-4 text-blue-600" />
-                Rastreio de Envio
-              </h3>
-
-              <FormField
-                control={form.control}
-                name="tracking_code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Código de Rastreio</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Ex: AN405740645BR"
-                        {...field}
-                        value={field.value || ""}
-                      />
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Código usado para rastrear a entrega do pedido
-                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

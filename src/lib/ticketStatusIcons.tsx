@@ -22,6 +22,7 @@ import {
   Flag,
   Star,
   Zap,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react";
 
@@ -49,6 +50,7 @@ const iconMap: Record<string, LucideIcon> = {
   'flag': Flag,
   'star': Star,
   'zap': Zap,
+  'rotate-ccw': RotateCcw,
 };
 
 export function getStatusIcon(iconName: string): LucideIcon {

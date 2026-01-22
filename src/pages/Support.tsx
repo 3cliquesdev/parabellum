@@ -20,6 +20,8 @@ import { BulkMoveToProjectDialog } from "@/components/support/BulkMoveToProjectD
 import { BulkTransferTicketsDialog } from "@/components/support/BulkTransferTicketsDialog";
 import { useBulkArchiveTickets } from "@/hooks/useBulkArchiveTickets";
 import { TicketFilterPopover, TicketFilters, defaultTicketFilters } from "@/components/support/TicketFilterPopover";
+import { useSavedTicketFilters } from "@/hooks/useSavedTicketFilters";
+import { SaveTicketFilterDialog } from "@/components/support/SaveTicketFilterDialog";
 
 
 type MobileView = 'list' | 'details';
@@ -38,6 +40,7 @@ export default function Support() {
   const [moveToProjectOpen, setMoveToProjectOpen] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<TicketFilters>(defaultTicketFilters);
   const [bulkTransferOpen, setBulkTransferOpen] = useState(false);
+  const [saveFilterOpen, setSaveFilterOpen] = useState(false);
   
   // Debounce search to avoid querying on every keystroke
   const debouncedSearch = useDebouncedValue(advancedFilters.search, 500);
@@ -46,6 +49,18 @@ export default function Support() {
   const isMobile = useIsMobileBreakpoint();
   const { getViewersForTicket, setViewingTicket } = useTicketsPresence();
   const bulkArchive = useBulkArchiveTickets();
+  const { data: savedFilters } = useSavedTicketFilters();
+
+  // Apply saved filter when selected
+  useEffect(() => {
+    if (sidebarFilter.startsWith('saved:') && savedFilters) {
+      const filterId = sidebarFilter.replace('saved:', '');
+      const savedFilter = savedFilters.find(f => f.id === filterId);
+      if (savedFilter) {
+        setAdvancedFilters(savedFilter.filters);
+      }
+    }
+  }, [sidebarFilter, savedFilters]);
   
 
   const handleBulkArchive = () => {
@@ -332,11 +347,19 @@ export default function Support() {
           
           <div className="flex items-center gap-3">
             {/* Filtros Avançados */}
-            <div data-tour="tickets-filter-popover">
+            <div data-tour="tickets-filter-popover" className="flex items-center gap-2">
               <TicketFilterPopover 
                 filters={advancedFilters} 
                 onFiltersChange={setAdvancedFilters} 
               />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setSaveFilterOpen(true)}
+                title="Salvar filtro atual"
+              >
+                Salvar Filtro
+              </Button>
             </div>
 
             {/* Pagination */}
@@ -400,6 +423,12 @@ export default function Support() {
 
 
       <CreateTicketDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
+      
+      <SaveTicketFilterDialog 
+        open={saveFilterOpen} 
+        onOpenChange={setSaveFilterOpen} 
+        filters={advancedFilters} 
+      />
 
       {/* Bulk Actions Bar */}
       {selectedTicketIds.length > 0 && (

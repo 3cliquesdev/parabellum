@@ -81,6 +81,15 @@ const statusLabels = {
   closed: 'Fechado',
 };
 
+// Helper to get creator name from created_by_user (can be array or object)
+function getCreatorName(createdByUser: { full_name: string } | { full_name: string }[] | null | undefined): string | null {
+  if (!createdByUser) return null;
+  if (Array.isArray(createdByUser)) {
+    return createdByUser[0]?.full_name || null;
+  }
+  return createdByUser.full_name || null;
+}
+
 const priorityColors = {
   low: 'bg-blue-500',
   medium: 'bg-yellow-500',
@@ -147,7 +156,7 @@ export function TicketsTable({
     <div className="h-full flex flex-col bg-card">
       {/* Table Header */}
       <div className="flex-none border-b border-border bg-muted/50">
-        <div className="grid grid-cols-[40px_140px_minmax(120px,1.5fr)_minmax(140px,1fr)_minmax(130px,1fr)_minmax(100px,0.8fr)_50px_80px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="grid grid-cols-[40px_110px_minmax(100px,1.2fr)_minmax(100px,0.8fr)_minmax(100px,0.8fr)_minmax(100px,0.8fr)_minmax(80px,0.6fr)_50px_70px_60px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
           {onToggleSelectAll && (
             <div className="flex items-center justify-center">
               <Checkbox 
@@ -161,12 +170,14 @@ export function TicketsTable({
           <div>Protocolo</div>
           <div>Assunto</div>
           <div>Solicitante</div>
+          <div>Cliente</div>
           <div>Responsável</div>
           <div>Departamento</div>
           <div className="flex items-center justify-center">
             <Eye className="w-3 h-3" />
           </div>
           <div className="text-right">Data</div>
+          <div className="text-center">Origem</div>
         </div>
       </div>
 
@@ -183,12 +194,15 @@ export function TicketsTable({
             const showCreatedByMeBadge = isCreatedByMe && isAssignedToOther;
             const viewers = getViewersForTicket?.(ticket.id) || [];
 
+            const creatorName = getCreatorName(ticket.created_by_user);
+            const isCreatedByAgent = !!ticket.created_by && !!creatorName;
+
             return (
               <div
                 key={ticket.id}
                 onClick={() => onSelectTicket(ticket.id)}
                 className={cn(
-                  "grid grid-cols-[40px_140px_minmax(120px,1.5fr)_minmax(140px,1fr)_minmax(130px,1fr)_minmax(100px,0.8fr)_50px_80px] gap-2 px-3 py-3 cursor-pointer transition-colors items-center",
+                  "grid grid-cols-[40px_110px_minmax(100px,1.2fr)_minmax(100px,0.8fr)_minmax(100px,0.8fr)_minmax(100px,0.8fr)_minmax(80px,0.6fr)_50px_70px_60px] gap-2 px-3 py-3 cursor-pointer transition-colors items-center",
                   isSelected 
                     ? "bg-primary/5 border-l-2 border-primary" 
                     : "hover:bg-accent/50 border-l-2 border-transparent",
@@ -247,12 +261,23 @@ export function TicketsTable({
                   <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", priorityColors[ticket.priority])} />
                 </div>
 
-                {/* Requester */}
+                {/* Solicitante (quem abriu) */}
+                <div className="text-sm text-muted-foreground truncate">
+                  {isCreatedByAgent ? (
+                    <span className="truncate">{creatorName}</span>
+                  ) : (
+                    <span className="truncate">
+                      {ticket.customer?.first_name} {ticket.customer?.last_name}
+                    </span>
+                  )}
+                </div>
+
+                {/* Cliente (contato associado) */}
                 <div className="text-sm text-muted-foreground truncate">
                   {ticket.customer?.first_name} {ticket.customer?.last_name}
                 </div>
 
-                {/* Assignee */}
+                {/* Responsável */}
                 <div className="text-sm text-muted-foreground truncate">
                   {ticket.assigned_user?.full_name || (
                     <span className="text-muted-foreground/50 italic">Não atribuído</span>
@@ -316,6 +341,28 @@ export function TicketsTable({
                 {/* Date */}
                 <div className="text-xs text-muted-foreground text-right">
                   {formatTicketDate(ticket.created_at)}
+                </div>
+
+                {/* Origem (Agente ou Cliente) */}
+                <div className="flex items-center justify-center">
+                  {isCreatedByAgent ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 whitespace-nowrap">
+                            Agente
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="left">
+                          <p className="text-xs">Aberto por {creatorName}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 whitespace-nowrap">
+                      Cliente
+                    </span>
+                  )}
                 </div>
               </div>
             );

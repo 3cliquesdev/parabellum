@@ -343,28 +343,62 @@ async function generateDealsReport(supabase: any, filters: any) {
   
   console.log('[deals_won_lost] Starting with filters:', { startDate, endDate, status, pipelineId });
   
-  let query = supabase
-    .from('deals')
-    .select(`
-      id, title, value, status, currency, lost_reason,
-      created_at, closed_at, lead_email, lead_phone,
-      contacts:contact_id (first_name, last_name, email, phone, kiwify_customer_id),
-      profiles:assigned_to (full_name),
-      stages:stage_id (name),
-      pipelines:pipeline_id (name),
-      products:product_id (name)
-    `);
+  // ⚠️ LÓGICA TRAVADA: Deals ganhos/perdidos usam closed_at para filtro de período
+  // Conforme docs/architecture/analytics-date-filter-rules.md
+  
+  // Buscar TODOS os deals usando paginação (limite padrão Supabase = 1000)
+  const pageSize = 1000;
+  let allDeals: any[] = [];
+  let offset = 0;
+  let hasMore = true;
 
-  if (startDate) query = query.gte('created_at', startDate);
-  if (endDate) query = query.lte('created_at', endDate);
-  if (status) query = query.eq('status', status);
-  if (pipelineId && pipelineId !== '') {
-    console.log('[deals_won_lost] Filtering by pipelineId:', pipelineId);
-    query = query.eq('pipeline_id', pipelineId);
+  while (hasMore) {
+    let query = supabase
+      .from('deals')
+      .select(`
+        id, title, value, status, currency, lost_reason,
+        created_at, closed_at, lead_email, lead_phone,
+        contacts:contact_id (first_name, last_name, email, phone, kiwify_customer_id),
+        profiles:assigned_to (full_name),
+        stages:stage_id (name),
+        pipelines:pipeline_id (name),
+        products:product_id (name)
+      `)
+      .in('status', ['won', 'lost']) // Apenas deals ganhos e perdidos
+      .order('closed_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    // Filtrar por closed_at (data de fechamento) - regra padrão para ganhos/perdidos
+    if (startDate) query = query.gte('closed_at', startDate);
+    if (endDate) query = query.lte('closed_at', endDate);
+    
+    // Apply pipeline filter
+    if (pipelineId && pipelineId !== '') {
+      console.log('[deals_won_lost] Filtering by pipelineId:', pipelineId);
+      query = query.eq('pipeline_id', pipelineId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('[deals_won_lost] Error:', error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allDeals = [...allDeals, ...data];
+      offset += pageSize;
+      hasMore = data.length === pageSize;
+      console.log(`[deals_won_lost] Fetched page, total so far: ${allDeals.length}`);
+    } else {
+      hasMore = false;
+    }
   }
 
-  const { data, error } = await query;
-  if (error) throw error;
+  console.log('[deals_won_lost] Total deals fetched:', allDeals.length);
+
+  if (allDeals.length === 0) {
+    return [];
+  }
 
   // Buscar todos os eventos Kiwify para status de pagamento
   const { data: kiwifyEvents } = await supabase
@@ -383,7 +417,7 @@ async function generateDealsReport(supabase: any, filters: any) {
     }
   });
 
-  return data.map((d: any) => {
+  return allDeals.map((d: any) => {
     // Buscar email: priorizar lead_email, depois contact email
     const email = d.lead_email || d.contacts?.email || '';
     const customerEmail = email?.toLowerCase();

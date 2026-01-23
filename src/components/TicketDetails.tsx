@@ -465,7 +465,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
         />
 
         {/* Financial Approval Bar (para gerentes: financial_manager, manager, admin) */}
-        {canApprove && isPendingApproval && (
+        {canApprove && ticket.status !== 'resolved' && ticket.status !== 'closed' && (
           <FinancialApprovalBar 
             ticketId={ticket.id}
             ticketStatus={ticket.status}

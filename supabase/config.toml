@@ -269,3 +269,6 @@ region = "us-east-1"
 
 [functions.sync-whatsapp-history]
 verify_jwt = true
+
+[functions.process-chat-flow]
+verify_jwt = false

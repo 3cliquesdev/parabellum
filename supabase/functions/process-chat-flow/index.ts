@@ -1,0 +1,454 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Validadores
+const validators: Record<string, (value: string) => { valid: boolean; error?: string }> = {
+  email: (value) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(value) 
+      ? { valid: true } 
+      : { valid: false, error: "Por favor, informe um email válido (exemplo@email.com)" };
+  },
+  phone: (value) => {
+    const digits = value.replace(/\D/g, '');
+    const isValid = digits.length >= 10 && digits.length <= 11;
+    return isValid 
+      ? { valid: true } 
+      : { valid: false, error: "Por favor, informe um telefone válido com DDD (ex: 11 99999-9999)" };
+  },
+  cpf: (value) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length !== 11) {
+      return { valid: false, error: "CPF deve ter 11 dígitos" };
+    }
+    // Validação básica de CPF
+    if (/^(\d)\1{10}$/.test(digits)) {
+      return { valid: false, error: "CPF inválido" };
+    }
+    // Cálculo dos dígitos verificadores
+    let sum = 0;
+    for (let i = 0; i < 9; i++) sum += parseInt(digits[i]) * (10 - i);
+    let d1 = (sum * 10) % 11;
+    if (d1 === 10) d1 = 0;
+    if (d1 !== parseInt(digits[9])) {
+      return { valid: false, error: "CPF inválido" };
+    }
+    sum = 0;
+    for (let i = 0; i < 10; i++) sum += parseInt(digits[i]) * (11 - i);
+    let d2 = (sum * 10) % 11;
+    if (d2 === 10) d2 = 0;
+    if (d2 !== parseInt(digits[10])) {
+      return { valid: false, error: "CPF inválido" };
+    }
+    return { valid: true };
+  },
+  name: (value) => {
+    return value.trim().length >= 2 
+      ? { valid: true } 
+      : { valid: false, error: "Por favor, informe seu nome completo" };
+  },
+  text: (value) => {
+    return value.trim().length > 0 
+      ? { valid: true } 
+      : { valid: false, error: "Por favor, informe uma resposta" };
+  },
+};
+
+// Encontrar próximo nó baseado no tipo
+function findNextNode(flowDef: any, currentNode: any, path?: string): any {
+  const edges = flowDef.edges || [];
+  
+  // Para nós de condição, usar o path (true/false)
+  if (currentNode.type === 'condition' && path) {
+    const edge = edges.find((e: any) => 
+      e.source === currentNode.id && e.sourceHandle === path
+    );
+    if (edge) {
+      return flowDef.nodes.find((n: any) => n.id === edge.target);
+    }
+  }
+  
+  // Para nós de opções, usar o path como ID da opção
+  if (currentNode.type === 'ask_options' && path) {
+    const edge = edges.find((e: any) => 
+      e.source === currentNode.id && e.sourceHandle === path
+    );
+    if (edge) {
+      return flowDef.nodes.find((n: any) => n.id === edge.target);
+    }
+    // Fallback: buscar edge sem handle específico
+  }
+  
+  // Para outros nós, buscar edge simples
+  const edge = edges.find((e: any) => e.source === currentNode.id && !e.sourceHandle);
+  if (!edge) {
+    // Tentar qualquer edge saindo deste nó
+    const anyEdge = edges.find((e: any) => e.source === currentNode.id);
+    if (anyEdge) {
+      return flowDef.nodes.find((n: any) => n.id === anyEdge.target);
+    }
+    return null;
+  }
+  return flowDef.nodes.find((n: any) => n.id === edge.target);
+}
+
+// Substituir variáveis no texto
+function replaceVariables(text: string, collectedData: Record<string, any>): string {
+  let result = text;
+  for (const [key, value] of Object.entries(collectedData)) {
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
+  }
+  return result;
+}
+
+// Avaliar condição
+function evaluateCondition(condition: any, collectedData: Record<string, any>, userMessage: string): boolean {
+  const { condition_type, condition_field, condition_value } = condition;
+  const fieldValue = collectedData[condition_field] || "";
+  
+  switch (condition_type) {
+    case "contains":
+      return userMessage.toLowerCase().includes((condition_value || "").toLowerCase());
+    case "equals":
+      return fieldValue.toLowerCase() === (condition_value || "").toLowerCase();
+    case "has_data":
+      return !!fieldValue && fieldValue.trim().length > 0;
+    case "regex":
+      try {
+        const regex = new RegExp(condition_value || "", "i");
+        return regex.test(userMessage);
+      } catch {
+        return false;
+      }
+    default:
+      return false;
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    const { conversationId, userMessage } = await req.json();
+    
+    if (!conversationId) {
+      return new Response(
+        JSON.stringify({ useAI: true, reason: "No conversationId provided" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[process-chat-flow] Processing:', { conversationId, userMessage: userMessage?.slice(0, 50) });
+
+    // 1. Verificar se existe estado ativo para esta conversa
+    const { data: activeState, error: stateError } = await supabaseClient
+      .from('chat_flow_states')
+      .select('*, chat_flows(*)')
+      .eq('conversation_id', conversationId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (stateError) {
+      console.error('[process-chat-flow] Error fetching state:', stateError);
+      return new Response(
+        JSON.stringify({ useAI: true, reason: "Error fetching flow state" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2. Se tem estado ativo, processar resposta do usuário
+    if (activeState) {
+      console.log('[process-chat-flow] Active flow found:', activeState.flow_id);
+      
+      const flowDef = activeState.chat_flows?.flow_definition as any;
+      if (!flowDef?.nodes) {
+        return new Response(
+          JSON.stringify({ useAI: true, reason: "Invalid flow definition" }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const currentNode = flowDef.nodes.find((n: any) => n.id === activeState.current_node_id);
+      if (!currentNode) {
+        return new Response(
+          JSON.stringify({ useAI: true, reason: "Current node not found" }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const collectedData = (activeState.collected_data || {}) as Record<string, any>;
+      
+      // Validar resposta baseado no tipo de nó
+      let validationType = 'text';
+      if (currentNode.type === 'ask_name') validationType = 'name';
+      else if (currentNode.type === 'ask_email') validationType = 'email';
+      else if (currentNode.type === 'ask_phone') validationType = 'phone';
+      else if (currentNode.type === 'ask_cpf') validationType = 'cpf';
+      
+      // Executar validação se necessário
+      if (currentNode.data?.validate !== false && validators[validationType]) {
+        const validation = validators[validationType](userMessage);
+        if (!validation.valid) {
+          console.log('[process-chat-flow] Validation failed:', validation.error);
+          return new Response(
+            JSON.stringify({
+              useAI: false,
+              response: validation.error,
+              retry: true,
+              flowId: activeState.flow_id,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Salvar dado coletado
+      if (currentNode.data?.save_as) {
+        collectedData[currentNode.data.save_as] = userMessage;
+      }
+
+      // Determinar próximo nó
+      let nextNode: any = null;
+      let path: string | undefined;
+
+      if (currentNode.type === 'ask_options') {
+        // Encontrar opção selecionada
+        const options = currentNode.data?.options || [];
+        const selectedOption = options.find((opt: any) => 
+          opt.label.toLowerCase() === userMessage.toLowerCase() ||
+          opt.value.toLowerCase() === userMessage.toLowerCase()
+        );
+        if (selectedOption) {
+          path = selectedOption.id;
+          collectedData[currentNode.data?.save_as || 'choice'] = selectedOption.value;
+        }
+      } else if (currentNode.type === 'condition') {
+        const conditionResult = evaluateCondition(currentNode.data, collectedData, userMessage);
+        path = conditionResult ? 'true' : 'false';
+      }
+
+      nextNode = findNextNode(flowDef, currentNode, path);
+
+      // Se não há próximo nó ou é um nó de fim
+      if (!nextNode || nextNode.type === 'end') {
+        // Marcar fluxo como completo
+        await supabaseClient
+          .from('chat_flow_states')
+          .update({
+            collected_data: collectedData,
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', activeState.id);
+
+        const endMessage = nextNode?.data?.message 
+          ? replaceVariables(nextNode.data.message, collectedData)
+          : "Obrigado! Suas informações foram registradas.";
+
+        // Executar ação final se configurada
+        if (nextNode?.data?.end_action === 'create_lead') {
+          console.log('[process-chat-flow] Creating lead from collected data');
+          // TODO: Implementar criação de lead
+        }
+
+        return new Response(
+          JSON.stringify({
+            useAI: false,
+            response: endMessage,
+            flowCompleted: true,
+            collectedData,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Se é um nó de transferência
+      if (nextNode.type === 'transfer') {
+        await supabaseClient
+          .from('chat_flow_states')
+          .update({
+            collected_data: collectedData,
+            current_node_id: nextNode.id,
+            status: 'transferred',
+          })
+          .eq('id', activeState.id);
+
+        return new Response(
+          JSON.stringify({
+            useAI: false,
+            response: replaceVariables(nextNode.data?.message || "Transferindo para um atendente...", collectedData),
+            transfer: true,
+            transferType: nextNode.data?.transfer_type,
+            departmentId: nextNode.data?.department_id,
+            collectedData,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Se é um nó de resposta IA
+      if (nextNode.type === 'ai_response') {
+        await supabaseClient
+          .from('chat_flow_states')
+          .update({
+            collected_data: collectedData,
+            current_node_id: nextNode.id,
+          })
+          .eq('id', activeState.id);
+
+        return new Response(
+          JSON.stringify({
+            useAI: true,
+            contextPrompt: nextNode.data?.context_prompt,
+            useKnowledgeBase: nextNode.data?.use_knowledge_base !== false,
+            collectedData,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Atualizar estado e retornar próxima pergunta
+      await supabaseClient
+        .from('chat_flow_states')
+        .update({
+          collected_data: collectedData,
+          current_node_id: nextNode.id,
+        })
+        .eq('id', activeState.id);
+
+      const nextMessage = replaceVariables(nextNode.data?.message || "", collectedData);
+      const options = nextNode.type === 'ask_options' 
+        ? (nextNode.data?.options || []).map((opt: any) => ({ label: opt.label, value: opt.value }))
+        : null;
+
+      return new Response(
+        JSON.stringify({
+          useAI: false,
+          response: nextMessage,
+          options,
+          flowId: activeState.flow_id,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 3. Detectar se mensagem dispara um fluxo
+    if (!userMessage) {
+      return new Response(
+        JSON.stringify({ useAI: true, reason: "No message to check triggers" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: flows, error: flowsError } = await supabaseClient
+      .from('chat_flows')
+      .select('*')
+      .eq('is_active', true)
+      .order('priority', { ascending: false });
+
+    if (flowsError || !flows?.length) {
+      return new Response(
+        JSON.stringify({ useAI: true, reason: "No active flows" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const messageLower = userMessage.toLowerCase();
+    let matchedFlow = null;
+
+    for (const flow of flows) {
+      const keywords = flow.trigger_keywords || [];
+      const triggers = flow.triggers || [];
+      const allTriggers = [...keywords, ...triggers];
+
+      for (const trigger of allTriggers) {
+        if (messageLower.includes(trigger.toLowerCase())) {
+          matchedFlow = flow;
+          break;
+        }
+      }
+      if (matchedFlow) break;
+    }
+
+    if (!matchedFlow) {
+      return new Response(
+        JSON.stringify({ useAI: true, reason: "No trigger matched" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[process-chat-flow] Matched flow:', matchedFlow.id, matchedFlow.name);
+
+    // 4. Iniciar novo fluxo
+    const flowDef = matchedFlow.flow_definition as any;
+    if (!flowDef?.nodes?.length) {
+      return new Response(
+        JSON.stringify({ useAI: true, reason: "Empty flow definition" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Encontrar primeiro nó (sem edges apontando para ele)
+    const targetIds = new Set((flowDef.edges || []).map((e: any) => e.target));
+    const startNode = flowDef.nodes.find((n: any) => !targetIds.has(n.id)) || flowDef.nodes[0];
+
+    // Criar estado do fluxo
+    const { data: newState, error: createError } = await supabaseClient
+      .from('chat_flow_states')
+      .insert({
+        conversation_id: conversationId,
+        flow_id: matchedFlow.id,
+        current_node_id: startNode.id,
+        collected_data: {},
+        status: 'active',
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('[process-chat-flow] Error creating state:', createError);
+      return new Response(
+        JSON.stringify({ useAI: true, reason: "Error creating flow state" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[process-chat-flow] Flow started:', newState.id);
+
+    const startMessage = startNode.data?.message || "";
+    const options = startNode.type === 'ask_options' 
+      ? (startNode.data?.options || []).map((opt: any) => ({ label: opt.label, value: opt.value }))
+      : null;
+
+    return new Response(
+      JSON.stringify({
+        useAI: false,
+        response: startMessage,
+        options,
+        flowId: matchedFlow.id,
+        flowStarted: true,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('[process-chat-flow] Unexpected error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(
+      JSON.stringify({ useAI: true, error: errorMessage }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
+  }
+});

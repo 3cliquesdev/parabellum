@@ -36,9 +36,15 @@ export function useTicketApproval() {
         .update(updateData)
         .eq("id", ticket_id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+
+      // Se UPDATE funcionou mas SELECT retornou vazio (RLS), retornar objeto mínimo
+      if (!data) {
+        console.warn('[useTicketApproval] Update succeeded but SELECT returned empty (RLS restriction)');
+        return { id: ticket_id, ...updateData } as any;
+      }
 
       // Criar comentário de aprovação/rejeição
       const commentContent = approved 

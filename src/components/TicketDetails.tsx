@@ -29,6 +29,7 @@ import { useUsers } from "@/hooks/useUsers";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { useRequestApproval } from "@/hooks/useRequestApproval";
+import { useActiveTicketStatuses } from "@/hooks/useTicketStatuses";
 import { Link } from "react-router-dom";
 import ReactMarkdown from 'react-markdown';
 import { supabase } from "@/integrations/supabase/client";
@@ -82,6 +83,7 @@ const statusLabels: Record<string, string> = {
 export function TicketDetails({ ticket }: TicketDetailsProps) {
   const updateTicket = useUpdateTicket();
   const { data: users = [] } = useUsers();
+  const { data: ticketStatuses = [] } = useActiveTicketStatuses();
   const smartReply = useSmartReply();
   const requestApproval = useRequestApproval();
   const { isFinancialManager, isFinancialAgent, isSupportAgent, isAdmin, isManager } = useUserRole();
@@ -386,11 +388,11 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="open">Aberto</SelectItem>
-                <SelectItem value="in_progress">Em Análise</SelectItem>
-                <SelectItem value="waiting_customer">Aguardando Cliente</SelectItem>
-                <SelectItem value="resolved">Resolvido</SelectItem>
-                <SelectItem value="closed">Fechado</SelectItem>
+                {ticketStatuses.map((status) => (
+                  <SelectItem key={status.id} value={status.name}>
+                    {status.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

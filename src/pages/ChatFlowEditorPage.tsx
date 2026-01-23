@@ -1,18 +1,23 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Save, Play, Loader2 } from "lucide-react";
+import { ArrowLeft, Play, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatFlowEditor } from "@/components/chat-flows/ChatFlowEditor";
+import { ChatFlowSimulator } from "@/components/chat-flows/ChatFlowSimulator";
 import { useChatFlow, useUpdateChatFlow } from "@/hooks/useChatFlows";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Node, Edge } from "reactflow";
 
 export default function ChatFlowEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: flow, isLoading } = useChatFlow(id || null);
   const updateFlow = useUpdateChatFlow();
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [currentFlowState, setCurrentFlowState] = useState<{ nodes: Node[]; edges: Edge[] } | null>(null);
 
-  const handleSave = (flowDef: { nodes: any[]; edges: any[] }) => {
+  const handleSave = (flowDef: { nodes: Node[]; edges: Edge[] }) => {
     if (!id) return;
     
     updateFlow.mutate({
@@ -27,6 +32,14 @@ export default function ChatFlowEditorPage() {
 
   const handleCancel = () => {
     navigate("/settings/chat-flows");
+  };
+
+  const handleFlowChange = (flowDef: { nodes: Node[]; edges: Edge[] }) => {
+    setCurrentFlowState(flowDef);
+  };
+
+  const handleOpenSimulator = () => {
+    setSimulatorOpen(true);
   };
 
   if (isLoading) {
@@ -54,6 +67,10 @@ export default function ChatFlowEditorPage() {
     );
   }
 
+  // Usar estado atual ou inicial
+  const simulatorNodes = currentFlowState?.nodes || (flow.flow_definition as any)?.nodes || [];
+  const simulatorEdges = currentFlowState?.edges || (flow.flow_definition as any)?.edges || [];
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header fixo */}
@@ -73,7 +90,12 @@ export default function ChatFlowEditorPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleOpenSimulator}
+            disabled={simulatorNodes.length === 0}
+          >
             <Play className="h-4 w-4 mr-2" />
             Testar
           </Button>
@@ -86,9 +108,19 @@ export default function ChatFlowEditorPage() {
           initialFlow={flow.flow_definition as any}
           onSave={handleSave}
           onCancel={handleCancel}
+          onFlowChange={handleFlowChange}
           isSaving={updateFlow.isPending}
         />
       </div>
+
+      {/* Simulador */}
+      <ChatFlowSimulator
+        open={simulatorOpen}
+        onClose={() => setSimulatorOpen(false)}
+        nodes={simulatorNodes}
+        edges={simulatorEdges}
+        flowName={flow.name}
+      />
     </div>
   );
 }

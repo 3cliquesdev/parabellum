@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useMemo } from "react";
+import { useCallback, useState, useRef, useMemo, useEffect } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -101,6 +101,7 @@ interface ChatFlowEditorProps {
   initialFlow?: { nodes: Node[]; edges: Edge[] };
   onSave: (flow: { nodes: Node[]; edges: Edge[] }) => void;
   onCancel: () => void;
+  onFlowChange?: (flow: { nodes: Node[]; edges: Edge[] }) => void;
   isSaving?: boolean;
 }
 
@@ -119,7 +120,7 @@ const createStartNode = (): Node => ({
   }
 });
 
-function ChatFlowEditorInner({ initialFlow, onSave, onCancel, isSaving }: ChatFlowEditorProps) {
+function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSaving }: ChatFlowEditorProps) {
   // Criar nó de início se não houver nós
   const initialNodes = useMemo(() => {
     if (initialFlow?.nodes && initialFlow.nodes.length > 0) {
@@ -133,6 +134,13 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, isSaving }: ChatFl
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+
+  // Notificar mudanças no fluxo para o parent
+  useEffect(() => {
+    if (onFlowChange) {
+      onFlowChange({ nodes, edges });
+    }
+  }, [nodes, edges, onFlowChange]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge({

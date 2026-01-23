@@ -293,9 +293,14 @@ function ConversationListItemComponent({
 
           {sentiment && <SentimentBadge sentiment={sentiment} className="text-[10px] px-1.5 py-0 h-5" />}
           
-          {conversation.assigned_user && (
+          {/* Badge de responsável ou Pool */}
+          {conversation.assigned_user ? (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 max-w-[80px] truncate">
               {conversation.assigned_user.full_name.split(' ')[0]}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-dashed">
+              📥 Pool
             </Badge>
           )}
           

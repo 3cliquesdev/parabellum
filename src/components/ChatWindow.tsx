@@ -1,4 +1,14 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,6 +71,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
   const [createTicketDialogOpen, setCreateTicketDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [createDealDialogOpen, setCreateDealDialogOpen] = useState(false);
+  const [confirmTakeControlOpen, setConfirmTakeControlOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { isAdmin, isManager, isSalesRep } = useUserRole();
@@ -353,7 +364,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
                   <Button
                     variant="default"
                     size="sm"
-                    onClick={handleTakeControl}
+                    onClick={() => setConfirmTakeControlOpen(true)}
                     disabled={takeControl.isPending}
                     className="h-7 gap-1 px-2"
                   >
@@ -538,6 +549,25 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
           </div>
         </div>
       )}
+
+      {/* Diálogo de confirmação para assumir conversa */}
+      <AlertDialog open={confirmTakeControlOpen} onOpenChange={setConfirmTakeControlOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Assumir esta conversa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você será responsável por esta conversa. Ela ficará atribuída a você 
+              e sairá da fila do departamento. Outros agentes não verão mais esta conversa.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleTakeControl}>
+              Sim, assumir conversa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

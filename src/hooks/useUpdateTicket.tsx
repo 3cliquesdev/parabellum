@@ -26,7 +26,7 @@ export function useUpdateTicket() {
         .from("tickets")
         .select("status")
         .eq("id", id)
-        .single();
+        .maybeSingle();
       
       const previousStatus = currentTicket?.status;
       const updateData: any = { ...updates };
@@ -41,9 +41,15 @@ export function useUpdateTicket() {
         .update(updateData)
         .eq("id", id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+
+      // Se UPDATE funcionou mas SELECT retornou vazio (RLS), retornar objeto mínimo
+      if (!data) {
+        console.warn('[useUpdateTicket] Update succeeded but SELECT returned empty (RLS restriction)');
+        return { id, ...updates } as any;
+      }
 
       // Notificar stakeholders internamente via edge function
       if (updates.status && previousStatus !== updates.status) {

@@ -1276,6 +1276,124 @@ export type Database = {
           },
         ]
       }
+      chat_flow_states: {
+        Row: {
+          collected_data: Json | null
+          completed_at: string | null
+          conversation_id: string
+          current_node_id: string
+          flow_id: string
+          id: string
+          started_at: string | null
+          status: string | null
+        }
+        Insert: {
+          collected_data?: Json | null
+          completed_at?: string | null
+          conversation_id: string
+          current_node_id: string
+          flow_id: string
+          id?: string
+          started_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          collected_data?: Json | null
+          completed_at?: string | null
+          conversation_id?: string
+          current_node_id?: string
+          flow_id?: string
+          id?: string
+          started_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_flow_states_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_flow_states_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "chat_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_flows: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          department_id: string | null
+          description: string | null
+          flow_definition: Json
+          id: string
+          is_active: boolean | null
+          name: string
+          priority: number | null
+          support_channel_id: string | null
+          trigger_keywords: string[] | null
+          triggers: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          department_id?: string | null
+          description?: string | null
+          flow_definition?: Json
+          id?: string
+          is_active?: boolean | null
+          name: string
+          priority?: number | null
+          support_channel_id?: string | null
+          trigger_keywords?: string[] | null
+          triggers?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          department_id?: string | null
+          description?: string | null
+          flow_definition?: Json
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          priority?: number | null
+          support_channel_id?: string | null
+          trigger_keywords?: string[] | null
+          triggers?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_flows_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_flows_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_flows_support_channel_id_fkey"
+            columns: ["support_channel_id"]
+            isOneToOne: false
+            referencedRelation: "support_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           account_balance: number | null

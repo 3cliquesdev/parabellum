@@ -109,6 +109,7 @@ const SecuritySettingsPage = lazy(() => import("./pages/SecuritySettingsPage"));
 const DatabaseSettingsPage = lazy(() => import("./pages/DatabaseSettingsPage"));
 const IntegrationsCentralPage = lazy(() => import("./pages/IntegrationsCentralPage"));
 const ChatFlows = lazy(() => import("./pages/ChatFlows"));
+const ChatFlowEditorPage = lazy(() => import("./pages/ChatFlowEditorPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -244,6 +245,7 @@ const App = () => {
               <Route path="/settings/database" element={<ProtectedRoute requiredPermission="settings.view"><Layout><DatabaseSettingsPage /></Layout></ProtectedRoute>} />
               <Route path="/settings/integrations-central" element={<ProtectedRoute requiredPermission="settings.integrations"><Layout><IntegrationsCentralPage /></Layout></ProtectedRoute>} />
               <Route path="/settings/chat-flows" element={<ProtectedRoute requiredPermission="settings.chat_flows"><Layout><ChatFlows /></Layout></ProtectedRoute>} />
+              <Route path="/settings/chat-flows/:id/edit" element={<ProtectedRoute requiredPermission="settings.chat_flows"><ChatFlowEditorPage /></ProtectedRoute>} />
               
               {/* Catch-all route - must be last */}
               <Route path="*" element={<NotFound />} />

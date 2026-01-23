@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useMemo } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -17,7 +17,6 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MessageSquare, User, Mail, Phone, CreditCard, ListChecks, 
   MessageCircle, GitBranch, Sparkles, UserPlus, CheckCircle,
-  Save, X, Trash2, Plus
+  Save, X, Trash2, Plus, Play
 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,6 +44,7 @@ import {
   AIResponseNode,
   ChatFlowConditionNode,
 } from "./nodes";
+import { cn } from "@/lib/utils";
 
 // Tipos de nós para chat flows
 export const chatFlowNodeTypes = {
@@ -65,6 +65,37 @@ const edgeTypes = {
   buttonEdge: ButtonEdge,
 };
 
+// Cores dos blocos por tipo
+const blockColors: Record<string, string> = {
+  message: "bg-slate-500",
+  ask_name: "bg-blue-500",
+  ask_email: "bg-cyan-500",
+  ask_phone: "bg-green-500",
+  ask_cpf: "bg-amber-500",
+  ask_options: "bg-violet-500",
+  ask_text: "bg-indigo-500",
+  condition: "bg-purple-500",
+  ai_response: "bg-pink-500",
+  transfer: "bg-orange-500",
+  end: "bg-emerald-500",
+};
+
+// Cores do MiniMap
+const miniMapColors: Record<string, string> = {
+  message: '#64748b',
+  ask_name: '#3b82f6',
+  ask_email: '#06b6d4',
+  ask_phone: '#22c55e',
+  ask_cpf: '#f59e0b',
+  ask_options: '#8b5cf6',
+  ask_text: '#6366f1',
+  condition: '#a855f7',
+  ai_response: '#ec4899',
+  transfer: '#f97316',
+  end: '#10b981',
+  start: '#3b82f6',
+};
+
 interface ChatFlowEditorProps {
   initialFlow?: { nodes: Node[]; edges: Edge[] };
   onSave: (flow: { nodes: Node[]; edges: Edge[] }) => void;
@@ -72,8 +103,31 @@ interface ChatFlowEditorProps {
   isSaving?: boolean;
 }
 
+// Nó de início padrão
+const createStartNode = (): Node => ({
+  id: 'start',
+  type: 'input',
+  position: { x: 100, y: 200 },
+  data: { label: '▶ Início' },
+  className: 'bg-primary text-primary-foreground rounded-xl px-6 py-3 font-semibold shadow-lg border-2 border-primary',
+  style: { 
+    background: 'hsl(var(--primary))', 
+    color: 'hsl(var(--primary-foreground))',
+    borderRadius: '12px',
+    fontWeight: 600,
+  }
+});
+
 function ChatFlowEditorInner({ initialFlow, onSave, onCancel, isSaving }: ChatFlowEditorProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialFlow?.nodes || []);
+  // Criar nó de início se não houver nós
+  const initialNodes = useMemo(() => {
+    if (initialFlow?.nodes && initialFlow.nodes.length > 0) {
+      return initialFlow.nodes;
+    }
+    return [createStartNode()];
+  }, [initialFlow?.nodes]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialFlow?.edges || []);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -117,7 +171,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, isSaving }: ChatFl
     const newNode: Node = {
       id: `${Date.now()}`,
       type,
-      position: position || { x: Math.random() * 400, y: Math.random() * 300 },
+      position: position || { x: Math.random() * 400 + 200, y: Math.random() * 300 },
       data: getDefaultData(type),
     };
     setNodes((nds) => [...nds, newNode]);
@@ -161,6 +215,11 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, isSaving }: ChatFl
 
   const deleteNode = () => {
     if (!selectedNode) return;
+    // Não permitir deletar o nó de início
+    if (selectedNode.id === 'start') {
+      toast.error("O nó de início não pode ser removido");
+      return;
+    }
     setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
     setEdges((eds) => eds.filter(
       (e) => e.source !== selectedNode.id && e.target !== selectedNode.id
@@ -169,15 +228,24 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, isSaving }: ChatFl
   };
 
   const handleSave = () => {
-    if (nodes.length === 0) {
-      toast.error("Adicione pelo menos um bloco ao fluxo");
+    if (nodes.length <= 1) {
+      toast.error("Adicione pelo menos um bloco além do início");
       return;
     }
     onSave({ nodes, edges });
   };
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    // Não selecionar nó de início para edição
+    if (node.id === 'start') {
+      setSelectedNode(null);
+      return;
+    }
     setSelectedNode(node);
+  }, []);
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null);
   }, []);
 
   // Adicionar/remover opções para ask_options
@@ -203,239 +271,83 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, isSaving }: ChatFl
   };
 
   return (
-    <div className="flex h-[600px] gap-4">
-      {/* Sidebar */}
-      <Card className="w-72 p-4 flex flex-col">
-        <ScrollArea className="flex-1">
-          <div className="space-y-3">
-            <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
-              💬 Blocos de Chat
-            </h3>
-            <p className="text-xs text-muted-foreground">Arraste e solte no canvas</p>
-            
-            <div className="grid grid-cols-2 gap-2">
-              <DraggableBlock type="message" icon={MessageSquare} label="Mensagem" />
-              <DraggableBlock type="ask_name" icon={User} label="Nome" />
-              <DraggableBlock type="ask_email" icon={Mail} label="Email" />
-              <DraggableBlock type="ask_phone" icon={Phone} label="Telefone" />
-              <DraggableBlock type="ask_cpf" icon={CreditCard} label="CPF" />
-              <DraggableBlock type="ask_options" icon={ListChecks} label="Opções" />
-              <DraggableBlock type="ask_text" icon={MessageCircle} label="Texto" />
-              <DraggableBlock type="condition" icon={GitBranch} label="Condição" />
-              <DraggableBlock type="ai_response" icon={Sparkles} label="IA" />
-              <DraggableBlock type="transfer" icon={UserPlus} label="Transferir" />
-              <DraggableBlock type="end" icon={CheckCircle} label="Fim" />
+    <div className="flex h-full">
+      {/* Sidebar esquerda - Blocos categorizados */}
+      <div className="w-64 border-r bg-muted/30 flex flex-col shrink-0">
+        <div className="p-4 border-b bg-card">
+          <h3 className="font-semibold text-sm">Blocos</h3>
+          <p className="text-xs text-muted-foreground">Arraste para o canvas</p>
+        </div>
+        <ScrollArea className="flex-1 p-4">
+          <div className="space-y-6">
+            {/* Coleta de Dados */}
+            <div className="space-y-2">
+              <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                Coleta de Dados
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                <DraggableBlock type="ask_name" icon={User} label="Nome" color={blockColors.ask_name} />
+                <DraggableBlock type="ask_email" icon={Mail} label="Email" color={blockColors.ask_email} />
+                <DraggableBlock type="ask_phone" icon={Phone} label="Telefone" color={blockColors.ask_phone} />
+                <DraggableBlock type="ask_cpf" icon={CreditCard} label="CPF" color={blockColors.ask_cpf} />
+              </div>
             </div>
 
-            {/* Painel de propriedades */}
-            {selectedNode && (
-              <div className="mt-6 pt-6 border-t space-y-3">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold">Propriedades</h4>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={deleteNode}
-                    className="text-destructive hover:text-destructive h-8 w-8 p-0"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {/* Nome do bloco */}
-                <div>
-                  <Label>Nome</Label>
-                  <Input
-                    value={selectedNode.data.label || ""}
-                    onChange={(e) => updateNodeData("label", e.target.value)}
-                  />
-                </div>
-
-                {/* Mensagem (para a maioria dos nós) */}
-                {["message", "ask_name", "ask_email", "ask_phone", "ask_cpf", "ask_options", "ask_text", "transfer", "end"].includes(selectedNode.type || "") && (
-                  <div>
-                    <Label>Mensagem</Label>
-                    <Textarea
-                      value={selectedNode.data.message || ""}
-                      onChange={(e) => updateNodeData("message", e.target.value)}
-                      rows={3}
-                    />
-                  </div>
-                )}
-
-                {/* save_as para campos de coleta */}
-                {["ask_name", "ask_email", "ask_phone", "ask_cpf", "ask_text", "ask_options"].includes(selectedNode.type || "") && (
-                  <div>
-                    <Label>Salvar como</Label>
-                    <Input
-                      value={selectedNode.data.save_as || ""}
-                      onChange={(e) => updateNodeData("save_as", e.target.value)}
-                      placeholder="nome_variavel"
-                    />
-                  </div>
-                )}
-
-                {/* Validação toggle */}
-                {["ask_email", "ask_phone", "ask_cpf"].includes(selectedNode.type || "") && (
-                  <div className="flex items-center justify-between">
-                    <Label>Validar formato</Label>
-                    <Switch
-                      checked={selectedNode.data.validate !== false}
-                      onCheckedChange={(checked) => updateNodeData("validate", checked)}
-                    />
-                  </div>
-                )}
-
-                {/* Opções para ask_options */}
-                {selectedNode.type === "ask_options" && (
-                  <div className="space-y-2">
-                    <Label>Opções</Label>
-                    {(selectedNode.data.options || []).map((opt: any, idx: number) => (
-                      <div key={opt.id} className="flex gap-2">
-                        <Input
-                          value={opt.label}
-                          onChange={(e) => updateOption(idx, "label", e.target.value)}
-                          placeholder="Rótulo"
-                          className="flex-1"
-                        />
-                        <Input
-                          value={opt.value}
-                          onChange={(e) => updateOption(idx, "value", e.target.value)}
-                          placeholder="Valor"
-                          className="flex-1"
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => removeOption(idx)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    <Button variant="outline" size="sm" onClick={addOption} className="w-full">
-                      <Plus className="h-4 w-4 mr-1" /> Adicionar opção
-                    </Button>
-                  </div>
-                )}
-
-                {/* Condição */}
-                {selectedNode.type === "condition" && (
-                  <>
-                    <div>
-                      <Label>Tipo</Label>
-                      <Select
-                        value={selectedNode.data.condition_type || "contains"}
-                        onValueChange={(v) => updateNodeData("condition_type", v)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="contains">Contém</SelectItem>
-                          <SelectItem value="equals">É igual a</SelectItem>
-                          <SelectItem value="has_data">Tem dado</SelectItem>
-                          <SelectItem value="regex">Regex</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Campo</Label>
-                      <Input
-                        value={selectedNode.data.condition_field || ""}
-                        onChange={(e) => updateNodeData("condition_field", e.target.value)}
-                        placeholder="nome_variavel"
-                      />
-                    </div>
-                    {selectedNode.data.condition_type !== "has_data" && (
-                      <div>
-                        <Label>Valor</Label>
-                        <Input
-                          value={selectedNode.data.condition_value || ""}
-                          onChange={(e) => updateNodeData("condition_value", e.target.value)}
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* IA Response */}
-                {selectedNode.type === "ai_response" && (
-                  <>
-                    <div>
-                      <Label>Contexto para IA</Label>
-                      <Textarea
-                        value={selectedNode.data.context_prompt || ""}
-                        onChange={(e) => updateNodeData("context_prompt", e.target.value)}
-                        placeholder="Instruções adicionais para a IA..."
-                        rows={3}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label>Usar base de conhecimento</Label>
-                      <Switch
-                        checked={selectedNode.data.use_knowledge_base !== false}
-                        onCheckedChange={(checked) => updateNodeData("use_knowledge_base", checked)}
-                      />
-                    </div>
-                  </>
-                )}
-
-                {/* Transfer */}
-                {selectedNode.type === "transfer" && (
-                  <div>
-                    <Label>Tipo de transferência</Label>
-                    <Select
-                      value={selectedNode.data.transfer_type || "department"}
-                      onValueChange={(v) => updateNodeData("transfer_type", v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="department">Departamento</SelectItem>
-                        <SelectItem value="queue">Fila de atendimento</SelectItem>
-                        <SelectItem value="agent">Agente específico</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* End action */}
-                {selectedNode.type === "end" && (
-                  <div>
-                    <Label>Ação final</Label>
-                    <Select
-                      value={selectedNode.data.end_action || "none"}
-                      onValueChange={(v) => updateNodeData("end_action", v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Apenas finalizar</SelectItem>
-                        <SelectItem value="create_lead">Criar lead</SelectItem>
-                        <SelectItem value="create_ticket">Criar ticket</SelectItem>
-                        <SelectItem value="add_tag">Adicionar tag</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+            {/* Interação */}
+            <div className="space-y-2">
+              <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+                Interação
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                <DraggableBlock type="message" icon={MessageSquare} label="Mensagem" color={blockColors.message} />
+                <DraggableBlock type="ask_options" icon={ListChecks} label="Opções" color={blockColors.ask_options} />
+                <DraggableBlock type="ask_text" icon={MessageCircle} label="Texto" color={blockColors.ask_text} />
               </div>
-            )}
+            </div>
+
+            {/* Lógica */}
+            <div className="space-y-2">
+              <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                Lógica
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                <DraggableBlock type="condition" icon={GitBranch} label="Condição" color={blockColors.condition} />
+                <DraggableBlock type="ai_response" icon={Sparkles} label="IA" color={blockColors.ai_response} />
+              </div>
+            </div>
+
+            {/* Ações Finais */}
+            <div className="space-y-2">
+              <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                Ações Finais
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                <DraggableBlock type="transfer" icon={UserPlus} label="Transferir" color={blockColors.transfer} />
+                <DraggableBlock type="end" icon={CheckCircle} label="Fim" color={blockColors.end} />
+              </div>
+            </div>
           </div>
         </ScrollArea>
 
-        {/* Ações */}
-        <div className="mt-4 pt-4 border-t flex gap-2">
-          <Button onClick={handleSave} disabled={isSaving} className="flex-1">
+        {/* Botões de ação */}
+        <div className="p-4 border-t bg-card space-y-2">
+          <Button onClick={handleSave} disabled={isSaving} className="w-full">
             <Save className="h-4 w-4 mr-2" />
-            {isSaving ? "Salvando..." : "Salvar"}
+            {isSaving ? "Salvando..." : "Salvar Fluxo"}
           </Button>
-          <Button variant="outline" onClick={onCancel}>
-            <X className="h-4 w-4" />
+          <Button variant="outline" onClick={onCancel} className="w-full">
+            <X className="h-4 w-4 mr-2" />
+            Cancelar
           </Button>
         </div>
-      </Card>
+      </div>
 
-      {/* Canvas */}
-      <div ref={reactFlowWrapper} className="flex-1 border rounded-lg overflow-hidden">
+      {/* Canvas central */}
+      <div ref={reactFlowWrapper} className="flex-1 relative">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -443,6 +355,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, isSaving }: ChatFl
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
           onInit={setReactFlowInstance}
           onDragOver={onDragOver}
           onDrop={onDrop}
@@ -457,34 +370,221 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, isSaving }: ChatFl
             variant={BackgroundVariant.Dots}
             gap={20} 
             size={1}
-            className="opacity-30"
+            className="opacity-40"
           />
           <Controls 
             className="!bg-card !border !shadow-lg !rounded-lg"
             showInteractive={false}
           />
           <MiniMap
-            nodeColor={(node) => {
-              const colors: Record<string, string> = {
-                message: '#64748b',
-                ask_name: '#2563eb',
-                ask_email: '#0891b2',
-                ask_phone: '#16a34a',
-                ask_cpf: '#d97706',
-                ask_options: '#7c3aed',
-                ask_text: '#4f46e5',
-                condition: '#9333ea',
-                ai_response: '#db2777',
-                transfer: '#ea580c',
-                end: '#059669',
-              };
-              return colors[node.type || ''] || 'hsl(var(--primary))';
-            }}
+            nodeColor={(node) => miniMapColors[node.type || ''] || '#888'}
             maskColor="hsl(var(--background) / 0.2)"
             className="!bg-card !border !rounded-lg !shadow-lg"
           />
         </ReactFlow>
       </div>
+
+      {/* Painel de propriedades direito (aparece quando seleciona nó) */}
+      {selectedNode && (
+        <div className="w-80 border-l bg-card flex flex-col shrink-0 animate-in slide-in-from-right duration-200">
+          <div className="p-4 border-b flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Propriedades</h3>
+              <p className="text-xs text-muted-foreground capitalize">{selectedNode.type?.replace('_', ' ')}</p>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={deleteNode}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-4">
+              {/* Nome do bloco */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Nome do bloco</Label>
+                <Input
+                  value={selectedNode.data.label || ""}
+                  onChange={(e) => updateNodeData("label", e.target.value)}
+                />
+              </div>
+
+              {/* Mensagem (para a maioria dos nós) */}
+              {["message", "ask_name", "ask_email", "ask_phone", "ask_cpf", "ask_options", "ask_text", "transfer", "end"].includes(selectedNode.type || "") && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Mensagem</Label>
+                  <Textarea
+                    value={selectedNode.data.message || ""}
+                    onChange={(e) => updateNodeData("message", e.target.value)}
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+              )}
+
+              {/* save_as para campos de coleta */}
+              {["ask_name", "ask_email", "ask_phone", "ask_cpf", "ask_text", "ask_options"].includes(selectedNode.type || "") && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Salvar como variável</Label>
+                  <Input
+                    value={selectedNode.data.save_as || ""}
+                    onChange={(e) => updateNodeData("save_as", e.target.value)}
+                    placeholder="nome_variavel"
+                  />
+                </div>
+              )}
+
+              {/* Validação toggle */}
+              {["ask_email", "ask_phone", "ask_cpf"].includes(selectedNode.type || "") && (
+                <div className="flex items-center justify-between py-2">
+                  <Label className="text-xs">Validar formato</Label>
+                  <Switch
+                    checked={selectedNode.data.validate !== false}
+                    onCheckedChange={(checked) => updateNodeData("validate", checked)}
+                  />
+                </div>
+              )}
+
+              {/* Opções para ask_options */}
+              {selectedNode.type === "ask_options" && (
+                <div className="space-y-3">
+                  <Label className="text-xs">Opções de resposta</Label>
+                  {(selectedNode.data.options || []).map((opt: any, idx: number) => (
+                    <div key={opt.id} className="flex gap-2">
+                      <Input
+                        value={opt.label}
+                        onChange={(e) => updateOption(idx, "label", e.target.value)}
+                        placeholder="Rótulo"
+                        className="flex-1 text-sm"
+                      />
+                      <Input
+                        value={opt.value}
+                        onChange={(e) => updateOption(idx, "value", e.target.value)}
+                        placeholder="Valor"
+                        className="flex-1 text-sm"
+                      />
+                      <Button variant="ghost" size="icon" onClick={() => removeOption(idx)} className="shrink-0">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={addOption} className="w-full">
+                    <Plus className="h-4 w-4 mr-1" /> Adicionar opção
+                  </Button>
+                </div>
+              )}
+
+              {/* Condição */}
+              {selectedNode.type === "condition" && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tipo de condição</Label>
+                    <Select
+                      value={selectedNode.data.condition_type || "contains"}
+                      onValueChange={(v) => updateNodeData("condition_type", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="contains">Contém</SelectItem>
+                        <SelectItem value="equals">É igual a</SelectItem>
+                        <SelectItem value="has_data">Tem dado</SelectItem>
+                        <SelectItem value="regex">Regex</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Campo a verificar</Label>
+                    <Input
+                      value={selectedNode.data.condition_field || ""}
+                      onChange={(e) => updateNodeData("condition_field", e.target.value)}
+                      placeholder="nome_variavel"
+                    />
+                  </div>
+                  {selectedNode.data.condition_type !== "has_data" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Valor esperado</Label>
+                      <Input
+                        value={selectedNode.data.condition_value || ""}
+                        onChange={(e) => updateNodeData("condition_value", e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* IA Response */}
+              {selectedNode.type === "ai_response" && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Contexto para IA</Label>
+                    <Textarea
+                      value={selectedNode.data.context_prompt || ""}
+                      onChange={(e) => updateNodeData("context_prompt", e.target.value)}
+                      placeholder="Instruções adicionais para a IA..."
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <Label className="text-xs">Usar base de conhecimento</Label>
+                    <Switch
+                      checked={selectedNode.data.use_knowledge_base !== false}
+                      onCheckedChange={(checked) => updateNodeData("use_knowledge_base", checked)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Transfer */}
+              {selectedNode.type === "transfer" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tipo de transferência</Label>
+                  <Select
+                    value={selectedNode.data.transfer_type || "department"}
+                    onValueChange={(v) => updateNodeData("transfer_type", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="department">Departamento</SelectItem>
+                      <SelectItem value="queue">Fila de atendimento</SelectItem>
+                      <SelectItem value="agent">Agente específico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* End action */}
+              {selectedNode.type === "end" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Ação ao finalizar</Label>
+                  <Select
+                    value={selectedNode.data.end_action || "none"}
+                    onValueChange={(v) => updateNodeData("end_action", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Apenas finalizar</SelectItem>
+                      <SelectItem value="create_lead">Criar lead</SelectItem>
+                      <SelectItem value="create_ticket">Criar ticket</SelectItem>
+                      <SelectItem value="add_tag">Adicionar tag</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
     </div>
   );
 }

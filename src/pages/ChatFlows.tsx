@@ -27,10 +27,8 @@ import {
   useCreateChatFlow, 
   useDeleteChatFlow, 
   useToggleChatFlowActive,
-  useUpdateChatFlow,
   ChatFlow 
 } from "@/hooks/useChatFlows";
-import { ChatFlowEditor } from "@/components/chat-flows/ChatFlowEditor";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -48,12 +46,10 @@ export default function ChatFlows() {
   const navigate = useNavigate();
   const { data: flows, isLoading } = useChatFlows();
   const createFlow = useCreateChatFlow();
-  const updateFlow = useUpdateChatFlow();
   const deleteFlow = useDeleteChatFlow();
   const toggleActive = useToggleChatFlowActive();
 
   const [showNewDialog, setShowNewDialog] = useState(false);
-  const [showEditorDialog, setShowEditorDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<ChatFlow | null>(null);
   const [newFlowName, setNewFlowName] = useState("");
@@ -75,30 +71,14 @@ export default function ChatFlows() {
         setNewFlowName("");
         setNewFlowDescription("");
         setNewFlowKeywords("");
-        // Abrir editor após criar
-        setSelectedFlow(data as ChatFlow);
-        setShowEditorDialog(true);
+        // Navegar para editor após criar
+        navigate(`/settings/chat-flows/${(data as ChatFlow).id}/edit`);
       }
     });
   };
 
   const handleEditFlow = (flow: ChatFlow) => {
-    setSelectedFlow(flow);
-    setShowEditorDialog(true);
-  };
-
-  const handleSaveFlow = (flowDef: { nodes: any[]; edges: any[] }) => {
-    if (!selectedFlow) return;
-    
-    updateFlow.mutate({
-      id: selectedFlow.id,
-      flow_definition: flowDef,
-    }, {
-      onSuccess: () => {
-        setShowEditorDialog(false);
-        setSelectedFlow(null);
-      }
-    });
+    navigate(`/settings/chat-flows/${flow.id}/edit`);
   };
 
   const handleDeleteFlow = () => {
@@ -300,29 +280,6 @@ export default function ChatFlows() {
               {createFlow.isPending ? "Criando..." : "Criar e Editar"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog para editor */}
-      <Dialog open={showEditorDialog} onOpenChange={setShowEditorDialog}>
-        <DialogContent className="max-w-[95vw] h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>Editar Fluxo: {selectedFlow?.name}</DialogTitle>
-            <DialogDescription>
-              Arraste os blocos para construir seu fluxo de atendimento
-            </DialogDescription>
-          </DialogHeader>
-          {selectedFlow && (
-            <ChatFlowEditor
-              initialFlow={selectedFlow.flow_definition as any}
-              onSave={handleSaveFlow}
-              onCancel={() => {
-                setShowEditorDialog(false);
-                setSelectedFlow(null);
-              }}
-              isSaving={updateFlow.isPending}
-            />
-          )}
         </DialogContent>
       </Dialog>
 

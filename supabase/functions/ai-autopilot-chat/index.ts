@@ -197,21 +197,113 @@ async function getWhatsAppInstanceWithProvider(
   return null;
 }
 
-// 🔄 LEGACY WRAPPER: Mantém compatibilidade com código existente
-// Retorna apenas a instância (sem provider) para chamadas legacy
+// 🔄 WRAPPER MULTI-PROVIDER: Busca dinamicamente o provider da conversa
+// Retorna { instance, provider } para suportar tanto Meta quanto Evolution
 async function getWhatsAppInstanceForConversation(
   supabaseClient: any,
   conversationId: string,
-  conversationWhatsappInstanceId: string | null
-): Promise<any | null> {
-  const result = await getWhatsAppInstanceWithProvider(
+  conversationWhatsappInstanceId: string | null,
+  conversationData?: { 
+    whatsapp_provider?: string | null; 
+    whatsapp_meta_instance_id?: string | null; 
+  }
+): Promise<WhatsAppInstanceResult | null> {
+  
+  let provider = conversationData?.whatsapp_provider;
+  let metaInstanceId = conversationData?.whatsapp_meta_instance_id;
+  
+  // Buscar dados da conversa se não foram passados
+  if (!provider && conversationId) {
+    const { data } = await supabaseClient
+      .from('conversations')
+      .select('whatsapp_provider, whatsapp_meta_instance_id')
+      .eq('id', conversationId)
+      .maybeSingle();
+    
+    provider = data?.whatsapp_provider;
+    metaInstanceId = data?.whatsapp_meta_instance_id;
+  }
+  
+  console.log('[getWhatsAppInstanceForConversation] 🔍 Provider detectado:', {
+    provider: provider || 'evolution (default)',
+    metaInstanceId: metaInstanceId || 'N/A',
+    conversationId
+  });
+  
+  return getWhatsAppInstanceWithProvider(
     supabaseClient,
     conversationId,
     conversationWhatsappInstanceId,
-    'evolution', // Default para Evolution no código legacy
-    null
+    provider || 'evolution',
+    metaInstanceId || null
   );
-  return result?.instance || null;
+}
+
+// 📤 HELPER: Enviar mensagem via WhatsApp (Meta ou Evolution)
+async function sendWhatsAppMessage(
+  supabaseClient: any,
+  whatsappResult: WhatsAppInstanceResult,
+  phoneNumber: string,
+  message: string,
+  conversationId: string,
+  whatsappId?: string | null,
+  useQueue: boolean = false
+): Promise<{ success: boolean; error?: any }> {
+  try {
+    if (whatsappResult.provider === 'meta') {
+      console.log('[sendWhatsAppMessage] 📤 Enviando via Meta WhatsApp API:', {
+        instanceId: whatsappResult.instance.id,
+        phoneNumberId: whatsappResult.instance.phone_number_id,
+        phoneNumber: phoneNumber?.replace(/\D/g, '').slice(-4)
+      });
+      
+      const { data, error } = await supabaseClient.functions.invoke('send-meta-whatsapp', {
+        body: {
+          instance_id: whatsappResult.instance.id,
+          phone_number: phoneNumber?.replace(/\D/g, ''),
+          message,
+          conversation_id: conversationId
+        }
+      });
+      
+      if (error) {
+        console.error('[sendWhatsAppMessage] ❌ Erro Meta WhatsApp:', error);
+        return { success: false, error };
+      }
+      
+      console.log('[sendWhatsAppMessage] ✅ Mensagem enviada via Meta WhatsApp API');
+      return { success: true };
+      
+    } else {
+      console.log('[sendWhatsAppMessage] 📤 Enviando via Evolution API:', {
+        instanceId: whatsappResult.instance.id,
+        instanceName: whatsappResult.instance.instance_name,
+        phoneNumber: phoneNumber?.replace(/\D/g, '').slice(-4)
+      });
+      
+      const { data, error } = await supabaseClient.functions.invoke('send-whatsapp-message', {
+        body: {
+          instance_id: whatsappResult.instance.id,
+          phone_number: phoneNumber,
+          whatsapp_id: whatsappId,
+          message,
+          conversation_id: conversationId,
+          use_queue: useQueue
+        }
+      });
+      
+      if (error) {
+        console.error('[sendWhatsAppMessage] ❌ Erro Evolution API:', error);
+        return { success: false, error };
+      }
+      
+      console.log('[sendWhatsAppMessage] ✅ Mensagem enviada via Evolution API');
+      return { success: true };
+    }
+  } catch (err) {
+    console.error('[sendWhatsAppMessage] ❌ Exceção ao enviar:', err);
+    return { success: false, error: err };
+  }
 }
 
 // ============================================================
@@ -773,28 +865,31 @@ Como posso ajudar você hoje?`;
             .update({ last_message_at: new Date().toISOString() })
             .eq("id", conversationId);
 
-          // Se WhatsApp, enviar via Evolution API
+          // Se WhatsApp, enviar via API correta (Meta ou Evolution)
           if (responseChannel === 'whatsapp' && welcomeMsgData) {
-            const whatsappInstance = await getWhatsAppInstanceForConversation(
+            const whatsappResult = await getWhatsAppInstanceForConversation(
               supabaseClient, 
               conversationId, 
-              conversation.whatsapp_instance_id
+              conversation.whatsapp_instance_id,
+              conversation // passar dados da conversa para detectar provider
             );
 
-            if (whatsappInstance) {
-              await supabaseClient.functions.invoke('send-whatsapp-message', {
-                body: {
-                  instance_id: whatsappInstance.id,
-                  phone_number: contact.phone,
-                  whatsapp_id: contact.whatsapp_id,
-                  message: welcomeMessage,
-                },
-              });
+            if (whatsappResult) {
+              const sendResult = await sendWhatsAppMessage(
+                supabaseClient,
+                whatsappResult,
+                contact.phone,
+                welcomeMessage,
+                conversationId,
+                contact.whatsapp_id
+              );
 
-              await supabaseClient
-                .from('messages')
-                .update({ status: 'sent' })
-                .eq('id', welcomeMsgData.id);
+              if (sendResult.success) {
+                await supabaseClient
+                  .from('messages')
+                  .update({ status: 'sent' })
+                  .eq('id', welcomeMsgData.id);
+              }
             }
           }
 
@@ -945,25 +1040,26 @@ Como posso ajudar você hoje?`;
             .update({ last_message_at: new Date().toISOString() })
             .eq("id", conversationId);
           
-          // Se for WhatsApp, enviar via Evolution API
+          // Se for WhatsApp, enviar via API correta (Meta ou Evolution)
           if (responseChannel === 'whatsapp' && handoffMessageData) {
-            const whatsappInstance = await getWhatsAppInstanceForConversation(
+            const whatsappResult = await getWhatsAppInstanceForConversation(
               supabaseClient, 
               conversationId, 
-              conversation.whatsapp_instance_id
+              conversation.whatsapp_instance_id,
+              conversation
             );
 
-            if (whatsappInstance) {
-              const { error: whatsappError } = await supabaseClient.functions.invoke('send-whatsapp-message', {
-                body: {
-                  instance_id: whatsappInstance.id,
-                  phone_number: contact.phone,
-                  whatsapp_id: contact.whatsapp_id,
-                  message: handoffMessage,
-                },
-              });
+            if (whatsappResult) {
+              const sendResult = await sendWhatsAppMessage(
+                supabaseClient,
+                whatsappResult,
+                contact.phone,
+                handoffMessage,
+                conversationId,
+                contact.whatsapp_id
+              );
 
-              if (!whatsappError) {
+              if (sendResult.success) {
                 await supabaseClient
                   .from('messages')
                   .update({ status: 'sent' })
@@ -1007,27 +1103,28 @@ Como posso ajudar você hoje?`;
           .update({ last_message_at: new Date().toISOString() })
           .eq("id", conversationId);
 
-        // Se for WhatsApp, enviar mensagem via Evolution API
+        // Se for WhatsApp, enviar via API correta (Meta ou Evolution)
         if (responseChannel === 'whatsapp') {
-          const whatsappInstance = await getWhatsAppInstanceForConversation(
+          const whatsappResult = await getWhatsAppInstanceForConversation(
             supabaseClient, 
             conversationId, 
-            conversation.whatsapp_instance_id
+            conversation.whatsapp_instance_id,
+            conversation
           );
 
-          if (whatsappInstance && aiMessageData) {
+          if (whatsappResult && aiMessageData) {
             console.log('[ai-autopilot-chat] 📤 Enviando resposta cached via WhatsApp');
 
-            const { error: whatsappError } = await supabaseClient.functions.invoke('send-whatsapp-message', {
-              body: {
-                instance_id: whatsappInstance.id,
-                phone_number: contact.phone,
-                whatsapp_id: contact.whatsapp_id,
-                message: cachedResponse.answer,
-              },
-            });
+            const sendResult = await sendWhatsAppMessage(
+              supabaseClient,
+              whatsappResult,
+              contact.phone,
+              cachedResponse.answer,
+              conversationId,
+              contact.whatsapp_id
+            );
 
-            if (!whatsappError) {
+            if (sendResult.success) {
               await supabaseClient
                 .from('messages')
                 .update({ status: 'sent' })
@@ -1171,23 +1268,24 @@ Como posso ajudar você hoje?`;
           .update({ last_message_at: new Date().toISOString() })
           .eq('id', conversationId);
         
-        // Enviar via WhatsApp se necessário
+        // Enviar via WhatsApp se necessário (Meta ou Evolution)
         if (responseChannel === 'whatsapp' && contact?.phone) {
-          const whatsappInstance = await getWhatsAppInstanceForConversation(
+          const whatsappResult = await getWhatsAppInstanceForConversation(
             supabaseClient, 
             conversationId, 
-            conversation.whatsapp_instance_id
+            conversation.whatsapp_instance_id,
+            conversation
           );
           
-          if (whatsappInstance) {
-            await supabaseClient.functions.invoke('send-whatsapp-message', {
-              body: {
-                instance_id: whatsappInstance.id,
-                phone_number: contact.phone,
-                whatsapp_id: contact.whatsapp_id,
-                message: confirmMessage
-              }
-            });
+          if (whatsappResult) {
+            await sendWhatsAppMessage(
+              supabaseClient,
+              whatsappResult,
+              contact.phone,
+              confirmMessage,
+              conversationId,
+              contact.whatsapp_id
+            );
           }
         }
         
@@ -1233,23 +1331,24 @@ Como posso ajudar você hoje?`;
         channel: responseChannel
       }).select().single();
       
-      // Enviar via WhatsApp se necessário
+      // Enviar via WhatsApp se necessário (Meta ou Evolution)
       if (responseChannel === 'whatsapp' && contact?.phone) {
-        const whatsappInstance = await getWhatsAppInstanceForConversation(
+        const whatsappResult = await getWhatsAppInstanceForConversation(
           supabaseClient, 
           conversationId, 
-          conversation.whatsapp_instance_id
+          conversation.whatsapp_instance_id,
+          conversation
         );
         
-        if (whatsappInstance) {
-          await supabaseClient.functions.invoke('send-whatsapp-message', {
-            body: {
-              instance_id: whatsappInstance.id,
-              phone_number: contact.phone,
-              whatsapp_id: contact.whatsapp_id,
-              message: reminderMessage
-            }
-          });
+        if (whatsappResult) {
+          await sendWhatsAppMessage(
+            supabaseClient,
+            whatsappResult,
+            contact.phone,
+            reminderMessage,
+            conversationId,
+            contact.whatsapp_id
+          );
         }
       }
       
@@ -1391,23 +1490,24 @@ Como posso ajudar você hoje?`;
             .select()
             .single();
           
-          // Enviar via WhatsApp se necessário
+          // Enviar via WhatsApp se necessário (Meta ou Evolution)
           if (responseChannel === 'whatsapp' && contact?.phone) {
-            const whatsappInstance = await getWhatsAppInstanceForConversation(
+            const whatsappResult = await getWhatsAppInstanceForConversation(
               supabaseClient, 
               conversationId, 
-              conversation.whatsapp_instance_id
+              conversation.whatsapp_instance_id,
+              conversation
             );
             
-            if (whatsappInstance) {
-              await supabaseClient.functions.invoke('send-whatsapp-message', {
-                body: {
-                  instance_id: whatsappInstance.id,
-                  phone_number: contact.phone,
-                  whatsapp_id: contact.whatsapp_id,
-                  message: autoResponse
-                }
-              });
+            if (whatsappResult) {
+              await sendWhatsAppMessage(
+                supabaseClient,
+                whatsappResult,
+                contact.phone,
+                autoResponse,
+                conversationId,
+                contact.whatsapp_id
+              );
             }
           }
           
@@ -1520,23 +1620,24 @@ Como posso ajudar você hoje?`;
             .update({ last_message_at: new Date().toISOString() })
             .eq("id", conversationId);
           
-          // Se WhatsApp, enviar via Evolution API
+          // Se WhatsApp, enviar via API correta (Meta ou Evolution)
           if (responseChannel === 'whatsapp' && flowMsgData && contact?.phone) {
-            const whatsappInstance = await getWhatsAppInstanceForConversation(
+            const whatsappResult = await getWhatsAppInstanceForConversation(
               supabaseClient, 
               conversationId, 
-              conversation.whatsapp_instance_id
+              conversation.whatsapp_instance_id,
+              conversation
             );
 
-            if (whatsappInstance) {
-              await supabaseClient.functions.invoke('send-whatsapp-message', {
-                body: {
-                  instance_id: whatsappInstance.id,
-                  phone_number: contact.phone,
-                  whatsapp_id: contact.whatsapp_id,
-                  message: flowResult.response,
-                },
-              });
+            if (whatsappResult) {
+              await sendWhatsAppMessage(
+                supabaseClient,
+                whatsappResult,
+                contact.phone,
+                flowResult.response,
+                conversationId,
+                contact.whatsapp_id
+              );
             }
           }
           
@@ -2197,26 +2298,26 @@ Responda APENAS: skip ou search`
         channel: responseChannel
       });
       
-      // 📤 ENVIAR PARA WHATSAPP (se for canal WhatsApp)
+      // 📤 ENVIAR PARA WHATSAPP (se for canal WhatsApp) - Meta ou Evolution
       if (responseChannel === 'whatsapp' && contact?.phone) {
-        const whatsappInstance = await getWhatsAppInstanceForConversation(
+        const whatsappResult = await getWhatsAppInstanceForConversation(
           supabaseClient, 
           conversationId, 
-          conversation.whatsapp_instance_id
+          conversation.whatsapp_instance_id,
+          conversation
         );
         
-        if (whatsappInstance) {
+        if (whatsappResult) {
           console.log('[ai-autopilot-chat] 📤 Enviando boas-vindas via WhatsApp');
-          await supabaseClient.functions.invoke('send-whatsapp-message', {
-            body: {
-              instance_id: whatsappInstance.id,
-              phone_number: contact.phone,
-              whatsapp_id: contact.whatsapp_id,
-              message: welcomeMessage,
-              conversation_id: conversationId,
-              use_queue: true
-            }
-          });
+          await sendWhatsAppMessage(
+            supabaseClient,
+            whatsappResult,
+            contact.phone,
+            welcomeMessage,
+            conversationId,
+            contact.whatsapp_id,
+            true
+          );
         }
       }
       
@@ -2271,26 +2372,26 @@ Responda APENAS: skip ou search`
           channel: responseChannel
         });
         
-        // Enviar via WhatsApp se for o canal
+        // Enviar via WhatsApp se for o canal (Meta ou Evolution)
         if (responseChannel === 'whatsapp' && contact?.phone) {
-          const whatsappInstance = await getWhatsAppInstanceForConversation(
+          const whatsappResult = await getWhatsAppInstanceForConversation(
             supabaseClient, 
             conversationId, 
-            conversation.whatsapp_instance_id
+            conversation.whatsapp_instance_id,
+            conversation
           );
           
-          if (whatsappInstance) {
+          if (whatsappResult) {
             console.log('[ai-autopilot-chat] 📤 Enviando pedido de email via WhatsApp');
-            await supabaseClient.functions.invoke('send-whatsapp-message', {
-              body: {
-                instance_id: whatsappInstance.id,
-                phone_number: contact.phone,
-                whatsapp_id: contact.whatsapp_id,
-                message: askEmailMessage,
-                conversation_id: conversationId,
-                use_queue: true
-              }
-            });
+            await sendWhatsAppMessage(
+              supabaseClient,
+              whatsappResult,
+              contact.phone,
+              askEmailMessage,
+              conversationId,
+              contact.whatsapp_id,
+              true
+            );
           }
         }
         
@@ -2358,29 +2459,29 @@ Responda APENAS: skip ou search`
         channel: responseChannel
       });
       
-      // 📤 ENVIAR PARA WHATSAPP (se for canal WhatsApp)
+      // 📤 ENVIAR PARA WHATSAPP (se for canal WhatsApp) - Meta ou Evolution
       if (responseChannel === 'whatsapp' && contact?.phone) {
-        const whatsappInstance = await getWhatsAppInstanceForConversation(
+        const whatsappResult = await getWhatsAppInstanceForConversation(
           supabaseClient, 
           conversationId, 
-          conversation.whatsapp_instance_id
+          conversation.whatsapp_instance_id,
+          conversation
         );
         
-        if (whatsappInstance) {
+        if (whatsappResult) {
           console.log('[ai-autopilot-chat] 📤 Enviando mensagem de handoff via WhatsApp');
-          const { error: whatsappError } = await supabaseClient.functions.invoke('send-whatsapp-message', {
-            body: {
-              instance_id: whatsappInstance.id,
-              phone_number: contact.phone,
-              whatsapp_id: contact.whatsapp_id,
-              message: handoffMessage,
-              conversation_id: conversationId,
-              use_queue: true
-            }
-          });
+          const sendResult = await sendWhatsAppMessage(
+            supabaseClient,
+            whatsappResult,
+            contact.phone,
+            handoffMessage,
+            conversationId,
+            contact.whatsapp_id,
+            true
+          );
           
-          if (whatsappError) {
-            console.error('[ai-autopilot-chat] ❌ Erro ao enviar handoff via WhatsApp:', whatsappError);
+          if (!sendResult.success) {
+            console.error('[ai-autopilot-chat] ❌ Erro ao enviar handoff via WhatsApp:', sendResult.error);
           } else {
             console.log('[ai-autopilot-chat] ✅ Handoff enviado via WhatsApp');
           }
@@ -2638,23 +2739,24 @@ Responda APENAS: skip ou search`
           .select()
           .single();
         
-        // Enviar via WhatsApp se necessário
+        // Enviar via WhatsApp se necessário (Meta ou Evolution)
         if (responseChannel === 'whatsapp') {
-          const whatsappInstance = await getWhatsAppInstanceForConversation(
+          const whatsappResult = await getWhatsAppInstanceForConversation(
             supabaseClient, 
             conversationId, 
-            conversation.whatsapp_instance_id
+            conversation.whatsapp_instance_id,
+            conversation
           );
           
-          if (whatsappInstance) {
-            await supabaseClient.functions.invoke('send-whatsapp-message', {
-              body: {
-                instance_id: whatsappInstance.id,
-                phone_number: contact.phone,
-                whatsapp_id: contact.whatsapp_id,
-                message: menuMessage
-              }
-            });
+          if (whatsappResult) {
+            await sendWhatsAppMessage(
+              supabaseClient,
+              whatsappResult,
+              contact.phone,
+              menuMessage,
+              conversationId,
+              contact.whatsapp_id
+            );
           }
         }
         
@@ -2700,22 +2802,23 @@ Responda APENAS: skip ou search`
           .select()
           .single();
         
-        // Enviar via WhatsApp
-        const whatsappInstance = await getWhatsAppInstanceForConversation(
+        // Enviar via WhatsApp (Meta ou Evolution)
+        const whatsappResult = await getWhatsAppInstanceForConversation(
           supabaseClient, 
           conversationId, 
-          conversation.whatsapp_instance_id
+          conversation.whatsapp_instance_id,
+          conversation
         );
         
-        if (whatsappInstance) {
-          await supabaseClient.functions.invoke('send-whatsapp-message', {
-            body: {
-              instance_id: whatsappInstance.id,
-              phone_number: contact.phone,
-              whatsapp_id: contact.whatsapp_id,
-              message: leadGreeting
-            }
-          });
+        if (whatsappResult) {
+          await sendWhatsAppMessage(
+            supabaseClient,
+            whatsappResult,
+            contact.phone,
+            leadGreeting,
+            conversationId,
+            contact.whatsapp_id
+          );
         }
         
         return new Response(JSON.stringify({
@@ -2839,23 +2942,24 @@ Digite **"reenviar"** se precisar de um novo código.`;
           .select()
           .single();
         
-        // Enviar via WhatsApp se necessário
+        // Enviar via WhatsApp se necessário (Meta ou Evolution)
         if (responseChannel === 'whatsapp' && contact?.phone) {
-          const whatsappInstance = await getWhatsAppInstanceForConversation(
+          const whatsappResult = await getWhatsAppInstanceForConversation(
             supabaseClient, 
             conversationId, 
-            conversation.whatsapp_instance_id
+            conversation.whatsapp_instance_id,
+            conversation
           );
           
-          if (whatsappInstance) {
-            await supabaseClient.functions.invoke('send-whatsapp-message', {
-              body: {
-                instance_id: whatsappInstance.id,
-                phone_number: contact.phone,
-                whatsapp_id: contact.whatsapp_id,
-                message: directOTPSuccessResponse
-              }
-            });
+          if (whatsappResult) {
+            await sendWhatsAppMessage(
+              supabaseClient,
+              whatsappResult,
+              contact.phone,
+              directOTPSuccessResponse,
+              conversationId,
+              contact.whatsapp_id
+            );
           }
         }
         
@@ -2979,23 +3083,24 @@ Por favor, **digite o código** que você recebeu para continuar.`;
           .select()
           .single();
         
-        // Enviar via WhatsApp se necessário
+        // Enviar via WhatsApp se necessário (Meta ou Evolution)
         if (responseChannel === 'whatsapp' && contact?.phone) {
-          const whatsappInstance = await getWhatsAppInstanceForConversation(
+          const whatsappResult = await getWhatsAppInstanceForConversation(
             supabaseClient, 
             conversationId, 
-            conversation.whatsapp_instance_id
+            conversation.whatsapp_instance_id,
+            conversation
           );
           
-          if (whatsappInstance) {
-            await supabaseClient.functions.invoke('send-whatsapp-message', {
-              body: {
-                instance_id: whatsappInstance.id,
-                phone_number: contact.phone,
-                whatsapp_id: contact.whatsapp_id,
-                message: directOTPResponse
-              }
-            });
+          if (whatsappResult) {
+            await sendWhatsAppMessage(
+              supabaseClient,
+              whatsappResult,
+              contact.phone,
+              directOTPResponse,
+              conversationId,
+              contact.whatsapp_id
+            );
           }
         }
         

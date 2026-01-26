@@ -5,7 +5,7 @@
 
 // Evento normalizado de entrada de qualquer canal
 export interface ChannelAdapterEvent {
-  provider: 'whatsapp' | 'web_chat' | 'email' | 'instagram';
+  provider: 'whatsapp' | 'meta_whatsapp' | 'web_chat' | 'email' | 'instagram';
   externalMsgId: string;
   direction: 'inbound' | 'outbound';
   payload: ChannelPayload;
@@ -49,6 +49,7 @@ export interface IdentityHints {
 export interface NormalizedMessage {
   conversationId: string;
   contactId: string;
+  recipientPhone?: string; // Telefone do destinatário para envio
   direction: 'inbound' | 'outbound';
   channel: string;
   externalMsgId?: string;
@@ -93,8 +94,8 @@ export interface ChannelAdapter {
   // Formatar mensagem para envio
   formatOutbound(message: NormalizedMessage): unknown;
   
-  // Verificar assinatura do webhook
-  verifySignature?(headers: Record<string, string>, body: string): boolean;
+  // Verificar assinatura do webhook (pode ser sync ou async)
+  verifySignature?(headers: Record<string, string>, body: string): boolean | Promise<boolean>;
 }
 
 // Configuração do adapter

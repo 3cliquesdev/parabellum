@@ -1720,6 +1720,8 @@ export type Database = {
           status: Database["public"]["Enums"]["conversation_status"]
           support_channel_id: string | null
           whatsapp_instance_id: string | null
+          whatsapp_meta_instance_id: string | null
+          whatsapp_provider: string | null
         }
         Insert: {
           ai_mode?: Database["public"]["Enums"]["ai_mode"]
@@ -1744,6 +1746,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["conversation_status"]
           support_channel_id?: string | null
           whatsapp_instance_id?: string | null
+          whatsapp_meta_instance_id?: string | null
+          whatsapp_provider?: string | null
         }
         Update: {
           ai_mode?: Database["public"]["Enums"]["ai_mode"]
@@ -1768,6 +1772,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["conversation_status"]
           support_channel_id?: string | null
           whatsapp_instance_id?: string | null
+          whatsapp_meta_instance_id?: string | null
+          whatsapp_provider?: string | null
         }
         Relationships: [
           {
@@ -1824,6 +1830,13 @@ export type Database = {
             columns: ["whatsapp_instance_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_whatsapp_meta_instance_id_fkey"
+            columns: ["whatsapp_meta_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_meta_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -7600,6 +7613,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_meta_instances: {
+        Row: {
+          access_token: string
+          app_secret: string | null
+          business_account_id: string
+          created_at: string | null
+          id: string
+          name: string
+          phone_number: string
+          phone_number_id: string
+          status: string | null
+          updated_at: string | null
+          verify_token: string
+          webhook_verified: boolean | null
+        }
+        Insert: {
+          access_token: string
+          app_secret?: string | null
+          business_account_id: string
+          created_at?: string | null
+          id?: string
+          name: string
+          phone_number: string
+          phone_number_id: string
+          status?: string | null
+          updated_at?: string | null
+          verify_token: string
+          webhook_verified?: boolean | null
+        }
+        Update: {
+          access_token?: string
+          app_secret?: string | null
+          business_account_id?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          phone_number?: string
+          phone_number_id?: string
+          status?: string | null
+          updated_at?: string | null
+          verify_token?: string
+          webhook_verified?: boolean | null
+        }
+        Relationships: []
       }
     }
     Views: {

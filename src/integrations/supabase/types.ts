@@ -1710,6 +1710,7 @@ export type Database = {
           customer_metadata: Json | null
           department: string | null
           first_response_at: string | null
+          handoff_executed_at: string | null
           id: string
           last_message_at: string
           needs_human_review: boolean | null
@@ -1736,6 +1737,7 @@ export type Database = {
           customer_metadata?: Json | null
           department?: string | null
           first_response_at?: string | null
+          handoff_executed_at?: string | null
           id?: string
           last_message_at?: string
           needs_human_review?: boolean | null
@@ -1762,6 +1764,7 @@ export type Database = {
           customer_metadata?: Json | null
           department?: string | null
           first_response_at?: string | null
+          handoff_executed_at?: string | null
           id?: string
           last_message_at?: string
           needs_human_review?: boolean | null

@@ -608,6 +608,26 @@ serve(async (req) => {
         );
       }
 
+      // 🛡️ ANTI-RACE-CONDITION: Verificar se handoff foi executado recentemente
+      // Isso previne que múltiplas chamadas reprocessem a mesma conversa
+      const handoffExecutedAt = conversation.handoff_executed_at;
+      if (handoffExecutedAt) {
+        const handoffAgeMs = Date.now() - new Date(handoffExecutedAt).getTime();
+        const HANDOFF_PROTECTION_WINDOW_MS = 60000; // 60 segundos de proteção
+        
+        if (handoffAgeMs < HANDOFF_PROTECTION_WINDOW_MS) {
+          console.log('[ai-autopilot-chat] ⏸️ Handoff recente detectado (' + Math.round(handoffAgeMs/1000) + 's atrás) - IGNORANDO para prevenir race condition');
+          return new Response(
+            JSON.stringify({ 
+              skipped: true, 
+              reason: 'recent_handoff',
+              handoff_age_seconds: Math.round(handoffAgeMs/1000)
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       // FASE 4: Buscar canal da ÚLTIMA mensagem do cliente (não da conversa)
       const { data: lastCustomerMessage } = await supabaseClient
         .from('messages')
@@ -755,11 +775,20 @@ Como posso ajudar você hoje?`;
         if (isCachedFallback) {
           console.log('🚨 [CACHE] Resposta cacheada é FALLBACK - IGNORANDO cache e gerando nova resposta');
           
-          // 1. Mudar modo para copilot
+          // 🛡️ ANTI-RACE-CONDITION: Marcar handoff com timestamp
+          const handoffTimestamp = new Date().toISOString();
+          
+          // 1. Mudar modo para waiting_human (NÃO copilot!) e marcar timestamp
           await supabaseClient
             .from('conversations')
-            .update({ ai_mode: 'copilot' })
+            .update({ 
+              ai_mode: 'waiting_human', // 🆕 waiting_human para ficar na fila
+              handoff_executed_at: handoffTimestamp, // 🆕 Anti-race-condition flag
+              needs_human_review: true
+            })
             .eq('id', conversationId);
+          
+          console.log('[CACHE] ✅ Handoff executado com timestamp:', handoffTimestamp);
           
           // 2. Rotear para agente humano
           await supabaseClient.functions.invoke('route-conversation', {
@@ -2089,14 +2118,18 @@ Responda APENAS: skip ou search`
     if (confidenceResult.action === 'handoff' && !shouldSkipHandoff) {
       console.log('[ai-autopilot-chat] 🚨 LOW CONFIDENCE HANDOFF - Score:', confidenceResult.score);
       
-      // Atualizar ai_mode para waiting_human
+      // 🛡️ Atualizar ai_mode para waiting_human E marcar timestamp anti-race-condition
+      const handoffTimestamp = new Date().toISOString();
       await supabaseClient
         .from('conversations')
         .update({ 
           ai_mode: 'waiting_human',
-          last_message_at: new Date().toISOString()
+          last_message_at: handoffTimestamp,
+          handoff_executed_at: handoffTimestamp // 🆕 Anti-race-condition flag
         })
         .eq('id', conversationId);
+      
+      console.log('[ai-autopilot-chat] ✅ Handoff marcado com timestamp:', handoffTimestamp);
       
       // Rotear para agente
       const { data: routeResult } = await supabaseClient.functions.invoke('route-conversation', {
@@ -4391,13 +4424,20 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
     if (isFallbackResponse) {
       console.log('[ai-autopilot-chat] 🚨 FALLBACK DETECTADO - Executando handoff REAL');
       
-      // 1. MUDAR O MODO (Desligar IA) - temporário até saber se tem agente
+      // 🛡️ ANTI-RACE-CONDITION: Marcar handoff executado PRIMEIRO
+      const handoffTimestamp = new Date().toISOString();
+      
+      // 1. MUDAR O MODO para waiting_human (NÃO copilot!) e marcar timestamp
       await supabaseClient
         .from('conversations')
-        .update({ ai_mode: 'copilot' })
+        .update({ 
+          ai_mode: 'waiting_human', // 🆕 waiting_human para ficar na fila até agente responder
+          handoff_executed_at: handoffTimestamp, // 🆕 Anti-race-condition flag
+          needs_human_review: true
+        })
         .eq('id', conversationId);
       
-      console.log('[ai-autopilot-chat] ✅ ai_mode mudado para copilot');
+      console.log('[ai-autopilot-chat] ✅ ai_mode mudado para waiting_human, handoff_executed_at:', handoffTimestamp);
       
       // 2. CHAMAR O ROTEADOR (Buscar agente disponível)
       const { data: routeResult, error: routeError } = await supabaseClient.functions.invoke('route-conversation', {
@@ -4409,37 +4449,27 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
       } else {
         console.log('[ai-autopilot-chat] ✅ Conversa roteada:', routeResult);
         
-        // 🆕 Se ninguém online, IA continua atendendo
+        // 🆕 Se ninguém online, MANTER waiting_human - cliente fica na fila aguardando
         if (routeResult?.no_agents_available) {
-          console.log('[ai-autopilot-chat] ⚠️ Sem agentes online - IA continuará atendendo');
+          console.log('[ai-autopilot-chat] ⚠️ Sem agentes online - Cliente ficará na FILA aguardando');
           
-          // Reverter para autopilot e marcar para review humano
+          // 🛡️ NÃO REVERTER para autopilot! Manter em waiting_human na fila
           await supabaseClient
             .from('conversations')
             .update({ 
-              ai_mode: 'autopilot',
-              needs_human_review: true  // Flag para quando agente ficar online
+              needs_human_review: true,  // Flag para quando agente ficar online
+              // NÃO mudar ai_mode - MANTÉM waiting_human
             })
             .eq('id', conversationId);
           
-          // Gerar resposta útil da IA ao invés de handoff
-          const originalResponse = assistantMessage;
-          
-          // Se a resposta original era de handoff, gerar algo mais útil
-          if (isFallbackResponse) {
-            assistantMessage = `Entendi sua solicitação! Vou fazer o possível para te ajudar.
+          // Mensagem informando que está na fila
+          assistantMessage = `Vou te conectar com um de nossos especialistas! 
 
-${originalResponse.includes('transferir') || originalResponse.includes('aguarde') 
-  ? 'Poderia me dar mais detalhes sobre sua situação para que eu possa te ajudar melhor?' 
-  : originalResponse}
+Nossa equipe está ocupada no momento, mas você está na fila e será atendido assim que um atendente ficar disponível. 
 
-💡 Se precisar de atendimento especializado, nossa equipe está disponível de Segunda a Sexta, das 09h às 18h.`;
-          }
+⏰ Horário de atendimento: Segunda a Sexta, das 09h às 18h.`;
           
-          // Não prosseguir com lógica de handoff/ticket
-          isFallbackResponse = false;
-          
-          console.log('[ai-autopilot-chat] ✅ IA continuará atendendo - conversa marcada para review humano');
+          console.log('[ai-autopilot-chat] ✅ Cliente mantido em waiting_human - na fila para atendimento');
         }
       }
       

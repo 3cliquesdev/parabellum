@@ -74,9 +74,18 @@ export default function ChatFlowEditorPage() {
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header fixo */}
-      <div className="h-14 border-b bg-card flex items-center justify-between px-4 shrink-0">
+      <div className="h-14 border-b bg-card flex items-center justify-between px-4 shrink-0 relative z-50">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={handleCancel}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate("/settings/chat-flows");
+            }}
+            className="hover:bg-muted"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="border-l pl-3">

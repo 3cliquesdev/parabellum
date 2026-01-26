@@ -5,11 +5,13 @@
 
 export * from './types';
 export { WhatsAppAdapter, createWhatsAppAdapter } from './whatsapp-adapter';
+export { MetaWhatsAppAdapter, createMetaWhatsAppAdapter } from './meta-whatsapp-adapter';
 export { WebChatAdapter, createWebChatAdapter } from './webchat-adapter';
 export { EmailAdapter, createEmailAdapter } from './email-adapter';
 
 import type { ChannelAdapter, AdapterConfig } from './types';
 import { createWhatsAppAdapter } from './whatsapp-adapter';
+import { createMetaWhatsAppAdapter } from './meta-whatsapp-adapter';
 import { createWebChatAdapter } from './webchat-adapter';
 import { createEmailAdapter } from './email-adapter';
 
@@ -20,6 +22,8 @@ export function createAdapter(provider: string, config: AdapterConfig): ChannelA
   switch (provider) {
     case 'whatsapp':
       return createWhatsAppAdapter(config);
+    case 'meta_whatsapp':
+      return createMetaWhatsAppAdapter(config);
     case 'web_chat':
       return createWebChatAdapter(config);
     case 'email':

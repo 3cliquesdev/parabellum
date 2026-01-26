@@ -1,44 +1,56 @@
 
-## Plano: Corrigir Acesso de Gerentes aos Fluxos de Chat
 
-### Problema Raiz
+## Plano: Corrigir Acesso de Gerentes às Tags de Conversa
 
-A política RLS da tabela `chat_flows` foi criada com apenas 2 roles:
+### Problema Identificado
+
+O Danilo Pereira (role: `support_manager`) está recebendo erro ao tentar adicionar tags em conversas.
+
+**Causa Raiz:** A política RLS `admin_manager_can_manage_conversation_tags` na tabela `conversation_tags` só permite:
 - `admin`
 - `manager`
 
-Mas a permissão `settings.chat_flows` no frontend está habilitada para:
-- `admin` ✅
-- `manager` ✅
-- `general_manager` ✅
-- `support_manager` ✅
+Mas **NÃO inclui** os roles de gerência:
+- `support_manager` (Danilo)
+- `general_manager`
+- `cs_manager`
+- `financial_manager`
 
-**Resultado:** O Danilo Pereira (role: `support_manager`) passa pelo frontend mas é bloqueado pelo banco de dados.
+**Nota:** As políticas da tabela `tags` (criar/editar tags) já estão corretas e incluem todos os gerentes. O problema é apenas na tabela `conversation_tags` (associar tags a conversas).
 
 ---
 
 ### Solução
 
-Atualizar a política RLS da tabela `chat_flows` para incluir todos os roles que têm a permissão habilitada.
+Atualizar a política RLS da tabela `conversation_tags` para incluir todos os roles de gerência.
 
 ---
 
-### Migração SQL a Executar
+### Migração SQL
 
 ```sql
 -- Remover política antiga restritiva
-DROP POLICY IF EXISTS "Admins and managers can manage chat flows" ON public.chat_flows;
+DROP POLICY IF EXISTS "admin_manager_can_manage_conversation_tags" ON public.conversation_tags;
 
 -- Criar nova política incluindo todos os roles de gerência
-CREATE POLICY "Admins and managers can manage chat flows"
-ON public.chat_flows
+CREATE POLICY "admin_manager_can_manage_conversation_tags"
+ON public.conversation_tags
 FOR ALL
 USING (
-  EXISTS (
-    SELECT 1 FROM public.user_roles
-    WHERE user_id = auth.uid()
-    AND role IN ('admin', 'manager', 'general_manager', 'support_manager')
-  )
+  has_role(auth.uid(), 'admin'::app_role) OR 
+  has_role(auth.uid(), 'manager'::app_role) OR
+  has_role(auth.uid(), 'general_manager'::app_role) OR
+  has_role(auth.uid(), 'support_manager'::app_role) OR
+  has_role(auth.uid(), 'cs_manager'::app_role) OR
+  has_role(auth.uid(), 'financial_manager'::app_role)
+)
+WITH CHECK (
+  has_role(auth.uid(), 'admin'::app_role) OR 
+  has_role(auth.uid(), 'manager'::app_role) OR
+  has_role(auth.uid(), 'general_manager'::app_role) OR
+  has_role(auth.uid(), 'support_manager'::app_role) OR
+  has_role(auth.uid(), 'cs_manager'::app_role) OR
+  has_role(auth.uid(), 'financial_manager'::app_role)
 );
 ```
 
@@ -52,33 +64,42 @@ USING (
 | manager | ✅ | ✅ |
 | general_manager | ❌ | ✅ |
 | support_manager | ❌ | ✅ |
+| cs_manager | ❌ | ✅ |
+| financial_manager | ❌ | ✅ |
+| sales_rep | ✅ (outra política) | ✅ |
+| support_agent | ✅ (outra política) | ✅ |
 
 ---
 
 ### Impacto
 
-- **Danilo Pereira** (support_manager) poderá ver e editar fluxos de chat
-- Outros gerentes com `general_manager` também terão acesso
+- **Danilo Pereira** (support_manager) poderá adicionar/remover tags de conversas
+- Outros gerentes também terão acesso
 - Nenhuma alteração no frontend necessária
+- Este é um problema **apenas para gerentes** - agentes e vendedores já funcionam por outras políticas
 
 ---
 
-### Seção Técnica
+### Seção Tecnica
 
-**Tabela afetada:** `public.chat_flows`
+**Tabela afetada:** `public.conversation_tags`
 
-**Política atual (linha 43-52 da migração original):**
+**Política atual:**
 ```sql
-role IN ('admin', 'manager')
+has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)
 ```
 
 **Nova política:**
 ```sql
-role IN ('admin', 'manager', 'general_manager', 'support_manager')
+has_role(auth.uid(), 'admin'::app_role) OR 
+has_role(auth.uid(), 'manager'::app_role) OR
+has_role(auth.uid(), 'general_manager'::app_role) OR
+has_role(auth.uid(), 'support_manager'::app_role) OR
+has_role(auth.uid(), 'cs_manager'::app_role) OR
+has_role(auth.uid(), 'financial_manager'::app_role)
 ```
 
-**Usuário específico:**
-- ID: `2bca2fa4-862d-4ed2-bc60-0aff386c50bd`
-- Email: `danilo.pereira@3cliques.net`
+**Usuario afetado:**
+- Nome: Danilo Pereira
 - Role: `support_manager`
 

@@ -1,185 +1,150 @@
 
+## Plano: Corrigir Nó "Transferir" do Chat Flow
 
-## Plano: Proteção Anti-Clique para Status Ocupado
+### Problemas Identificados
 
-### Problema Identificado
+**Problema 1 - Trigger muito restritivo:**
+O fluxo "Fluxo de Carnaval" tem a keyword:
+```
+"Olá vim pelo email e gostaria de saber da promoção de pré carnaval"
+```
+A lógica usa `includes()` - a mensagem do usuário precisa conter essa frase **inteira**. Se você enviar só "oi" ou "promoção carnaval", não dispara.
 
-O status muda de "Busy" para "Online" porque:
-1. O atendente (ou o próprio sistema) está chamando `updateStatus("online")` sem restrições
-2. As mudanças feitas pelo atendente via `AvailabilityToggle` nao estao sendo auditadas
-3. Nao ha confirmacao extra para voltar de "Busy" para "Online"
+**Problema 2 - Transferência NÃO É EXECUTADA (principal):**
+Quando o `process-chat-flow` retorna:
+```json
+{
+  "useAI": false,
+  "response": "Transferindo para um atendente...",
+  "transfer": true,
+  "departmentId": "f446e202-bdc3-4bb3-aeda-8c0aa04ee53c"
+}
+```
+O `ai-autopilot-chat` apenas salva a mensagem, mas **NUNCA chama `route-conversation`** para realmente fazer a transferência!
 
-### Solucao
+---
 
-Implementar confirmacao extra (dialog) quando o atendente tentar mudar de "Busy" para "Online", similar ao que ja existe para ir para "Offline".
+### Solução
+
+#### 1. Adicionar Lógica de Transferência no ai-autopilot-chat
+
+Modificar `supabase/functions/ai-autopilot-chat/index.ts` para tratar `flowResult.transfer === true`:
+
+```typescript
+// Após linha ~1388 no bloco que trata flowResult.useAI === false
+if (flowResult.useAI === false && flowResult.response) {
+  console.log('[ai-autopilot-chat] ✅ Fluxo determinístico - usando resposta do flow');
+  
+  // 🆕 NOVO: Se é uma transferência, executar handoff real
+  if (flowResult.transfer === true && flowResult.departmentId) {
+    console.log('[ai-autopilot-chat] 🔀 TRANSFER NODE - Executando handoff real para:', flowResult.departmentId);
+    
+    // 1. Marcar handoff com timestamp para anti-race-condition
+    const handoffTimestamp = new Date().toISOString();
+    
+    await supabaseClient
+      .from('conversations')
+      .update({ 
+        ai_mode: 'waiting_human',
+        handoff_executed_at: handoffTimestamp,
+        needs_human_review: true,
+        department: flowResult.departmentId, // 🆕 Definir departamento direto
+      })
+      .eq('id', conversationId);
+    
+    console.log('[ai-autopilot-chat] ✅ Conversa marcada como waiting_human');
+    
+    // 2. Chamar route-conversation para distribuir
+    await supabaseClient.functions.invoke('route-conversation', {
+      body: { 
+        conversationId,
+        targetDepartmentId: flowResult.departmentId // 🆕 Enviar departamento destino
+      }
+    });
+    
+    console.log('[ai-autopilot-chat] ✅ Conversa roteada para departamento:', flowResult.departmentId);
+  }
+  
+  // Resto do código existente (salvar mensagem, enviar WhatsApp, etc.)
+  // ...
+}
+```
+
+#### 2. Atualizar route-conversation para Aceitar Departamento
+
+Verificar se `route-conversation` aceita o parâmetro `targetDepartmentId` e o usa para definir o departamento correto antes de distribuir.
 
 ---
 
 ### Arquivos a Modificar
 
-| Arquivo | Alteracao |
+| Arquivo | Alteração |
 |---------|-----------|
-| `src/components/AvailabilityToggle.tsx` | Adicionar dialog de confirmacao para Busy → Online |
-| `src/hooks/useAvailabilityStatus.tsx` | Adicionar auditoria para TODAS as mudancas de status |
+| `supabase/functions/ai-autopilot-chat/index.ts` | Adicionar lógica para executar `route-conversation` quando `flowResult.transfer === true` |
+| `supabase/functions/route-conversation/index.ts` | Verificar se aceita `targetDepartmentId` (provavelmente já aceita) |
 
 ---
 
-### Implementacao Detalhada
-
-#### 1. Adicionar Dialog de Confirmacao (AvailabilityToggle.tsx)
-
-Criar um novo estado e dialog para confirmar a mudanca de Busy para Online:
-
-```typescript
-// Novos estados
-const [showBusyToOnlineDialog, setShowBusyToOnlineDialog] = useState(false);
-
-// Modificar handleStatusChange
-const handleStatusChange = (newStatus: "online" | "busy" | "offline") => {
-  if (newStatus === "offline") {
-    setShowOfflineDialog(true);
-  } else if (newStatus === "online" && status === "busy") {
-    // Nova proteção: confirmar antes de sair de Busy
-    setShowBusyToOnlineDialog(true);
-  } else {
-    updateStatus(newStatus);
-  }
-};
-
-// Novo handler para confirmacao
-const handleConfirmBusyToOnline = () => {
-  updateStatus("online");
-  setShowBusyToOnlineDialog(false);
-  toast({
-    title: "Status alterado",
-    description: "Você voltou para Online e receberá novas conversas.",
-  });
-};
-```
-
-#### 2. Criar Componente BusyToOnlineDialog
-
-Criar dialog similar ao `OfflineConfirmationDialog`:
-
-```typescript
-// Novo componente ou inline no AvailabilityToggle
-<AlertDialog open={showBusyToOnlineDialog} onOpenChange={setShowBusyToOnlineDialog}>
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>Voltar para Online?</AlertDialogTitle>
-      <AlertDialogDescription>
-        Voce esta no status "Ocupado". Ao voltar para Online, 
-        voce passara a receber novas conversas automaticamente.
-        
-        Tem certeza que deseja continuar?
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    <AlertDialogFooter>
-      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-      <AlertDialogAction onClick={handleConfirmBusyToOnline}>
-        Confirmar - Ficar Online
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
-```
-
-#### 3. Adicionar Auditoria para TODAS as Mudancas (useAvailabilityStatus.tsx)
-
-Modificar `updateStatusMutation` para registrar auditoria:
-
-```typescript
-const updateStatusMutation = useMutation({
-  mutationFn: async (newStatus: AvailabilityStatus) => {
-    if (!user) throw new Error("Usuário não autenticado");
-
-    console.log(`[useAvailabilityStatus] Updating status to: ${newStatus}`);
-
-    // 1. Buscar status anterior para auditoria
-    const { data: oldProfile } = await supabase
-      .from("profiles")
-      .select("availability_status")
-      .eq("id", user.id)
-      .single();
-
-    // 2. Atualizar status
-    const { error } = await supabase
-      .from("profiles")
-      .update({ 
-        availability_status: newStatus,
-        last_status_change: new Date().toISOString(),
-      })
-      .eq("id", user.id);
-
-    if (error) throw error;
-
-    // 3. Registrar na auditoria (mudanca feita pelo proprio atendente)
-    await supabase.from("audit_logs").insert({
-      user_id: user.id,
-      action: 'UPDATE',
-      table_name: 'profiles',
-      record_id: user.id,
-      old_data: { availability_status: oldProfile?.availability_status },
-      new_data: { 
-        availability_status: newStatus,
-        changed_by_self: true,  // Indica que foi o proprio atendente
-        source: 'availability_toggle'
-      }
-    });
-
-    return newStatus;
-  },
-  // ... resto do codigo
-});
-```
-
----
-
-### Fluxo Apos Implementacao
+### Fluxo Após Correção
 
 ```text
-[Atendente esta Busy]
+[Usuário envia mensagem que dispara fluxo]
         |
         v
-  Clica em "Online"
+[ai-autopilot-chat chama process-chat-flow]
         |
         v
-  🆕 Dialog aparece:
-  "Voce esta Ocupado. Voltar para Online?"
-  [Cancelar] [Confirmar]
+[process-chat-flow encontra nó Transfer]
         |
         v
-  Se confirmar → updateStatus("online")
+[Retorna: { transfer: true, departmentId: "Comercial" }]
         |
         v
-  Mudanca registrada na auditoria
+[ai-autopilot-chat DETECTA transfer === true] 🆕
+        |
+        v
+[Atualiza conversa: ai_mode = 'waiting_human', department = departmentId]
+        |
+        v
+[Chama route-conversation para distribuir]
+        |
+        v
+[Envia mensagem "Transferindo para atendimento humano..."]
+        |
+        v
+[Conversa aparece no departamento correto para agentes]
 ```
 
 ---
 
-### Beneficios
+### Sobre as Keywords do Fluxo
 
-- Evita cliques acidentais que mudam de Busy para Online
-- Registra TODAS as mudancas de status (admin e atendente)
-- Permite rastrear quem mudou o status e quando
-- Atendente precisa confirmar explicitamente a volta para Online
+O fluxo "Fluxo de Carnaval" só será disparado se a mensagem do usuário **contiver** a frase:
+```
+"Olá vim pelo email e gostaria de saber da promoção de pré carnaval"
+```
+
+Para testar, você pode:
+1. Editar o fluxo e adicionar keywords mais simples (ex: "carnaval", "promoção")
+2. Ou enviar a mensagem exata que está configurada
 
 ---
 
-### Secao Tecnica
-
-**Componentes envolvidos:**
-- `src/components/AvailabilityToggle.tsx` - UI do toggle
-- `src/hooks/useAvailabilityStatus.tsx` - Logica de mudanca
-
-**Dialog a usar:**
-- `AlertDialog` do Radix UI (ja importado no projeto)
-
-**Campos de auditoria:**
-- `changed_by_self: true` - Mudanca feita pelo proprio atendente
-- `source: 'availability_toggle'` - Origem da mudanca
+### Seção Técnica
 
 **Linhas a modificar:**
-- `AvailabilityToggle.tsx` linhas 42-74 (handleStatusChange)
-- `useAvailabilityStatus.tsx` linhas 63-104 (updateStatusMutation)
+- `supabase/functions/ai-autopilot-chat/index.ts` linhas ~1388-1440 (bloco de resposta determinística)
 
+**Lógica de match atual (process-chat-flow.ts:508-512):**
+```typescript
+for (const trigger of allTriggers) {
+  if (messageLower.includes(trigger.toLowerCase())) {
+    matchedFlow = flow;
+    break;
+  }
+}
+```
+Isso significa que "oi vim pelo email" **não** dispararia o fluxo, mas "vim pelo email e gostaria de saber da promoção de pré carnaval" **sim**.
+
+**Departamento do nó Transfer:**
+- Comercial: `f446e202-bdc3-4bb3-aeda-8c0aa04ee53c`

@@ -1,115 +1,119 @@
 
+## Plano: Bloquear Vendedores de Assumir Conversas de Outros Departamentos
 
-## Plano: Correção Definitiva das Políticas RLS para Transferência de Conversas
-
-### Diagnóstico Confirmado
-
-Os atendentes (`sales_rep`, `support_agent`, `consultant`) não conseguem transferir conversas devido a um **conflito entre políticas RLS**.
+### Resumo do Problema
+A Thaynara (sales_rep do departamento Comercial) está conseguindo **assumir manualmente** conversas do departamento Suporte. O sistema de roteamento automático funciona corretamente, mas não há validação no momento de "Assumir" que impeça vendedores de pegar conversas de outros departamentos.
 
 ### Causa Raiz
+1. O hook `useTakeControl` não valida o departamento da conversa contra o departamento/role do usuário
+2. A visibilidade do inbox pode estar permitindo que ela veja conversas de Suporte (possivelmente via navegação direta ou filtro de URL)
 
-Existem duas políticas UPDATE na tabela `conversations` que se aplicam simultaneamente:
+### Solucao Proposta
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ POLÍTICA 1: agents_can_update_and_transfer_conversations                     │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ Roles: authenticated (16481)                                                 │
-│ WITH CHECK: has_role('sales_rep') OR has_role('support_agent') OR ...        │
-│ Status: ✅ Passa para sales_rep                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+#### 1. Adicionar Validacao de Departamento no `useTakeControl`
+Modificar o hook para verificar se o usuario tem permissao para assumir conversas do departamento antes de permitir a acao.
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ POLÍTICA 2: user_can_update_department_conversations                         │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ Roles: PUBLIC (0 = todos)                                                    │
-│ WITH CHECK: has_role(auth.uid(), 'user')                                     │
-│ Status: ❌ FALHA para sales_rep (que não tem role 'user')                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+**Arquivo:** `src/hooks/useTakeControl.tsx`
+
+```typescript
+// Adicionar validacao de departamento antes de permitir assumir
+const conversation = await supabase
+  .from('conversations')
+  .select('id, department')
+  .eq('id', conversationId)
+  .single();
+
+const userProfile = await supabase
+  .from('profiles')
+  .select('department')
+  .eq('id', user.id)
+  .single();
+
+const userRole = await supabase
+  .from('user_roles')
+  .select('role')
+  .eq('user_id', user.id)
+  .single();
+
+// Roles com acesso total podem assumir qualquer conversa
+const FULL_ACCESS_ROLES = ['admin', 'manager', 'general_manager', 'support_manager', 'cs_manager'];
+if (!FULL_ACCESS_ROLES.includes(userRole?.role)) {
+  // Verificar compatibilidade de departamento
+  // sales_rep so pode assumir conversas de Comercial
+  // support_agent so pode assumir conversas de Suporte
+  if (conversation.department !== userProfile.department) {
+    throw new Error('Voce nao tem permissao para assumir conversas deste departamento');
+  }
+}
 ```
 
-Quando um `sales_rep` tenta fazer UPDATE:
-1. A política para `authenticated` passa corretamente
-2. A política para `public` também se aplica ao mesmo usuário
-3. No PostgreSQL, quando políticas de diferentes "targets" conflitam, pode haver comportamento inesperado
+#### 2. Adicionar Feedback Visual no Botao "Assumir"
+Desabilitar ou ocultar o botao "Assumir" quando a conversa for de um departamento diferente.
 
-### Solução
+**Arquivo:** `src/components/ChatWindow.tsx`
 
-Remover a política conflitante `user_can_update_department_conversations` e garantir que a política `agents_can_update_and_transfer_conversations` cubra também o role `user`.
+```typescript
+// Adicionar prop para verificar compatibilidade
+const canTakeControl = useMemo(() => {
+  if (!conversation?.department || !userProfile?.department) return true;
+  if (hasFullInboxAccess(role)) return true;
+  return conversation.department === userProfile.department;
+}, [conversation, userProfile, role]);
 
-### Alterações de Banco de Dados
-
-**Migration SQL:**
-
-```sql
--- 1. Remover política conflitante que interfere com outros roles
-DROP POLICY IF EXISTS "user_can_update_department_conversations" ON conversations;
-
--- 2. Atualizar a política unificada para incluir o role 'user'
-DROP POLICY IF EXISTS "agents_can_update_and_transfer_conversations" ON conversations;
-
-CREATE POLICY "agents_can_update_and_transfer_conversations" ON conversations
-FOR UPDATE TO authenticated
-USING (
-  -- Managers: acesso total
-  has_role(auth.uid(), 'admin') OR 
-  has_role(auth.uid(), 'manager') OR
-  has_role(auth.uid(), 'general_manager') OR
-  has_role(auth.uid(), 'cs_manager') OR
-  has_role(auth.uid(), 'support_manager') OR
-  -- Sales Rep: conversas atribuídas ou do departamento
-  (has_role(auth.uid(), 'sales_rep') AND (
-    assigned_to = auth.uid() OR 
-    (assigned_to IS NULL AND department IN (
-      SELECT id FROM departments WHERE name IN ('Comercial', 'Vendas')
-    ))
-  )) OR
-  -- Support Agent: conversas atribuídas ou do departamento
-  (has_role(auth.uid(), 'support_agent') AND (
-    assigned_to = auth.uid() OR 
-    (assigned_to IS NULL AND department IN (
-      SELECT id FROM departments WHERE name = 'Suporte'
-    ))
-  )) OR
-  -- Consultant: apenas conversas atribuídas
-  (has_role(auth.uid(), 'consultant') AND assigned_to = auth.uid()) OR
-  -- User: conversas atribuídas ou do departamento
-  (has_role(auth.uid(), 'user') AND (
-    assigned_to = auth.uid() OR 
-    (assigned_to IS NULL AND department = (
-      SELECT p.department FROM profiles p WHERE p.id = auth.uid()
-    ))
-  ))
-)
-WITH CHECK (
-  -- Permitir update para qualquer role válida (sem restrição de assigned_to)
-  has_role(auth.uid(), 'admin') OR 
-  has_role(auth.uid(), 'manager') OR
-  has_role(auth.uid(), 'general_manager') OR
-  has_role(auth.uid(), 'cs_manager') OR
-  has_role(auth.uid(), 'support_manager') OR
-  has_role(auth.uid(), 'sales_rep') OR
-  has_role(auth.uid(), 'support_agent') OR
-  has_role(auth.uid(), 'consultant') OR
-  has_role(auth.uid(), 'user')
-);
+// Desabilitar botao se nao pode assumir
+<Button
+  onClick={() => setConfirmTakeControlOpen(true)}
+  disabled={takeControl.isPending || !canTakeControl}
+  title={!canTakeControl ? "Voce so pode assumir conversas do seu departamento" : ""}
+>
 ```
 
-### Resumo das Alterações
+#### 3. Revisar Visibilidade do Inbox
+Garantir que `useInboxView` nao mostre conversas de outros departamentos para roles restritos, mesmo via navegacao direta.
 
-1. **Remover `user_can_update_department_conversations`** - Esta política para `public` estava interferindo com as políticas de `authenticated`
-2. **Recriar `agents_can_update_and_transfer_conversations`** - Incluir o role `user` no USING e WITH CHECK para cobrir todos os casos
+**Arquivo:** `src/hooks/useInboxView.tsx`
+
+Verificar se o filtro de departamento via URL (`?dept=...`) esta sendo respeitado apenas para roles com acesso total.
+
+### Alteracoes de Arquivos
+
+| Arquivo | Tipo de Alteracao |
+|---------|-------------------|
+| `src/hooks/useTakeControl.tsx` | Adicionar validacao de departamento |
+| `src/components/ChatWindow.tsx` | Desabilitar botao para departamentos incompativeis |
+| `src/hooks/useInboxView.tsx` | Revisar filtro de departamento via URL |
 
 ### Resultado Esperado
+- Sales reps so poderao assumir conversas do departamento Comercial
+- Support agents so poderao assumir conversas do departamento Suporte
+- Managers/Admins continuam podendo assumir qualquer conversa
+- Mensagem de erro clara se tentarem assumir conversa de outro departamento
 
-- Sales reps, support agents e consultants poderão transferir conversas
-- O registro de interação (log de transferência) será criado corretamente
-- Nenhuma outra funcionalidade será afetada
+### Secao Tecnica
 
-### Testes de Validação
+**Logica de Validacao:**
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ Usuario clica em "Assumir"                                       │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. Verificar role do usuario                                    │
+│    ├─ Se FULL_ACCESS_ROLES → Permitir                           │
+│    └─ Senao → Continuar validacao                               │
+│                                                                 │
+│ 2. Buscar departamento da conversa                              │
+│                                                                 │
+│ 3. Verificar compatibilidade:                                   │
+│    ├─ sales_rep: conversa.department IN [Comercial, Vendas]     │
+│    ├─ support_agent: conversa.department IN [Suporte]           │
+│    └─ Outro: Bloquear                                           │
+│                                                                 │
+│ 4. Se incompativel → Exibir erro e cancelar                     │
+│    Se compativel → Prosseguir com assumir                       │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-1. Login como `sales_rep` > Abrir conversa atribuída > Transferir > Confirmar sucesso
-2. Login como `support_agent` > Abrir conversa do pool > Transferir > Confirmar sucesso
-3. Login como `consultant` > Abrir conversa atribuída > Transferir > Confirmar sucesso
-4. Verificar que a interação de transferência é criada na timeline do contato
-
+**Impacto:**
+- Nenhuma funcionalidade existente sera quebrada
+- Apenas adiciona uma camada de validacao
+- Thaynara podera continuar assumindo conversas de Comercial normalmente
+- Conversas de Suporte so poderao ser assumidas por support_agents ou managers

@@ -6193,45 +6193,69 @@ export type Database = {
           action_type: string
           blocked_reason: string | null
           blocked_until: string | null
+          day_count: number | null
+          hour_count: number | null
           id: string
           identifier: string
+          instance_id: string | null
           is_blocked: boolean | null
+          last_day_reset: string | null
+          last_hour_reset: string | null
+          last_minute_reset: string | null
           max_per_day: number | null
           max_per_hour: number | null
           max_per_minute: number | null
           min_delay_any: number | null
           min_delay_same_number: number | null
+          minute_count: number | null
           request_count: number | null
+          updated_at: string | null
           window_start: string | null
         }
         Insert: {
           action_type: string
           blocked_reason?: string | null
           blocked_until?: string | null
+          day_count?: number | null
+          hour_count?: number | null
           id?: string
           identifier: string
+          instance_id?: string | null
           is_blocked?: boolean | null
+          last_day_reset?: string | null
+          last_hour_reset?: string | null
+          last_minute_reset?: string | null
           max_per_day?: number | null
           max_per_hour?: number | null
           max_per_minute?: number | null
           min_delay_any?: number | null
           min_delay_same_number?: number | null
+          minute_count?: number | null
           request_count?: number | null
+          updated_at?: string | null
           window_start?: string | null
         }
         Update: {
           action_type?: string
           blocked_reason?: string | null
           blocked_until?: string | null
+          day_count?: number | null
+          hour_count?: number | null
           id?: string
           identifier?: string
+          instance_id?: string | null
           is_blocked?: boolean | null
+          last_day_reset?: string | null
+          last_hour_reset?: string | null
+          last_minute_reset?: string | null
           max_per_day?: number | null
           max_per_hour?: number | null
           max_per_minute?: number | null
           min_delay_any?: number | null
           min_delay_same_number?: number | null
+          minute_count?: number | null
           request_count?: number | null
+          updated_at?: string | null
           window_start?: string | null
         }
         Relationships: []

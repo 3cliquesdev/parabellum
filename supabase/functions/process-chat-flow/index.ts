@@ -497,8 +497,21 @@ serve(async (req) => {
       );
     }
 
+    // Função para normalizar texto (remove acentos e pontuação)
+    function normalizeText(text: string): string {
+      return text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .replace(/[^\w\s]/g, '') // Remove pontuação
+        .trim();
+    }
+
+    const messageNorm = normalizeText(userMessage);
     const messageLower = userMessage.toLowerCase();
     let matchedFlow = null;
+
+    console.log('[process-chat-flow] Checking triggers for message:', messageNorm.slice(0, 80));
 
     for (const flow of flows) {
       const keywords = flow.trigger_keywords || [];
@@ -506,9 +519,35 @@ serve(async (req) => {
       const allTriggers = [...keywords, ...triggers];
 
       for (const trigger of allTriggers) {
-        if (messageLower.includes(trigger.toLowerCase())) {
+        const triggerNorm = normalizeText(trigger);
+        
+        // Match 1: Inclusão direta - mensagem contém o trigger
+        if (messageNorm.includes(triggerNorm)) {
+          console.log('[process-chat-flow] ✅ Match direto (msg contém trigger):', trigger);
           matchedFlow = flow;
           break;
+        }
+        
+        // Match 2: Trigger contém a mensagem (usuário escreveu parte do trigger)
+        // Só aplica se a mensagem tem ao menos 10 caracteres para evitar falsos positivos
+        if (triggerNorm.includes(messageNorm) && messageNorm.length >= 10) {
+          console.log('[process-chat-flow] ✅ Match reverso (trigger contém msg):', trigger);
+          matchedFlow = flow;
+          break;
+        }
+        
+        // Match 3: Similaridade por palavras (para triggers longos > 20 chars)
+        if (triggerNorm.length > 20) {
+          const triggerWords = triggerNorm.split(/\s+/).filter(w => w.length > 3);
+          const matchedWords = triggerWords.filter(w => messageNorm.includes(w));
+          const matchRatio = triggerWords.length > 0 ? matchedWords.length / triggerWords.length : 0;
+          
+          // Se 60%+ das palavras significativas do trigger estão na mensagem
+          if (matchRatio >= 0.6 && matchedWords.length >= 3) {
+            console.log('[process-chat-flow] ✅ Match fuzzy (', Math.round(matchRatio * 100), '% palavras):', trigger);
+            matchedFlow = flow;
+            break;
+          }
         }
       }
       if (matchedFlow) break;

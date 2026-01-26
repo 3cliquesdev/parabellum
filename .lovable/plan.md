@@ -1,304 +1,213 @@
 
 
-## Plano de Correção: Robô Reassumindo Conversas Indevidamente
+## Plano de Correcao: Filtros de Tickets Desaparecendo ao Navegar
 
-### Diagnóstico Completo
+### Problema Identificado
 
-Após análise detalhada do código, identifiquei **4 cenários** onde a IA pode reassumir conversas que já foram assumidas por atendentes:
+Quando o atendente aplica filtros na lista de tickets e depois:
+1. Clica em um ticket para ver detalhes
+2. Clica em "Voltar"
 
----
+Os filtros desaparecem porque a navegacao nao preserva os parametros da URL.
 
-### Cenário 1: Trigger SQL `redistribute_on_agent_offline`
+### Causa Raiz
 
-**Localização:** `supabase/migrations/20260126144220_5b9ce005-a3ac-4162-a5bc-18b91482a057.sql`
+**Navegacao sem preservar query params:**
 
-**Problema:** O trigger devolve conversas para `ai_mode = 'autopilot'` quando agente fica offline, mas não verifica se conversa está em modo `copilot` (assumida manualmente).
-
-**Evidência no código (linhas 14-26):**
-```sql
-IF OLD.availability_status = 'online' 
-   AND NEW.availability_status != 'online' 
-   AND NEW.manual_offline = true
-THEN
-  UPDATE conversations
-  SET 
-    assigned_to = NULL,
-    previous_agent_id = OLD.id,
-    ai_mode = 'autopilot'  -- ❌ SOBRESCREVE MESMO COPILOT!
-  WHERE 
-    assigned_to = OLD.id 
-    AND status = 'open';
-```
-
-**Impacto:** ALTO - Quando atendente fica offline (mesmo brevemente por reconexão), todas as suas conversas voltam para a IA.
-
----
-
-### Cenário 2: `redistribute-after-hours` Edge Function
-
-**Localização:** `supabase/functions/redistribute-after-hours/index.ts` linhas 104-113
-
-**Problema:** Função executada por cron job fora do horário comercial que força todas as conversas atribuídas para `ai_mode = 'autopilot'`, sem verificar o modo atual.
-
-**Evidência no código:**
+1. **Ao abrir ticket** (`Support.tsx:291`):
 ```typescript
-// Linha 111: Força autopilot sem verificar ai_mode atual
-.update({
-  previous_agent_id: conv.assigned_to,
-  assigned_to: null,
-  ai_mode: 'autopilot' // ❌ SOBRESCREVE MESMO SE ATENDENTE ASSUMIU
-})
+navigate(`/support/${ticketId}`); // NAO preserva ?filter=xxx&filters={}
 ```
 
-**Impacto:** MÉDIO - Afeta apenas fora do horário comercial, mas pode causar confusão.
-
----
-
-### Cenário 3: `go-offline-manual` Edge Function
-
-**Localização:** `supabase/functions/go-offline-manual/index.ts` linhas 160-172
-
-**Problema:** Quando nenhum agente online está disponível para transferência, a função força conversas para `ai_mode = 'autopilot'`.
-
-**Evidência no código:**
+2. **Ao voltar do ticket** (`TicketDetail.tsx:55`):
 ```typescript
-// Linha 168: Força autopilot quando não há agentes
-.update({ 
-  status: "pending",
-  assigned_to: null,
-  previous_agent_id: agentId,
-  ai_mode: "autopilot", // ❌ SOBRESCREVE MESMO COPILOT
-})
+navigate('/support'); // NAO preserva filtros
 ```
 
-**Impacto:** ALTO - Acontece sempre que agente vai offline manualmente sem outros online.
-
----
-
-### Cenário 4: Hook `useAutopilotTrigger` com Cache Desatualizado
-
-**Localização:** `src/hooks/useAutopilotTrigger.tsx` linhas 79-103
-
-**Problema:** O cache do `ai_mode` tem TTL de 1 minuto. Se atendente assumir durante esse período, o hook ainda pode disparar `ai-autopilot-chat` com o valor antigo do cache.
-
-**Evidência no código:**
+3. **Ao pressionar Enter** (`Support.tsx:254`):
 ```typescript
-// Linha 17: Cache de 1 minuto pode estar desatualizado
-const AI_MODE_CACHE_TTL = 60000; // 1 minuto de cache
-
-// Linha 82-84: Usa cache mesmo que atendente tenha assumido
-if (aiModeCache.current && (now - aiModeCache.current.fetchedAt) < AI_MODE_CACHE_TTL) {
-  aiMode = aiModeCache.current.mode; // ❌ PODE SER VALOR ANTIGO
-}
+navigate(`/support/${selectedTicketId}`); // Mesmo problema
 ```
 
-**Impacto:** BAIXO - O `ai-autopilot-chat` tem verificação própria (linha 599), mas gera logs confusos.
+### Solucao Proposta
 
----
+Preservar os filtros em `sessionStorage` ou `localStorage` para restaurar ao voltar.
 
-### Solução Proposta
-
-#### 1. Corrigir Trigger SQL `redistribute_on_agent_offline`
-
-Adicionar verificação para NÃO redistribuir conversas em modo `copilot` (assumidas manualmente):
-
-```sql
-CREATE OR REPLACE FUNCTION redistribute_on_agent_offline()
-RETURNS TRIGGER AS $$
-DECLARE
-  affected_count INTEGER;
-BEGIN
-  IF OLD.availability_status = 'online' 
-     AND NEW.availability_status != 'online' 
-     AND NEW.manual_offline = true
-  THEN
-    -- 🔧 CORREÇÃO: Só redistribuir conversas em autopilot ou waiting_human
-    -- Conversas em 'copilot' foram assumidas MANUALMENTE pelo atendente
-    -- e devem ser mantidas para transferência explícita
-    UPDATE conversations
-    SET 
-      assigned_to = NULL,
-      previous_agent_id = OLD.id,
-      ai_mode = 'autopilot'
-    WHERE 
-      assigned_to = OLD.id 
-      AND status = 'open'
-      AND ai_mode NOT IN ('copilot', 'disabled'); -- 🆕 PROTEÇÃO
-    
-    GET DIAGNOSTICS affected_count = ROW_COUNT;
-    
-    IF affected_count > 0 THEN
-      RAISE NOTICE 'Redistributed % conversations from agent % (preserved copilot)', affected_count, OLD.id;
-    END IF;
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-```
-
-#### 2. Corrigir `redistribute-after-hours`
-
-Adicionar verificação para preservar conversas em modo `copilot`:
-
-```typescript
-// Linha 78-82: Adicionar filtro de ai_mode
-const { data: activeConversations } = await supabaseClient
-  .from('conversations')
-  .select('id, assigned_to, ai_mode, contact_id')
-  .in('status', ['open', 'pending'])
-  .not('assigned_to', 'is', null)
-  .neq('ai_mode', 'copilot')      // 🆕 NÃO REDISTRIBUIR COPILOT
-  .neq('ai_mode', 'disabled');    // 🆕 NÃO REDISTRIBUIR DISABLED
-```
-
-#### 3. Corrigir `go-offline-manual`
-
-Preservar conversas em modo `copilot` para transferência manual:
-
-```typescript
-// Antes de linha 160: Verificar ai_mode da conversa
-const { data: convDetails } = await supabaseAdmin
-  .from("conversations")
-  .select("id, ai_mode")
-  .eq("id", conv.id)
-  .single();
-
-// Se está em copilot, não devolver para IA - forçar transfer para outro agente
-if (convDetails?.ai_mode === 'copilot') {
-  // Manter na fila humana ao invés de devolver para IA
-  await supabaseAdmin
-    .from("conversations")
-    .update({ 
-      status: "pending",
-      assigned_to: null,
-      previous_agent_id: agentId,
-      ai_mode: "waiting_human", // 🆕 MANTER NA FILA HUMANA
-    })
-    .eq("id", conv.id);
-} else {
-  // Fluxo normal para conversas autopilot/waiting_human
-  // ... código existente
-}
-```
-
-#### 4. Reduzir Cache TTL do `useAutopilotTrigger`
-
-Reduzir o tempo de cache para evitar valores desatualizados:
-
-```typescript
-// Linha 17: Reduzir de 60s para 10s
-const AI_MODE_CACHE_TTL = 10000; // 10 segundos de cache (era 60s)
-```
-
-Ou invalidar cache quando realtime detectar mudança de `ai_mode`:
-
-```typescript
-// Adicionar listener para mudanças na conversa
-const convChannel = supabase
-  .channel(`conv-mode-${conversationId}`)
-  .on(
-    'postgres_changes',
-    {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'conversations',
-      filter: `id=eq.${conversationId}`
-    },
-    (payload) => {
-      // Invalidar cache quando ai_mode mudar
-      if (payload.new.ai_mode !== aiModeCache.current?.mode) {
-        aiModeCache.current = { mode: payload.new.ai_mode, fetchedAt: Date.now() };
-      }
-    }
-  )
-  .subscribe();
-```
+**Abordagem:** Usar `sessionStorage` para manter os filtros durante a sessao do navegador.
 
 ---
 
 ### Arquivos a Modificar
 
-| Arquivo | Alteracao | Prioridade |
-|---------|-----------|------------|
-| Nova migration SQL | Corrigir trigger `redistribute_on_agent_offline` | Alta |
-| `supabase/functions/redistribute-after-hours/index.ts` | Filtrar conversas em `copilot` | Alta |
-| `supabase/functions/go-offline-manual/index.ts` | Preservar `copilot` para fila humana | Alta |
-| `src/hooks/useAutopilotTrigger.tsx` | Reduzir cache TTL ou adicionar invalidação | Baixa |
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/pages/Support.tsx` | Salvar filtros no sessionStorage antes de navegar |
+| `src/pages/Support.tsx` | Restaurar filtros do sessionStorage ao montar |
+| `src/pages/TicketDetail.tsx` | Navegar de volta preservando os filtros |
 
 ---
 
-### Beneficios da Correção
+### Implementacao Detalhada
 
-- Atendente assume conversa e ela PERMANECE com ele
-- Robô só reassume conversas que estavam em `autopilot` ou `waiting_human`
-- Conversas em `copilot` exigem transferência manual explícita
-- Menos confusão para atendentes e clientes
+#### 1. Support.tsx - Salvar filtros antes de navegar
+
+```typescript
+// Nova constante para chave do storage
+const TICKET_FILTERS_STORAGE_KEY = 'ticket-filters-session';
+
+// Funcao para salvar filtros no sessionStorage
+const saveFiltersToSession = useCallback(() => {
+  const filtersState = {
+    sidebarFilter,
+    advancedFilters,
+    searchTerm,
+    currentPage,
+  };
+  sessionStorage.setItem(TICKET_FILTERS_STORAGE_KEY, JSON.stringify(filtersState));
+}, [sidebarFilter, advancedFilters, searchTerm, currentPage]);
+
+// Modificar handleSelectTicket para salvar antes de navegar
+const handleSelectTicket = (ticketId: string) => {
+  if (isMobile) {
+    setSelectedTicketId(ticketId);
+    setMobileView('details');
+  } else {
+    // Salvar filtros ANTES de navegar
+    saveFiltersToSession();
+    navigate(`/support/${ticketId}`);
+  }
+};
+
+// Modificar navegacao por Enter (linha 254)
+if (e.key === 'Enter' && selectedTicketId) {
+  e.preventDefault();
+  if (isMobile) {
+    setMobileView('details');
+  } else {
+    saveFiltersToSession(); // ADICIONAR
+    navigate(`/support/${selectedTicketId}`);
+  }
+}
+```
+
+#### 2. Support.tsx - Restaurar filtros ao montar
+
+```typescript
+// Modificar inicializacao do estado para ler do sessionStorage
+const [restoredFromSession, setRestoredFromSession] = useState(false);
+
+// useEffect para restaurar filtros do sessionStorage
+useEffect(() => {
+  if (restoredFromSession) return;
+  
+  const savedFilters = sessionStorage.getItem(TICKET_FILTERS_STORAGE_KEY);
+  if (savedFilters) {
+    try {
+      const parsed = JSON.parse(savedFilters);
+      
+      // Restaurar apenas se nao tiver parametros na URL
+      if (!searchParams.get('filter') && !searchParams.get('filters')) {
+        setSidebarFilter(parsed.sidebarFilter || 'all');
+        setAdvancedFilters(parsed.advancedFilters || defaultTicketFilters);
+        setSearchTerm(parsed.searchTerm || '');
+        setCurrentPage(parsed.currentPage || 1);
+      }
+      
+      // Limpar sessionStorage apos restaurar
+      sessionStorage.removeItem(TICKET_FILTERS_STORAGE_KEY);
+    } catch (e) {
+      console.error('Failed to restore filters:', e);
+    }
+  }
+  setRestoredFromSession(true);
+}, [restoredFromSession]);
+```
+
+#### 3. TicketDetail.tsx - Voltar para /support (sem mudancas)
+
+O botao "Voltar" pode continuar navegando para `/support` normalmente, pois os filtros serao restaurados do sessionStorage.
+
+```typescript
+// Manter como esta, pois sessionStorage cuidara da restauracao
+<Button variant="ghost" size="sm" onClick={() => navigate('/support')}>
+```
+
+---
+
+### Beneficios da Correcao
+
+- Filtros persistem durante navegacao entre lista e detalhes
+- Nao polui URL do ticket com parametros de filtro
+- Funciona com navegacao por teclado (Enter)
+- Limpa automaticamente ao fechar aba/navegador (sessionStorage)
+- Preserva pagina atual, termo de busca e todos os filtros
 
 ---
 
 ### Secao Tecnica
 
-**Codigo principal da correção - Migration SQL:**
+**Fluxo de dados:**
 
-```sql
--- Nova migration: Corrigir redistribuição para preservar conversas em copilot
-
-CREATE OR REPLACE FUNCTION redistribute_on_agent_offline()
-RETURNS TRIGGER AS $$
-DECLARE
-  affected_count INTEGER;
-BEGIN
-  IF OLD.availability_status = 'online' 
-     AND NEW.availability_status != 'online' 
-     AND NEW.manual_offline = true
-  THEN
-    -- Só redistribuir conversas NÃO assumidas manualmente
-    UPDATE conversations
-    SET 
-      assigned_to = NULL,
-      previous_agent_id = OLD.id,
-      ai_mode = 'autopilot'
-    WHERE 
-      assigned_to = OLD.id 
-      AND status = 'open'
-      AND ai_mode NOT IN ('copilot', 'disabled');
-    
-    GET DIAGNOSTICS affected_count = ROW_COUNT;
-    
-    -- Conversas em copilot: mover para waiting_human (fila humana)
-    UPDATE conversations
-    SET 
-      assigned_to = NULL,
-      previous_agent_id = OLD.id,
-      ai_mode = 'waiting_human'
-    WHERE 
-      assigned_to = OLD.id 
-      AND status = 'open'
-      AND ai_mode = 'copilot';
-    
-    IF affected_count > 0 THEN
-      RAISE NOTICE 'Redistributed conversations from agent %, preserved copilot for human queue', OLD.id;
-    END IF;
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+```text
+[Lista de Tickets]
+       |
+       | (click em ticket)
+       v
+  saveFiltersToSession()
+       |
+       v
+  navigate('/support/:id')
+       |
+       | (click em Voltar)
+       v
+  navigate('/support')
+       |
+       v
+  useEffect restaura do sessionStorage
+       |
+       v
+[Lista com filtros preservados]
 ```
 
-**Codigo para edge functions:**
+**Codigo principal:**
 
 ```typescript
-// redistribute-after-hours - Adicionar filtro
-.neq('ai_mode', 'copilot')
-.neq('ai_mode', 'disabled')
+// src/pages/Support.tsx
 
-// go-offline-manual - Condicional para copilot
-if (convDetails?.ai_mode === 'copilot') {
-  ai_mode = "waiting_human"; // Manter na fila humana
-} else {
-  ai_mode = "autopilot"; // Devolver para IA
-}
+const TICKET_FILTERS_STORAGE_KEY = 'ticket-filters-session';
+
+const saveFiltersToSession = useCallback(() => {
+  const filtersState = {
+    sidebarFilter,
+    advancedFilters,
+    searchTerm,
+    currentPage,
+  };
+  sessionStorage.setItem(TICKET_FILTERS_STORAGE_KEY, JSON.stringify(filtersState));
+}, [sidebarFilter, advancedFilters, searchTerm, currentPage]);
+
+// Restaurar ao montar
+useEffect(() => {
+  const saved = sessionStorage.getItem(TICKET_FILTERS_STORAGE_KEY);
+  if (saved && !searchParams.get('filter')) {
+    const parsed = JSON.parse(saved);
+    setSidebarFilter(parsed.sidebarFilter || 'all');
+    setAdvancedFilters(parsed.advancedFilters || defaultTicketFilters);
+    setSearchTerm(parsed.searchTerm || '');
+    setCurrentPage(parsed.currentPage || 1);
+    sessionStorage.removeItem(TICKET_FILTERS_STORAGE_KEY);
+  }
+}, []);
+
+// Salvar antes de navegar
+const handleSelectTicket = (ticketId: string) => {
+  if (isMobile) {
+    setSelectedTicketId(ticketId);
+    setMobileView('details');
+  } else {
+    saveFiltersToSession();
+    navigate(`/support/${ticketId}`);
+  }
+};
 ```
 

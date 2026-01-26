@@ -272,3 +272,9 @@ verify_jwt = true
 
 [functions.process-chat-flow]
 verify_jwt = false
+
+[functions.meta-whatsapp-webhook]
+verify_jwt = false
+
+[functions.send-meta-whatsapp]
+verify_jwt = true

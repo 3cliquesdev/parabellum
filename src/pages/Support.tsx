@@ -27,37 +27,85 @@ import { useActiveTicketStatuses } from "@/hooks/useTicketStatuses";
 type MobileView = 'list' | 'details';
 
 const TICKETS_PER_PAGE = 20;
+const TICKET_FILTERS_STORAGE_KEY = 'ticket-filters-session';
 
 export default function Support() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Read initial values from URL
-  const initialSidebarFilter = (searchParams.get('filter') as SidebarFilter) || 'all';
-  const initialAdvancedFilters = useMemo(() => {
-    const filtersParam = searchParams.get('filters');
-    if (filtersParam) {
+  // Read initial values from URL or sessionStorage
+  const getInitialFilters = useCallback(() => {
+    // First check URL params
+    const filterFromUrl = searchParams.get('filter') as SidebarFilter;
+    const filtersFromUrl = searchParams.get('filters');
+    
+    if (filterFromUrl || filtersFromUrl) {
+      let advancedFilters = defaultTicketFilters;
+      if (filtersFromUrl) {
+        try {
+          advancedFilters = { ...defaultTicketFilters, ...JSON.parse(filtersFromUrl) };
+        } catch {
+          advancedFilters = defaultTicketFilters;
+        }
+      }
+      return {
+        sidebarFilter: filterFromUrl || 'all',
+        advancedFilters,
+        searchTerm: '',
+        currentPage: 1,
+      };
+    }
+    
+    // Then check sessionStorage
+    const savedFilters = sessionStorage.getItem(TICKET_FILTERS_STORAGE_KEY);
+    if (savedFilters) {
       try {
-        return { ...defaultTicketFilters, ...JSON.parse(filtersParam) };
+        const parsed = JSON.parse(savedFilters);
+        sessionStorage.removeItem(TICKET_FILTERS_STORAGE_KEY);
+        return {
+          sidebarFilter: parsed.sidebarFilter || 'all',
+          advancedFilters: parsed.advancedFilters || defaultTicketFilters,
+          searchTerm: parsed.searchTerm || '',
+          currentPage: parsed.currentPage || 1,
+        };
       } catch {
-        return defaultTicketFilters;
+        sessionStorage.removeItem(TICKET_FILTERS_STORAGE_KEY);
       }
     }
-    return defaultTicketFilters;
+    
+    return {
+      sidebarFilter: 'all' as SidebarFilter,
+      advancedFilters: defaultTicketFilters,
+      searchTerm: '',
+      currentPage: 1,
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  
+  const initialFilters = useMemo(() => getInitialFilters(), [getInitialFilters]);
 
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
-  const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>(initialSidebarFilter);
+  const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>(initialFilters.sidebarFilter);
   const [mobileView, setMobileView] = useState<MobileView>('list');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState(initialFilters.searchTerm);
+  const [currentPage, setCurrentPage] = useState(initialFilters.currentPage);
   const [selectedTicketIds, setSelectedTicketIds] = useState<string[]>([]);
   const [moveToProjectOpen, setMoveToProjectOpen] = useState(false);
-  const [advancedFilters, setAdvancedFilters] = useState<TicketFilters>(initialAdvancedFilters);
+  const [advancedFilters, setAdvancedFilters] = useState<TicketFilters>(initialFilters.advancedFilters);
   const [bulkTransferOpen, setBulkTransferOpen] = useState(false);
   const [saveFilterOpen, setSaveFilterOpen] = useState(false);
+  
+  // Function to save filters to sessionStorage before navigating
+  const saveFiltersToSession = useCallback(() => {
+    const filtersState = {
+      sidebarFilter,
+      advancedFilters,
+      searchTerm,
+      currentPage,
+    };
+    sessionStorage.setItem(TICKET_FILTERS_STORAGE_KEY, JSON.stringify(filtersState));
+  }, [sidebarFilter, advancedFilters, searchTerm, currentPage]);
 
   // Sync filters to URL whenever they change
   useEffect(() => {
@@ -251,6 +299,7 @@ export default function Support() {
         if (isMobile) {
           setMobileView('details');
         } else {
+          saveFiltersToSession();
           navigate(`/support/${selectedTicketId}`);
         }
       }
@@ -280,17 +329,18 @@ export default function Support() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTicketIds, paginatedTickets, selectedTicketId, allTickets, isMobile, navigate]);
+  }, [selectedTicketIds, paginatedTickets, selectedTicketId, allTickets, isMobile, navigate, saveFiltersToSession]);
 
-  const handleSelectTicket = (ticketId: string) => {
+  const handleSelectTicket = useCallback((ticketId: string) => {
     if (isMobile) {
       setSelectedTicketId(ticketId);
       setMobileView('details');
     } else {
-      // Desktop: navigate to full page
+      // Desktop: save filters before navigating to full page
+      saveFiltersToSession();
       navigate(`/support/${ticketId}`);
     }
-  };
+  }, [isMobile, navigate, saveFiltersToSession]);
 
   const handleBackToList = () => {
     setMobileView('list');

@@ -8,6 +8,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { OfflineConfirmationDialog } from "@/components/OfflineConfirmationDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +50,7 @@ export function AvailabilityToggle() {
   const { toast } = useToast();
   const { status, isLoading, updateStatus } = useAvailabilityStatus();
   const [showOfflineDialog, setShowOfflineDialog] = useState(false);
+  const [showBusyToOnlineDialog, setShowBusyToOnlineDialog] = useState(false);
   const [isGoingOffline, setIsGoingOffline] = useState(false);
 
   // Contar conversas ativas do usuário
@@ -68,9 +79,17 @@ export function AvailabilityToggle() {
     if (newStatus === "offline") {
       // Mostrar dialog de confirmação antes de ficar offline
       setShowOfflineDialog(true);
+    } else if (newStatus === "online" && status === "busy") {
+      // Proteção anti-clique: confirmar antes de sair de Busy
+      setShowBusyToOnlineDialog(true);
     } else {
       updateStatus(newStatus);
     }
+  };
+
+  const handleConfirmBusyToOnline = () => {
+    updateStatus("online");
+    setShowBusyToOnlineDialog(false);
   };
 
   const handleConfirmOffline = async () => {
@@ -190,6 +209,30 @@ export function AvailabilityToggle() {
         onConfirm={handleConfirmOffline}
         isLoading={isGoingOffline}
       />
+
+      {/* Dialog de confirmação para Busy → Online */}
+      <AlertDialog open={showBusyToOnlineDialog} onOpenChange={setShowBusyToOnlineDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Voltar para Online?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Você está no status <strong>"Ocupado"</strong>. Ao voltar para Online, 
+                você passará a receber novas conversas automaticamente.
+              </p>
+              <p className="text-warning font-medium">
+                ⚠️ Tem certeza que deseja continuar?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmBusyToOnline}>
+              Confirmar - Ficar Online
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

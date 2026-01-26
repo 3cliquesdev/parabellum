@@ -67,6 +67,16 @@ export function useAvailabilityStatus() {
 
       console.log(`[useAvailabilityStatus] Updating status to: ${newStatus}`);
 
+      // 1. Buscar status anterior para auditoria
+      const { data: oldProfile } = await supabase
+        .from("profiles")
+        .select("availability_status")
+        .eq("id", user.id)
+        .single();
+
+      const oldStatus = oldProfile?.availability_status;
+
+      // 2. Atualizar status
       const { error } = await supabase
         .from("profiles")
         .update({ 
@@ -76,6 +86,22 @@ export function useAvailabilityStatus() {
         .eq("id", user.id);
 
       if (error) throw error;
+
+      // 3. Registrar na auditoria (mudança feita pelo próprio atendente)
+      console.log(`[useAvailabilityStatus] Logging audit: ${oldStatus} → ${newStatus}`);
+      
+      await supabase.from("audit_logs").insert({
+        user_id: user.id,
+        action: 'UPDATE',
+        table_name: 'profiles',
+        record_id: user.id,
+        old_data: { availability_status: oldStatus },
+        new_data: { 
+          availability_status: newStatus,
+          changed_by_self: true,
+          source: 'availability_toggle'
+        }
+      });
 
       return newStatus;
     },

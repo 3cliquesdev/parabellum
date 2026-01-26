@@ -96,6 +96,7 @@ const SLASettings = lazy(() => import("./pages/SLASettings"));
 const ScoringSettings = lazy(() => import("./pages/ScoringSettings"));
 const TicketStatusSettings = lazy(() => import("./pages/TicketStatusSettings"));
 const CustomerFiscalData = lazy(() => import("./pages/CustomerFiscalData"));
+const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const SuperAdminPanel = lazy(() => import("./pages/SuperAdminPanel"));
 const InternalRequests = lazy(() => import("./pages/InternalRequests"));
 const ProjectsPage = lazy(() => import("./pages/ProjectsPage"));
@@ -153,6 +154,9 @@ const App = () => {
               <Route path="/public-onboarding/playbook/:playbookId" element={<PublicOnboarding />} />
               <Route path="/meu-cadastro" element={<CustomerFiscalData />} />
               <Route path="/onboarding-form" element={<PublicOnboardingForm />} />
+              
+              {/* Client portal - for users with role 'user' */}
+              <Route path="/client-portal" element={<ProtectedRoute><ClientPortal /></ProtectedRoute>} />
 
               {/* Debug routes - dev only */}
               <Route path="/debug/routes" element={<DebugRoutes />} />

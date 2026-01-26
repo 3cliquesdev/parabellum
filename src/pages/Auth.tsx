@@ -77,8 +77,14 @@ export default function Auth() {
         case "general_manager":
           navigate("/analytics");
           break;
+        case "ecommerce_analyst":
+          navigate("/analytics");
+          break;
+        case "user":
+          navigate("/client-portal");
+          break;
         default:
-          navigate("/");
+          navigate("/client-portal");
       }
     }
   }, [user, role, authLoading, roleLoading, navigate]);

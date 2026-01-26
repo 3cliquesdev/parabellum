@@ -55,6 +55,8 @@ export default function ProtectedRoute({ children, allowedRoles, requiredPermiss
     general_manager: "/analytics",
     admin: "/",
     manager: "/",
+    user: "/client-portal",
+    ecommerce_analyst: "/analytics",
   };
 
   // Permission-based access control (new unified system)

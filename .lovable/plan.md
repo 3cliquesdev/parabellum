@@ -1,202 +1,185 @@
 
 
-## Plano: Correção em Massa de Leads que São Clientes Kiwify
+## Plano: Proteção Anti-Clique para Status Ocupado
 
-### Situação Atual
+### Problema Identificado
 
-Encontrei **78 leads sem email** cujo telefone já existe na base Kiwify como compradores. Esses leads deveriam ser clientes e estar no departamento de Suporte, mas ficaram como leads porque a IA não pediu o email antes do handoff.
+O status muda de "Busy" para "Online" porque:
+1. O atendente (ou o próprio sistema) está chamando `updateStatus("online")` sem restrições
+2. As mudanças feitas pelo atendente via `AvailabilityToggle` nao estao sendo auditadas
+3. Nao ha confirmacao extra para voltar de "Busy" para "Online"
 
-### O que precisa ser feito
+### Solucao
 
-| Ação | Tabela | Campo |
-|------|--------|-------|
-| Marcar como cliente | `contacts` | `status = 'customer'` |
-| Adicionar email da Kiwify | `contacts` | `email = kiwify_email` |
-| Validar Kiwify | `contacts` | `kiwify_validated = true` |
-| Mover para Suporte | `conversations` | `department = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a'` |
+Implementar confirmacao extra (dialog) quando o atendente tentar mudar de "Busy" para "Online", similar ao que ja existe para ir para "Offline".
 
 ---
 
-### Solução Proposta
+### Arquivos a Modificar
 
-Criar uma nova função RPC no banco que faz a correção completa, e uma Edge Function para executá-la.
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/components/AvailabilityToggle.tsx` | Adicionar dialog de confirmacao para Busy → Online |
+| `src/hooks/useAvailabilityStatus.tsx` | Adicionar auditoria para TODAS as mudancas de status |
 
-#### 1. Nova RPC: `fix_leads_that_are_kiwify_customers`
+---
 
-```sql
-CREATE OR REPLACE FUNCTION fix_leads_that_are_kiwify_customers()
-RETURNS TABLE(
-  contacts_updated integer,
-  conversations_updated integer
-) 
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_contacts_updated integer := 0;
-  v_conversations_updated integer := 0;
-  v_suporte_dept_id uuid := '36ce66cd-7414-4fc8-bd4a-268fecc3f01a';
-BEGIN
-  -- 1. Criar tabela temporária com leads que têm telefone na Kiwify
-  CREATE TEMP TABLE leads_to_fix AS
-  WITH kiwify_data AS (
-    SELECT DISTINCT ON (RIGHT(REGEXP_REPLACE(payload->'Customer'->>'mobile', '[^0-9]', '', 'g'), 9))
-      RIGHT(REGEXP_REPLACE(payload->'Customer'->>'mobile', '[^0-9]', '', 'g'), 9) as last9,
-      payload->'Customer'->>'email' as kiwify_email,
-      payload->'Customer'->>'full_name' as kiwify_name
-    FROM kiwify_events 
-    WHERE event_type IN ('paid', 'order_approved', 'subscription_renewed')
-      AND payload->'Customer'->>'mobile' IS NOT NULL
-    ORDER BY RIGHT(REGEXP_REPLACE(payload->'Customer'->>'mobile', '[^0-9]', '', 'g'), 9), created_at DESC
-  )
-  SELECT 
-    ct.id as contact_id,
-    kd.kiwify_email,
-    kd.kiwify_name
-  FROM contacts ct
-  JOIN conversations c ON c.contact_id = ct.id
-  JOIN kiwify_data kd ON 
-    RIGHT(REGEXP_REPLACE(ct.phone, '[^0-9]', '', 'g'), 9) = kd.last9
-  WHERE ct.status = 'lead'
-    AND ct.email IS NULL
-    AND c.status = 'open';
+### Implementacao Detalhada
 
-  -- 2. Atualizar contatos
-  UPDATE contacts ct
-  SET 
-    status = 'customer',
-    email = ltf.kiwify_email,
-    kiwify_validated = true,
-    kiwify_validated_at = now(),
-    source = 'kiwify_batch_fix'
-  FROM leads_to_fix ltf
-  WHERE ct.id = ltf.contact_id;
-  
-  GET DIAGNOSTICS v_contacts_updated = ROW_COUNT;
+#### 1. Adicionar Dialog de Confirmacao (AvailabilityToggle.tsx)
 
-  -- 3. Atualizar conversas abertas desses contatos para Suporte
-  UPDATE conversations c
-  SET department = v_suporte_dept_id
-  FROM leads_to_fix ltf
-  WHERE c.contact_id = ltf.contact_id
-    AND c.status = 'open'
-    AND (c.department IS NULL OR c.department != v_suporte_dept_id);
-  
-  GET DIAGNOSTICS v_conversations_updated = ROW_COUNT;
-
-  -- 4. Limpar tabela temporária
-  DROP TABLE leads_to_fix;
-
-  -- 5. Retornar resultado
-  RETURN QUERY SELECT v_contacts_updated, v_conversations_updated;
-END;
-$$;
-```
-
-#### 2. Edge Function para Executar
-
-Criar `supabase/functions/fix-leads-kiwify/index.ts`:
+Criar um novo estado e dialog para confirmar a mudanca de Busy para Online:
 
 ```typescript
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Novos estados
+const [showBusyToOnlineDialog, setShowBusyToOnlineDialog] = useState(false);
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Modificar handleStatusChange
+const handleStatusChange = (newStatus: "online" | "busy" | "offline") => {
+  if (newStatus === "offline") {
+    setShowOfflineDialog(true);
+  } else if (newStatus === "online" && status === "busy") {
+    // Nova proteção: confirmar antes de sair de Busy
+    setShowBusyToOnlineDialog(true);
+  } else {
+    updateStatus(newStatus);
+  }
 };
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+// Novo handler para confirmacao
+const handleConfirmBusyToOnline = () => {
+  updateStatus("online");
+  setShowBusyToOnlineDialog(false);
+  toast({
+    title: "Status alterado",
+    description: "Você voltou para Online e receberá novas conversas.",
+  });
+};
+```
 
-  try {
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+#### 2. Criar Componente BusyToOnlineDialog
 
-    console.log("[fix-leads-kiwify] Iniciando correção de leads que são clientes Kiwify...");
+Criar dialog similar ao `OfflineConfirmationDialog`:
 
-    const { data, error } = await supabaseClient.rpc('fix_leads_that_are_kiwify_customers');
+```typescript
+// Novo componente ou inline no AvailabilityToggle
+<AlertDialog open={showBusyToOnlineDialog} onOpenChange={setShowBusyToOnlineDialog}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Voltar para Online?</AlertDialogTitle>
+      <AlertDialogDescription>
+        Voce esta no status "Ocupado". Ao voltar para Online, 
+        voce passara a receber novas conversas automaticamente.
+        
+        Tem certeza que deseja continuar?
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+      <AlertDialogAction onClick={handleConfirmBusyToOnline}>
+        Confirmar - Ficar Online
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
 
-    if (error) {
-      console.error("[fix-leads-kiwify] Erro:", error);
-      throw error;
-    }
+#### 3. Adicionar Auditoria para TODAS as Mudancas (useAvailabilityStatus.tsx)
 
-    const result = data?.[0] || { contacts_updated: 0, conversations_updated: 0 };
-    
-    console.log(`[fix-leads-kiwify] ✅ Contatos: ${result.contacts_updated}, Conversas: ${result.conversations_updated}`);
+Modificar `updateStatusMutation` para registrar auditoria:
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        contacts_updated: result.contacts_updated,
-        conversations_updated: result.conversations_updated,
-        message: `Corrigidos ${result.contacts_updated} contatos e ${result.conversations_updated} conversas`
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
+```typescript
+const updateStatusMutation = useMutation({
+  mutationFn: async (newStatus: AvailabilityStatus) => {
+    if (!user) throw new Error("Usuário não autenticado");
+
+    console.log(`[useAvailabilityStatus] Updating status to: ${newStatus}`);
+
+    // 1. Buscar status anterior para auditoria
+    const { data: oldProfile } = await supabase
+      .from("profiles")
+      .select("availability_status")
+      .eq("id", user.id)
+      .single();
+
+    // 2. Atualizar status
+    const { error } = await supabase
+      .from("profiles")
+      .update({ 
+        availability_status: newStatus,
+        last_status_change: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+
+    if (error) throw error;
+
+    // 3. Registrar na auditoria (mudanca feita pelo proprio atendente)
+    await supabase.from("audit_logs").insert({
+      user_id: user.id,
+      action: 'UPDATE',
+      table_name: 'profiles',
+      record_id: user.id,
+      old_data: { availability_status: oldProfile?.availability_status },
+      new_data: { 
+        availability_status: newStatus,
+        changed_by_self: true,  // Indica que foi o proprio atendente
+        source: 'availability_toggle'
+      }
+    });
+
+    return newStatus;
+  },
+  // ... resto do codigo
 });
 ```
 
 ---
 
-### Arquivos a Criar/Modificar
+### Fluxo Apos Implementacao
 
-| Arquivo | Ação |
-|---------|------|
-| Migration SQL | Criar RPC `fix_leads_that_are_kiwify_customers` |
-| `supabase/functions/fix-leads-kiwify/index.ts` | Criar Edge Function |
-| `supabase/config.toml` | Adicionar configuração da função |
-
----
-
-### Resultado Esperado
-
-Após executar:
-
-- **78 contatos** terão:
-  - `status = 'customer'`
-  - `email` preenchido com o email da Kiwify
-  - `kiwify_validated = true`
-  - `source = 'kiwify_batch_fix'`
-
-- **Conversas abertas** desses contatos:
-  - `department = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a'` (Suporte)
+```text
+[Atendente esta Busy]
+        |
+        v
+  Clica em "Online"
+        |
+        v
+  🆕 Dialog aparece:
+  "Voce esta Ocupado. Voltar para Online?"
+  [Cancelar] [Confirmar]
+        |
+        v
+  Se confirmar → updateStatus("online")
+        |
+        v
+  Mudanca registrada na auditoria
+```
 
 ---
 
-### Como Executar
+### Beneficios
 
-Após a implementação, você poderá:
-
-1. Chamar a Edge Function via curl ou interface
-2. A função retornará quantos contatos e conversas foram corrigidos
-3. Os chats aparecerão no filtro de Suporte
+- Evita cliques acidentais que mudam de Busy para Online
+- Registra TODAS as mudancas de status (admin e atendente)
+- Permite rastrear quem mudou o status e quando
+- Atendente precisa confirmar explicitamente a volta para Online
 
 ---
 
-### Seção Técnica
+### Secao Tecnica
 
-**IDs dos Departamentos:**
-- Suporte: `36ce66cd-7414-4fc8-bd4a-268fecc3f01a`
-- Comercial: `f446e202-bdc3-4bb3-aeda-8c0aa04ee53c`
+**Componentes envolvidos:**
+- `src/components/AvailabilityToggle.tsx` - UI do toggle
+- `src/hooks/useAvailabilityStatus.tsx` - Logica de mudanca
 
-**Lógica de Match:**
-- Compara últimos 9 dígitos do telefone (ignora DDI e formatação)
-- Usa o email mais recente da Kiwify para cada telefone
+**Dialog a usar:**
+- `AlertDialog` do Radix UI (ja importado no projeto)
 
-**Segurança:**
-- RPC usa `SECURITY DEFINER` para executar com permissões do owner
-- Edge Function requer service role key
+**Campos de auditoria:**
+- `changed_by_self: true` - Mudanca feita pelo proprio atendente
+- `source: 'availability_toggle'` - Origem da mudanca
+
+**Linhas a modificar:**
+- `AvailabilityToggle.tsx` linhas 42-74 (handleStatusChange)
+- `useAvailabilityStatus.tsx` linhas 63-104 (updateStatusMutation)
 

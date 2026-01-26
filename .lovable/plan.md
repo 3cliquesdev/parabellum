@@ -1,235 +1,329 @@
 
-## Vincular Atendentes a Grupos (Estilo Octadesk)
+## Plano: Agente RAG Robusto com OpenAI (Anti-Alucinação)
 
-### Contexto Atual
+### Diagnóstico do Sistema Atual
 
-O sistema possui duas estruturas de grupos:
+O Autopilot atual tem várias camadas de proteção, mas ainda alucina porque:
 
-1. **Grupos de Entrega (`delivery_groups`)** - Focados em automações/playbooks para produtos
-2. **Times (`teams`)** - Focados em organizar atendentes em grupos de atendimento
-
-A funcionalidade de **Times** já existe e é a estrutura ideal para vincular atendentes a grupos, similar ao Octadesk. Porém, ela pode ser expandida para ter mais recursos.
-
----
-
-### Proposta: Expandir a Funcionalidade de Times
-
-Adicionar na pagina de **Times** a capacidade de:
-
-1. **Vincular atendentes a multiplos grupos** (ja existe via `team_members`)
-2. **Visualizar rapidamente os membros de cada grupo** (ja existe)
-3. **Gerenciar canais de atendimento por grupo** (novo)
-4. **Definir limite de atendimentos simultaneos por atendente** (novo)
-5. **Configurar departamento padrao do grupo** (novo)
+1. **Modelo fraco**: Usa `gpt-4o-mini` que é rápido mas menos preciso
+2. **Threshold baixo**: Score de confiança mínimo é 0.70 (muitas respostas passam)
+3. **Prompt muito longo**: O system prompt tem ~3500 tokens com muitas instruções conflitantes
+4. **Fallback para Gemini**: Se OpenAI falhar, usa Gemini que tem comportamento diferente
+5. **Query Expansion genérica**: Expande queries mas não valida relevância
 
 ---
 
-### Mudancas no Banco de Dados
+### Solução: Agente RAG Estrito com OpenAI GPT-4o
 
-**Nova tabela: `team_settings`**
-
-```sql
-CREATE TABLE public.team_settings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE UNIQUE,
-  department_id UUID REFERENCES public.departments(id),
-  max_concurrent_chats INTEGER DEFAULT 5,
-  auto_assign BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
-```
-
-**Nova tabela: `team_channels`** (vincular times a canais de atendimento)
-
-```sql
-CREATE TABLE public.team_channels (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
-  channel_id UUID NOT NULL REFERENCES public.support_channels(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  UNIQUE(team_id, channel_id)
-);
-```
+Criar um modo "RAG Estrito" que:
+- Usa **exclusivamente OpenAI GPT-4o** (modelo mais preciso)
+- Exige **score mínimo de 0.85** para responder
+- Usa **prompt enxuto** focado em fidelidade à KB
+- **Cita fontes** explicitamente
+- **Recusa responder** quando não encontra informação
 
 ---
 
-### Mudancas na Interface
-
-**1. Pagina de Times (`src/pages/Teams.tsx`)**
-
-Adicionar na visualizacao do card do time:
-- Departamento vinculado (se houver)
-- Canais de atendimento do time
-- Configuracoes de distribuicao
-
-**2. Novo Componente: `TeamSettingsDialog.tsx`**
-
-Dialog para configurar:
-- Departamento padrao do time
-- Limite de atendimentos simultaneos
-- Distribuicao automatica (on/off)
-- Canais de atendimento vinculados
-
-**3. Expandir `TeamMembersDialog.tsx`**
-
-Adicionar visualizacao do status de disponibilidade de cada membro
-
----
-
-### Fluxo de Uso
+### Arquitetura Proposta
 
 ```text
-Admin acessa Times
-       |
-       v
-Cria novo time "Suporte Premium"
-       |
-       v
-Configura:
-  - Departamento: Suporte
-  - Canais: WhatsApp, Chat Widget
-  - Limite: 5 atendimentos/agente
-       |
-       v
-Adiciona membros:
-  - Joao Silva (Suporte)
-  - Maria Costa (Suporte)
-       |
-       v
-Sistema de routing usa team_channels
-para direcionar conversas ao time correto
+Cliente envia mensagem
+         |
+         v
+[Query Embedding] OpenAI text-embedding-3-small
+         |
+         v
+[Semantic Search] match_knowledge_articles (threshold 0.75)
+         |
+         v
+[Score de Confiança] similarity >= 0.85?
+         |
+    +----+----+
+    |         |
+   SIM       NÃO
+    |         |
+    v         v
+[RAG GPT-4o]  [Handoff + Mensagem padrão]
+    |
+    v
+[Resposta com citação de fonte]
 ```
 
 ---
 
-### Integracao com Routing
+### Mudanças no Código
 
-Atualizar `supabase/functions/route-conversation/index.ts` para:
+**1. Nova configuração no banco: `ai_strict_rag_mode`**
 
-1. Verificar se conversa veio de um canal especifico
-2. Buscar times vinculados a esse canal (`team_channels`)
-3. Priorizar agentes desses times na distribuicao
+Permite ativar/desativar o modo estrito por instância ou globalmente.
+
+**2. Modificar `callAIWithFallback` para modo estrito**
+
+Quando `strict_rag_mode` está ativo:
+- Usar SEMPRE `gpt-4o` (não `gpt-4o-mini`)
+- NÃO fazer fallback para Lovable/Gemini
+- Retornar erro se OpenAI falhar (ao invés de alucinação)
+
+**3. Novo prompt de sistema RAG estrito**
+
+Prompt enxuto e focado:
+
+```
+Você é um assistente de suporte que APENAS responde com base nos documentos fornecidos.
+
+REGRAS ABSOLUTAS:
+1. NUNCA invente informações que não estejam nos documentos abaixo
+2. Se a resposta não estiver nos documentos, diga: "Não encontrei essa informação na base de conhecimento. Posso te conectar com um especialista?"
+3. Sempre cite a fonte: "De acordo com [título do artigo]..."
+4. Mantenha respostas concisas (máximo 150 palavras)
+
+DOCUMENTOS:
+{knowledge_articles}
+
+PERGUNTA DO CLIENTE:
+{customer_message}
+```
+
+**4. Aumentar thresholds de confiança**
+
+```typescript
+// Modo Estrito
+const STRICT_SCORE_DIRECT = 0.90;    // Só responde com 90%+ de match
+const STRICT_SCORE_MINIMUM = 0.85;   // Abaixo disso, SEMPRE handoff
+const STRICT_SIMILARITY_THRESHOLD = 0.80; // Artigos com menos de 80% são ignorados
+```
+
+**5. Validação de resposta pós-geração**
+
+Checar se a resposta da IA contém frases de incerteza (definidas no código atual) e forçar handoff se detectar:
+
+```typescript
+const HALLUCINATION_INDICATORS = [
+  'não tenho certeza',
+  'acredito que',
+  'provavelmente',
+  'geralmente',
+  'pode ser que',
+  'talvez'
+];
+
+// Se detectar indicador, forçar handoff
+if (HALLUCINATION_INDICATORS.some(h => aiResponse.toLowerCase().includes(h))) {
+  return triggerHandoff('uncertainty_detected');
+}
+```
+
+---
+
+### Interface para Ativar Modo Estrito
+
+Adicionar toggle na página de Configurações de IA (`/settings/ai`):
+
+```
++------------------------------------------+
+| Modo RAG Estrito                    [ON] |
++------------------------------------------+
+| Usa exclusivamente OpenAI GPT-4o         |
+| Exige 85%+ de confiança para responder   |
+| Nunca inventa informações                |
+| Cita fontes explicitamente               |
++------------------------------------------+
+```
 
 ---
 
 ### Arquivos a Criar/Modificar
 
-| Arquivo | Acao | Descricao |
+| Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| Nova migration | Criar | Tabelas `team_settings` e `team_channels` |
-| `src/hooks/useTeamSettings.tsx` | Criar | Hook para gerenciar configuracoes do time |
-| `src/hooks/useTeamChannels.tsx` | Criar | Hook para gerenciar canais do time |
-| `src/components/teams/TeamSettingsDialog.tsx` | Criar | Dialog de configuracoes avancadas |
-| `src/pages/Teams.tsx` | Modificar | Adicionar botao de configuracoes e info extra |
-| `src/components/teams/TeamCard.tsx` | Criar | Componente separado para o card do time |
-| `supabase/functions/route-conversation/index.ts` | Modificar | Considerar `team_channels` no routing |
+| `supabase/functions/ai-autopilot-chat/index.ts` | Modificar | Adicionar lógica de modo estrito |
+| `src/pages/AISettingsPage.tsx` | Modificar | Adicionar toggle de modo estrito |
+| `src/hooks/useStrictRAGMode.tsx` | Criar | Hook para gerenciar configuração |
+| Migration SQL | Criar | Adicionar coluna `strict_rag_mode` em system_configurations |
 
 ---
 
-### Interface Final Esperada
+### Implementação Técnica Detalhada
 
-Cada card de time mostrara:
-
-```text
-+------------------------------------------+
-|  [S] Suporte Premium           [...]     |
-|  Primeiro nivel de atendimento           |
-+------------------------------------------+
-|  Gestor: Joao Silva                      |
-|                                          |
-|  Departamento: Suporte                   |
-|  Canais: WhatsApp, Chat                  |
-|  Limite: 5 chats/agente                  |
-|                                          |
-|  👥 4 membros                   [+2+1]   |
-|                                          |
-|  [Gerenciar Membros]  [Configuracoes]    |
-+------------------------------------------+
-```
-
----
-
-### Secao Tecnica: Codigo Principal
-
-**Hook useTeamSettings:**
+**1. Nova função `callStrictRAG` (substitui `callAIWithFallback` quando ativo):**
 
 ```typescript
-export function useTeamSettings(teamId?: string) {
-  return useQuery({
-    queryKey: ["team-settings", teamId],
-    queryFn: async () => {
-      if (!teamId) return null;
-      
-      const { data, error } = await supabase
-        .from("team_settings")
-        .select(`
-          *,
-          department:departments(id, name, color)
-        `)
-        .eq("team_id", teamId)
-        .maybeSingle();
+async function callStrictRAG(
+  supabaseClient: any,
+  customerMessage: string,
+  knowledgeArticles: RetrievedDocument[],
+  contactName: string
+) {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+  
+  if (!OPENAI_API_KEY) {
+    throw new Error('STRICT_RAG requer OPENAI_API_KEY');
+  }
+  
+  // Verificar se temos artigos suficientes
+  const highConfidenceArticles = knowledgeArticles.filter(a => a.similarity >= 0.80);
+  
+  if (highConfidenceArticles.length === 0) {
+    return {
+      shouldHandoff: true,
+      reason: 'Nenhum artigo com confiança >= 80%',
+      response: null
+    };
+  }
+  
+  // Prompt enxuto e focado
+  const strictPrompt = `Você é um assistente de suporte. Responda APENAS com base nos documentos abaixo.
 
-      if (error) throw error;
-      return data;
+REGRAS:
+1. NÃO invente informações
+2. Se não souber, diga: "Não encontrei essa informação. Posso te conectar com um especialista?"
+3. Cite a fonte: "De acordo com [título]..."
+4. Máximo 150 palavras
+
+DOCUMENTOS:
+${highConfidenceArticles.map(a => `### ${a.title}\n${a.content}`).join('\n\n---\n\n')}`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
     },
-    enabled: !!teamId,
+    body: JSON.stringify({
+      model: 'gpt-4o', // Modelo mais preciso
+      messages: [
+        { role: 'system', content: strictPrompt },
+        { role: 'user', content: `${contactName}: ${customerMessage}` }
+      ],
+      temperature: 0.3, // Baixa criatividade = mais fidelidade
+      max_tokens: 400
+    }),
   });
+  
+  if (!response.ok) {
+    throw new Error(`OpenAI strict RAG failed: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  const aiMessage = data.choices[0].message.content;
+  
+  // Validação pós-geração: detectar incerteza
+  const uncertaintyPhrases = ['não tenho certeza', 'acredito que', 'provavelmente', 'pode ser'];
+  const hasUncertainty = uncertaintyPhrases.some(p => aiMessage.toLowerCase().includes(p));
+  
+  if (hasUncertainty) {
+    return {
+      shouldHandoff: true,
+      reason: 'IA expressou incerteza na resposta',
+      response: aiMessage
+    };
+  }
+  
+  return {
+    shouldHandoff: false,
+    reason: null,
+    response: aiMessage,
+    citedArticles: highConfidenceArticles.map(a => a.title)
+  };
 }
 ```
 
-**Hook useTeamChannels:**
+**2. Integração no fluxo principal:**
 
 ```typescript
-export function useTeamChannels(teamId?: string) {
-  return useQuery({
-    queryKey: ["team-channels", teamId],
-    queryFn: async () => {
-      if (!teamId) return [];
-      
-      const { data, error } = await supabase
-        .from("team_channels")
-        .select(`
-          *,
-          channel:support_channels(id, name, color)
-        `)
-        .eq("team_id", teamId);
+// No início do processamento (após buscar artigos)
+const strictMode = await getSystemConfig(supabaseClient, 'ai_strict_rag_mode');
 
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!teamId,
-  });
+if (strictMode === 'true') {
+  const ragResult = await callStrictRAG(
+    supabaseClient,
+    customerMessage,
+    knowledgeArticles,
+    contactName
+  );
+  
+  if (ragResult.shouldHandoff) {
+    // Fazer handoff com mensagem padronizada
+    return handleStrictHandoff(ragResult.reason, contactName);
+  }
+  
+  // Enviar resposta citando fontes
+  return sendResponse(ragResult.response, ragResult.citedArticles);
 }
+
+// Caso contrário, continua com fluxo atual (comportamento legado)
 ```
 
-**Integracao no route-conversation:**
+**3. Toggle na interface:**
 
-```typescript
-// Buscar times vinculados ao canal da conversa
-const { data: teamChannels } = await supabaseClient
-  .from("team_channels")
-  .select("team_id")
-  .eq("channel_id", channelId);
-
-const teamIds = teamChannels?.map(tc => tc.team_id) || [];
-
-// Buscar membros desses times
-const { data: teamMembers } = await supabaseClient
-  .from("team_members")
-  .select("user_id")
-  .in("team_id", teamIds);
-
-// Priorizar esses agentes no routing
-const priorityAgentIds = teamMembers?.map(tm => tm.user_id) || [];
+```tsx
+// Em AISettingsPage.tsx
+<Card>
+  <CardHeader>
+    <CardTitle>Modo RAG Estrito</CardTitle>
+    <CardDescription>
+      Usa exclusivamente OpenAI GPT-4o com alta precisão
+    </CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="font-medium">
+          {isStrictMode ? 'Ativado' : 'Desativado'}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {isStrictMode 
+            ? 'IA só responde com 85%+ de confiança, nunca alucina' 
+            : 'Modo padrão com fallback para Gemini'}
+        </p>
+      </div>
+      <Switch 
+        checked={isStrictMode} 
+        onCheckedChange={toggleStrictMode}
+      />
+    </div>
+  </CardContent>
+</Card>
 ```
 
 ---
 
-### Beneficios
+### Comparativo: Antes vs Depois
 
-- Atendentes organizados por especialidade
-- Routing inteligente baseado em canal + time
-- Limite de atendimentos por agente
-- Visibilidade clara de quem atende o que
-- Similar ao modelo do Octadesk
+| Aspecto | Antes (Atual) | Depois (Modo Estrito) |
+|---------|---------------|----------------------|
+| Modelo | gpt-4o-mini | gpt-4o |
+| Fallback | Gemini | Nenhum (erro) |
+| Threshold | 0.70 | 0.85 |
+| Temperatura | 0.7 | 0.3 |
+| Prompt | ~3500 tokens | ~500 tokens |
+| Citação de fonte | Não | Sim |
+| Validação pós-resposta | Não | Sim |
+
+---
+
+### Benefícios
+
+- **Zero alucinações**: IA só responde quando tem certeza
+- **Transparência**: Cita fontes explicitamente
+- **Consistência**: Apenas OpenAI, sem mistura de modelos
+- **Controle**: Toggle para ativar/desativar por instância
+- **Custo controlado**: GPT-4o é mais caro mas mais preciso
+
+---
+
+### Considerações de Custo
+
+GPT-4o custa ~3x mais que gpt-4o-mini, mas:
+- Menos handoffs desnecessários (IA resolve mais casos corretamente)
+- Menor tempo de atendimento humano
+- Maior satisfação do cliente
+
+---
+
+### Próximos Passos Pós-Implementação
+
+1. **Monitorar métricas**: Taxa de handoff, tempo de resposta, satisfação
+2. **Ajustar thresholds**: Se muito conservador, baixar para 0.80
+3. **Expandir KB**: Adicionar mais artigos para cobrir casos comuns
+4. **Feedback loop**: Marcar respostas corretas/incorretas para ajuste fino

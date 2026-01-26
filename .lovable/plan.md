@@ -1,190 +1,254 @@
 
-## Plano de Correção: Status Só Muda Por Decisão do Usuário/Admin
 
-### Problema Atual
+## Plano de Correção: IA Deve Pedir Email ANTES de Fazer Handoff
 
-O sistema está forçando o status para "online" automaticamente em várias situações:
+### Problema Identificado
 
-| Local | Problema |
-|-------|----------|
-| `useAvailabilityStatus.tsx` (linha 159-167) | Ao montar o componente, se status é "offline", força para "online" |
-| `useAvailabilityStatus.tsx` (linha 236-244) | Ao voltar na aba, se status é "offline", força para "online" |
-| `useAvailabilityStatus.tsx` (linha 270-280) | Ao fechar o navegador, força para "offline" |
-| `check-inactive-users` (linha 58-65) | CRON força "offline" após 5min de inatividade |
+O fluxo atual está fazendo handoff imediato quando a confiança é baixa, **SEM pedir o email primeiro**. A verificação `isLeadWithoutEmail` só decide o departamento destino (Comercial/Suporte), mas não bloqueia o handoff para pedir email.
 
-Isso cria um ciclo: CRON coloca "offline" por inatividade, usuário volta na aba, hook força "online".
+**Fluxo Atual (ERRADO):**
+```text
+Lead sem email envia "Olá boa tarde"
+        |
+        v
+  Identity Wall: hasEmail=false ✅
+        |
+        v
+  Confidence Score: 22% → action=handoff
+        |
+        v
+  isLeadWithoutEmail? SIM → department=Comercial ✅
+        |
+        v
+  FAZ HANDOFF IMEDIATO ❌ (sem pedir email!)
+        |
+        v
+  [Lead na fila do Comercial SEM email verificado]
+```
 
-### Regras Solicitadas
-
-1. **Sem auto-mudança**: Sistema NUNCA muda Online/Busy/Offline sozinho
-2. **Busy pode virar Offline**: Permitido apenas se o CRON detectar inatividade (heartbeat expirado)
-3. **Apenas usuário/admin muda status**: Qualquer mudança é explícita via UI
+**Fluxo Correto (ESPERADO):**
+```text
+Lead sem email envia "Olá boa tarde"
+        |
+        v
+  Identity Wall: hasEmail=false ✅
+        |
+        v
+  Confidence Score: 22% → action=handoff
+        |
+        v
+  isLeadWithoutEmail? SIM
+        |
+        v
+  BLOQUEAR HANDOFF → Responder pedindo email ✅
+        |
+        v
+  [Lead responde com email]
+        |
+        v
+  verify_customer_email → Não encontrado
+        |
+        v
+  confirm_email_not_found → Transferir para Comercial ✅
+```
 
 ---
 
-### Arquivos a Modificar
+### Arquivo a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useAvailabilityStatus.tsx` | Remover TODA lógica de auto-set para "online" |
-| `supabase/functions/check-inactive-users/index.ts` | Manter (pois Busy pode virar Offline por inatividade) |
+| `supabase/functions/ai-autopilot-chat/index.ts` | Bloquear handoff para leads sem email e responder pedindo email |
 
 ---
 
 ### Implementação Detalhada
 
-#### 1. Remover Auto-Set para Online no Mount (Linhas 136-215)
+#### Modificar a Lógica de Handoff por Baixa Confiança (Linhas 2118-2247)
+
+**Localização:** Após `if (confidenceResult.action === 'handoff' && !shouldSkipHandoff)`
 
 **Antes:**
 ```typescript
-const setOnlineAndDistribute = async () => {
-  const { data: currentProfile } = await supabase...
-  const shouldSetOnline = currentStatus === 'offline' || !currentStatus;
+if (confidenceResult.action === 'handoff' && !shouldSkipHandoff) {
+  console.log('[ai-autopilot-chat] LOW CONFIDENCE HANDOFF');
   
-  if (shouldSetOnline) {
-    await supabase.from("profiles").update({ availability_status: "online" })...
-    // Distribuir conversas...
-  } else {
-    // Apenas heartbeat
-  }
-};
+  const isLeadWithoutEmail = !contactHasEmail && !isCustomerInDatabase && !isKiwifyValidated;
+  const handoffDepartment = isLeadWithoutEmail ? DEPT_COMERCIAL_ID : DEPT_SUPORTE_ID;
+  
+  // FAZ HANDOFF IMEDIATO (mesmo sem email) ← PROBLEMA
+  await supabaseClient.from('conversations').update({ ai_mode: 'waiting_human' })...
+  await supabaseClient.functions.invoke('route-conversation')...
+  
+  return new Response(...); // RETORNA SEM PEDIR EMAIL
+}
 ```
 
 **Depois:**
 ```typescript
-const initializeHeartbeat = async () => {
-  console.log("[useAvailabilityStatus] Initializing - NOT changing status automatically");
+if (confidenceResult.action === 'handoff' && !shouldSkipHandoff) {
+  console.log('[ai-autopilot-chat] LOW CONFIDENCE HANDOFF');
   
-  // APENAS enviar heartbeat para indicar atividade
-  // NÃO mudar o status para "online" - isso é decisão do usuário
-  await supabase
-    .from("profiles")
-    .update({ 
-      last_status_change: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+  const isLeadWithoutEmail = !contactHasEmail && !isCustomerInDatabase && !isKiwifyValidated && !isPhoneVerified;
   
-  console.log("[useAvailabilityStatus] Heartbeat initialized (status unchanged)");
-};
-
-initializeHeartbeat();
-```
-
-#### 2. Remover Auto-Set para Online no Visibility Change (Linhas 217-264)
-
-**Antes:**
-```typescript
-const handleVisibilityChange = async () => {
-  if (document.visibilityState === 'visible') {
-    const currentStatus = ...;
+  // 🆕 NOVA LÓGICA: Lead sem email → NÃO fazer handoff, pedir email primeiro
+  if (isLeadWithoutEmail) {
+    console.log('[ai-autopilot-chat] 🔐 LEAD SEM EMAIL - Bloqueando handoff, pedindo email primeiro');
     
-    if (currentStatus === 'offline') {
-      await supabase.from("profiles").update({ availability_status: "online" })...
-    } else {
-      // Apenas heartbeat
+    // Usar template do banco ou fallback
+    let askEmailMessage = await getMessageTemplate(
+      supabaseClient,
+      'identity_wall_ask_email',
+      { contact_name: contactName || '' }
+    );
+    
+    if (!askEmailMessage) {
+      const firstName = contactName ? contactName.split(' ')[0] : '';
+      askEmailMessage = `Olá${firstName ? `, ${firstName}` : ''}! 👋\n\nPara garantir um atendimento personalizado e seguro, preciso que você me informe seu email.`;
     }
-  }
-};
-```
-
-**Depois:**
-```typescript
-const handleVisibilityChange = async () => {
-  if (document.visibilityState === 'visible') {
-    console.log("[useAvailabilityStatus] Tab visible - only sending heartbeat (no auto-online)");
     
-    // APENAS enviar heartbeat - NÃO mudar status automaticamente
-    await supabase
-      .from("profiles")
-      .update({ 
-        last_status_change: new Date().toISOString(),
+    // Salvar mensagem pedindo email
+    await supabaseClient.from('messages').insert({
+      conversation_id: conversationId,
+      content: askEmailMessage,
+      sender_type: 'user',
+      is_ai_generated: true,
+      channel: responseChannel
+    });
+    
+    // Enviar via WhatsApp se for o canal
+    if (responseChannel === 'whatsapp' && contact?.phone) {
+      const whatsappInstance = await getWhatsAppInstanceForConversation(
+        supabaseClient, 
+        conversationId, 
+        conversation.whatsapp_instance_id
+      );
+      
+      if (whatsappInstance) {
+        await supabaseClient.functions.invoke('send-whatsapp-message', {
+          body: {
+            instance_id: whatsappInstance.id,
+            phone_number: contact.phone,
+            whatsapp_id: contact.whatsapp_id,
+            message: askEmailMessage,
+            conversation_id: conversationId,
+            use_queue: true
+          }
+        });
+      }
+    }
+    
+    // Atualizar metadata para rastrear que estamos aguardando email
+    await supabaseClient.from('conversations')
+      .update({
+        customer_metadata: {
+          ...(conversation.customer_metadata || {}),
+          awaiting_email_for_handoff: true,
+          handoff_blocked_at: new Date().toISOString(),
+          handoff_blocked_reason: 'low_confidence_lead_without_email'
+        }
       })
-      .eq("id", user.id);
+      .eq('id', conversationId);
+    
+    // RETORNAR SEM FAZER HANDOFF - Aguardar email
+    return new Response(JSON.stringify({
+      status: 'awaiting_email',
+      message: askEmailMessage,
+      reason: 'Lead sem email - solicitando identificacao antes do handoff',
+      confidence_score: confidenceResult.score
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
-};
+  
+  // Cliente identificado → Continuar com handoff normal para Suporte
+  const handoffDepartment = confidenceResult.department || DEPT_SUPORTE_ID;
+  // ... resto da lógica de handoff existente
+}
 ```
-
-#### 3. Remover Auto-Offline no Unload (Linhas 266-291)
-
-**Antes:**
-```typescript
-const handleBeforeUnload = async () => {
-  await supabase.from("profiles").update({ availability_status: "offline" })...
-};
-```
-
-**Depois:**
-```typescript
-// REMOVER COMPLETAMENTE este efeito
-// O status não deve mudar automaticamente ao fechar o navegador
-// Se o usuário quiser ficar offline, ele deve clicar explicitamente
-// O CRON check-inactive-users vai marcar como offline após 5min sem heartbeat
-```
-
-#### 4. Manter CRON check-inactive-users (Sem Alteração)
-
-O CRON que marca usuários inativos como "offline" **deve ser mantido**, pois:
-- Você confirmou que "Busy pode virar Offline" por inatividade
-- Isso é um safety net para quando atendentes esquecem de se marcar offline
-- A diferença é que usamos `manual_offline: false` para distinguir de offline manual
 
 ---
 
 ### Fluxo Corrigido
 
 ```text
-[Usuário abre o app]
-        |
-        v
-  Hook monta → Apenas heartbeat (status NÃO muda)
-        |
-        v
-  [Status permanece como estava no DB]
-  (se estava Busy → continua Busy)
-  (se estava Offline → continua Offline)
-        |
-        v
-  [Usuário quer receber chats]
-        |
-        v
-  Clica em "Online" → updateStatus("online")
-        |
-        v
-  [Agora sim está Online!]
+[Lead sem email envia mensagem]
+         |
+         v
+  Identity Wall Check:
+    - hasEmail: false
+    - isCustomerInDatabase: false
+         |
+         v
+  Confidence Score: 22%
+  action: handoff
+         |
+         v
+  🆕 NOVA VERIFICAÇÃO:
+    isLeadWithoutEmail? SIM
+         |
+         v
+  🆕 BLOQUEAR HANDOFF!
+  Responder: "Para garantir um atendimento
+  personalizado, preciso do seu email."
+         |
+         v
+  status: 'awaiting_email'
+  (conversa continua em autopilot)
+         |
+         v
+  [Lead responde com email]
+         |
+         v
+  IA usa verify_customer_email
+         |
+         v
+  Email não encontrado → IA confirma
+         |
+         v
+  confirm_email_not_found(confirmed=true)
+         |
+         v
+  [AGORA SIM: Handoff para Comercial]
 ```
 
 ---
 
-### Resumo das Mudanças
+### Benefícios
 
-| Comportamento | Antes | Depois |
-|---------------|-------|--------|
-| Abrir o app quando estava Offline | Força Online | Mantém Offline |
-| Abrir o app quando estava Busy | Mantém Busy | Mantém Busy |
-| Voltar para a aba | Força Online se estava Offline | Apenas heartbeat |
-| Fechar o navegador | Força Offline | Nada (CRON cuida) |
-| 5min sem atividade | CRON força Offline | CRON força Offline |
-| Usuário clica "Online" | Muda para Online | Muda para Online |
-| Usuário clica "Ocupado" | Muda para Busy | Muda para Busy |
-| Admin muda status | Muda status | Muda status |
+- IA sempre pede email antes de fazer handoff para leads
+- Leads são verificados na base antes de ir para o Comercial
+- Se o email existir na base, cliente é identificado e vai para Suporte
+- Clientes já identificados continuam com handoff normal
+- Metadata rastreia o estado da conversa (awaiting_email)
 
 ---
 
-### Seção Técnica
+### Seção Tecnica
 
-**Arquivo principal:**
-- `src/hooks/useAvailabilityStatus.tsx`
+**Constantes:**
+```typescript
+const DEPT_COMERCIAL_ID = 'f446e202-bdc3-4bb3-aeda-8c0aa04ee53c';
+const DEPT_SUPORTE_ID = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a';
+```
 
-**Mudanças específicas:**
-1. Linhas 136-215: Substituir `setOnlineAndDistribute` por `initializeHeartbeat` (só heartbeat)
-2. Linhas 217-264: Remover lógica de auto-online no visibility change
-3. Linhas 266-291: Remover completamente o `beforeunload` handler
+**Verificacao de Lead:**
+```typescript
+const isLeadWithoutEmail = !contactHasEmail && !isCustomerInDatabase && !isKiwifyValidated && !isPhoneVerified;
+```
 
-**Edge Functions:**
-- `check-inactive-users`: Manter como está (Busy → Offline por inatividade)
-- `go-offline-manual`: Manter como está (offline explícito com redistribuição)
+**Template Sugerido (ai_message_templates):**
+```json
+{
+  "key": "identity_wall_ask_email",
+  "content": "Olá{{contact_name ? `, ${contact_name}` : ''}}! 👋\n\nPara garantir um atendimento personalizado e seguro, preciso que você me informe seu email.",
+  "is_active": true
+}
+```
 
-**Comportamento do Heartbeat:**
-- Continua enviando a cada 2 minutos para indicar atividade
-- Se heartbeat não for enviado por 5min, CRON marca como Offline
-- Isso é desejável para evitar atendentes "fantasmas" que fecharam o navegador
+**Linhas a Modificar:**
+- `supabase/functions/ai-autopilot-chat/index.ts` linhas 2118-2247
+
+**Deploy Necessario:**
+- Edge Function `ai-autopilot-chat`
+

@@ -1,159 +1,235 @@
 
-## Plano: Simplificar Sistema - Priorizar Chat Flows sobre Triagem
+## Vincular Atendentes a Grupos (Estilo Octadesk)
 
-### Diagnóstico
+### Contexto Atual
 
-Identifiquei **3 problemas principais**:
+O sistema possui duas estruturas de grupos:
 
-1. **Ordem de execução errada**: A triagem (menu 1/2) acontece ANTES da verificação de Chat Flows
-2. **Trigger genérico demais**: O trigger "Olá vim pelo email..." faz match com qualquer mensagem que contenha "Olá" 
-3. **Fluxo incompleto**: O Fluxo de Carnaval não tem nó de resposta IA - vai direto para transfer
+1. **Grupos de Entrega (`delivery_groups`)** - Focados em automações/playbooks para produtos
+2. **Times (`teams`)** - Focados em organizar atendentes em grupos de atendimento
 
-### Solução Proposta
-
-Reorganizar a lógica para priorizar Chat Flows sobre a triagem genérica.
+A funcionalidade de **Times** já existe e é a estrutura ideal para vincular atendentes a grupos, similar ao Octadesk. Porém, ela pode ser expandida para ter mais recursos.
 
 ---
 
-### Mudanças no Código
+### Proposta: Expandir a Funcionalidade de Times
 
-**Arquivo:** `supabase/functions/ai-autopilot-chat/index.ts`
+Adicionar na pagina de **Times** a capacidade de:
 
-**Mudança 1: Mover verificação de Chat Flow para ANTES da triagem**
+1. **Vincular atendentes a multiplos grupos** (ja existe via `team_members`)
+2. **Visualizar rapidamente os membros de cada grupo** (ja existe)
+3. **Gerenciar canais de atendimento por grupo** (novo)
+4. **Definir limite de atendimentos simultaneos por atendente** (novo)
+5. **Configurar departamento padrao do grupo** (novo)
 
-Atualmente:
+---
+
+### Mudancas no Banco de Dados
+
+**Nova tabela: `team_settings`**
+
+```sql
+CREATE TABLE public.team_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE UNIQUE,
+  department_id UUID REFERENCES public.departments(id),
+  max_concurrent_chats INTEGER DEFAULT 5,
+  auto_assign BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
 ```
-1. Email detection (linha 1440-1605)
-2. Triagem inteligente (linha 1203-1440) ← Problema!
-3. Chat Flow detection (linha 1609-1746)
+
+**Nova tabela: `team_channels`** (vincular times a canais de atendimento)
+
+```sql
+CREATE TABLE public.team_channels (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
+  channel_id UUID NOT NULL REFERENCES public.support_channels(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  UNIQUE(team_id, channel_id)
+);
 ```
 
-Proposta:
-```
-1. Email detection 
-2. Chat Flow detection ← MOVIDO PARA ANTES
-3. Triagem inteligente (só se Chat Flow não encontrou match)
+---
+
+### Mudancas na Interface
+
+**1. Pagina de Times (`src/pages/Teams.tsx`)**
+
+Adicionar na visualizacao do card do time:
+- Departamento vinculado (se houver)
+- Canais de atendimento do time
+- Configuracoes de distribuicao
+
+**2. Novo Componente: `TeamSettingsDialog.tsx`**
+
+Dialog para configurar:
+- Departamento padrao do time
+- Limite de atendimentos simultaneos
+- Distribuicao automatica (on/off)
+- Canais de atendimento vinculados
+
+**3. Expandir `TeamMembersDialog.tsx`**
+
+Adicionar visualizacao do status de disponibilidade de cada membro
+
+---
+
+### Fluxo de Uso
+
+```text
+Admin acessa Times
+       |
+       v
+Cria novo time "Suporte Premium"
+       |
+       v
+Configura:
+  - Departamento: Suporte
+  - Canais: WhatsApp, Chat Widget
+  - Limite: 5 atendimentos/agente
+       |
+       v
+Adiciona membros:
+  - Joao Silva (Suporte)
+  - Maria Costa (Suporte)
+       |
+       v
+Sistema de routing usa team_channels
+para direcionar conversas ao time correto
 ```
 
-**Mudança 2: Corrigir lógica de match em `process-chat-flow`**
+---
 
-O problema está na linha 533 de `supabase/functions/process-chat-flow/index.ts`:
+### Integracao com Routing
+
+Atualizar `supabase/functions/route-conversation/index.ts` para:
+
+1. Verificar se conversa veio de um canal especifico
+2. Buscar times vinculados a esse canal (`team_channels`)
+3. Priorizar agentes desses times na distribuicao
+
+---
+
+### Arquivos a Criar/Modificar
+
+| Arquivo | Acao | Descricao |
+|---------|------|-----------|
+| Nova migration | Criar | Tabelas `team_settings` e `team_channels` |
+| `src/hooks/useTeamSettings.tsx` | Criar | Hook para gerenciar configuracoes do time |
+| `src/hooks/useTeamChannels.tsx` | Criar | Hook para gerenciar canais do time |
+| `src/components/teams/TeamSettingsDialog.tsx` | Criar | Dialog de configuracoes avancadas |
+| `src/pages/Teams.tsx` | Modificar | Adicionar botao de configuracoes e info extra |
+| `src/components/teams/TeamCard.tsx` | Criar | Componente separado para o card do time |
+| `supabase/functions/route-conversation/index.ts` | Modificar | Considerar `team_channels` no routing |
+
+---
+
+### Interface Final Esperada
+
+Cada card de time mostrara:
+
+```text
++------------------------------------------+
+|  [S] Suporte Premium           [...]     |
+|  Primeiro nivel de atendimento           |
++------------------------------------------+
+|  Gestor: Joao Silva                      |
+|                                          |
+|  Departamento: Suporte                   |
+|  Canais: WhatsApp, Chat                  |
+|  Limite: 5 chats/agente                  |
+|                                          |
+|  👥 4 membros                   [+2+1]   |
+|                                          |
+|  [Gerenciar Membros]  [Configuracoes]    |
++------------------------------------------+
+```
+
+---
+
+### Secao Tecnica: Codigo Principal
+
+**Hook useTeamSettings:**
+
 ```typescript
-// Match 2: Trigger contém a mensagem - MUITO PERMISSIVO!
-if (triggerNorm.includes(messageNorm) && messageNorm.length >= 10)
-```
+export function useTeamSettings(teamId?: string) {
+  return useQuery({
+    queryKey: ["team-settings", teamId],
+    queryFn: async () => {
+      if (!teamId) return null;
+      
+      const { data, error } = await supabase
+        .from("team_settings")
+        .select(`
+          *,
+          department:departments(id, name, color)
+        `)
+        .eq("team_id", teamId)
+        .maybeSingle();
 
-Proposta: Inverter a lógica para que apenas triggers CURTOS (keywords) usem essa lógica, não frases longas.
-
-```typescript
-// Match 2: Trigger contém a mensagem 
-// Só aplica se TRIGGER é curto (keyword) E mensagem é longa
-if (triggerNorm.length < 30 && triggerNorm.includes(messageNorm) && messageNorm.length >= 10)
-```
-
----
-
-### Correção Imediata do Fluxo de Carnaval
-
-O fluxo atual:
-```
-[Start] → [Transfer para Comercial]
-```
-
-Deveria ser:
-```
-[Start] → [Resposta IA] → [Transfer para Comercial] (opcional)
-```
-
-Para corrigir:
-1. Adicionar um nó "Resposta IA" no fluxo de carnaval
-2. Configurar persona/KB apropriada para responder sobre promoções
-3. Ou: usar trigger keyword mais específico como "pré carnaval" ou "promoção carnaval"
-
----
-
-### Alternativa: Usar apenas OpenAI
-
-Como você sugeriu, simplificar para usar apenas OpenAI:
-
-1. **Desativar** a triagem de menu (1/2) para clientes que mencionam intenções específicas
-2. **Deixar a IA responder** diretamente sobre promoções usando a Knowledge Base
-3. **Chat Flows** seriam usados apenas para coleta de dados estruturados (nome, email, CPF)
-
-Essa abordagem:
-- Reduz complexidade do sistema
-- Aproveita a inteligência do modelo para entender contexto
-- Evita loops de menus que frustram clientes
-
----
-
-### Implementação Técnica
-
-**1. Mover Chat Flow check para antes da triagem (ai-autopilot-chat ~linha 1200):**
-
-```typescript
-// ============================================================
-// 🆕 PRIORIDADE 1: Chat Flow (ANTES da triagem)
-// ============================================================
-let flowProcessedEarly = false;
-
-try {
-  const { data: flowResult, error: flowError } = await supabaseClient.functions.invoke(
-    'process-chat-flow',
-    { body: { conversationId, userMessage: customerMessage } }
-  );
-  
-  if (!flowError && flowResult && flowResult.useAI === false && flowResult.response) {
-    // Flow encontrou match e tem resposta - pular triagem
-    flowProcessedEarly = true;
-    // ... processar resposta do flow ...
-  }
-} catch (e) {
-  console.error('[ai-autopilot-chat] Chat Flow check failed:', e);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!teamId,
+  });
 }
-
-// 🎯 TRIAGEM: Só executa se Chat Flow não processou
-if (!flowProcessedEarly) {
-  // ... lógica de triagem atual ...
-}
 ```
 
-**2. Corrigir lógica de match (process-chat-flow linha 531-537):**
+**Hook useTeamChannels:**
 
 ```typescript
-// Match 2: Só aplica se trigger é keyword curto (< 30 chars)
-if (triggerNorm.length < 30 && triggerNorm.includes(messageNorm) && messageNorm.length >= 10) {
-  console.log('[process-chat-flow] ✅ Match reverso (keyword curto):', trigger);
-  matchedFlow = flow;
-  break;
+export function useTeamChannels(teamId?: string) {
+  return useQuery({
+    queryKey: ["team-channels", teamId],
+    queryFn: async () => {
+      if (!teamId) return [];
+      
+      const { data, error } = await supabase
+        .from("team_channels")
+        .select(`
+          *,
+          channel:support_channels(id, name, color)
+        `)
+        .eq("team_id", teamId);
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!teamId,
+  });
 }
+```
+
+**Integracao no route-conversation:**
+
+```typescript
+// Buscar times vinculados ao canal da conversa
+const { data: teamChannels } = await supabaseClient
+  .from("team_channels")
+  .select("team_id")
+  .eq("channel_id", channelId);
+
+const teamIds = teamChannels?.map(tc => tc.team_id) || [];
+
+// Buscar membros desses times
+const { data: teamMembers } = await supabaseClient
+  .from("team_members")
+  .select("user_id")
+  .in("team_id", teamIds);
+
+// Priorizar esses agentes no routing
+const priorityAgentIds = teamMembers?.map(tm => tm.user_id) || [];
 ```
 
 ---
 
-### Arquivos a Modificar
+### Beneficios
 
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/functions/ai-autopilot-chat/index.ts` | Mover Chat Flow check para antes da triagem |
-| `supabase/functions/process-chat-flow/index.ts` | Corrigir lógica de match reverso |
-
----
-
-### Resultado Esperado
-
-Após as mudanças:
-1. Cliente envia "vim pelo email e gostaria de saber da promoção de pré carnaval"
-2. Chat Flow detecta match com Fluxo de Carnaval
-3. Se fluxo tem nó de resposta IA: IA responde sobre promoção
-4. Se fluxo tem transfer: transfere para Comercial
-5. Triagem de menu (1/2) é IGNORADA
-
----
-
-### Recomendação Adicional
-
-Para o Fluxo de Carnaval funcionar como você espera:
-- Adicionar nó **Resposta IA** entre Start e Transfer
-- Configurar persona/KB para responder sobre promoções
-- Ou: mudar trigger para keywords específicos como `["pré carnaval", "promoção carnaval", "desconto carnaval"]`
+- Atendentes organizados por especialidade
+- Routing inteligente baseado em canal + time
+- Limite de atendimentos por agente
+- Visibilidade clara de quem atende o que
+- Similar ao modelo do Octadesk

@@ -247,6 +247,13 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
   const isAutopilot = aiMode === 'autopilot';
   const isCopilot = aiMode === 'copilot';
   const isDisabled = aiMode === 'disabled';
+  const isWaitingHuman = aiMode === 'waiting_human';
+  
+  // Mostrar botão "Assumir" quando:
+  // 1. IA está controlando (autopilot)
+  // 2. Conversa está aguardando humano (waiting_human)
+  // 3. Conversa não está atribuída a ninguém (pool geral)
+  const canShowTakeControl = isAutopilot || isWaitingHuman || !conversation?.assigned_to;
 
   const isSending = sendMessage.isPending || sendEmail.isPending;
 
@@ -347,7 +354,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
 
               {/* Botões de ação - lado direito */}
               <div className="flex items-center gap-1.5 shrink-0">
-                {isAutopilot && (
+                {canShowTakeControl && (
                   <Button
                     variant="default"
                     size="sm"
@@ -361,7 +368,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
                   </Button>
                 )}
 
-                {(isCopilot || aiMode === 'waiting_human') && (
+                {(isCopilot || isWaitingHuman) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -420,7 +427,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
                   <span className="text-xs hidden xl:inline">Encerrar</span>
                 </Button>
                 
-                {!isAutopilot && (
+                {!canShowTakeControl && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -435,11 +442,17 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
             </div>
           </div>
 
-          {isAutopilot && (
+          {canShowTakeControl && (
             <Alert className="m-4 mb-0 border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/50">
               <Bot className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               <AlertDescription className="text-violet-800 dark:text-violet-300">
-                {activePersona ? `Persona "${activePersona.name}"` : 'IA'} está respondendo automaticamente.
+                {isWaitingHuman 
+                  ? 'Aguardando atendimento humano. Clique em "Assumir" para atender.'
+                  : !conversation?.assigned_to
+                    ? 'Conversa no pool geral. Clique em "Assumir" para atender.'
+                    : activePersona 
+                      ? `Persona "${activePersona.name}" está respondendo automaticamente.` 
+                      : 'IA está respondendo automaticamente.'}
               </AlertDescription>
             </Alert>
           )}
@@ -484,11 +497,13 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
             </div>
           )}
 
-          {isAutopilot ? (
+          {canShowTakeControl ? (
             <div className="flex-none p-4 border-t border-slate-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur">
               <div className="max-w-3xl mx-auto flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-zinc-400">
                 <Bot className="h-4 w-4" />
-                <span>Modo Piloto Automático - Digite mensagens desabilitado</span>
+                <span>
+                  {isWaitingHuman ? 'Aguardando atendimento humano' : 'Modo Piloto Automático'} - Clique em "Assumir" para digitar
+                </span>
               </div>
             </div>
           ) : (

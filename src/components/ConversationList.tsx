@@ -106,15 +106,7 @@ export default function ConversationList({
   };
 
   return (
-    <div className="w-72 lg:w-80 shrink-0 border-r bg-card border-border flex flex-col h-full overflow-hidden">
-      <div className="flex-none p-4 border-b border-border">
-        <h2 className="text-lg font-semibold text-foreground">Conversas</h2>
-        {!isLoading && conversations.length > 0 && (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {conversations.length} conversa{conversations.length !== 1 ? 's' : ''}
-          </p>
-        )}
-      </div>
+    <div className="w-full shrink-0 bg-card flex flex-col h-full overflow-hidden">
       <div ref={containerRef} className="flex-1 min-h-0">
         {isLoading ? (
           <ConversationListSkeleton count={8} />

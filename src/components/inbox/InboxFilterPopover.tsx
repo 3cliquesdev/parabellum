@@ -118,28 +118,28 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
   };
 
   return (
-    <div className="flex gap-2 items-center flex-wrap">
-      {/* Search Input */}
-      <div className="relative flex-1 min-w-[200px]">
+    <div className="space-y-3">
+      {/* Search Input - full width */}
+      <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Buscar por nome, email, ID..."
           value={filters.search}
           onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-          className="pl-9"
+          className="pl-9 h-9"
         />
       </div>
 
-      {/* Quick Filters */}
+      {/* Quick Filters - wrap nicely */}
       <div className="flex gap-1.5 flex-wrap">
         {/* SLA Expired */}
         <Button
           variant={filters.slaExpired ? "destructive" : "outline"}
           size="sm"
           onClick={() => onFiltersChange({ ...filters, slaExpired: !filters.slaExpired })}
-          className="gap-1.5"
+          className="gap-1 h-7 px-2 text-xs"
         >
-          <Clock className="h-3.5 w-3.5" />
+          <Clock className="h-3 w-3" />
           SLA
         </Button>
 
@@ -148,9 +148,9 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
           variant={filters.includeArchived ? "secondary" : "outline"}
           size="sm"
           onClick={() => onFiltersChange({ ...filters, includeArchived: !filters.includeArchived })}
-          className="gap-1.5"
+          className="gap-1 h-7 px-2 text-xs"
         >
-          <Archive className="h-3.5 w-3.5" />
+          <Archive className="h-3 w-3" />
           +Arquivadas
         </Button>
 
@@ -159,9 +159,9 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
           variant={filters.hasAudio ? "default" : "outline"}
           size="sm"
           onClick={() => onFiltersChange({ ...filters, hasAudio: !filters.hasAudio })}
-          className="gap-1.5"
+          className="gap-1 h-7 px-2 text-xs"
         >
-          <Mic className="h-3.5 w-3.5" />
+          <Mic className="h-3 w-3" />
           Áudio
         </Button>
 
@@ -170,192 +170,192 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
           variant={filters.hasAttachments ? "default" : "outline"}
           size="sm"
           onClick={() => onFiltersChange({ ...filters, hasAttachments: !filters.hasAttachments })}
-          className="gap-1.5"
+          className="gap-1 h-7 px-2 text-xs"
         >
-          <Paperclip className="h-3.5 w-3.5" />
+          <Paperclip className="h-3 w-3" />
           Anexos
         </Button>
-      </div>
 
-      {/* Filter Popover */}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2">
-            <Filter className="h-4 w-4" />
-            Filtros
-            {activeFiltersCount > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
-                {activeFiltersCount}
-              </Badge>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[400px] p-4" align="end">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-semibold">Filtros Avançados</h4>
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              <X className="h-4 w-4 mr-1" />
-              Limpar
+        {/* Filter Popover */}
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1 h-7 px-2 text-xs">
+              <Filter className="h-3 w-3" />
+              Filtros
+              {activeFiltersCount > 0 && (
+                <Badge variant="secondary" className="ml-0.5 h-4 min-w-4 px-1 text-[10px]">
+                  {activeFiltersCount}
+                </Badge>
+              )}
             </Button>
-          </div>
-
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-            {/* Date Range */}
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Período</Label>
-              <DatePickerWithRange
-                date={filters.dateRange}
-                onDateChange={(date) => onFiltersChange({ ...filters, dateRange: date })}
-              />
+          </PopoverTrigger>
+          <PopoverContent className="w-[400px] p-4" align="end">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-semibold">Filtros Avançados</h4>
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X className="h-4 w-4 mr-1" />
+                Limpar
+              </Button>
             </div>
 
-            {/* Channels */}
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Canais</Label>
-              <div className="flex flex-wrap gap-2">
-                {CHANNELS.map((channel) => (
-                  <div key={channel.value} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`channel-${channel.value}`}
-                      checked={filters.channels.includes(channel.value)}
-                      onCheckedChange={() => handleChannelToggle(channel.value)}
-                    />
-                    <label
-                      htmlFor={`channel-${channel.value}`}
-                      className="text-sm cursor-pointer flex items-center gap-1"
-                    >
-                      <span>{channel.icon}</span>
-                      {channel.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Status */}
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Status</Label>
-              <div className="flex flex-wrap gap-2">
-                {STATUS_OPTIONS.map((status) => (
-                  <div key={status.value} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`status-${status.value}`}
-                      checked={filters.status.includes(status.value)}
-                      onCheckedChange={() => handleStatusToggle(status.value)}
-                    />
-                    <label
-                      htmlFor={`status-${status.value}`}
-                      className="text-sm cursor-pointer"
-                    >
-                      {status.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* AI Mode */}
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Modo IA</Label>
-              <Select
-                value={filters.aiMode || "all"}
-                onValueChange={(v) => onFiltersChange({ ...filters, aiMode: v === "all" ? undefined : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os modos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os modos</SelectItem>
-                  {AI_MODE_OPTIONS.map((mode) => (
-                    <SelectItem key={mode.value} value={mode.value}>
-                      {mode.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Assigned To */}
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Atribuído a</Label>
-              <Select
-                value={filters.assignedTo || "all"}
-                onValueChange={(v) => onFiltersChange({ ...filters, assignedTo: v === "all" ? undefined : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os agentes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os agentes</SelectItem>
-                  <SelectItem value="unassigned">Não atribuídos</SelectItem>
-                  {users?.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.full_name || user.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Tags */}
-            {tags && tags.length > 0 && (
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              {/* Date Range */}
               <div>
-                <Label className="text-sm font-medium mb-2 block">Tags</Label>
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                  {tags.map((tag) => (
-                    <div key={tag.id} className="flex items-center space-x-2">
+                <Label className="text-sm font-medium mb-2 block">Período</Label>
+                <DatePickerWithRange
+                  date={filters.dateRange}
+                  onDateChange={(date) => onFiltersChange({ ...filters, dateRange: date })}
+                />
+              </div>
+
+              {/* Channels */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Canais</Label>
+                <div className="flex flex-wrap gap-2">
+                  {CHANNELS.map((channel) => (
+                    <div key={channel.value} className="flex items-center space-x-2">
                       <Checkbox
-                        id={`tag-${tag.id}`}
-                        checked={filters.tags.includes(tag.id)}
-                        onCheckedChange={() => handleTagToggle(tag.id)}
+                        id={`channel-${channel.value}`}
+                        checked={filters.channels.includes(channel.value)}
+                        onCheckedChange={() => handleChannelToggle(channel.value)}
                       />
                       <label
-                        htmlFor={`tag-${tag.id}`}
+                        htmlFor={`channel-${channel.value}`}
                         className="text-sm cursor-pointer flex items-center gap-1"
                       >
-                        <span
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: tag.color || "#6B7280" }}
-                        />
-                        {tag.name}
+                        <span>{channel.icon}</span>
+                        {channel.label}
                       </label>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
 
-            {/* Media Filters */}
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Mídia</Label>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="has-audio"
-                    checked={filters.hasAudio || false}
-                    onCheckedChange={(checked) => onFiltersChange({ ...filters, hasAudio: checked as boolean })}
-                  />
-                  <label htmlFor="has-audio" className="text-sm cursor-pointer flex items-center gap-1">
-                    <Mic className="h-3.5 w-3.5 text-muted-foreground" />
-                    Com áudio
-                  </label>
+              {/* Status */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Status</Label>
+                <div className="flex flex-wrap gap-2">
+                  {STATUS_OPTIONS.map((status) => (
+                    <div key={status.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`status-${status.value}`}
+                        checked={filters.status.includes(status.value)}
+                        onCheckedChange={() => handleStatusToggle(status.value)}
+                      />
+                      <label
+                        htmlFor={`status-${status.value}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {status.label}
+                      </label>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="has-attachments"
-                    checked={filters.hasAttachments || false}
-                    onCheckedChange={(checked) => onFiltersChange({ ...filters, hasAttachments: checked as boolean })}
-                  />
-                  <label htmlFor="has-attachments" className="text-sm cursor-pointer flex items-center gap-1">
-                    <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
-                    Com anexos
-                  </label>
+              </div>
+
+              {/* AI Mode */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Modo IA</Label>
+                <Select
+                  value={filters.aiMode || "all"}
+                  onValueChange={(v) => onFiltersChange({ ...filters, aiMode: v === "all" ? undefined : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os modos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os modos</SelectItem>
+                    {AI_MODE_OPTIONS.map((mode) => (
+                      <SelectItem key={mode.value} value={mode.value}>
+                        {mode.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Assigned To */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Atribuído a</Label>
+                <Select
+                  value={filters.assignedTo || "all"}
+                  onValueChange={(v) => onFiltersChange({ ...filters, assignedTo: v === "all" ? undefined : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os agentes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os agentes</SelectItem>
+                    <SelectItem value="unassigned">Não atribuídos</SelectItem>
+                    {users?.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.full_name || user.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Tags */}
+              {tags && tags.length > 0 && (
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Tags</Label>
+                  <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                    {tags.map((tag) => (
+                      <div key={tag.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`tag-${tag.id}`}
+                          checked={filters.tags.includes(tag.id)}
+                          onCheckedChange={() => handleTagToggle(tag.id)}
+                        />
+                        <label
+                          htmlFor={`tag-${tag.id}`}
+                          className="text-sm cursor-pointer flex items-center gap-1"
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: tag.color || "#6B7280" }}
+                          />
+                          {tag.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Media Filters */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Mídia</Label>
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="has-audio"
+                      checked={filters.hasAudio || false}
+                      onCheckedChange={(checked) => onFiltersChange({ ...filters, hasAudio: checked as boolean })}
+                    />
+                    <label htmlFor="has-audio" className="text-sm cursor-pointer flex items-center gap-1">
+                      <Mic className="h-3.5 w-3.5 text-muted-foreground" />
+                      Com áudio
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="has-attachments"
+                      checked={filters.hasAttachments || false}
+                      onCheckedChange={(checked) => onFiltersChange({ ...filters, hasAttachments: checked as boolean })}
+                    />
+                    <label htmlFor="has-attachments" className="text-sm cursor-pointer flex items-center gap-1">
+                      <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                      Com anexos
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </PopoverContent>
-      </Popover>
+          </PopoverContent>
+        </Popover>
+      </div>
     </div>
   );
 }

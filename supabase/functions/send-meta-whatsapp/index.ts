@@ -7,6 +7,81 @@ const corsHeaders = {
 };
 
 /**
+ * Helper to get MIME type from media type
+ */
+function getMimeTypeFromMediaType(type: string, originalMimeType?: string): string {
+  // If we have the original MIME type, use it
+  if (originalMimeType) {
+    return originalMimeType;
+  }
+  
+  // Fallback mapping
+  const mimeTypes: Record<string, string> = {
+    image: 'image/jpeg',
+    audio: 'audio/ogg',
+    video: 'video/mp4',
+    document: 'application/pdf',
+    sticker: 'image/webp',
+  };
+  return mimeTypes[type] || 'application/octet-stream';
+}
+
+/**
+ * Upload media to Meta's servers and get media_id
+ * This is necessary because Meta can't reliably access signed URLs from private storage
+ */
+async function uploadMediaToMeta(
+  phoneNumberId: string,
+  accessToken: string,
+  mediaUrl: string,
+  mimeType: string
+): Promise<string> {
+  const apiVersion = "v18.0";
+  
+  console.log("[send-meta-whatsapp] 📥 Downloading media from:", mediaUrl.substring(0, 100) + "...");
+  
+  // 1. Download the file from Supabase signed URL
+  const mediaResponse = await fetch(mediaUrl);
+  if (!mediaResponse.ok) {
+    const errorText = await mediaResponse.text();
+    console.error("[send-meta-whatsapp] ❌ Failed to download media:", mediaResponse.status, errorText);
+    throw new Error(`Failed to download media: ${mediaResponse.status}`);
+  }
+  
+  const mediaBlob = await mediaResponse.blob();
+  console.log("[send-meta-whatsapp] ✅ Media downloaded, size:", mediaBlob.size, "bytes, type:", mimeType);
+  
+  // 2. Upload to Meta's Media API
+  const formData = new FormData();
+  formData.append('file', mediaBlob, 'media');
+  formData.append('messaging_product', 'whatsapp');
+  formData.append('type', mimeType);
+  
+  const uploadUrl = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/media`;
+  console.log("[send-meta-whatsapp] 📤 Uploading to Meta:", uploadUrl);
+  
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: { 
+      Authorization: `Bearer ${accessToken}` 
+    },
+    body: formData,
+  });
+  
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text();
+    console.error("[send-meta-whatsapp] ❌ Meta media upload failed:", uploadResponse.status, errorText);
+    throw new Error(`Meta media upload failed: ${uploadResponse.status} - ${errorText}`);
+  }
+  
+  const uploadResult = await uploadResponse.json();
+  const mediaId = uploadResult.id;
+  
+  console.log("[send-meta-whatsapp] ✅ Media uploaded to Meta, media_id:", mediaId);
+  return mediaId;
+}
+
+/**
  * Send WhatsApp Message via Meta Cloud API
  * 
  * Supports:
@@ -32,6 +107,7 @@ interface SendMetaWhatsAppRequest {
     type: "image" | "audio" | "video" | "document" | "sticker";
     url?: string;                // URL pública da mídia
     media_id?: string;           // ID da mídia já upada no Meta
+    mime_type?: string;          // MIME type real do arquivo (ex: image/png)
     caption?: string;
     filename?: string;
   };
@@ -193,9 +269,25 @@ serve(async (req) => {
     else if (body.media) {
       const mediaPayload: Record<string, unknown> = {};
 
+      // If we have a URL, upload to Meta first to get media_id
+      // This is required because Meta can't access private signed URLs reliably
       if (body.media.url) {
-        mediaPayload.link = body.media.url;
+        console.log("[send-meta-whatsapp] 📤 Uploading media to Meta first...");
+        
+        const mimeType = getMimeTypeFromMediaType(body.media.type, body.media.mime_type);
+        
+        const mediaId = await uploadMediaToMeta(
+          instance.phone_number_id,
+          instance.access_token,
+          body.media.url,
+          mimeType
+        );
+        
+        console.log("[send-meta-whatsapp] ✅ Media uploaded, sending message with media_id:", mediaId);
+        mediaPayload.id = mediaId;
+        
       } else if (body.media.media_id) {
+        // If media_id is already provided, use it directly
         mediaPayload.id = body.media.media_id;
       } else {
         return new Response(
@@ -204,10 +296,12 @@ serve(async (req) => {
         );
       }
 
+      // Add caption for supported media types
       if (body.media.caption && ["image", "video", "document"].includes(body.media.type)) {
         mediaPayload.caption = body.media.caption;
       }
 
+      // Add filename for documents
       if (body.media.filename && body.media.type === "document") {
         mediaPayload.filename = body.media.filename;
       }

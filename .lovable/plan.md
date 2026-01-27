@@ -1,170 +1,243 @@
 
-
-## Plano: Otimizar Velocidade de Mensagens na Versao Publicada
+## Plano: Corrigir Realtime que Para de Funcionar em Producao
 
 ### Diagnostico do Problema
 
-Analisei os logs, codigo e arquitetura do sistema. Identifiquei as causas da diferenca de velocidade:
+Apos analise completa do codigo e infraestrutura, identifiquei a causa raiz:
 
-| Fator | Preview | Producao | Impacto |
-|-------|---------|----------|---------|
-| Edge Functions Cold Start | Quente (uso continuo) | Frios (inatividade) | +500ms a +3s por funcao |
-| Supabase Realtime | Mesma conexao | Reconexao frequente | +200ms a +1s |
-| AI Autopilot Processing | Mesmo fluxo | Mesmo fluxo | ~5-11s (normal) |
-| Cascata de funcoes | 3 funcoes em serie | 3 funcoes em serie | Acumulativo |
+| Componente | Status | Problema |
+|------------|--------|----------|
+| Banco de Dados | OK | Tabelas `messages`, `inbox_view`, `conversations` estao na publicacao `supabase_realtime` |
+| Cliente Supabase | INCOMPLETO | Nao tem opcoes de `realtime` configuradas (heartbeat, timeout, reconexao) |
+| Hooks de Realtime | PARCIAL | Nao monitoram status da conexao nem forcam reconexao |
+| Fallback Polling | LENTO | `refetchInterval: 15000` (15s) e muito longo para detectar falhas |
 
-**Causa Principal**: No preview, voce esta constantemente usando o app, mantendo as Edge Functions "quentes". Na producao, apos minutos de inatividade, as funcoes entram em "cold start" e precisam ser inicializadas novamente a cada requisicao.
+**Causa Raiz Principal**: O cliente Supabase em `src/integrations/supabase/client.ts` nao tem configuracoes de realtime. Quando a conexao WebSocket "cai silenciosamente" (timeout de rede, proxy, firewall corporativo), os hooks continuam "subscritos" em um canal morto, sem receber eventos.
+
+**Por que funciona no Preview**: No preview, voce esta constantemente interagindo, o que mantem a conexao ativa. Em producao, apos alguns minutos de menor atividade ou variacoes de rede, a conexao pode ser encerrada pelo servidor/proxy sem notificacao ao cliente.
 
 ---
 
-### Arquitetura Atual (Lenta)
+### Arquitetura Atual (Problematica)
 
 ```text
-Mensagem WhatsApp Recebida
+Cliente Supabase (sem opcoes realtime)
          |
          v
-[meta-whatsapp-webhook] - Cold Start: 30-60ms (OK)
+WebSocket conecta ao Supabase Realtime
          |
          v
-INSERT mensagem no banco
+[5-15 minutos de atividade normal]
          |
          v
-[ai-autopilot-chat] - Cold Start: 500-1500ms (LENTO)
+Conexao "morre silenciosamente" (timeout/proxy/firewall)
          |
          v
-Processa IA (5-11s normal)
+Hooks continuam "subscritos" em canal morto
          |
          v
-[send-meta-whatsapp] - Cold Start: 300-800ms (LENTO)
-         |
-         v
-Mensagem enviada
+Mensagens nao chegam ate dar refresh
 ```
 
-**Total com cold starts**: 6-14 segundos
-**Total sem cold starts**: 5-11 segundos
-
 ---
 
-### Solucoes Propostas
+### Solucao Proposta
 
-#### Solucao 1: Implementar Keep-Alive para Edge Functions (Rapida)
+#### 1. Configurar Cliente Supabase com Opcoes de Realtime
 
-Criar uma Edge Function CRON que "aquece" as funcoes criticas a cada 5 minutos:
+Adicionar configuracoes de heartbeat, timeout e reconexao automatica:
 
-**Arquivo novo**: `supabase/functions/keep-alive/index.ts`
-
-Esta funcao fara chamadas leves para:
-- `meta-whatsapp-webhook` (GET para verificacao)
-- `ai-autopilot-chat` (POST com body vazio - retorna rapido)
-- `send-meta-whatsapp` (POST com validacao minima)
-
-**Configuracao CRON**: `*/5 * * * *` (a cada 5 minutos)
-
----
-
-#### Solucao 2: Otimizar Realtime no Frontend (Media)
-
-Atualizar `useInboxView.tsx` para:
-1. Usar `refetchInterval: 10000` ao inves de 15000 (mais responsivo)
-2. Adicionar reconexao automatica mais agressiva
-3. Implementar heartbeat para manter conexao Realtime ativa
-
-**Arquivo**: `src/hooks/useInboxView.tsx`
-
----
-
-#### Solucao 3: Pre-aquecer Conexoes de IA (Media)
-
-No `ai-autopilot-chat`, fazer lazy initialization do cliente OpenAI/Google no cold start, mas manter um "ping" de validacao rapida.
-
-**Arquivo**: `supabase/functions/ai-autopilot-chat/index.ts`
-
----
-
-#### Solucao 4: Resposta Imediata + Processamento Assincrono (Avancada)
-
-Modificar `meta-whatsapp-webhook` para:
-1. Responder 200 OK ao Meta imediatamente
-2. Processar mensagem em background (fire-and-forget)
-3. AI processa enquanto webhook ja encerrou
-
-**Arquivo**: `supabase/functions/meta-whatsapp-webhook/index.ts`
-
----
-
-### Arquivos a Criar/Modificar
-
-| Arquivo | Acao | Prioridade |
-|---------|------|------------|
-| `supabase/functions/keep-alive/index.ts` | Criar | ALTA |
-| `supabase/config.toml` | Modificar (adicionar CRON) | ALTA |
-| `src/hooks/useInboxView.tsx` | Modificar | MEDIA |
-| `supabase/functions/ai-autopilot-chat/index.ts` | Modificar | MEDIA |
-| `supabase/functions/meta-whatsapp-webhook/index.ts` | Modificar | BAIXA |
-
----
-
-### Detalhes Tecnicos
-
-#### Keep-Alive Edge Function
+**Arquivo**: `src/integrations/supabase/client.ts`
 
 ```typescript
-// supabase/functions/keep-alive/index.ts
-serve(async (req) => {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  
-  // Aquecer funcoes criticas em paralelo
-  const warmups = await Promise.allSettled([
-    // 1. meta-whatsapp-webhook (GET = verificacao)
-    fetch(`${supabaseUrl}/functions/v1/meta-whatsapp-webhook?hub.mode=warmup`),
-    
-    // 2. ai-autopilot-chat (POST com flag warmup)
-    fetch(`${supabaseUrl}/functions/v1/ai-autopilot-chat`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ warmup: true })
-    }),
-    
-    // 3. send-meta-whatsapp (POST com flag warmup)
-    fetch(`${supabaseUrl}/functions/v1/send-meta-whatsapp`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ warmup: true })
-    }),
-  ]);
-  
-  return new Response(JSON.stringify({ warmed: warmups.length }));
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    storage: localStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+    heartbeatIntervalMs: 15000, // Heartbeat a cada 15s (mantém conexao viva)
+    reconnectAfterMs: (tries) => Math.min(tries * 1000, 10000), // Backoff exponencial até 10s
+    timeout: 30000, // Timeout de 30s antes de considerar desconectado
+  },
 });
 ```
 
-#### Modificacao em ai-autopilot-chat
+---
 
-Adicionar no inicio da funcao serve():
+#### 2. Criar Hook Global de Monitoramento de Conexao Realtime
+
+Criar um hook que monitora o estado da conexao e forca reconexao quando necessario:
+
+**Arquivo novo**: `src/hooks/useRealtimeHealth.tsx`
+
+Este hook:
+1. Escuta eventos de conexao/desconexao do Supabase Realtime
+2. Mostra indicador visual quando desconectado
+3. Forca reconexao quando detecta problema
+4. Invalida queries para refetch apos reconectar
+
+---
+
+#### 3. Reduzir Polling de Fallback
+
+Reduzir o `refetchInterval` em hooks criticos para detectar falhas mais rapido:
+
+**Arquivo**: `src/hooks/useInboxView.tsx`
 
 ```typescript
-// Handler de warmup rapido (sem processamento)
-if (req.method === 'POST') {
-  const body = await req.json().catch(() => ({}));
-  if (body.warmup) {
-    console.log('[ai-autopilot-chat] Warmup ping received');
-    return new Response(JSON.stringify({ status: 'warm' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
+refetchInterval: 10000, // Reduzir de 15s para 10s
+```
+
+**Arquivo**: `src/hooks/useConversations.tsx`
+
+```typescript
+refetchInterval: 15000, // Reduzir de 30s para 15s
+```
+
+---
+
+#### 4. Adicionar Reconexao Apos Visibilidade
+
+Melhorar o listener de `visibilitychange` para forcar nova subscricao:
+
+**Arquivo**: `src/hooks/useInboxView.tsx`
+
+Adicionar logica que remove e recria os canais quando a aba volta ao foco apos muito tempo inativa.
+
+---
+
+### Arquivos a Modificar
+
+| Arquivo | Acao | Descricao |
+|---------|------|-----------|
+| `src/integrations/supabase/client.ts` | Modificar (CUIDADO: auto-gerado) | Adicionar opcoes de realtime |
+| `src/hooks/useRealtimeHealth.tsx` | Criar | Hook de monitoramento global |
+| `src/hooks/useInboxView.tsx` | Modificar | Reduzir refetchInterval, melhorar reconexao |
+| `src/hooks/useConversations.tsx` | Modificar | Reduzir refetchInterval |
+| `src/hooks/useMessages.tsx` | Modificar | Adicionar reconexao quando canal morre |
+| `src/components/Layout.tsx` | Modificar | Adicionar indicador de conexao realtime |
+
+---
+
+### Secao Tecnica: Hook useRealtimeHealth
+
+```typescript
+// src/hooks/useRealtimeHealth.tsx
+import { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+export function useRealtimeHealth() {
+  const [isConnected, setIsConnected] = useState(true);
+  const [lastPing, setLastPing] = useState<Date | null>(null);
+  const queryClient = useQueryClient();
+
+  // Monitorar conexao
+  useEffect(() => {
+    // Criar canal de heartbeat
+    const healthChannel = supabase
+      .channel('realtime-health-check')
+      .on('system', { event: 'connect' }, () => {
+        console.log('[RealtimeHealth] Connected');
+        setIsConnected(true);
+        setLastPing(new Date());
+      })
+      .on('system', { event: 'disconnect' }, () => {
+        console.log('[RealtimeHealth] Disconnected');
+        setIsConnected(false);
+      })
+      .subscribe((status) => {
+        console.log('[RealtimeHealth] Status:', status);
+        setIsConnected(status === 'SUBSCRIBED');
+        if (status === 'SUBSCRIBED') {
+          setLastPing(new Date());
+        }
+      });
+
+    // Ping periodico para verificar se conexao esta viva
+    const pingInterval = setInterval(async () => {
+      try {
+        const channel = supabase.getChannels().find(c => c.topic === 'realtime-health-check');
+        if (channel && channel.state !== 'joined') {
+          console.log('[RealtimeHealth] Channel not joined, forcing reconnect');
+          setIsConnected(false);
+          // Forcar reconexao removendo e recriando
+          await supabase.removeChannel(channel);
+        }
+      } catch (e) {
+        console.error('[RealtimeHealth] Ping error:', e);
+        setIsConnected(false);
+      }
+    }, 30000); // Verificar a cada 30s
+
+    return () => {
+      clearInterval(pingInterval);
+      supabase.removeChannel(healthChannel);
+    };
+  }, []);
+
+  // Reconectar quando visibilidade muda
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && !isConnected) {
+        console.log('[RealtimeHealth] Tab visible but disconnected, forcing refresh');
+        queryClient.invalidateQueries({ queryKey: ['inbox-view'] });
+        queryClient.invalidateQueries({ queryKey: ['messages'] });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isConnected, queryClient]);
+
+  return { isConnected, lastPing };
 }
 ```
 
-#### CRON no config.toml
+---
 
-```toml
-[functions.keep-alive]
-verify_jwt = false
+### Secao Tecnica: Indicador Visual de Conexao
 
-[functions.keep-alive.cron]
-schedule = "*/5 * * * *"
-region = "us-east-1"
+Adicionar badge no header quando desconectado:
+
+```typescript
+// Em Layout.tsx ou componente de header
+const { isConnected } = useRealtimeHealth();
+
+{!isConnected && (
+  <div className="flex items-center gap-2 text-destructive">
+    <WifiOff className="h-4 w-4" />
+    <span className="text-xs">Reconectando...</span>
+  </div>
+)}
+```
+
+---
+
+### Fluxo Apos Implementacao
+
+```text
+Cliente Supabase (COM opcoes realtime)
+         |
+         v
+WebSocket conecta com heartbeat a cada 15s
+         |
+         v
+[Conexao monitorada pelo useRealtimeHealth]
+         |
+         v
+Se conexao morrer -> Reconexao automatica em 1-10s
+         |
+         v
+Se tab ficar em background -> Catch-up ao voltar
+         |
+         v
+Indicador visual avisa usuario se desconectado
 ```
 
 ---
@@ -173,16 +246,14 @@ region = "us-east-1"
 
 | Metrica | Antes | Depois |
 |---------|-------|--------|
-| Cold start acumulado | 1-3 segundos | ~100ms |
-| Tempo total de resposta | 6-14 segundos | 5-12 segundos |
-| Consistencia | Variavel | Estavel |
-| Custo adicional | N/A | ~8640 invocacoes/mes (minimo) |
+| Conexao realtime estavel | NAO (morre silenciosamente) | SIM (heartbeat + reconexao) |
+| Tempo de deteccao de falha | 15-30s (polling) | 1-5s (heartbeat) |
+| Reconexao automatica | NAO | SIM (backoff exponencial) |
+| Feedback ao usuario | Nenhum | Badge visual |
+| Catch-up ao voltar | Parcial | Completo + reinscricao |
 
 ---
 
-### Implementacao em Fases
+### Aviso Importante
 
-**Fase 1 (Imediata)**: Keep-alive CRON + handlers de warmup
-**Fase 2 (Proxima)**: Otimizar Realtime no frontend
-**Fase 3 (Futura)**: Processamento assincrono no webhook
-
+O arquivo `src/integrations/supabase/client.ts` e marcado como "auto-gerado". Precisamos verificar se as alteracoes serao preservadas ou se devemos criar um wrapper separado para o cliente com configuracoes customizadas.

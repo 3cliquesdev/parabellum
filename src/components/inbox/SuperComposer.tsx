@@ -233,7 +233,7 @@ export function SuperComposer({
                 continue;
               }
               
-              const { error: metaMediaError } = await supabase.functions.invoke('send-meta-whatsapp', {
+              const { data: metaMediaResponse, error: metaMediaError } = await supabase.functions.invoke('send-meta-whatsapp', {
                 body: {
                   instance_id: whatsappMetaInstanceId,
                   phone_number: contactPhone,
@@ -251,10 +251,15 @@ export function SuperComposer({
               if (metaMediaError) {
                 throw new Error(metaMediaError.message || 'Failed to send Meta WhatsApp media');
               }
+              
+              // Capturar message_id da edge function (que já salvou no banco)
+              if (i === 0 && metaMediaResponse?.message_id) {
+                sentMessageId = metaMediaResponse.message_id;
+              }
             }
           } else if (messageContent) {
-            // Apenas texto
-            const { error: metaError } = await supabase.functions.invoke('send-meta-whatsapp', {
+            // Apenas texto - edge function já salva a mensagem no banco
+            const { data: metaResponse, error: metaError } = await supabase.functions.invoke('send-meta-whatsapp', {
               body: {
                 instance_id: whatsappMetaInstanceId,
                 phone_number: contactPhone,
@@ -266,19 +271,20 @@ export function SuperComposer({
             if (metaError) {
               throw new Error(metaError.message || 'Failed to send Meta WhatsApp message');
             }
+            
+            // Edge function já salvou a mensagem - não precisa salvar novamente
+            // Capturar message_id para vincular anexos (se houver)
+            sentMessageId = metaResponse?.message_id || null;
           }
-
-          const result = await sendMessage.mutateAsync({
-            conversation_id: conversationId,
-            content: messageContent || (uploadedAttachments.length > 0 ? '📎 Mídia enviada' : ''),
-            sender_type: "user",
-            sender_id: user?.id || null,
-            status: 'sent',
-          });
-          sentMessageId = result?.id || null;
+          
+          // ✅ NÃO chamar sendMessage.mutateAsync() aqui!
+          // A edge function send-meta-whatsapp já salvou a mensagem no banco
+          // com external_id (wamid) e metadata corretos
+          
         } catch (error) {
           console.error('[SuperComposer] Meta WhatsApp send failed:', error);
           
+          // Apenas em caso de ERRO salvamos manualmente (status: failed)
           const result = await sendMessage.mutateAsync({
             conversation_id: conversationId,
             content: messageContent || '📎 Mídia',

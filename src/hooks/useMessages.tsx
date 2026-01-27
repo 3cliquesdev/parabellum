@@ -73,18 +73,24 @@ export function useMessages(conversationId: string | null) {
           const newMessage = payload.new as Message;
           const oldMessage = payload.old as Message;
           
-          // ✨ MERGE OTIMISTA - Sem refetch, atualiza cache diretamente
+            // ✨ MERGE OTIMISTA - Sem refetch, atualiza cache diretamente
           if (payload.eventType === 'INSERT') {
             queryClient.setQueryData(
               ["messages", conversationId],
               (old: any[] = []) => {
-                // Verificar duplicata por ID real
+                // 1. Verificar duplicata por ID real
                 if (old.some(m => m.id === newMessage.id)) {
-                  console.log('[Realtime] Ignorando duplicata:', newMessage.id);
+                  console.log('[Realtime] Ignorando duplicata por ID:', newMessage.id);
                   return old;
                 }
                 
-                // Substituir mensagem temporária pela real
+                // 2. Verificar duplicata por external_id (wamid) - PREVENÇÃO DE DUPLICATAS META
+                if (newMessage.external_id && old.some(m => m.external_id === newMessage.external_id)) {
+                  console.log('[Realtime] Ignorando duplicata por external_id:', newMessage.external_id);
+                  return old;
+                }
+                
+                // 3. Substituir mensagem temporária pela real
                 // Usa timestamp range para matching mais preciso (5 segundos)
                 const tempIndex = old.findIndex(m => 
                   m.id?.startsWith('temp-') && 

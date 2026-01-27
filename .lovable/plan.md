@@ -1,159 +1,144 @@
 
-## Plano: Departamentos Hierarquicos (Suporte > Suporte Pedidos)
 
-### Situacao Atual
+## Plano: Corrigir Distribuição de Conversas com Hierarquia de Departamentos
 
-Atualmente, os departamentos sao uma lista plana:
-- Comercial
-- Customer Success
-- Financeiro
-- Marketing
-- Operacional
-- **Suporte** ← Departamento principal
-- **Suporte Pedidos** ← Subdepartamento
-- **Suporte Sistema** ← Subdepartamento
+### Problema Identificado
 
-Todos aparecem no mesmo nivel no Select, sem indicacao de hierarquia.
+O sistema de distribuição está falhando porque:
 
----
+1. **Estrutura Atual**:
+   - Todos os agentes estão no departamento "Suporte" (pai)
+   - Subdepartamentos "Suporte Pedidos" e "Suporte Sistema" existem, mas nenhum agente está atribuído a eles
+   - Quando uma conversa é marcada para "Suporte Sistema", o roteamento busca `department = 'Suporte Sistema'` e não encontra ninguém
 
-### Solucao Proposta
+2. **Lógica no `route-conversation`** (linha 403-404):
+   ```typescript
+   if (resolvedDepartmentId) {
+     agentsQuery = agentsQuery.eq('department', resolvedDepartmentId);
+   }
+   ```
+   Isso filtra apenas agentes com departamento EXATO, ignorando a hierarquia.
 
-Adicionar campo `parent_id` na tabela `departments` para criar estrutura hierarquica. Na UI, agrupar subdepartamentos abaixo do departamento pai.
-
----
-
-### Alteracoes no Banco de Dados
-
-**Migration: Adicionar campo parent_id**
-
-```sql
--- Adicionar coluna parent_id para hierarquia
-ALTER TABLE departments 
-ADD COLUMN parent_id uuid REFERENCES departments(id) ON DELETE SET NULL;
-
--- Atualizar Suporte Pedidos para ser filho de Suporte
-UPDATE departments 
-SET parent_id = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a'
-WHERE id = '2dd0ee5c-fd20-44be-94ad-f83f1be1c4e9';
-
--- Atualizar Suporte Sistema para ser filho de Suporte
-UPDATE departments 
-SET parent_id = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a'
-WHERE id = 'fd4fcc90-22e4-4127-ae23-9c9ecb6654b4';
-```
+3. **Skills não estão vinculadas aos subdepartamentos**:
+   - "Suporte Técnico" é uma skill separada
+   - "Suporte Sistema" é um subdepartamento
+   - Não há relação automática entre eles
 
 ---
 
-### Alteracoes na Interface
+### Solução Proposta
 
-**Arquivo 1: `src/hooks/useDepartments.tsx`**
+Modificar a lógica de roteamento para considerar a **hierarquia de departamentos** (parent_id):
 
-Atualizar interface para incluir `parent_id`:
+- Se a conversa é para "Suporte Sistema", buscar agentes em:
+  1. "Suporte Sistema" (exato)
+  2. "Suporte" (pai) - como fallback
+
+---
+
+### Alterações Técnicas
+
+#### 1. Edge Function: `route-conversation/index.ts`
+
+**Adicionar lógica de fallback para departamento pai**:
 
 ```typescript
-export interface Department {
-  id: string;
-  name: string;
-  description: string | null;
-  color: string;
-  is_active: boolean;
-  whatsapp_number?: string | null;
-  parent_id?: string | null;  // NOVO
-  created_at: string;
-  updated_at: string;
+// Após resolver o departamento, buscar também o parent_id para fallback
+let parentDepartmentId: string | null = null;
+
+if (resolvedDepartmentId) {
+  const { data: deptData } = await supabase
+    .from('departments')
+    .select('parent_id')
+    .eq('id', resolvedDepartmentId)
+    .single();
+  
+  if (deptData?.parent_id) {
+    parentDepartmentId = deptData.parent_id;
+    console.log(`[route-conversation] 📂 Department has parent: ${parentDepartmentId}`);
+  }
+}
+```
+
+**Modificar a query de agentes para incluir hierarquia** (linha 403-404):
+
+```typescript
+// Filtrar por departamento com fallback para pai
+if (resolvedDepartmentId) {
+  // Buscar agentes no departamento OU no pai
+  const deptIds = [resolvedDepartmentId];
+  if (parentDepartmentId) {
+    deptIds.push(parentDepartmentId);
+  }
+  agentsQuery = agentsQuery.in('department', deptIds);
+}
+```
+
+**Priorizar agentes do subdepartamento** (após buscar agentes):
+
+```typescript
+// Ordenar: subdepartamento primeiro, depois pai
+if (parentDepartmentId && genericAgents.length > 0) {
+  genericAgents.sort((a, b) => {
+    if (a.department === resolvedDepartmentId && b.department !== resolvedDepartmentId) return -1;
+    if (b.department === resolvedDepartmentId && a.department !== resolvedDepartmentId) return 1;
+    return 0;
+  });
 }
 ```
 
 ---
 
-**Arquivo 2: `src/components/UserDialog.tsx`**
+#### 2. Mapeamento Skill ↔ Subdepartamento (Opcional/Futuro)
 
-Refatorar o Select de departamento para mostrar hierarquia com grupos:
+Criar uma tabela de mapeamento para vincular skills a subdepartamentos:
 
-```tsx
-<SelectContent className="rounded-xl">
-  {/* Departamentos principais (sem parent_id) */}
-  {departments?.filter(d => d.is_active && !d.parent_id).map((dept) => {
-    // Buscar subdepartamentos
-    const children = departments?.filter(
-      child => child.is_active && child.parent_id === dept.id
-    );
-    
-    return (
-      <Fragment key={dept.id}>
-        {/* Departamento pai */}
-        <SelectItem value={dept.id} className="py-3">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-4 h-4 rounded-full"
-              style={{ backgroundColor: dept.color }}
-            />
-            <span className="font-medium">{dept.name}</span>
-          </div>
-        </SelectItem>
-        
-        {/* Subdepartamentos com indentacao */}
-        {children?.map((child) => (
-          <SelectItem key={child.id} value={child.id} className="py-3 pl-8">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: child.color }}
-              />
-              <span className="text-sm">{child.name}</span>
-            </div>
-          </SelectItem>
-        ))}
-      </Fragment>
-    );
-  })}
-</SelectContent>
-```
+| Subdepartamento | Skill Relacionada |
+|-----------------|-------------------|
+| Suporte Sistema | Suporte Técnico |
+| Suporte Pedidos | (nenhuma específica) |
+
+Assim, quando uma conversa for para "Suporte Sistema", o sistema também priorizará agentes com skill "Suporte Técnico".
 
 ---
 
-### Visual Esperado
+### Fluxo de Distribuição Corrigido
 
 ```text
-┌────────────────────────────────────┐
-│ Departamento                    ▼  │
-├────────────────────────────────────┤
-│ ● Comercial                        │
-│ ● Customer Success                 │
-│ ● Financeiro                       │
-│ ● Marketing                        │
-│ ● Operacional                      │
-│ ● Suporte                          │  ← Pode selecionar o pai
-│    ○ Suporte Pedidos               │  ← Ou um específico
-│    ○ Suporte Sistema               │
-└────────────────────────────────────┘
+Conversa → Departamento: "Suporte Sistema"
+                │
+                ▼
+1. Buscar agentes em "Suporte Sistema"
+   └─→ Encontrou? ✓ Atribui
+                │
+                ▼ (se não)
+2. Buscar agentes no pai "Suporte"
+   └─→ Encontrou? ✓ Atribui (com prioridade para quem tem skill "Suporte Técnico")
+                │
+                ▼ (se não)
+3. Fila de espera
 ```
-
----
-
-### Comportamento
-
-1. **Selecionar "Suporte"**: Usuario vai para o pool geral de suporte
-2. **Selecionar "Suporte Pedidos"**: Usuario vai para o grupo especializado em pedidos
-3. **Roteamento mantido**: O sistema de roteamento continua funcionando normalmente (usa o `department_id` direto)
 
 ---
 
 ### Arquivos a Modificar
 
-| Arquivo | Tipo | Descricao |
-|---------|------|-----------|
-| Migration SQL | Novo | Adicionar `parent_id` e atualizar registros existentes |
-| `src/hooks/useDepartments.tsx` | Edicao | Adicionar `parent_id` na interface |
-| `src/components/UserDialog.tsx` | Edicao | Mostrar hierarquia no Select |
-| `src/integrations/supabase/types.ts` | Automatico | Sera atualizado apos migration |
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/route-conversation/index.ts` | Adicionar lógica de hierarquia de departamentos |
 
 ---
 
-### Beneficios
+### Benefícios
 
-- **Organizacao visual**: Fica claro que Suporte Pedidos e Suporte Sistema sao subgrupos
-- **Flexibilidade**: Pode criar hierarquias para outros departamentos no futuro (Comercial > Comercial Internacional)
-- **Retrocompativel**: Departamentos sem `parent_id` continuam funcionando normalmente
-- **Sem quebra**: O roteamento, transferencias e filtros continuam usando o `department_id` diretamente
+- **Retrocompatível**: Agentes no departamento pai continuam recebendo conversas dos subdepartamentos
+- **Flexível**: Permite migrar gradualmente agentes para subdepartamentos específicos
+- **Priorização correta**: Agentes no subdepartamento exato têm prioridade sobre os do pai
+- **Sem breaking changes**: O sistema existente continua funcionando
+
+---
+
+### Observação
+
+Após implementar, você pode opcionalmente mover agentes específicos para "Suporte Sistema" ou "Suporte Pedidos" na tela de usuários, e eles terão prioridade no roteamento para essas filas.
+

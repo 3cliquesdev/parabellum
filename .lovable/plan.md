@@ -1,60 +1,91 @@
 
-## Plano: Corrigir Estatísticas e Evoluir Sistema de IA com Fluxos Guiados
+## Plano: Corrigir Permissão da Thaynara e Tornar Nota Opcional
 
-### ✅ FASE 1 - CONCLUÍDA
+### Problemas Identificados
 
-#### 1. ✅ Bug Corrigido: "0 clientes" no Kiwify
-- `useKiwifyStats.tsx` agora conta contatos com deals (não filtra por source)
-- Resultado esperado: ~10.617 clientes | ~11.061 deals
+#### 1. Thaynara não consegue transferir conversas
+**Causa raiz:** A usuária "THAYNARA MARIANA SILVA" tem a role `user`, e a permissão `inbox.transfer` está **desabilitada** para essa role.
 
-#### 2. ✅ Fonte "Importação de Planilha" adicionada
-- Nova entrada no `KnowledgeSourcesWidget.tsx`
-- Mostra clientes com `source=csv_import`
+| Role | inbox.transfer |
+|------|----------------|
+| `admin` | Habilitado |
+| `manager` | Habilitado |
+| `sales_rep` | Habilitado |
+| `support_agent` | Habilitado |
+| `user` | **DESABILITADO** |
 
----
+**Observação:** Existe outra Thaynara (`Thaynara da Silva`) com role `sales_rep` que consegue transferir normalmente.
 
-### ✅ FASE 2 - MIGRAÇÃO EXECUTADA
+#### 2. Nota de transferência é obrigatória
+No componente `TransferConversationDialog.tsx`:
+- Linha 65: `if (!selectedDepartmentId || !transferNote.trim()) return;`
+- Linha 270: `disabled={!selectedDepartmentId || !transferNote.trim() || ...}`
 
-#### 3. ✅ Campo `is_master_flow` em chat_flows
-- Permite definir um fluxo como "guia mestre" para a IA
-- Trigger garante apenas um fluxo mestre por vez
-- Tipo adicionado em `useChatFlows.tsx`
-
-#### 4. ✅ Campo `default_persona_id` em profiles
-- Permite vincular persona padrão a cada agente
-- Usado quando agente está em modo copilot
-
----
-
-### 🔜 PRÓXIMOS PASSOS (Backend)
-
-#### 5. 🔵 Implementar lógica no ai-autopilot-chat
-- Verificar se existe fluxo mestre ativo antes de responder
-- Usar etapas do fluxo como guia de atendimento
-- Melhorar prompt para pensamento deliberativo
-
-#### 6. 🔵 UI para selecionar fluxo mestre
-- Toggle na lista de fluxos para marcar como "Fluxo Mestre"
-- Indicador visual no fluxo selecionado
-
-#### 7. 🔵 UI para vincular persona ao agente
-- Dropdown em configurações do perfil do agente
-- Exibir persona ativa no inbox
+Isso impede a transferência se a nota estiver vazia.
 
 ---
 
-### Arquitetura Final
+### Solução Proposta
 
-```text
-FLUXO MESTRE (Guia de Atendimento):
-┌─────────────────────────────────────────────────────┐
-│ [1] Saudação     → "Olá, sou a IA da empresa X"    │
-│ [2] Identificar  → Perguntar o que precisa          │
-│ [3] Classificar  → Detectar departamento/intenção   │
-│ [4] Buscar KB    → Procurar resposta na base        │
-│ [5] Responder    → Usar persona adequada            │
-│ [6] Feedback     → Perguntar se resolveu            │
-│ [7] Encerrar     → Despedida ou transferir humano   │
-└─────────────────────────────────────────────────────┘
+#### Correção 1: Habilitar permissão para role `user`
+
+Atualizar a permissão `inbox.transfer` para `enabled = true` na role `user` via SQL:
+
+```sql
+UPDATE role_permissions 
+SET enabled = true, updated_at = now()
+WHERE permission_key = 'inbox.transfer' AND role = 'user';
 ```
 
+**OU (melhor opção):** Alterar a role da Thaynara de `user` para `sales_rep` ou `support_agent`, já que ela está no departamento Comercial e deveria ter as permissões adequadas.
+
+#### Correção 2: Tornar nota de transferência opcional
+
+Modificar `TransferConversationDialog.tsx`:
+
+**Antes:**
+```tsx
+// Linha 65
+if (!selectedDepartmentId || !transferNote.trim()) return;
+
+// Linha 270
+disabled={!selectedDepartmentId || !transferNote.trim() || transferMutation.isPending}
+```
+
+**Depois:**
+```tsx
+// Linha 65
+if (!selectedDepartmentId) return;
+
+// Linha 270
+disabled={!selectedDepartmentId || transferMutation.isPending}
+```
+
+E atualizar o label do campo para remover o asterisco de obrigatório:
+```tsx
+// Linha 238
+<Label htmlFor="transferNote">Nota de Transferência</Label>
+```
+
+---
+
+### Arquivos a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/TransferConversationDialog.tsx` | Remover obrigatoriedade da nota |
+| SQL (role_permissions) | Habilitar `inbox.transfer` para role `user` |
+
+---
+
+### Benefícios
+
+1. **Thaynara conseguirá transferir**: Após habilitar a permissão
+2. **Fluxo mais ágil**: Transferências rápidas sem necessidade de justificativa
+3. **Nota continua disponível**: Agentes podem adicionar contexto se desejarem, mas não é bloqueante
+
+---
+
+### Observação
+
+Recomendo verificar se a role `user` deveria realmente ter acesso ao inbox e transferências. Se sim, a solução é habilitar a permissão. Se não, a Thaynara deveria ter a role `sales_rep` já que está no departamento Comercial.

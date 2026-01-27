@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Play, Loader2 } from "lucide-react";
+import { ArrowLeft, Play, Loader2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatFlowEditor } from "@/components/chat-flows/ChatFlowEditor";
 import { ChatFlowSimulator } from "@/components/chat-flows/ChatFlowSimulator";
@@ -8,6 +8,10 @@ import { useChatFlow, useUpdateChatFlow } from "@/hooks/useChatFlows";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Node, Edge } from "reactflow";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function ChatFlowEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +20,9 @@ export default function ChatFlowEditorPage() {
   const updateFlow = useUpdateChatFlow();
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [currentFlowState, setCurrentFlowState] = useState<{ nodes: Node[]; edges: Edge[] } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [keywordsText, setKeywordsText] = useState("");
+  const [triggersText, setTriggersText] = useState("");
 
   const handleSave = (flowDef: { nodes: Node[]; edges: Edge[] }) => {
     if (!id) return;
@@ -40,6 +47,39 @@ export default function ChatFlowEditorPage() {
 
   const handleOpenSimulator = () => {
     setSimulatorOpen(true);
+  };
+
+  const handleOpenSettings = () => {
+    const kws = (flow?.trigger_keywords || []).join(", ");
+    const trgs = (flow?.triggers || []).join("\n");
+    setKeywordsText(kws);
+    setTriggersText(trgs);
+    setSettingsOpen(true);
+  };
+
+  const handleSaveSettings = () => {
+    if (!id) return;
+
+    const trigger_keywords = keywordsText
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean);
+
+    const triggers = triggersText
+      .split("\n")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    updateFlow.mutate(
+      {
+        id,
+        trigger_keywords,
+        triggers,
+      },
+      {
+        onSuccess: () => setSettingsOpen(false),
+      }
+    );
   };
 
   if (isLoading) {
@@ -114,6 +154,15 @@ export default function ChatFlowEditorPage() {
             <Play className="h-4 w-4 mr-2" />
             Testar
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleOpenSettings}
+          >
+            <Settings2 className="h-4 w-4 mr-2" />
+            Palavras‑chave
+          </Button>
         </div>
       </div>
       
@@ -136,6 +185,51 @@ export default function ChatFlowEditorPage() {
         edges={simulatorEdges}
         flowName={flow.name}
       />
+
+      {/* Configurações do fluxo (gatilhos) */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gatilhos do fluxo</DialogTitle>
+            <DialogDescription>
+              “Palavras‑chave” são termos que disparam o fluxo quando aparecem na mensagem.
+              “Início” é apenas o nó inicial do desenho do fluxo (ponto de entrada) e não é um gatilho.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="keywords">Palavras‑chave (separadas por vírgula)</Label>
+              <Input
+                id="keywords"
+                value={keywordsText}
+                onChange={(e) => setKeywordsText(e.target.value)}
+                placeholder="promoção, pré carnaval, preço"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="triggers">Frases exatas (uma por linha) (opcional)</Label>
+              <Textarea
+                id="triggers"
+                value={triggersText}
+                onChange={(e) => setTriggersText(e.target.value)}
+                placeholder="Olá vim pelo email e gostaria..."
+                rows={4}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setSettingsOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleSaveSettings} disabled={updateFlow.isPending}>
+              {updateFlow.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

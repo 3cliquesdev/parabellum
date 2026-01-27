@@ -1,110 +1,291 @@
 
-Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-Você está certo em cobrar: do jeito que está, o Autopilot entra em loop pedindo e-mail e não “evolui” o estado. Pela imagem, o e-mail está chegando quebrado em linha (ex: `lucassantanapontes27@gma` + quebra + `il.com`). O código atual do Autopilot só reconhece e-mail com um regex simples em `customerMessage`, então quando o WhatsApp/cliente quebra a string, **o regex não encontra**, o contato continua “sem email”, e o handoff volta a cair no bloco `isLeadWithoutEmail` → pedindo e-mail de novo. Isso explica exatamente o comportamento.
+## Plano: Resolver 3 Problemas Criticos do Chat
 
-Abaixo está o plano para deixar isso 100% (sem downgrade), com proteção anti-loop e confirmação de que o e-mail foi processado.
+### Diagnostico dos Logs
 
-## Objetivo
-1) Autopilot reconhecer e-mails mesmo quando vêm com quebras/espaços do WhatsApp.
-2) Quando a conversa estiver em “aguardando e-mail”, **não chamar o fluxo de handoff novamente** até processar (ou validar como inválido).
-3) Dar resposta determinística ao usuário após receber o e-mail (cliente encontrado → menu / lead → encaminha comercial), sem repetir a mesma pergunta.
-4) Adicionar logs claros para provar no log que “detectou e-mail / atualizou contato / marcou metadata”.
+Analisei os logs recentes e encontrei:
 
----
+```
+[ai-autopilot-chat] 📧 Resultado verify-customer-email: {
+  error: FunctionsHttpError: Edge Function returned a non-2xx status code
+  status: 404, statusText: "Not Found"
+```
 
-## Mudanças (backend function ai-autopilot-chat)
-Arquivo: `supabase/functions/ai-autopilot-chat/index.ts`
-
-### 1) Criar um extrator de e-mail “tolerante” (WhatsApp-safe)
-Implementar uma função utilitária local (no próprio arquivo) que:
-- Tente extrair e-mail do texto “como veio”
-- Se falhar, tente extrair do texto “compactado” (removendo espaços e quebras de linha)
-
-Exemplo de estratégia:
-- `originalMatch = original.match(emailRegex)`
-- `compact = original.replace(/\s+/g, '')`
-- `compactMatch = compact.match(emailRegex)`
-- Se encontrar no `compact`, usar esse valor
-
-Importante: manter o regex atual, apenas trocar a origem do match para incluir o “compact”.
-
-### 2) Priorizar processamento de e-mail quando `awaiting_email_for_handoff === true`
-Hoje o Autopilot pode cair no low-confidence/handoff e pedir e-mail novamente.
-Ajuste:
-- Logo no começo do fluxo (antes de rodar decisão de confiança/handoff/LLM), checar:
-  - `conversation.customer_metadata?.awaiting_email_for_handoff === true`
-- Se estiver aguardando e-mail:
-  - Tentar extrair e-mail com o extrator tolerante
-  - Se **não encontrar** e-mail → responder **uma mensagem de “email inválido”** (ex: “Envie sem espaços/quebras”) e retornar early, sem entrar no handoff de novo
-  - Se **encontrar** e-mail → executar o mesmo caminho já existente (`verify-customer-email` + updates) e ao final:
-    - Limpar o estado `awaiting_email_for_handoff` do metadata (para não ficar preso)
-    - Retornar early (sem passar pelo LLM)
-
-Isso garante que “aguardando e-mail” vira um estado determinístico: ou valida e segue, ou pede correção do formato.
-
-### 3) Ao pedir e-mail, adicionar “anti-spam” (não reenviar igual sempre)
-Quando `isLeadWithoutEmail` for verdadeiro e o sistema for pedir e-mail:
-- Se `awaiting_email_for_handoff` já estiver `true` e `handoff_blocked_at` for recente (ex: < 60s), não repetir a mesma mensagem.
-- Em vez disso, pode apenas retornar status `awaiting_email` sem inserir nova mensagem duplicada (ou mandar uma variação curta “Ainda preciso do e-mail…”).
-Isso evita “rajada” de mensagens repetidas se o usuário mandar algo que não contém e-mail.
-
-### 4) Logs de diagnóstico para fechar a conta
-Adicionar logs específicos:
-- Quando `awaiting_email_for_handoff` estiver ativo
-- Resultado da extração (original vs compact)
-- Resultado do `verify-customer-email`
-- Quando limpar `awaiting_email_for_handoff`
-
-Esses logs são essenciais para provar que “processou” e parar de repetir.
+A Edge Function `verify-customer-email` nao existe no projeto mas o Autopilot tenta chama-la. Isso explica porque emails sao detectados mas nao processados corretamente.
 
 ---
 
-## (Opcional, mas recomendado) Ajuste no template de pedido de e-mail
-Como a dor é WhatsApp quebrar texto, o template pode orientar:
-- “Envie o e-mail em uma única linha, sem espaços”
-Isso não substitui a correção, mas reduz ocorrência.
+### Parte 1: Criar Edge Function verify-customer-email
+
+Criar `supabase/functions/verify-customer-email/index.ts`:
+
+**Logica:**
+1. Receber email e contact_id
+2. Buscar contato na tabela `contacts` pelo email
+3. Se encontrar contato com `status = 'customer'`:
+   - Retornar `{ found: true, customer: {...} }`
+4. Se nao encontrar ou nao for customer:
+   - Retornar `{ found: false }`
+
+Exemplo de codigo:
+```typescript
+// Verifica se email pertence a um cliente existente
+const { data: customer } = await supabase
+  .from('contacts')
+  .select('id, email, first_name, last_name, status')
+  .eq('email', email.toLowerCase().trim())
+  .eq('status', 'customer')
+  .maybeSingle();
+
+if (customer) {
+  return { found: true, customer };
+} else {
+  return { found: false };
+}
+```
 
 ---
 
-## Verificação do bug do print (critério de aceite)
-Cenário real (igual ao print):
-1) IA pede e-mail
-2) Cliente envia: `lucassantanapontes27@gma` + quebra + `il.com`
-3) Sistema deve:
-   - Reconhecer via “compact”
-   - Atualizar contato / metadata
-   - Responder algo diferente de “me informe o email”:
-     - Se cliente encontrado: mensagem de confirmação + menu
-     - Se não encontrado: encaminhar comercial e mudar ai_mode / department conforme regra
+### Parte 2: Corrigir Fluxo Pre-Carnaval (Match Exato)
 
-Se após isso ele voltar a pedir e-mail, o bug persiste.
+O fluxo tem trigger:
+```
+"Olá vim pelo email e gostaria de saber da promoção de pré carnaval"
+```
+
+Voce quer que seja ativado **apenas quando a mensagem for igual ou muito similar ao trigger** (match exato).
+
+**Problema atual:** A logica de "essential keywords" requer 2+ palavras essenciais, mas o cliente pode escrever a frase exata e nao ativar.
+
+**Solucao:** Para triggers muito longos, adicionar match de similaridade alta (90%+) ou adicionar keywords curtas ao fluxo.
+
+**Opcao recomendada:** Atualizar o `trigger_keywords` do fluxo para incluir keywords curtas:
+
+```sql
+UPDATE chat_flows 
+SET trigger_keywords = '["promoção pré carnaval", "pré carnaval", "promocao pre carnaval", "vim pelo email promoção", "email promocao carnaval"]'
+WHERE id = 'adb17db7-d0ba-48c1-b30d-90724353706e';
+```
+
+E tambem modificar `process-chat-flow/index.ts` para adicionar Match 4 (match exato de 90%+ similaridade para frases longas):
+
+```typescript
+// Match 4: Similaridade ALTA (90%+) para triggers muito longos
+if (triggerNorm.length > 50) {
+  const triggerWords = triggerNorm.split(/\s+/);
+  const messageWords = messageNorm.split(/\s+/);
+  const matchedCount = triggerWords.filter(w => messageWords.includes(w)).length;
+  const similarity = matchedCount / Math.max(triggerWords.length, messageWords.length);
+  
+  if (similarity >= 0.9) {
+    console.log('[process-chat-flow] ✅ Match EXATO (90%+ similaridade)');
+    matchedFlow = flow;
+    break;
+  }
+}
+```
 
 ---
 
-## Escopo adicional (seu item antigo do Inbox “buscar por nome”)
-Isso é um segundo problema e também é real:
-- `useInboxView` aplica busca corretamente, mas `Inbox.tsx` ainda renderiza `filteredConversations` vindo de `useConversations`, então a busca por nome pode “não pegar”.
-Depois que o e-mail loop estiver 100%, eu proponho (como upgrade separado) ligar a UI da lista ao `inboxItems` filtrado (isso também melhora realtime e WhatsApp).
+### Parte 3: Backfill de Emails nas Conversas
+
+Criar funcao SQL que varre todas as mensagens com "@" e verifica se o email existe na base de clientes.
+
+**Logica:**
+1. Buscar mensagens `sender_type = 'contact'` que contem "@"
+2. Extrair email via regex
+3. Verificar se email existe em `contacts` com `status = 'customer'`
+4. Se sim:
+   - Atualizar o contato da conversa com esse email
+   - Mover conversa para Suporte
+   - Marcar contato como customer
+
+```sql
+CREATE OR REPLACE FUNCTION backfill_emails_from_messages()
+RETURNS TABLE(
+  emails_found integer,
+  contacts_updated integer,
+  conversations_moved integer
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_emails_found integer := 0;
+  v_contacts_updated integer := 0;
+  v_conversations_moved integer := 0;
+  v_suporte_dept_id uuid := '36ce66cd-7414-4fc8-bd4a-268fecc3f01a';
+  r RECORD;
+BEGIN
+  -- Loop por mensagens com @ que sao de contatos
+  FOR r IN 
+    SELECT DISTINCT ON (m.conversation_id)
+      m.conversation_id,
+      m.content,
+      c.id as contact_id,
+      c.email as current_email,
+      c.status as current_status,
+      -- Extrair email da mensagem
+      (regexp_matches(LOWER(m.content), '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'))[1] as extracted_email
+    FROM messages m
+    JOIN conversations cv ON cv.id = m.conversation_id
+    JOIN contacts c ON c.id = cv.contact_id
+    WHERE m.sender_type = 'contact'
+      AND m.content LIKE '%@%'
+      AND c.email IS NULL  -- Contato ainda nao tem email
+    ORDER BY m.conversation_id, m.created_at DESC
+  LOOP
+    v_emails_found := v_emails_found + 1;
+    
+    -- Verificar se email existe em outro contato com status customer
+    IF EXISTS (
+      SELECT 1 FROM contacts 
+      WHERE email = r.extracted_email 
+      AND status = 'customer'
+    ) THEN
+      -- Email pertence a cliente existente - atualizar contato atual
+      UPDATE contacts 
+      SET 
+        email = r.extracted_email,
+        status = 'customer',
+        source = COALESCE(source, 'backfill_email')
+      WHERE id = r.contact_id;
+      
+      v_contacts_updated := v_contacts_updated + 1;
+      
+      -- Mover conversa para Suporte
+      UPDATE conversations 
+      SET department = v_suporte_dept_id
+      WHERE id = r.conversation_id
+        AND (department IS NULL OR department != v_suporte_dept_id);
+      
+      IF FOUND THEN
+        v_conversations_moved := v_conversations_moved + 1;
+      END IF;
+    END IF;
+  END LOOP;
+  
+  RETURN QUERY SELECT v_emails_found, v_contacts_updated, v_conversations_moved;
+END;
+$$;
+```
 
 ---
 
-## Testes que serão realizados (obrigatórios)
-No ambiente de preview, antes de entregar:
-1) Simular mensagem WhatsApp com e-mail normal (uma linha) → deve identificar.
-2) Simular mensagem WhatsApp com e-mail quebrado por newline (como no print) → deve identificar.
-3) Simular “awaiting_email_for_handoff” + mensagem sem e-mail (ex: “ok”) → deve responder “email inválido/mande email” sem duplicar spam e sem handoff.
-4) Garantir que continua funcionando:
-   - Chat flows
-   - Roteamento de departamento
-   - Menu pós-identificação
-   - Handoff manual bloqueado sem identificação (mantém segurança)
-5) Conferir logs do backend para ver extração e limpeza do estado.
+### Arquivos a Criar/Modificar
+
+| Arquivo | Acao | Descricao |
+|---------|------|-----------|
+| `supabase/functions/verify-customer-email/index.ts` | Criar | Nova Edge Function para verificar email |
+| `supabase/functions/process-chat-flow/index.ts` | Modificar | Adicionar match exato (90%+) para triggers longos |
+| Migration SQL | Criar | Funcao backfill_emails_from_messages |
+| Data Update SQL | Executar | Atualizar trigger_keywords do Fluxo Carnaval |
+| `supabase/config.toml` | Modificar | Adicionar verify-customer-email |
 
 ---
 
-## Entregáveis
-- Ajuste no `ai-autopilot-chat/index.ts` (extração tolerante + estado awaiting_email_for_handoff determinístico + anti-loop).
-- (Opcional) Ajuste no template `identity_wall_ask_email` para orientar formato no WhatsApp.
+### Ordem de Execucao
 
-Risco de downgrade: baixo. As mudanças são aditivas e focadas em robustez do fluxo de identificação, preservando toda a arquitetura existente (RAG, flows, roteamento, etc.).
+1. Criar Edge Function `verify-customer-email`
+2. Atualizar `supabase/config.toml`
+3. Deploy da Edge Function
+4. Modificar `process-chat-flow` para match exato
+5. Executar UPDATE no trigger_keywords do Fluxo Carnaval
+6. Criar funcao SQL de backfill
+7. Executar backfill (via RPC ou Edge Function wrapper)
+
+---
+
+### Secao Tecnica: Detalhes
+
+**verify-customer-email/index.ts:**
+```typescript
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    const { email, contact_id, conversationId, contactId } = await req.json();
+    const targetEmail = email?.toLowerCase().trim();
+    const targetContactId = contact_id || contactId;
+    
+    if (!targetEmail) {
+      return new Response(
+        JSON.stringify({ found: false, error: 'Email not provided' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[verify-customer-email] Verificando:', targetEmail);
+
+    // Buscar cliente existente pelo email
+    const { data: customer, error } = await supabase
+      .from('contacts')
+      .select('id, email, first_name, last_name, status, phone')
+      .eq('email', targetEmail)
+      .eq('status', 'customer')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[verify-customer-email] Erro:', error);
+      throw error;
+    }
+
+    if (customer) {
+      console.log('[verify-customer-email] ✅ Cliente encontrado:', customer.email);
+      return new Response(
+        JSON.stringify({ 
+          found: true, 
+          customer: {
+            id: customer.id,
+            email: customer.email,
+            name: `${customer.first_name || ''} ${customer.last_name || ''}`.trim(),
+            phone: customer.phone
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[verify-customer-email] ❌ Email nao encontrado como customer');
+    return new Response(
+      JSON.stringify({ found: false }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (err) {
+    console.error('[verify-customer-email] Exception:', err);
+    return new Response(
+      JSON.stringify({ found: false, error: err.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
+```
+
+---
+
+### Resultado Esperado
+
+| Problema | Antes | Depois |
+|----------|-------|--------|
+| verify-customer-email | 404 Not Found | Funciona, verifica email na base |
+| Fluxo Pre-Carnaval | Nao dispara (falta keywords essenciais) | Dispara com match exato ou keywords curtas |
+| Emails em mensagens | Ignorados | Backfill marca como customer + move Suporte |
+

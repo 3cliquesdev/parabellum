@@ -1,250 +1,164 @@
 
-# Plano: Agente RAG Visível + Fontes de Dados Expandidas + Coleta Inteligente
+# Plano: Corrigir Duplicação de Mensagens e Delay no Envio
 
-## Contexto e Diagnóstico
+## 🔍 Diagnóstico Confirmado
 
-Após análise detalhada do código, identifiquei que:
+Após análise detalhada dos logs da edge function, banco de dados e código fonte, identifiquei **duas causas raiz**:
 
-### O que é o "RAG" neste sistema?
+### Problema 1: Duplicação de Mensagens
 
-O RAG (Retrieval-Augmented Generation) é o **coração do autopilot** - não é um componente visível separado, mas está embutido na edge function `ai-autopilot-chat`. Ele funciona assim:
+**Evidência no banco de dados** - mesma mensagem salva 2-3 vezes:
+| Timestamp | external_id | Origem |
+|-----------|-------------|--------|
+| 18:01:09.254 | null | SuperComposer.tsx (linha 271-278) |
+| 18:01:10.778 | wamid.xxx | send-meta-whatsapp (linha 344-354) |
+| 18:01:11.105 | null | SuperComposer tentando novamente? |
 
-```text
-Cliente envia mensagem
-        │
-        ▼
-┌──────────────────────────┐
-│   Query Expansion        │  ← Expande pergunta em variações
-└──────────────────────────┘
-        │
-        ▼
-┌──────────────────────────┐
-│   Busca Semântica        │  ← Embeddings + match_knowledge_articles
-│   (knowledge_articles)   │
-└──────────────────────────┘
-        │
-        ▼
-┌──────────────────────────┐
-│   Score de Confiança     │  ← 0.70+ = responde, abaixo = handoff
-│   (anti-alucinação)      │
-└──────────────────────────┘
-        │
-        ▼
-┌──────────────────────────┐
-│   Geração de Resposta    │  ← GPT-4o/GPT-5-mini com contexto KB
-│   (citando fontes)       │
-└──────────────────────────┘
-```
-
-### Problema 1: O painel do nó IA só mostra categorias da KB
-
-O `AIResponsePropertiesPanel.tsx` atual permite filtrar categorias, mas **não expõe as outras fontes de dados** (Kiwify, Tracking) que já existem no sistema e são usadas via tools da persona.
-
-### Problema 2: Coleta de dados é manual (blocos separados)
-
-Atualmente você precisa arrastar blocos "Nome", "Email", "CPF" no canvas. A IA deveria fazer isso conversacionalmente, como atendimentos enterprise.
-
----
-
-## Implementação Proposta
-
-### FASE 1: Tornar o RAG Visível no Painel
-
-**Arquivo: `src/components/chat-flows/AIResponsePropertiesPanel.tsx`**
-
-Expandir o painel para mostrar TODAS as fontes de dados disponíveis:
-
-| Seção | Descrição | Como Funciona |
-|-------|-----------|---------------|
-| 📚 Base de Conhecimento | Artigos FAQ, políticas | Busca semântica (embeddings) |
-| 🛒 Dados do Cliente (Kiwify) | Pedidos, status de compra | Tool `check_order_status` |
-| 📦 Rastreio Logístico | Status de envio | Tool `check_tracking` |
-| 🎯 Sandbox Training | Regras aprendidas | Mesma busca semântica |
-
-**Nova UI proposta:**
-
-```text
-┌─────────────────────────────────────────────┐
-│ 🤖 Agente / Persona     [Seletor ▼]        │
-├─────────────────────────────────────────────┤
-│                                             │
-│ 📊 FONTES DE DADOS (RAG)                   │
-│ ─────────────────────────────────────────── │
-│                                             │
-│ 📚 Base de Conhecimento                     │
-│   [✓] Usar KB para responder                │
-│   Categorias: [Manual] [Suporte] [+]        │
-│                                             │
-│ 🛒 Dados do Cliente (CRM)                  │
-│   [✓] Consultar pedidos Kiwify              │
-│   [ ] Verificar histórico de compras        │
-│                                             │
-│ 📦 Rastreio de Pedidos                      │
-│   [ ] Consultar status de envio             │
-│                                             │
-├─────────────────────────────────────────────┤
-│ ✨ Contexto Adicional                       │
-│   [textarea]                                 │
-└─────────────────────────────────────────────┘
-```
-
-**Campos adicionados ao data do nó:**
+**Causa técnica:**
+1. `SuperComposer.tsx` envia para Meta API via edge function
+2. Depois, SuperComposer também salva no banco via `sendMessage.mutateAsync()`
+3. MAS a edge function `send-meta-whatsapp` TAMBÉM salva no banco (linhas 337-354)
+4. Resultado: **mensagem duplicada**
 
 ```typescript
-interface AIResponseNodeData {
-  // Existentes
-  label: string;
-  persona_id?: string;
-  persona_name?: string;
-  use_knowledge_base: boolean;
-  kb_categories?: string[];
-  context_prompt?: string;
-  fallback_message?: string;
-  
-  // NOVOS
-  use_customer_data?: boolean;    // Consultar Kiwify/CRM
-  use_order_history?: boolean;    // Histórico de pedidos
-  use_tracking?: boolean;         // Consultar rastreio logístico
+// SuperComposer.tsx - linha 257-278
+const { error: metaError } = await supabase.functions.invoke('send-meta-whatsapp', {
+  body: {
+    instance_id: whatsappMetaInstanceId,
+    phone_number: contactPhone,
+    message: messageContent,
+    conversation_id: conversationId, // ← Passa conversation_id
+  }
+});
+
+// DEPOIS também salva:
+const result = await sendMessage.mutateAsync({ ... }); // ← Duplicata!
+```
+
+```typescript
+// send-meta-whatsapp - linha 337-354
+if (body.conversation_id && messageId) {
+  await supabase.from("messages").insert({ ... }); // ← Edge function salva também!
 }
 ```
 
+### Problema 2: Delay no Envio (5-12 segundos)
+
+**Causas identificadas:**
+1. **Cold start** da edge function (~1-3 segundos)
+2. **Upload de mídia** para Meta antes de enviar (download + upload = mais delay)
+3. **Optimistic update** não está funcionando corretamente devido à duplicação
+
 ---
 
-### FASE 2: Integrar Fontes no Backend (ai-autopilot-chat)
+## 🛠️ Solução Proposta
 
-**Arquivo: `supabase/functions/ai-autopilot-chat/index.ts`**
+### FASE 1: Eliminar Duplicação (CRÍTICO)
 
-Atualmente o autopilot já tem acesso a essas tools via persona, mas não respeita toggles por nó. Precisamos:
+**Arquivo:** `src/components/inbox/SuperComposer.tsx`
 
-1. Ler os novos campos do nó (`use_customer_data`, `use_tracking`)
-2. Habilitar/desabilitar tools dinamicamente baseado nessas flags
-3. Incluir dados dessas fontes no contexto da IA
+Remover o `sendMessage.mutateAsync()` do fluxo Meta WhatsApp, já que a edge function já salva a mensagem.
+
+**Mudanças:**
+```typescript
+// ANTES (linhas 255-278):
+const { error: metaError } = await supabase.functions.invoke('send-meta-whatsapp', { ... });
+if (metaError) throw new Error(...);
+
+const result = await sendMessage.mutateAsync({ ... }); // ← REMOVER ISSO
+
+// DEPOIS:
+const { data: metaResponse, error: metaError } = await supabase.functions.invoke('send-meta-whatsapp', { ... });
+if (metaError) throw new Error(...);
+
+// Edge function já salvou a mensagem - não precisa salvar novamente
+sentMessageId = metaResponse?.message_id || null;
+```
+
+**Mesma correção para o bloco de mídia (linhas 218-254)**
+
+### FASE 2: Melhorar Optimistic Update
+
+**Arquivo:** `src/hooks/useMessages.tsx`
+
+Ajustar a lógica de detecção de duplicatas para usar `external_id` como identificador único:
 
 ```typescript
-// Exemplo de lógica a adicionar
-if (nodeData.use_customer_data && contact?.email) {
-  // Buscar dados do cliente na Kiwify
-  const { data: customerData } = await supabaseClient.functions.invoke(
-    'check-order-status',
-    { body: { email: contact.email } }
+// Linha 82-101 - Adicionar verificação por external_id
+if (payload.eventType === 'INSERT') {
+  queryClient.setQueryData(
+    ["messages", conversationId],
+    (old: any[] = []) => {
+      // 1. Verificar por ID real
+      if (old.some(m => m.id === newMessage.id)) {
+        return old;
+      }
+      
+      // 2. Verificar por external_id (wamid)
+      if (newMessage.external_id && old.some(m => m.external_id === newMessage.external_id)) {
+        return old;
+      }
+      
+      // 3. Substituir temp por real (lógica existente)
+      // ...
+    }
   );
-  
-  if (customerData?.orders) {
-    additionalContext += `\n\n📦 Pedidos do cliente:\n${formatOrders(customerData.orders)}`;
-  }
-}
-
-if (nodeData.use_tracking && orderId) {
-  // Buscar rastreio
-  const { data: trackingData } = await supabaseClient.functions.invoke(
-    'check-tracking',
-    { body: { order_id: orderId } }
-  );
-  
-  if (trackingData) {
-    additionalContext += `\n\n🚚 Status de envio:\n${formatTracking(trackingData)}`;
-  }
 }
 ```
 
----
+### FASE 3: Adicionar Flag para Evitar Duplo-Save
 
-### FASE 3: Coleta Inteligente pela IA
+**Arquivo:** `supabase/functions/send-meta-whatsapp/index.ts`
 
-**Conceito**: Em vez de arrastar blocos manuais, a IA coleta dados conversacionalmente quando necessário.
-
-**Novo Toggle no Nó IA:**
-
-```text
-┌─────────────────────────────────────────────┐
-│ 🤖 Coleta Inteligente                       │
-│   [✓] IA coleta dados quando necessário     │
-│                                             │
-│   Dados que a IA pode solicitar:            │
-│   [✓] Nome     [✓] Email    [ ] CPF        │
-│   [✓] Telefone [ ] Endereço                 │
-└─────────────────────────────────────────────┘
-```
-
-**Lógica no ai-autopilot-chat:**
+Adicionar parâmetro opcional `skip_db_save` para casos onde o chamador já vai salvar:
 
 ```typescript
-// Se coleta inteligente ativa
-if (nodeData.smart_collection_enabled) {
-  const requiredFields = nodeData.smart_collection_fields || [];
-  const missingFields = [];
-  
-  if (requiredFields.includes('email') && !contact.email) {
-    missingFields.push('email');
-  }
-  if (requiredFields.includes('name') && !contact.first_name) {
-    missingFields.push('nome');
-  }
-  // ... etc
-  
-  if (missingFields.length > 0) {
-    // Instruir IA a coletar esses dados naturalmente
-    systemPrompt += `\n\nIMPORTANTE: Você ainda precisa coletar: ${missingFields.join(', ')}. 
-    Solicite de forma natural durante a conversa, um dado por vez.`;
-  }
+interface SendMetaWhatsAppRequest {
+  // ... campos existentes
+  skip_db_save?: boolean; // Se true, não salva no banco (chamador irá salvar)
+}
+
+// Linha 337-354 - Condicionar o save
+if (body.conversation_id && messageId && !body.skip_db_save) {
+  await supabase.from("messages").insert({ ... });
 }
 ```
 
----
-
-### FASE 4: Widget "Orquestrador RAG" nas Configurações
-
-**Novo arquivo: `src/components/settings/RAGOrchestratorWidget.tsx`**
-
-Um painel visual que mostra o status do RAG em tempo real:
-
-```text
-┌─────────────────────────────────────────────┐
-│ 🎯 Orquestrador RAG                         │
-│                                             │
-│ Status: ✅ Ativo                            │
-│ Modelo: GPT-5-mini                          │
-│ Modo Estrito: ❌ Desativado                 │
-│                                             │
-│ Fontes Conectadas:                          │
-│ ├─ 📚 KB: 247 artigos (189 com embedding)   │
-│ ├─ 🛒 Kiwify: 1,234 clientes                │
-│ ├─ 📦 Tracking: MySQL conectado             │
-│ └─ 🎓 Sandbox: 12 regras aprendidas         │
-│                                             │
-│ Última busca: há 2 min                      │
-│ Score médio: 0.82                           │
-│                                             │
-│ [Ver Logs] [Configurar Thresholds]          │
-└─────────────────────────────────────────────┘
-```
+Porém, a solução mais limpa é **deixar a edge function salvar** (ela tem o external_id correto) e **não salvar no frontend**.
 
 ---
 
-## Arquivos a Modificar
+## 📋 Arquivos a Modificar
 
-| Arquivo | Alteração | Prioridade |
-|---------|-----------|------------|
-| `src/components/chat-flows/AIResponsePropertiesPanel.tsx` | Adicionar seção "Fontes de Dados (RAG)" com toggles | ALTA |
-| `src/components/chat-flows/nodes/AIResponseNode.tsx` | Exibir badges das fontes ativas (CRM, Tracking) | ALTA |
-| `supabase/functions/ai-autopilot-chat/index.ts` | Ler novos campos e integrar fontes dinamicamente | ALTA |
-| `src/components/settings/RAGOrchestratorWidget.tsx` | **NOVO** - Painel de status do RAG | MÉDIA |
-| `src/pages/Settings.tsx` ou `/settings/ai-trainer` | Incluir RAGOrchestratorWidget | MÉDIA |
+| Arquivo | Alteração | Impacto |
+|---------|-----------|---------|
+| `src/components/inbox/SuperComposer.tsx` | Remover `sendMessage.mutateAsync()` após envio Meta | **ELIMINA DUPLICAÇÃO** |
+| `src/hooks/useMessages.tsx` | Adicionar verificação por `external_id` | Prevenção extra |
+| `supabase/functions/send-meta-whatsapp/index.ts` | (Opcional) Adicionar flag `skip_db_save` | Flexibilidade |
 
 ---
 
-## Resultado Esperado
+## 🎯 Resultado Esperado
 
-1. **RAG Visível**: Painel no editor mostrando claramente quais fontes a IA pode consultar
-2. **Toggles por Fluxo**: Poder habilitar/desabilitar Kiwify, Tracking por nó específico
-3. **Coleta Inteligente**: IA solicita dados naturalmente, sem blocos manuais
-4. **Dashboard RAG**: Visão geral do orquestrador nas configurações
+1. **Zero duplicação**: Cada mensagem enviada aparece apenas 1 vez
+2. **Delay reduzido**: Sem operação redundante de banco
+3. **Optimistic update correto**: Mensagem aparece imediatamente e é substituída pela versão real do realtime
+4. **Integridade**: Mensagens mantêm `external_id` (wamid) para tracking de delivery
 
 ---
 
-## Benefícios Enterprise
+## ⚠️ Considerações de Segurança
 
-- **Consistência**: Todas as conversas seguem as mesmas regras de acesso a dados
-- **Flexibilidade**: Diferentes fluxos podem ter diferentes fontes habilitadas
-- **Visibilidade**: Gestores veem exatamente o que a IA pode acessar
-- **Qualidade**: Coleta conversacional é mais natural e profissional
+- O fluxo atual onde a edge function salva a mensagem é mais seguro pois:
+  - O `external_id` (wamid) é capturado corretamente
+  - O metadata inclui `whatsapp_provider: 'meta'`
+  - Garante que só salva SE a mensagem foi realmente enviada
+
+---
+
+## 🧪 Testes Necessários
+
+1. Enviar mensagem de texto simples → verificar 1 única entrada no banco
+2. Enviar mídia (imagem/vídeo) → verificar 1 única entrada
+3. Testar realtime → mensagem deve aparecer sem duplicata na UI
+4. Verificar `external_id` preenchido corretamente

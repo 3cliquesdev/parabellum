@@ -1,151 +1,184 @@
 
-## Plano: Tags por Conversa (Nao Persistentes Entre Chats)
+
+## Plano: Corrigir Envio de Midia para Clientes (WhatsApp)
 
 ### Problema Identificado
 
-Atualmente as tags estao vinculadas ao **contato** (`customer_tags`), nao a **conversa** (`conversation_tags`). Isso faz com que:
-- Quando o cliente abre novo chat, as tags do chat anterior aparecem
-- Nao ha separacao entre atendimentos diferentes
-- A timeline do contato nao registra corretamente as tags por atendimento
+Quando voces enviam foto, video ou audio, o cliente **nao recebe**. Isso acontece porque:
 
-**Dados Confirmados:**
-- Tabela `conversation_tags`: VAZIA (0 registros)
-- Tabela `customer_tags`: 13+ registros recentes (tags sendo salvas errado)
+1. A midia que voces fazem upload vai para o bucket `chat-attachments` (PRIVADO)
+2. O sistema gera uma **signed URL** (URL temporaria do Supabase) 
+3. Essa URL e enviada para a API do Meta WhatsApp
+4. O Meta tenta baixar a midia dessa URL, mas **falha** porque:
+   - O Meta nao consegue acessar signed URLs de storage privado de forma confiavel
+   - Signed URLs podem ter problemas com redirecionamentos ou headers especiais
 
----
-
-### Arquitetura Proposta
-
-**Dois Tipos de Tags com Propositos Distintos:**
-
-| Tipo | Tabela | Vinculo | Proposito | Exemplo |
-|------|--------|---------|-----------|---------|
-| **Tag de Conversa** | `conversation_tags` | `conversation_id` | Classificar o atendimento atual | "Duvida Entrega", "Reclamacao" |
-| **Tag de Contato** | `customer_tags` | `customer_id` | Caracteristicas permanentes do cliente | "VIP", "Inadimplente", "Cliente Antigo" |
-
----
-
-### Alteracoes Necessarias
-
-#### FASE 1: Corrigir Exibicao no ChatWindow
-
-**Arquivo:** `src/components/ChatWindow.tsx`
-
-**Mudancas:**
-1. **Linha 105**: Remover `useCustomerTags` - tags do contato nao devem aparecer no header do chat
-2. **Linhas 341-358**: Remover renderizacao de `customerTags` no header
-3. Manter apenas `ConversationTagsSection` (que ja usa `conversation_tags` corretamente)
-
-**Resultado:** Header do chat mostra apenas tags da conversa atual, nao do contato.
-
----
-
-#### FASE 2: Corrigir Sidebar de Contato
-
-**Arquivo:** `src/components/ContactDetailsSidebar.tsx`
-
-**Mudancas:**
-1. **Linha 181**: Manter `ContactTagsSection` para tags permanentes do contato
-2. Adicionar nova secao "Tags desta Conversa" acima, usando `ConversationTagsSection`
-3. Clarificar visualmente que tags do contato sao permanentes
-
-**Resultado:** Sidebar mostra ambas as secoes claramente separadas.
-
----
-
-#### FASE 3: Alterar Automacoes para Usar Conversation Tags
-
-**Arquivos Edge Functions:**
-
-1. **`supabase/functions/execute-automations/index.ts` (linhas 232-238)**
-   - Atualmente: Insere em `customer_tags`
-   - Mudanca: Inserir em `conversation_tags` usando `conversation_id` do contexto
-
-2. **`supabase/functions/form-submit-v3/index.ts` (linhas 1405-1419)**
-   - Mesma correcao: usar `conversation_tags` ao inves de `customer_tags`
-
-**Resultado:** Automacoes classificam a conversa, nao o contato permanentemente.
-
----
-
-#### FASE 4: Registrar Tags na Timeline ao Encerrar
-
-**Arquivo:** `src/hooks/useCloseConversation.tsx` (ou edge function equivalente)
-
-**Nova Logica:**
-1. Ao encerrar conversa, buscar todas as tags em `conversation_tags`
-2. Criar entrada em `interactions` (timeline) com as tags usadas
-3. As tags ficam na timeline para historico, mas nao voltam em nova conversa
-
-```text
-Exemplo de registro na timeline:
-"Conversa encerrada
-Tags: Duvida Entrega, Pre-Carnaval
-Duracao: 15 minutos"
+**Prova nos dados:**
 ```
-
-**Resultado:** Historico completo de atendimentos com suas tags, mas tags nao persistem entre conversas.
-
----
-
-### Compatibilidade Retroativa
-
-- Tags ja existentes em `customer_tags` **permanecem** (sao tags do contato, nao da conversa)
-- Novas tags adicionadas pelo botao do chat vao para `conversation_tags`
-- Tags de automacao vao para `conversation_tags`
-- Tags manuais na sidebar de contato vao para `customer_tags` (caracteristicas permanentes)
-
----
-
-### Fluxo Visual Proposto
-
-```text
-NOVA CONVERSA
-    │
-    ▼
-┌─────────────────────────────┐
-│ Header do Chat              │
-│ [Sem tags] + [+Tag]         │  ← Conversa nova = sem tags
-└─────────────────────────────┘
-    │
-    ▼ (agente ou IA adiciona tag)
-    │
-┌─────────────────────────────┐
-│ Header do Chat              │
-│ [Duvida Entrega] [+Tag]     │  ← Tag vinculada a ESTA conversa
-└─────────────────────────────┘
-    │
-    ▼ (encerra conversa)
-    │
-┌─────────────────────────────┐
-│ Timeline do Contato         │
-│ "Conversa encerrada"        │
-│ Tags: Duvida Entrega        │  ← Registrado no historico
-└─────────────────────────────┘
-    │
-    ▼ (cliente abre NOVA conversa)
-    │
-┌─────────────────────────────┐
-│ Header do Chat              │
-│ [Sem tags] + [+Tag]         │  ← Nova conversa = limpo
-└─────────────────────────────┘
+chat-attachments: public = false  ← Voces enviam para ca
+chat-media:       public = true   ← Clientes enviam para ca (funciona)
 ```
 
 ---
 
-### Secao Tecnica: Arquivos a Modificar
+### Solucao Proposta
 
-| Arquivo | Linha(s) | Tipo | Descricao |
-|---------|----------|------|-----------|
-| `src/components/ChatWindow.tsx` | 105, 341-358 | Edicao | Remover customerTags do header |
-| `src/components/ContactDetailsSidebar.tsx` | 181 | Edicao | Adicionar secao de tags da conversa |
-| `supabase/functions/execute-automations/index.ts` | 232-238 | Edicao | Usar conversation_tags |
-| `supabase/functions/form-submit-v3/index.ts` | 1405-1419 | Edicao | Usar conversation_tags |
-| `src/hooks/useCloseConversation.tsx` | - | Edicao | Registrar tags na timeline ao encerrar |
+Ao inves de enviar a URL do Supabase para o Meta, vamos fazer **upload da midia diretamente para o Meta** usando a [Media API](https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media). O Meta retorna um `media_id` que podemos usar para enviar a mensagem.
 
-### Garantia de Nao Quebrar
+**Fluxo Corrigido:**
+```text
+Usuario faz upload no chat
+        │
+        ▼
+    upload-chat-media
+   (salva no Supabase)
+        │
+        ▼
+   send-meta-whatsapp
+        │
+        ├─► Se media.url: Fazer upload para Meta primeiro
+        │       │
+        │       ▼
+        │   POST /v18.0/{phone_number_id}/media
+        │       │
+        │       ▼
+        │   Obter media_id do Meta
+        │
+        ▼
+   Enviar mensagem com media_id (nao URL)
+        │
+        ▼
+   Cliente recebe no WhatsApp ✅
+```
 
-- Tags existentes permanecem intactas
-- Funcionalidade de tags do contato continua existindo (sidebar)
-- Apenas muda ONDE as novas tags sao salvas
-- Timeline ganha historico mais completo
+---
+
+### Alteracoes Tecnicas
+
+#### Arquivo: `supabase/functions/send-meta-whatsapp/index.ts`
+
+**Adicionar funcao de upload para Meta:**
+
+```typescript
+async function uploadMediaToMeta(
+  phoneNumberId: string,
+  accessToken: string,
+  mediaUrl: string,
+  mimeType: string
+): Promise<string> {
+  // 1. Baixar arquivo da URL do Supabase
+  const mediaResponse = await fetch(mediaUrl);
+  if (!mediaResponse.ok) {
+    throw new Error(`Failed to download media: ${mediaResponse.status}`);
+  }
+  const mediaBlob = await mediaResponse.blob();
+  
+  // 2. Fazer upload para Meta
+  const formData = new FormData();
+  formData.append('file', mediaBlob, 'media');
+  formData.append('messaging_product', 'whatsapp');
+  formData.append('type', mimeType);
+  
+  const uploadResponse = await fetch(
+    `https://graph.facebook.com/v18.0/${phoneNumberId}/media`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: formData,
+    }
+  );
+  
+  if (!uploadResponse.ok) {
+    const error = await uploadResponse.text();
+    throw new Error(`Meta media upload failed: ${error}`);
+  }
+  
+  const { id: mediaId } = await uploadResponse.json();
+  return mediaId;
+}
+```
+
+**Modificar logica de envio de midia (linhas 193-221):**
+
+```typescript
+// Media Message (MODIFICADO)
+else if (body.media) {
+  let mediaPayload: Record<string, unknown> = {};
+
+  // Se tem URL, fazer upload para Meta primeiro
+  if (body.media.url) {
+    console.log("[send-meta-whatsapp] 📤 Uploading media to Meta first...");
+    const mediaId = await uploadMediaToMeta(
+      instance.phone_number_id,
+      instance.access_token,
+      body.media.url,
+      getMimeTypeFromMediaType(body.media.type) // helper function
+    );
+    console.log("[send-meta-whatsapp] ✅ Media uploaded to Meta:", mediaId);
+    mediaPayload.id = mediaId;
+  } else if (body.media.media_id) {
+    mediaPayload.id = body.media.media_id;
+  } else {
+    return new Response(
+      JSON.stringify({ error: "Media requires url or media_id" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Adicionar caption e filename
+  if (body.media.caption && ["image", "video", "document"].includes(body.media.type)) {
+    mediaPayload.caption = body.media.caption;
+  }
+  if (body.media.filename && body.media.type === "document") {
+    mediaPayload.filename = body.media.filename;
+  }
+
+  result = await sendToMetaApi(instance.phone_number_id, instance.access_token, {
+    recipient_type: "individual",
+    to: toNumber,
+    type: body.media.type,
+    [body.media.type]: mediaPayload,
+  });
+}
+```
+
+**Helper para MIME types:**
+
+```typescript
+function getMimeTypeFromMediaType(type: string): string {
+  const mimeTypes: Record<string, string> = {
+    image: 'image/jpeg',
+    audio: 'audio/ogg',
+    video: 'video/mp4',
+    document: 'application/pdf',
+    sticker: 'image/webp',
+  };
+  return mimeTypes[type] || 'application/octet-stream';
+}
+```
+
+---
+
+### Resumo das Alteracoes
+
+| Arquivo | Tipo | Descricao |
+|---------|------|-----------|
+| `supabase/functions/send-meta-whatsapp/index.ts` | Edicao | Adicionar upload para Meta antes de enviar midia |
+
+### Fluxo Apos Correcao
+
+1. Agente seleciona foto/video/audio
+2. Upload vai para Supabase (bucket privado - OK)
+3. Signed URL e gerada
+4. `send-meta-whatsapp` BAIXA a midia da signed URL
+5. `send-meta-whatsapp` FAZ UPLOAD para Meta (retorna `media_id`)
+6. Mensagem e enviada com `media_id` (nao URL)
+7. Cliente recebe a midia no WhatsApp
+
+### Garantias
+
+- **Nao quebra nada existente**: O bucket continua privado (seguranca)
+- **Compatibilidade**: Se ja tiver `media_id`, usa direto
+- **Logs detalhados**: Cada etapa sera logada para debug
+- **Retry automatico**: Se upload falhar, erro claro no toast
+

@@ -8,6 +8,7 @@ export interface Department {
   color: string;
   is_active: boolean;
   whatsapp_number?: string | null;
+  parent_id?: string | null;
   created_at: string;
   updated_at: string;
 }

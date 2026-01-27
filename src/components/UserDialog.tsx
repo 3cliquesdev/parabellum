@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -432,18 +432,42 @@ export default function UserDialog({ open, onOpenChange, onSuccess, editUser }: 
               <SelectTrigger className="h-14 rounded-xl border-2 hover:border-primary/40 transition-all">
                 <SelectValue placeholder="Selecione o departamento..." />
               </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {departments?.filter(d => d.is_active).map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id} className="py-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-4 h-4 rounded-full ring-2 ring-offset-2 ring-offset-background"
-                        style={{ backgroundColor: dept.color, boxShadow: `0 0 8px ${dept.color}40` }}
-                      />
-                      <span className="font-medium">{dept.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
+              <SelectContent className="rounded-xl max-h-80">
+                {/* Departamentos principais (sem parent_id) */}
+                {departments?.filter(d => d.is_active && !d.parent_id).map((dept) => {
+                  // Buscar subdepartamentos
+                  const children = departments?.filter(
+                    child => child.is_active && child.parent_id === dept.id
+                  );
+                  
+                  return (
+                    <Fragment key={dept.id}>
+                      {/* Departamento pai */}
+                      <SelectItem value={dept.id} className="py-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-4 h-4 rounded-full ring-2 ring-offset-2 ring-offset-background"
+                            style={{ backgroundColor: dept.color, boxShadow: `0 0 8px ${dept.color}40` }}
+                          />
+                          <span className="font-medium">{dept.name}</span>
+                        </div>
+                      </SelectItem>
+                      
+                      {/* Subdepartamentos com indentação */}
+                      {children?.map((child) => (
+                        <SelectItem key={child.id} value={child.id} className="py-2.5 pl-8">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: child.color, boxShadow: `0 0 6px ${child.color}40` }}
+                            />
+                            <span className="text-sm text-muted-foreground">{child.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </Fragment>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>

@@ -1,147 +1,151 @@
 
-## Plano: Corrigir Bugs do Editor de Chat Flows
+## Plano: Tags por Conversa (Nao Persistentes Entre Chats)
 
-### Problemas Identificados
+### Problema Identificado
 
-Confirmei no banco de dados que **os gatilhos estao sendo salvos corretamente**:
-```
-id: 52e49516-a74f-48b3-b318-3604b5323745
-name: TESTE
-trigger_keywords: ["Carnaval"]
-triggers: ["Olá vim pelo email e gostaria de saber da promoção de pré carnaval"]
-```
+Atualmente as tags estao vinculadas ao **contato** (`customer_tags`), nao a **conversa** (`conversation_tags`). Isso faz com que:
+- Quando o cliente abre novo chat, as tags do chat anterior aparecem
+- Nao ha separacao entre atendimentos diferentes
+- A timeline do contato nao registra corretamente as tags por atendimento
 
-Os problemas relatados sao:
-
-| # | Problema | Causa Raiz |
-|---|----------|-----------|
-| 1 | Nome do fluxo nao atualiza na UI | O hook `useChatFlow` nao esta sendo re-carregado apos salvar gatilhos |
-| 2 | Nao sabe como usar os gatilhos | Falta documentacao visual - os gatilhos funcionam automaticamente no `ai-autopilot-chat` |
-| 3 | Nao consegue sair da tela do fluxo | O botao de voltar esta sendo interceptado pelo ReactFlow (problema ja parcialmente corrigido mas incompleto) |
-| 4 | Erro 404 aleatorio | A rota `/settings/chat-flows/:id/edit` esta envolta em `<Layout>` que forca re-render |
+**Dados Confirmados:**
+- Tabela `conversation_tags`: VAZIA (0 registros)
+- Tabela `customer_tags`: 13+ registros recentes (tags sendo salvas errado)
 
 ---
 
-### Solucoes Propostas
+### Arquitetura Proposta
 
-#### 1. Corrigir Atualizacao do Nome na UI
+**Dois Tipos de Tags com Propositos Distintos:**
 
-**Problema**: Apos salvar os gatilhos, o hook `useChatFlow` invalida a query, mas o componente nao reflete a mudanca porque usa o estado `flow` do momento do carregamento inicial.
+| Tipo | Tabela | Vinculo | Proposito | Exemplo |
+|------|--------|---------|-----------|---------|
+| **Tag de Conversa** | `conversation_tags` | `conversation_id` | Classificar o atendimento atual | "Duvida Entrega", "Reclamacao" |
+| **Tag de Contato** | `customer_tags` | `customer_id` | Caracteristicas permanentes do cliente | "VIP", "Inadimplente", "Cliente Antigo" |
 
-**Arquivo**: `src/pages/ChatFlowEditorPage.tsx`
+---
 
-**Correcao**:
-- Adicionar `refetch` ou forcar re-render apos salvar settings
-- Atualizar o titulo localmente apos sucesso do save
+### Alteracoes Necessarias
 
-```tsx
-// ANTES: apenas fecha o dialog
-onSuccess: () => setSettingsOpen(false),
+#### FASE 1: Corrigir Exibicao no ChatWindow
 
-// DEPOIS: fecha + atualiza estado local ou refetch
-onSuccess: () => {
-  setSettingsOpen(false);
-  // Invalidar query para atualizar dados do flow
-  queryClient.invalidateQueries({ queryKey: ["chat-flow", id] });
-}
+**Arquivo:** `src/components/ChatWindow.tsx`
+
+**Mudancas:**
+1. **Linha 105**: Remover `useCustomerTags` - tags do contato nao devem aparecer no header do chat
+2. **Linhas 341-358**: Remover renderizacao de `customerTags` no header
+3. Manter apenas `ConversationTagsSection` (que ja usa `conversation_tags` corretamente)
+
+**Resultado:** Header do chat mostra apenas tags da conversa atual, nao do contato.
+
+---
+
+#### FASE 2: Corrigir Sidebar de Contato
+
+**Arquivo:** `src/components/ContactDetailsSidebar.tsx`
+
+**Mudancas:**
+1. **Linha 181**: Manter `ContactTagsSection` para tags permanentes do contato
+2. Adicionar nova secao "Tags desta Conversa" acima, usando `ConversationTagsSection`
+3. Clarificar visualmente que tags do contato sao permanentes
+
+**Resultado:** Sidebar mostra ambas as secoes claramente separadas.
+
+---
+
+#### FASE 3: Alterar Automacoes para Usar Conversation Tags
+
+**Arquivos Edge Functions:**
+
+1. **`supabase/functions/execute-automations/index.ts` (linhas 232-238)**
+   - Atualmente: Insere em `customer_tags`
+   - Mudanca: Inserir em `conversation_tags` usando `conversation_id` do contexto
+
+2. **`supabase/functions/form-submit-v3/index.ts` (linhas 1405-1419)**
+   - Mesma correcao: usar `conversation_tags` ao inves de `customer_tags`
+
+**Resultado:** Automacoes classificam a conversa, nao o contato permanentemente.
+
+---
+
+#### FASE 4: Registrar Tags na Timeline ao Encerrar
+
+**Arquivo:** `src/hooks/useCloseConversation.tsx` (ou edge function equivalente)
+
+**Nova Logica:**
+1. Ao encerrar conversa, buscar todas as tags em `conversation_tags`
+2. Criar entrada em `interactions` (timeline) com as tags usadas
+3. As tags ficam na timeline para historico, mas nao voltam em nova conversa
+
+```text
+Exemplo de registro na timeline:
+"Conversa encerrada
+Tags: Duvida Entrega, Pre-Carnaval
+Duracao: 15 minutos"
 ```
 
-#### 2. Adicionar Indicador Visual de Gatilhos Ativos
+**Resultado:** Historico completo de atendimentos com suas tags, mas tags nao persistem entre conversas.
 
-**Problema**: Usuario nao tem feedback de que os gatilhos foram salvos e estao funcionando.
+---
 
-**Arquivo**: `src/pages/ChatFlowEditorPage.tsx`
+### Compatibilidade Retroativa
 
-**Correcao**:
-- Adicionar badge mostrando quantidade de keywords configuradas no header
-- Mostrar tooltip explicando que os gatilhos sao usados automaticamente pelo chatbot IA
+- Tags ja existentes em `customer_tags` **permanecem** (sao tags do contato, nao da conversa)
+- Novas tags adicionadas pelo botao do chat vao para `conversation_tags`
+- Tags de automacao vao para `conversation_tags`
+- Tags manuais na sidebar de contato vao para `customer_tags` (caracteristicas permanentes)
 
-```tsx
-// No header, apos o botao "Palavras-chave":
-{(flow.trigger_keywords?.length > 0 || flow.triggers?.length > 0) && (
-  <Badge variant="secondary" className="text-xs">
-    {flow.trigger_keywords?.length || 0} palavras-chave
-  </Badge>
-)}
-```
+---
 
-#### 3. Corrigir Navegacao de Volta (Problema 404 e Botao Travado)
+### Fluxo Visual Proposto
 
-**Problema Principal**: A rota esta definida como:
-```tsx
-<Route path="/settings/chat-flows/:id/edit" element={<Layout><ChatFlowEditorPage /></Layout>} />
-```
-
-Isso envolve o editor fullscreen dentro do Layout com Sidebar, causando conflitos de scroll e z-index.
-
-**Arquivo**: `src/App.tsx` (linha 254)
-
-**Correcao**:
-- Remover `<Layout>` do ChatFlowEditorPage (editor fullscreen nao precisa de sidebar)
-- Manter o ProtectedRoute
-
-```tsx
-// DE:
-<Route path="/settings/chat-flows/:id/edit" element={<ProtectedRoute requiredPermission="settings.chat_flows"><Layout><ChatFlowEditorPage /></Layout></ProtectedRoute>} />
-
-// PARA:
-<Route path="/settings/chat-flows/:id/edit" element={<ProtectedRoute requiredPermission="settings.chat_flows"><ChatFlowEditorPage /></ProtectedRoute>} />
-```
-
-#### 4. Reforcar Botao de Voltar
-
-**Arquivo**: `src/pages/ChatFlowEditorPage.tsx`
-
-**Correcao adicional**: Usar `<a>` tag como fallback para garantir navegacao:
-
-```tsx
-<a
-  href="/settings/chat-flows"
-  onClick={(e) => {
-    e.preventDefault();
-    navigate("/settings/chat-flows");
-  }}
-  className="..."
->
-  <ArrowLeft className="h-5 w-5" />
-</a>
-```
-
-#### 5. Adicionar Explicacao de Uso dos Gatilhos
-
-**Arquivo**: `src/pages/ChatFlowEditorPage.tsx` (Dialog de Gatilhos)
-
-**Correcao**: Melhorar o texto explicativo no Dialog:
-
-```tsx
-<DialogDescription>
-  <strong>Como funciona:</strong> Quando um cliente envia uma mensagem contendo 
-  essas palavras-chave, este fluxo sera ativado automaticamente pelo chatbot.
-  <br /><br />
-  <strong>Palavras-chave:</strong> Termos curtos (ex: "carnaval", "promocao")
-  <br />
-  <strong>Frases exatas:</strong> Mensagens longas para match mais preciso
-</DialogDescription>
+```text
+NOVA CONVERSA
+    │
+    ▼
+┌─────────────────────────────┐
+│ Header do Chat              │
+│ [Sem tags] + [+Tag]         │  ← Conversa nova = sem tags
+└─────────────────────────────┘
+    │
+    ▼ (agente ou IA adiciona tag)
+    │
+┌─────────────────────────────┐
+│ Header do Chat              │
+│ [Duvida Entrega] [+Tag]     │  ← Tag vinculada a ESTA conversa
+└─────────────────────────────┘
+    │
+    ▼ (encerra conversa)
+    │
+┌─────────────────────────────┐
+│ Timeline do Contato         │
+│ "Conversa encerrada"        │
+│ Tags: Duvida Entrega        │  ← Registrado no historico
+└─────────────────────────────┘
+    │
+    ▼ (cliente abre NOVA conversa)
+    │
+┌─────────────────────────────┐
+│ Header do Chat              │
+│ [Sem tags] + [+Tag]         │  ← Nova conversa = limpo
+└─────────────────────────────┘
 ```
 
 ---
 
-### Resumo das Alteracoes
+### Secao Tecnica: Arquivos a Modificar
 
-| Arquivo | Tipo | Descricao |
-|---------|------|-----------|
-| `src/App.tsx:254` | Edicao | Remover `<Layout>` do ChatFlowEditorPage |
-| `src/pages/ChatFlowEditorPage.tsx` | Edicao | Forcar refetch apos salvar gatilhos + melhorar UI do botao voltar + adicionar badge de keywords + melhorar texto explicativo |
+| Arquivo | Linha(s) | Tipo | Descricao |
+|---------|----------|------|-----------|
+| `src/components/ChatWindow.tsx` | 105, 341-358 | Edicao | Remover customerTags do header |
+| `src/components/ContactDetailsSidebar.tsx` | 181 | Edicao | Adicionar secao de tags da conversa |
+| `supabase/functions/execute-automations/index.ts` | 232-238 | Edicao | Usar conversation_tags |
+| `supabase/functions/form-submit-v3/index.ts` | 1405-1419 | Edicao | Usar conversation_tags |
+| `src/hooks/useCloseConversation.tsx` | - | Edicao | Registrar tags na timeline ao encerrar |
 
-### Como Usar os Gatilhos (Resposta ao Usuario)
+### Garantia de Nao Quebrar
 
-Os gatilhos ja estao funcionando! Quando um cliente enviar uma mensagem no WhatsApp contendo:
-- A palavra-chave "Carnaval"
-- Ou a frase "Olá vim pelo email e gostaria de saber da promoção de pré carnaval"
-
-O fluxo "TESTE" sera automaticamente ativado pelo chatbot IA, iniciando a coleta de dados conforme o fluxo configurado.
-
-**Nao precisa fazer nada alem de:**
-1. Configurar as palavras-chave
-2. Ativar o fluxo (toggle "Ativo")
-3. Garantir que o chatbot IA esteja ativo nas conversas
+- Tags existentes permanecem intactas
+- Funcionalidade de tags do contato continua existindo (sidebar)
+- Apenas muda ONDE as novas tags sao salvas
+- Timeline ganha historico mais completo

@@ -1,219 +1,142 @@
 
+## Plano: Corrigir Estatísticas e Evoluir Sistema de IA com Fluxos Guiados
 
-## Plano: Centralizar Base de Conhecimento no AI Trainer (Corrigido)
+### Problemas Identificados
 
-### Arquitetura Real das Fontes
+#### 1. 🔴 Bug: "0 clientes" no Kiwify (Prioridade ALTA)
+**Causa:** O hook `useKiwifyStats` está filtrando `source = 'kiwify'`, mas os clientes foram importados como:
+- `csv_import`: 10.406 contatos (77%)
+- `null`: 1.942 contatos
+- `meta_whatsapp`, `form`, etc.
 
-| Fonte | Banco de Dados | Tool da IA | O Que Contém |
-|-------|----------------|------------|--------------|
-| **Knowledge Articles** | Supabase (knowledge_articles) | Busca semântica | FAQ, políticas, procedimentos |
-| **Kiwify (Vendas/Financeiro)** | Supabase (contacts + deals) | `check_order_status` | Dados de compra, valores, status de venda |
-| **Tracking (Logística)** | **MySQL externo** (tabela parcel) | `check_tracking` | Rastreio, status de envio, data de embalagem |
-| **Treinamento Sandbox** | Supabase (knowledge_articles) | Busca semântica | Regras aprendidas via correção manual |
+**Dados reais:**
+- Total de contatos: **13.315**
+- Contatos com deals: **10.617**
+- Deals totais: **11.061**
+
+#### 2. 🟡 Clientes Importados via Planilha não aparecem
+Os clientes importados têm `source = 'csv_import'`, não `'kiwify'`. Devem ser incluídos nas estatísticas.
+
+#### 3. 🔵 Fluxo de Chat precisa ser a base da IA
+O fluxo deve guiar a IA, não apenas disparar por keywords. Atualmente:
+- O fluxo tem nós de `ai_response` que podem usar personas e KB
+- Mas não há uma **estrutura guiada** para a IA seguir como "regra mestra"
+
+#### 4. 🔵 Personas não estão sendo usadas pelos agentes
+Cada agente humano deveria ter uma persona vinculada para a IA saber como agir quando auxilia ele.
 
 ---
 
-### Diagrama de Fontes de Conhecimento
+### Solução Proposta
+
+#### Correção 1: Ajustar Query de Clientes (Bug Imediato)
+
+Modificar `useKiwifyStats.tsx` para contar **todos os contatos com deals** (não apenas source='kiwify'):
+
+```typescript
+// ANTES (errado)
+.eq("source", "kiwify")
+
+// DEPOIS (correto - contatos COM vendas/deals vinculados)
+const { count: contactsWithDeals } = await supabase
+  .from('deals')
+  .select('contact_id', { count: 'exact', head: true })
+  .not('contact_id', 'is', null);
+```
+
+Resultado esperado: **10.617 clientes | 11.061 deals** (em vez de 0 clientes)
+
+---
+
+#### Correção 2: Adicionar Fonte "Importação de Planilha"
+
+Adicionar nova fonte no `KnowledgeSourcesWidget.tsx`:
+
+| Fonte | Banco | Descrição |
+|-------|-------|-----------|
+| **Importação de Planilha** | Supabase: contacts (source=csv_import) | Clientes importados manualmente |
+
+---
+
+#### Correção 3: Fluxo Guiado como Base para IA
+
+Criar conceito de **"Fluxo Mestre"** que a IA usa como base para atendimentos:
+
+1. **Novo campo em `chat_flows`**: `is_master_flow` (boolean)
+2. **Lógica no `ai-autopilot-chat`**:
+   - Antes de responder, verificar se existe fluxo mestre ativo
+   - Usar as etapas do fluxo como guia de atendimento
+   - Ex: Cliente entrou → Saudação → Identificar necessidade → Buscar KB → Responder
 
 ```text
-                    ┌─────────────────────────────────────┐
-                    │   Central de Conhecimento da IA     │
-                    └─────────────────────────────────────┘
-                                     │
-        ┌────────────────────────────┼────────────────────────────┐
-        ▼                            ▼                            ▼
-┌───────────────────┐    ┌───────────────────┐    ┌───────────────────┐
-│  📚 Knowledge     │    │  🛒 Kiwify        │    │  📦 Tracking      │
-│     Articles      │    │  (Vendas)         │    │  (Logística)      │
-├───────────────────┤    ├───────────────────┤    ├───────────────────┤
-│ Banco: Supabase   │    │ Banco: Supabase   │    │ Banco: MySQL      │
-│ Tabela: knowledge │    │ Tabelas: contacts │    │ Tabela: parcel    │
-│         _articles │    │          + deals  │    │                   │
-├───────────────────┤    ├───────────────────┤    ├───────────────────┤
-│ Tool: busca       │    │ Tool:             │    │ Tool:             │
-│ semantica         │    │ check_order_status│    │ check_tracking    │
-├───────────────────┤    ├───────────────────┤    ├───────────────────┤
-│ Uso: FAQ, docs,   │    │ Uso: valor compra │    │ Uso: status envio │
-│ políticas         │    │ status do deal    │    │ data embalagem    │
-└───────────────────┘    └───────────────────┘    └───────────────────┘
+FLUXO MESTRE (Exemplo):
+┌─────────────────────────────────────────────────────┐
+│ [1] Saudação     → "Olá, sou a IA da empresa X"    │
+│ [2] Identificar  → Perguntar o que precisa          │
+│ [3] Classificar  → Detectar departamento/intenção   │
+│ [4] Buscar KB    → Procurar resposta na base        │
+│ [5] Responder    → Usar persona adequada            │
+│ [6] Feedback     → Perguntar se resolveu            │
+│ [7] Encerrar     → Despedida ou transferir humano   │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Visual Final Proposto
+#### Correção 4: Vincular Persona ao Agente Humano
+
+Adicionar campo `default_persona_id` na tabela `profiles` (agentes):
+- Quando agente está em modo **copilot**, a IA usa a persona vinculada a ele
+- Permite que cada agente tenha "personalidade IA" diferente
+
+---
+
+#### Correção 5: IA que "Pensa, Procura e Acha"
+
+Melhorar o prompt da IA no `ai-autopilot-chat` para ser mais deliberativa:
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 🧠 Central de Conhecimento da IA                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  📊 VISÃO GERAL                                                 │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
-│  │ 38       │ │ 38       │ │ 5        │ │ 4        │           │
-│  │ Artigos  │ │ Embeddings│ │ Categorias│ │ Fontes   │           │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
-│                                                                 │
-│  📂 FONTES DE CONHECIMENTO                                      │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 📚 Base de Conhecimento             [Gerenciar]            │ │
-│  │    → Supabase: knowledge_articles                          │ │
-│  │    → 38 artigos | Busca semântica (embeddings)             │ │
-│  ├────────────────────────────────────────────────────────────┤ │
-│  │ 🛒 Kiwify (Vendas/Financeiro)       [Ver Configuração]     │ │
-│  │    → Supabase: contacts + deals                            │ │
-│  │    → Tool: check_order_status                              │ │
-│  │    → Dados de compra, valores, status de venda             │ │
-│  ├────────────────────────────────────────────────────────────┤ │
-│  │ 📦 Rastreio de Pedidos (Logística)  [Ver Configuração]     │ │
-│  │    → MySQL Externo: tabela parcel                          │ │
-│  │    → Tool: check_tracking                                  │ │
-│  │    → Status de envio, data de embalagem, rastreio          │ │
-│  ├────────────────────────────────────────────────────────────┤ │
-│  │ 🎓 Treinamento Sandbox              [Ver Artigos]          │ │
-│  │    → Supabase: knowledge_articles (source=sandbox)         │ │
-│  │    → X regras aprendidas via correção manual               │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                 │
-│  👤 QUEM USA O QUÊ (Personas)                                   │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ Helper (Suporte)                                           │ │
-│  │ ✓ knowledge_base ✓ customer_data ✓ order_history           │ │
-│  ├────────────────────────────────────────────────────────────┤ │
-│  │ Hunter (Vendas)                                            │ │
-│  │ ✓ knowledge_base ✓ customer_data ✓ order_history           │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+ANTES de responder:
+1. ANALISE a pergunta do cliente
+2. IDENTIFIQUE o que ele realmente precisa
+3. BUSQUE na Base de Conhecimento (KB)
+4. VERIFIQUE dados do pedido/cliente se aplicável
+5. FORMULE a melhor resposta considerando o contexto
+6. Se não tiver certeza, PERGUNTE antes de transferir
 ```
 
 ---
 
-### Alterações Técnicas
+### Arquivos a Modificar
 
-#### 1. Novo Componente: `KnowledgeSourcesWidget.tsx`
-
-Lista todas as 4 fontes de conhecimento com informações corretas:
-
-```tsx
-// src/components/settings/KnowledgeSourcesWidget.tsx
-const sources = [
-  {
-    id: 'knowledge_articles',
-    name: 'Base de Conhecimento',
-    icon: BookOpen,
-    database: 'Supabase: knowledge_articles',
-    tool: 'Busca semântica (embeddings)',
-    description: 'FAQ, políticas, procedimentos',
-    link: '/knowledge',
-  },
-  {
-    id: 'kiwify',
-    name: 'Kiwify (Vendas/Financeiro)',
-    icon: ShoppingCart,
-    database: 'Supabase: contacts + deals',
-    tool: 'check_order_status',
-    description: 'Dados de compra, valores, status de venda',
-    link: '/settings/kiwify',
-  },
-  {
-    id: 'tracking',
-    name: 'Rastreio de Pedidos (Logística)',
-    icon: Package,
-    database: 'MySQL Externo: tabela parcel',
-    tool: 'check_tracking',
-    description: 'Status de envio, data de embalagem',
-    link: '/settings/integrations', // ou onde MySQL está configurado
-  },
-  {
-    id: 'sandbox',
-    name: 'Treinamento Sandbox',
-    icon: GraduationCap,
-    database: 'Supabase: knowledge_articles (source=sandbox)',
-    tool: 'Busca semântica',
-    description: 'Regras aprendidas via correção manual',
-    link: '/knowledge?source=sandbox_training',
-  },
-];
-```
-
-#### 2. Novo Hook: `useKiwifyStats.tsx`
-
-Buscar estatísticas do Kiwify (contatos + deals):
-
-```tsx
-export function useKiwifyStats() {
-  return useQuery({
-    queryKey: ["kiwify-stats"],
-    queryFn: async () => {
-      const { count: contactsCount } = await supabase
-        .from("contacts")
-        .select("id", { count: "exact", head: true })
-        .eq("source", "kiwify");
-      
-      const { count: dealsCount } = await supabase
-        .from("deals")
-        .select("id", { count: "exact", head: true });
-      
-      return { contacts: contactsCount || 0, deals: dealsCount || 0 };
-    },
-  });
-}
-```
-
-#### 3. Novo Hook: `useSandboxTrainingCount.tsx`
-
-Contar artigos criados via Sandbox:
-
-```tsx
-export function useSandboxTrainingCount() {
-  return useQuery({
-    queryKey: ["sandbox-training-count"],
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("knowledge_articles")
-        .select("id", { count: "exact", head: true })
-        .eq("source", "sandbox_training");
-      
-      return count || 0;
-    },
-  });
-}
-```
-
-#### 4. Novo Componente: `PersonaDataAccessWidget.tsx`
-
-Mostra quais personas usam quais fontes:
-
-```tsx
-// Mostra:
-// - Nome da persona
-// - Badges: ✓ knowledge_base, ✓ customer_data, ✓ order_history
-// baseado em persona.data_access
-```
-
-#### 5. Refatorar: `AITrainer.tsx`
-
-Reorganizar a página para incluir os novos widgets.
+| Arquivo | Alteração | Prioridade |
+|---------|-----------|------------|
+| `src/hooks/useKiwifyStats.tsx` | Corrigir query para contar contatos com deals | 🔴 ALTA |
+| `src/components/settings/KnowledgeSourcesWidget.tsx` | Adicionar fonte "Importação de Planilha" | 🟡 MÉDIA |
+| `supabase/functions/ai-autopilot-chat/index.ts` | Adicionar lógica de "fluxo mestre" e pensamento deliberativo | 🔵 BAIXA |
+| Migração SQL | Adicionar `is_master_flow` em `chat_flows` e `default_persona_id` em `profiles` | 🔵 BAIXA |
 
 ---
 
-### Arquivos a Criar/Modificar
+### Resultado Esperado
 
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/components/settings/KnowledgeSourcesWidget.tsx` | **Criar** | Lista 4 fontes com detalhes corretos |
-| `src/components/settings/PersonaDataAccessWidget.tsx` | **Criar** | Acesso por persona |
-| `src/hooks/useKiwifyStats.tsx` | **Criar** | Stats de contacts + deals |
-| `src/hooks/useSandboxTrainingCount.tsx` | **Criar** | Count de artigos sandbox |
-| `src/pages/AITrainer.tsx` | **Editar** | Integrar novos widgets |
+1. **Estatísticas corretas**: 10.617 clientes | 11.061 deals
+2. **Visibilidade de todas as fontes**: KB, Kiwify, Tracking, Planilha, Sandbox
+3. **IA guiada**: Segue o fluxo mestre como base de atendimento
+4. **Personas ativas**: Agentes usam personas vinculadas
+5. **IA inteligente**: Pensa antes de responder, busca ativamente
 
 ---
 
-### Benefícios
+### Fluxo de Implementação
 
-1. **Visão real e correta**: Mostra exatamente de onde a IA busca cada tipo de informação
-2. **Clareza técnica**: Distingue entre Supabase (Kiwify = vendas) e MySQL (Tracking = logística)
-3. **Ação rápida**: Links diretos para gerenciar cada fonte
-4. **Governança**: Mostra qual persona acessa qual dado
-5. **Sem breaking changes**: Tudo continua funcionando, apenas adiciona visualização
+```text
+FASE 1 (Imediato):
+├── [1] Corrigir useKiwifyStats.tsx → 10.617 clientes
+└── [2] Adicionar fonte "Importação de Planilha"
 
+FASE 2 (Próxima Sprint):
+├── [3] Criar conceito de "Fluxo Mestre"
+├── [4] Vincular persona ao agente (profiles.default_persona_id)
+└── [5] Melhorar prompt deliberativo da IA
+```

@@ -1,113 +1,129 @@
 
-## Plano: Corrigir Realtime que Para de Funcionar em Producao
+
+## Plano: Corrigir Historico de Conversas que Desaparece
 
 ### Diagnostico do Problema
 
-Apos analise completa do codigo e infraestrutura, identifiquei a causa raiz:
+Identifiquei um problema critico nas politicas de seguranca (RLS) que faz o historico desaparecer para agentes operacionais.
 
-| Componente | Status | Problema |
-|------------|--------|----------|
-| Banco de Dados | OK | Tabelas `messages`, `inbox_view`, `conversations` estao na publicacao `supabase_realtime` |
-| Cliente Supabase | INCOMPLETO | Nao tem opcoes de `realtime` configuradas (heartbeat, timeout, reconexao) |
-| Hooks de Realtime | PARCIAL | Nao monitoram status da conexao nem forcam reconexao |
-| Fallback Polling | LENTO | `refetchInterval: 15000` (15s) e muito longo para detectar falhas |
-
-**Causa Raiz Principal**: O cliente Supabase em `src/integrations/supabase/client.ts` nao tem configuracoes de realtime. Quando a conexao WebSocket "cai silenciosamente" (timeout de rede, proxy, firewall corporativo), os hooks continuam "subscritos" em um canal morto, sem receber eventos.
-
-**Por que funciona no Preview**: No preview, voce esta constantemente interagindo, o que mantem a conexao ativa. Em producao, apos alguns minutos de menor atividade ou variacoes de rede, a conexao pode ser encerrada pelo servidor/proxy sem notificacao ao cliente.
+| Problema | Impacto | Afeta Quem |
+|----------|---------|------------|
+| RLS filtra conversas por `status = 'open'` | Agentes perdem acesso ao historico quando conversa fecha | `sales_rep`, `support_agent`, `user` |
+| Mensagens dependem de acesso a conversa | Se nao ve a conversa, nao ve as mensagens | Todos agentes operacionais |
+| Frontend filtra `closed` por padrao | Mesmo que tenha acesso, nao aparece na lista | Todos |
 
 ---
 
-### Arquitetura Atual (Problematica)
+### Causa Raiz: Politicas RLS Restritivas
+
+**Tabela `conversations`** - 3 politicas problematicas:
 
 ```text
-Cliente Supabase (sem opcoes realtime)
-         |
-         v
-WebSocket conecta ao Supabase Realtime
-         |
-         v
-[5-15 minutos de atividade normal]
-         |
-         v
-Conexao "morre silenciosamente" (timeout/proxy/firewall)
-         |
-         v
-Hooks continuam "subscritos" em canal morto
-         |
-         v
-Mensagens nao chegam ate dar refresh
+sales_rep_can_view_sales_conversations:
+  ONDE: has_role('sales_rep') AND status = 'open' AND ...
+  PROBLEMA: Vendedor perde acesso assim que fecha!
+
+support_agent_can_view_assigned_conversations:
+  ONDE: has_role('support_agent') AND status = 'open' AND ...
+  PROBLEMA: Suporte perde acesso assim que fecha!
+
+user_can_view_department_conversations:
+  ONDE: has_role('user') AND status = 'open' AND ...
+  PROBLEMA: Usuario perde acesso assim que fecha!
+```
+
+**Tabela `inbox_view`** - Mesmas 3 politicas:
+
+```text
+sales_rep_view_sales_inbox:
+  ONDE: status = 'open' AND ...
+
+support_agent_view_assigned_inbox:
+  ONDE: status = 'open' AND ...
+
+user_view_department_inbox:
+  ONDE: status = 'open' AND ...
+```
+
+**Tabela `messages`**:
+
+```text
+role_based_select_messages:
+  ONDE: ... OR EXISTS (SELECT 1 FROM conversations c WHERE c.id = messages.conversation_id AND c.assigned_to = auth.uid())
+  PROBLEMA: Depende de ter acesso a conversa. Se RLS da conversa nega, mensagens tambem sao negadas!
+```
+
+---
+
+### Fluxo Atual (Quebrado)
+
+```text
+1. Atendente abre conversa com cliente
+2. Atendente trabalha na conversa (ve historico)
+3. Conversa e FECHADA (status = 'closed')
+4. RLS policy: status = 'open' -> FALSE
+5. Atendente NAO ve mais a conversa
+6. Mensagens: EXISTS(conversa) -> FALSE
+7. Historico DESAPARECE completamente!
 ```
 
 ---
 
 ### Solucao Proposta
 
-#### 1. Configurar Cliente Supabase com Opcoes de Realtime
+#### 1. Atualizar RLS das Conversas
 
-Adicionar configuracoes de heartbeat, timeout e reconexao automatica:
+Remover filtro `status = 'open'` das politicas de SELECT, permitindo visualizar conversas fechadas que foram atribuidas ao agente:
 
-**Arquivo**: `src/integrations/supabase/client.ts`
+**Politica `sales_rep_can_view_sales_conversations`**:
 
-```typescript
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-    heartbeatIntervalMs: 15000, // Heartbeat a cada 15s (mantém conexao viva)
-    reconnectAfterMs: (tries) => Math.min(tries * 1000, 10000), // Backoff exponencial até 10s
-    timeout: 30000, // Timeout de 30s antes de considerar desconectado
-  },
-});
+```sql
+-- ANTES
+status = 'open' AND (assigned_to = auth.uid() OR ...)
+
+-- DEPOIS
+(assigned_to = auth.uid() OR ...)
+-- Agente ve TODAS conversas atribuidas a ele (abertas ou fechadas)
+-- E ve conversas NAO atribuidas do seu departamento APENAS se abertas
+OR (status = 'open' AND assigned_to IS NULL AND department IN (...))
 ```
+
+**Logica corrigida**:
+- Ver conversas atribuidas ao agente (qualquer status)
+- Ver conversas NAO atribuidas do departamento (apenas abertas)
 
 ---
 
-#### 2. Criar Hook Global de Monitoramento de Conexao Realtime
+#### 2. Atualizar RLS do inbox_view
 
-Criar um hook que monitora o estado da conexao e forca reconexao quando necessario:
-
-**Arquivo novo**: `src/hooks/useRealtimeHealth.tsx`
-
-Este hook:
-1. Escuta eventos de conexao/desconexao do Supabase Realtime
-2. Mostra indicador visual quando desconectado
-3. Forca reconexao quando detecta problema
-4. Invalida queries para refetch apos reconectar
+Aplicar mesma logica para a tabela `inbox_view`.
 
 ---
 
-#### 3. Reduzir Polling de Fallback
+#### 3. Garantir Acesso as Mensagens
 
-Reduzir o `refetchInterval` em hooks criticos para detectar falhas mais rapido:
-
-**Arquivo**: `src/hooks/useInboxView.tsx`
-
-```typescript
-refetchInterval: 10000, // Reduzir de 15s para 10s
-```
-
-**Arquivo**: `src/hooks/useConversations.tsx`
-
-```typescript
-refetchInterval: 15000, // Reduzir de 30s para 15s
-```
+A politica `role_based_select_messages` ja depende de `conversations.assigned_to = auth.uid()`. Ao corrigir o acesso a conversas, mensagens serao automaticamente visiveis.
 
 ---
 
-#### 4. Adicionar Reconexao Apos Visibilidade
+#### 4. Atualizar Frontend para Mostrar Historico
 
-Melhorar o listener de `visibilitychange` para forcar nova subscricao:
+Em `src/hooks/useInboxView.tsx`, adicionar filtro para mostrar conversas fechadas quando solicitado:
 
-**Arquivo**: `src/hooks/useInboxView.tsx`
+```typescript
+// Linha 121-127 - Filtro de status
+if (filters.status.length > 0) {
+  result = result.filter(item => filters.status.includes(item.status));
+} else {
+  // ANTES: Ocultava fechadas por padrao
+  // result = result.filter(item => item.status !== 'closed');
+  
+  // DEPOIS: Mostrar abertas por padrao, mas permitir ver fechadas via filtro
+  result = result.filter(item => item.status !== 'closed');
+}
+```
 
-Adicionar logica que remove e recria os canais quando a aba volta ao foco apos muito tempo inativa.
+Adicionar botao na interface para "Ver conversas encerradas" que inclui `status: ['closed']` nos filtros.
 
 ---
 
@@ -115,145 +131,150 @@ Adicionar logica que remove e recria os canais quando a aba volta ao foco apos m
 
 | Arquivo | Acao | Descricao |
 |---------|------|-----------|
-| `src/integrations/supabase/client.ts` | Modificar (CUIDADO: auto-gerado) | Adicionar opcoes de realtime |
-| `src/hooks/useRealtimeHealth.tsx` | Criar | Hook de monitoramento global |
-| `src/hooks/useInboxView.tsx` | Modificar | Reduzir refetchInterval, melhorar reconexao |
-| `src/hooks/useConversations.tsx` | Modificar | Reduzir refetchInterval |
-| `src/hooks/useMessages.tsx` | Modificar | Adicionar reconexao quando canal morre |
-| `src/components/Layout.tsx` | Modificar | Adicionar indicador de conexao realtime |
+| Migration SQL | Criar | Atualizar 6 politicas RLS |
+| `src/hooks/useInboxView.tsx` | Modificar | Adicionar opcao para ver historico fechado |
+| `src/components/inbox/InboxSidebar.tsx` | Modificar | Adicionar botao "Historico" |
 
 ---
 
-### Secao Tecnica: Hook useRealtimeHealth
+### Secao Tecnica: Migration SQL
+
+```sql
+-- 1. Corrigir RLS de conversations para sales_rep
+DROP POLICY IF EXISTS "sales_rep_can_view_sales_conversations" ON public.conversations;
+CREATE POLICY "sales_rep_can_view_sales_conversations" ON public.conversations
+FOR SELECT TO authenticated
+USING (
+  has_role(auth.uid(), 'sales_rep'::app_role) AND (
+    -- Pode ver QUALQUER conversa atribuida a ele (aberta ou fechada)
+    assigned_to = auth.uid()
+    OR
+    -- Pode ver conversas NAO atribuidas do departamento (apenas abertas)
+    (status = 'open' AND assigned_to IS NULL AND department IN (
+      SELECT id FROM departments WHERE name = ANY(ARRAY['Comercial', 'Vendas'])
+    ))
+  )
+);
+
+-- 2. Corrigir RLS de conversations para support_agent
+DROP POLICY IF EXISTS "support_agent_can_view_assigned_conversations" ON public.conversations;
+CREATE POLICY "support_agent_can_view_assigned_conversations" ON public.conversations
+FOR SELECT TO authenticated
+USING (
+  has_role(auth.uid(), 'support_agent'::app_role) AND (
+    assigned_to = auth.uid()
+    OR
+    (status = 'open' AND assigned_to IS NULL AND department IN (
+      SELECT id FROM departments WHERE name = 'Suporte'
+    ))
+  )
+);
+
+-- 3. Corrigir RLS de conversations para user
+DROP POLICY IF EXISTS "user_can_view_department_conversations" ON public.conversations;
+CREATE POLICY "user_can_view_department_conversations" ON public.conversations
+FOR SELECT TO authenticated
+USING (
+  has_role(auth.uid(), 'user'::app_role) AND (
+    assigned_to = auth.uid()
+    OR
+    (status = 'open' AND assigned_to IS NULL AND department = (
+      SELECT department FROM profiles WHERE id = auth.uid()
+    ))
+  )
+);
+
+-- 4-6. Mesmas correcoes para inbox_view
+DROP POLICY IF EXISTS "sales_rep_view_sales_inbox" ON public.inbox_view;
+CREATE POLICY "sales_rep_view_sales_inbox" ON public.inbox_view
+FOR SELECT TO authenticated
+USING (
+  has_role(auth.uid(), 'sales_rep'::app_role) AND (
+    assigned_to = auth.uid()
+    OR
+    (status = 'open' AND assigned_to IS NULL AND department IN (
+      SELECT id FROM departments WHERE name = ANY(ARRAY['Comercial', 'Vendas'])
+    ))
+  )
+);
+
+DROP POLICY IF EXISTS "support_agent_view_assigned_inbox" ON public.inbox_view;
+CREATE POLICY "support_agent_view_assigned_inbox" ON public.inbox_view
+FOR SELECT TO authenticated
+USING (
+  has_role(auth.uid(), 'support_agent'::app_role) AND (
+    assigned_to = auth.uid()
+    OR
+    (status = 'open' AND assigned_to IS NULL AND department IN (
+      SELECT id FROM departments WHERE name = 'Suporte'
+    ))
+  )
+);
+
+DROP POLICY IF EXISTS "user_view_department_inbox" ON public.inbox_view;
+CREATE POLICY "user_view_department_inbox" ON public.inbox_view
+FOR SELECT TO authenticated
+USING (
+  has_role(auth.uid(), 'user'::app_role) AND (
+    assigned_to = auth.uid()
+    OR
+    (status = 'open' AND assigned_to IS NULL AND department = (
+      SELECT department FROM profiles WHERE id = auth.uid()
+    ))
+  )
+);
+```
+
+---
+
+### Secao Tecnica: Modificacoes no Frontend
+
+**InboxSidebar.tsx** - Adicionar filtro de historico:
 
 ```typescript
-// src/hooks/useRealtimeHealth.tsx
-import { useEffect, useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+// Adicionar item no menu lateral
+<Button
+  variant={showClosed ? "secondary" : "ghost"}
+  onClick={() => setFilters(prev => ({
+    ...prev,
+    status: showClosed ? [] : ['closed']
+  }))}
+>
+  <Archive className="h-4 w-4 mr-2" />
+  Historico
+</Button>
+```
 
-export function useRealtimeHealth() {
-  const [isConnected, setIsConnected] = useState(true);
-  const [lastPing, setLastPing] = useState<Date | null>(null);
-  const queryClient = useQueryClient();
+**useInboxView.tsx** - Permitir ver fechadas:
 
-  // Monitorar conexao
-  useEffect(() => {
-    // Criar canal de heartbeat
-    const healthChannel = supabase
-      .channel('realtime-health-check')
-      .on('system', { event: 'connect' }, () => {
-        console.log('[RealtimeHealth] Connected');
-        setIsConnected(true);
-        setLastPing(new Date());
-      })
-      .on('system', { event: 'disconnect' }, () => {
-        console.log('[RealtimeHealth] Disconnected');
-        setIsConnected(false);
-      })
-      .subscribe((status) => {
-        console.log('[RealtimeHealth] Status:', status);
-        setIsConnected(status === 'SUBSCRIBED');
-        if (status === 'SUBSCRIBED') {
-          setLastPing(new Date());
-        }
-      });
-
-    // Ping periodico para verificar se conexao esta viva
-    const pingInterval = setInterval(async () => {
-      try {
-        const channel = supabase.getChannels().find(c => c.topic === 'realtime-health-check');
-        if (channel && channel.state !== 'joined') {
-          console.log('[RealtimeHealth] Channel not joined, forcing reconnect');
-          setIsConnected(false);
-          // Forcar reconexao removendo e recriando
-          await supabase.removeChannel(channel);
-        }
-      } catch (e) {
-        console.error('[RealtimeHealth] Ping error:', e);
-        setIsConnected(false);
-      }
-    }, 30000); // Verificar a cada 30s
-
-    return () => {
-      clearInterval(pingInterval);
-      supabase.removeChannel(healthChannel);
-    };
-  }, []);
-
-  // Reconectar quando visibilidade muda
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && !isConnected) {
-        console.log('[RealtimeHealth] Tab visible but disconnected, forcing refresh');
-        queryClient.invalidateQueries({ queryKey: ['inbox-view'] });
-        queryClient.invalidateQueries({ queryKey: ['messages'] });
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [isConnected, queryClient]);
-
-  return { isConnected, lastPing };
+```typescript
+// Modificar filtro de status (linha 121-127)
+if (filters.status.length > 0) {
+  result = result.filter(item => filters.status.includes(item.status));
+} else {
+  // Padrao: mostrar apenas abertas
+  result = result.filter(item => item.status !== 'closed');
 }
-```
-
----
-
-### Secao Tecnica: Indicador Visual de Conexao
-
-Adicionar badge no header quando desconectado:
-
-```typescript
-// Em Layout.tsx ou componente de header
-const { isConnected } = useRealtimeHealth();
-
-{!isConnected && (
-  <div className="flex items-center gap-2 text-destructive">
-    <WifiOff className="h-4 w-4" />
-    <span className="text-xs">Reconectando...</span>
-  </div>
-)}
-```
-
----
-
-### Fluxo Apos Implementacao
-
-```text
-Cliente Supabase (COM opcoes realtime)
-         |
-         v
-WebSocket conecta com heartbeat a cada 15s
-         |
-         v
-[Conexao monitorada pelo useRealtimeHealth]
-         |
-         v
-Se conexao morrer -> Reconexao automatica em 1-10s
-         |
-         v
-Se tab ficar em background -> Catch-up ao voltar
-         |
-         v
-Indicador visual avisa usuario se desconectado
 ```
 
 ---
 
 ### Resultado Esperado
 
-| Metrica | Antes | Depois |
+| Cenario | Antes | Depois |
 |---------|-------|--------|
-| Conexao realtime estavel | NAO (morre silenciosamente) | SIM (heartbeat + reconexao) |
-| Tempo de deteccao de falha | 15-30s (polling) | 1-5s (heartbeat) |
-| Reconexao automatica | NAO | SIM (backoff exponencial) |
-| Feedback ao usuario | Nenhum | Badge visual |
-| Catch-up ao voltar | Parcial | Completo + reinscricao |
+| Agente ve conversa atribuida fechada | NAO | SIM |
+| Agente ve historico de mensagens | NAO | SIM |
+| Agente ve conversas nao atribuidas fechadas | NAO | NAO (correto) |
+| Managers veem tudo | SIM | SIM |
+| Admin veem tudo | SIM | SIM |
 
 ---
 
-### Aviso Importante
+### Notas de Seguranca
 
-O arquivo `src/integrations/supabase/client.ts` e marcado como "auto-gerado". Precisamos verificar se as alteracoes serao preservadas ou se devemos criar um wrapper separado para o cliente com configuracoes customizadas.
+- Agentes so verao conversas que FORAM atribuidas a eles
+- Conversas nao atribuidas fechadas NAO serao visiveis para agentes
+- Managers e Admins continuam com acesso total
+- A logica de departamento continua funcionando para conversas abertas nao atribuidas
+

@@ -62,7 +62,7 @@ export default function TransferConversationDialog({
 
   const handleTransfer = () => {
     // Agente é opcional - se não selecionou, usa distribuição automática
-    if (!selectedDepartmentId || !transferNote.trim()) return;
+    if (!selectedDepartmentId) return;
 
     const isAutoDistribute = !selectedUserId || selectedUserId === "auto";
     const toUser = isAutoDistribute ? null : users?.find((u) => u.id === selectedUserId);
@@ -235,7 +235,7 @@ export default function TransferConversationDialog({
 
               {/* Campo de Nota de Transferência */}
               <div className="space-y-2">
-                <Label htmlFor="transferNote">Nota de Transferência *</Label>
+                <Label htmlFor="transferNote">Nota de Transferência <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                 <Textarea
                   id="transferNote"
                   placeholder="Ex: Cliente está irritado com atraso na entrega, precisa atenção urgente..."
@@ -267,7 +267,7 @@ export default function TransferConversationDialog({
           </Button>
           <Button
             onClick={handleTransfer}
-            disabled={!selectedDepartmentId || !transferNote.trim() || transferMutation.isPending}
+            disabled={!selectedDepartmentId || transferMutation.isPending}
           >
             {transferMutation.isPending ? "Transferindo..." : "Confirmar Transferência"}
           </Button>

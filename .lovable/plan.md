@@ -1,475 +1,219 @@
 
-## Plano: Liberar Acesso Total para cs_manager (Marco Cruz)
+## Plano de Otimizacao Enterprise: Sistema Mais Rapido e Estavel
 
-### Diagnostico Completo
+### Analise Completa Realizada
 
-Identifiquei **Marco Cruz** como o usuario com role `cs_manager`:
-- **User ID**: ce6150bb-c88b-4fc1-bce2-f09b4f51ef1d
-- **Role**: cs_manager
-
-### Tabelas que JA Permitem cs_manager (OK)
-
-| Tabela | Status |
-|--------|--------|
-| chat_flows | OK - cs_manager incluido |
-| onboarding_playbooks | OK - cs_manager incluido |
-| email_templates | OK - cs_manager incluido |
-| email_templates_v2 | OK - cs_manager incluido |
-| email_branding | OK - cs_manager incluido |
-| email_senders | OK - cs_manager incluido |
-| email_layout_library | OK - cs_manager incluido |
-| email_template_blocks | OK - cs_manager incluido |
-| email_template_translations | OK - cs_manager incluido |
-| email_template_variants | OK - cs_manager incluido |
-| email_tracking_events | OK - cs_manager pode visualizar |
-| playbook_executions | OK - cs_manager pode ver e atualizar |
-| playbook_execution_queue | OK - cs_manager pode visualizar |
-
-### Tabelas que BLOQUEIAM cs_manager (CORRIGIR)
-
-| Tabela | Problema | Acoes Bloqueadas |
-|--------|----------|-----------------|
-| ai_message_templates | Apenas admin/manager | INSERT, UPDATE, DELETE |
-| ai_personas | Apenas admin/manager | INSERT, UPDATE, DELETE |
-| ai_tools | Apenas admin/manager | INSERT, UPDATE, DELETE |
-| ai_persona_tools | Apenas admin/manager | INSERT, UPDATE, DELETE |
-| ai_routing_rules | Apenas admin/manager | INSERT, UPDATE, DELETE |
-| ai_scenario_configs | Apenas admin/manager | ALL |
-| ai_training_examples | Apenas admin/manager | ALL |
-| cadence_templates | Apenas admin | ALL |
-| automations | Apenas admin/manager | ALL |
-| email_block_conditions | Apenas admin/manager/gm | ALL |
-| email_events | Apenas admin/manager/gm | SELECT |
-| email_sends | Apenas admin/manager/gm/fm | SELECT |
-| email_variable_definitions | Apenas admin | ALL |
+Identifiquei os seguintes problemas criticos que impactam a velocidade e estabilidade do sistema:
 
 ---
 
-### Migration SQL para Corrigir
+## SECAO 1: Problemas Criticos Encontrados
 
-Criar migration com DROP e CREATE de todas as policies necessarias:
+### 1.1 Statement Timeouts no Banco (URGENTE)
+Multiplos erros de "canceling statement due to statement timeout" nos logs. Causa: queries pesadas sem indices otimizados.
 
+| Funcao RPC | Problema |
+|------------|----------|
+| `get_avg_first_response_time` | Calcula AVG com EXTRACT(EPOCH) em tempo real |
+| `get_avg_resolution_time` | Mesmo problema |
+| `get_conversation_heatmap` | GROUP BY em toda tabela por dia/hora |
+
+### 1.2 Erro de Enum Invalido
+Erro: "invalid input value for enum communication_channel: 'web_chat'"
+
+O enum `communication_channel` (usado em `interactions`) nao inclui `'web_chat'`, mas o codigo envia esse valor em:
+- `distribute-pending-conversations/index.ts:330`
+- `message-listener/index.ts:64`
+- `redistribute-after-hours/index.ts:129`
+
+### 1.3 Polling Agressivo Desnecessario
+Com realtime ja implementado, polling excessivo gera carga duplicada:
+
+| Hook | Intervalo | Problema |
+|------|-----------|----------|
+| `useWhatsAppInstances` | 5s | Muito frequente |
+| `useInboxView` | 10s | Redundante com realtime |
+| `useConversations` | 15s | Redundante com realtime |
+
+### 1.4 Queries Sem Limite Adequado
+- `useDeals`: limit(5000) - 11k deals no banco
+- `useContacts`: Sem limite - 13k contatos no banco
+- `useAverageResponseTime`: Baixa TODAS conversas para calcular media no JS
+
+### 1.5 Indices Nao Utilizados
+30 indices criados mas NUNCA usados (idx_scan = 0), ocupando espaco e overhead em writes.
+
+---
+
+## SECAO 2: Solucoes Propostas (Sem Quebrar Nada)
+
+### Parte A: Correcoes Imediatas (Zero Risco)
+
+#### A1. Corrigir Enum web_chat
+Adicionar `'web_chat'` ao enum `communication_channel` OU substituir por `'chat'` nos edge functions.
+
+**Arquivo**: Criar migration SQL
 ```sql
--- =====================================================
--- 1. ai_message_templates
--- =====================================================
-DROP POLICY IF EXISTS "admin_manager_can_delete_ai_message_templates" ON ai_message_templates;
-DROP POLICY IF EXISTS "admin_manager_can_insert_ai_message_templates" ON ai_message_templates;
-DROP POLICY IF EXISTS "admin_manager_can_update_ai_message_templates" ON ai_message_templates;
-
-CREATE POLICY "managers_can_delete_ai_message_templates"
-ON ai_message_templates FOR DELETE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_insert_ai_message_templates"
-ON ai_message_templates FOR INSERT TO public
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_update_ai_message_templates"
-ON ai_message_templates FOR UPDATE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 2. ai_personas
--- =====================================================
-DROP POLICY IF EXISTS "admins_managers_can_delete_personas" ON ai_personas;
-DROP POLICY IF EXISTS "admins_managers_can_insert_personas" ON ai_personas;
-DROP POLICY IF EXISTS "admins_managers_can_update_personas" ON ai_personas;
-
-CREATE POLICY "managers_can_delete_personas"
-ON ai_personas FOR DELETE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_insert_personas"
-ON ai_personas FOR INSERT TO public
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_update_personas"
-ON ai_personas FOR UPDATE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 3. ai_tools
--- =====================================================
-DROP POLICY IF EXISTS "admins_managers_can_delete_tools" ON ai_tools;
-DROP POLICY IF EXISTS "admins_managers_can_insert_tools" ON ai_tools;
-DROP POLICY IF EXISTS "admins_managers_can_update_tools" ON ai_tools;
-
-CREATE POLICY "managers_can_delete_tools"
-ON ai_tools FOR DELETE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_insert_tools"
-ON ai_tools FOR INSERT TO public
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_update_tools"
-ON ai_tools FOR UPDATE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 4. ai_persona_tools
--- =====================================================
-DROP POLICY IF EXISTS "admins_managers_can_delete_persona_tools" ON ai_persona_tools;
-DROP POLICY IF EXISTS "admins_managers_can_insert_persona_tools" ON ai_persona_tools;
-DROP POLICY IF EXISTS "admins_managers_can_update_persona_tools" ON ai_persona_tools;
-
-CREATE POLICY "managers_can_delete_persona_tools"
-ON ai_persona_tools FOR DELETE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_insert_persona_tools"
-ON ai_persona_tools FOR INSERT TO public
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_update_persona_tools"
-ON ai_persona_tools FOR UPDATE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 5. ai_routing_rules
--- =====================================================
-DROP POLICY IF EXISTS "admins_managers_can_delete_routing_rules" ON ai_routing_rules;
-DROP POLICY IF EXISTS "admins_managers_can_insert_routing_rules" ON ai_routing_rules;
-DROP POLICY IF EXISTS "admins_managers_can_update_routing_rules" ON ai_routing_rules;
-
-CREATE POLICY "managers_can_delete_routing_rules"
-ON ai_routing_rules FOR DELETE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_insert_routing_rules"
-ON ai_routing_rules FOR INSERT TO public
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
-CREATE POLICY "managers_can_update_routing_rules"
-ON ai_routing_rules FOR UPDATE TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 6. ai_scenario_configs
--- =====================================================
-DROP POLICY IF EXISTS "Admin e Manager podem gerenciar cenários" ON ai_scenario_configs;
-
-CREATE POLICY "managers_can_manage_scenarios"
-ON ai_scenario_configs FOR ALL TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 7. ai_training_examples
--- =====================================================
-DROP POLICY IF EXISTS "Admin e Manager podem gerenciar exemplos de treinamento" ON ai_training_examples;
-
-CREATE POLICY "managers_can_manage_training_examples"
-ON ai_training_examples FOR ALL TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 8. cadence_templates
--- =====================================================
-DROP POLICY IF EXISTS "Admins can manage cadence templates" ON cadence_templates;
-
-CREATE POLICY "managers_can_manage_cadence_templates"
-ON cadence_templates FOR ALL TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 9. automations
--- =====================================================
-DROP POLICY IF EXISTS "admins_managers_can_manage_automations" ON automations;
-
-CREATE POLICY "managers_can_manage_automations"
-ON automations FOR ALL TO authenticated
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 10. email_block_conditions
--- =====================================================
-DROP POLICY IF EXISTS "admin_manager_full_access_conditions" ON email_block_conditions;
-
-CREATE POLICY "managers_full_access_conditions"
-ON email_block_conditions FOR ALL TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 11. email_events (apenas SELECT)
--- =====================================================
-DROP POLICY IF EXISTS "admin_manager_view_all_events" ON email_events;
-
-CREATE POLICY "managers_view_all_events"
-ON email_events FOR SELECT TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
-
--- =====================================================
--- 12. email_sends (apenas SELECT)
--- =====================================================
-DROP POLICY IF EXISTS "admin_manager_view_all_sends" ON email_sends;
-
-CREATE POLICY "managers_view_all_sends"
-ON email_sends FOR SELECT TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role) OR
-  has_role(auth.uid(), 'financial_manager'::app_role)
-);
-
--- =====================================================
--- 13. email_variable_definitions
--- =====================================================
-DROP POLICY IF EXISTS "admin_manage_variables" ON email_variable_definitions;
-
-CREATE POLICY "managers_manage_variables"
-ON email_variable_definitions FOR ALL TO public
-USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-)
-WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'manager'::app_role) OR
-  has_role(auth.uid(), 'cs_manager'::app_role) OR
-  has_role(auth.uid(), 'general_manager'::app_role) OR
-  has_role(auth.uid(), 'support_manager'::app_role)
-);
+ALTER TYPE public.communication_channel ADD VALUE IF NOT EXISTS 'web_chat';
 ```
 
+#### A2. Otimizar useAverageResponseTime
+Substituir query client-side pela RPC existente.
+
+**Arquivo**: `src/hooks/useAverageResponseTime.tsx`
+```tsx
+// DE:
+const { data: conversations } = await supabase
+  .from("conversations")
+  .select("created_at, first_response_at")...
+
+// PARA:
+const { data } = await supabase.rpc("get_avg_first_response_time", {
+  p_start: startDate.toISOString(),
+  p_end: endDate.toISOString()
+});
+return data || 0;
+```
+
+#### A3. Reduzir Polling Agressivo
+Aumentar intervalos onde realtime ja cobre:
+
+**Arquivos a editar**:
+| Hook | De | Para |
+|------|----|------|
+| `useWhatsAppInstances` | 5s | 30s |
+| `useInboxView` | 10s | 60s (backup only) |
+| `useConversations` | 15s | 60s (backup only) |
+| `useWhatsAppAPIStatus` | 10s | 30s |
+
+### Parte B: Otimizacoes de Media Prioridade
+
+#### B1. Adicionar Limite em useContacts
+**Arquivo**: `src/hooks/useContacts.tsx`
+```tsx
+// Adicionar apos .order():
+.limit(1000)
+```
+
+#### B2. Reduzir Limite em useDeals
+**Arquivo**: `src/hooks/useDeals.tsx`
+```tsx
+// DE:
+query = query.limit(5000);
+
+// PARA:
+query = query.limit(1000);
+```
+
+Obs: Implementar paginacao infinita em fase posterior.
+
+#### B3. Criar Indices Otimizados para Metricas
+**Migration SQL**:
+```sql
+-- Indice para FRT
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_conversations_frt_calc 
+ON conversations (created_at, first_response_at) 
+WHERE first_response_at IS NOT NULL;
+
+-- Indice para MTTR
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_conversations_mttr_calc 
+ON conversations (created_at, closed_at) 
+WHERE closed_at IS NOT NULL;
+
+-- Indice para heatmap
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_conversations_heatmap 
+ON conversations (created_at);
+```
+
+### Parte C: Otimizacoes Avancadas (Opcional)
+
+#### C1. Materialized View para Metricas Diarias
+Criar tabela pre-calculada para evitar AVG em tempo real:
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS daily_support_metrics AS
+SELECT 
+  date_trunc('day', created_at) as day,
+  AVG(EXTRACT(EPOCH FROM (first_response_at - created_at)) / 60) as avg_frt_minutes,
+  AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 60) as avg_mttr_minutes,
+  COUNT(*) as total_conversations
+FROM conversations
+WHERE first_response_at IS NOT NULL OR closed_at IS NOT NULL
+GROUP BY 1;
+
+-- Refresh automatico via cron
+```
+
+#### C2. Remover Indices Nao Utilizados
+Lista de indices com idx_scan = 0 que podem ser removidos para reduzir overhead:
+- `idx_conversations_handoff_executed_at`
+- `idx_conversations_needs_human_review`
+- `idx_conversations_ai_mode`
+- `idx_conversations_meta_instance`
+- `idx_automations_trigger_event`
+- (e outros 25 indices)
+
 ---
 
-### Resumo das Alteracoes
+## SECAO TECNICA: Detalhes de Implementacao
 
-| Tabela | Antes | Depois |
-|--------|-------|--------|
-| ai_message_templates | admin, manager | + cs_manager, gm, sm |
-| ai_personas | admin, manager | + cs_manager, gm, sm |
-| ai_tools | admin, manager | + cs_manager, gm, sm |
-| ai_persona_tools | admin, manager | + cs_manager, gm, sm |
-| ai_routing_rules | admin, manager | + cs_manager, gm, sm |
-| ai_scenario_configs | admin, manager | + cs_manager, gm, sm |
-| ai_training_examples | admin, manager | + cs_manager, gm, sm |
-| cadence_templates | admin only | + manager, cs_manager, gm, sm |
-| automations | admin, manager | + cs_manager, gm, sm |
-| email_block_conditions | admin, manager, gm | + cs_manager, sm |
-| email_events | admin, manager, gm | + cs_manager, sm |
-| email_sends | admin, manager, gm, fm | + cs_manager, sm |
-| email_variable_definitions | admin only | + manager, cs_manager, gm, sm |
+### Arquivos a Modificar (Seguros)
 
-**Legenda:**
-- gm = general_manager
-- sm = support_manager
-- fm = financial_manager
+1. **`src/hooks/useAverageResponseTime.tsx`**
+   - Mudar de query client-side para RPC
+
+2. **`src/hooks/useInboxView.tsx`** (linha 248)
+   - `refetchInterval: 10000` -> `refetchInterval: 60000`
+
+3. **`src/hooks/useConversations.tsx`** (linha 255)
+   - `refetchInterval: 15000` -> `refetchInterval: 60000`
+
+4. **`src/hooks/useWhatsAppInstances.tsx`** (linha 67)
+   - `refetchInterval: 5000` -> `refetchInterval: 30000`
+
+5. **`src/hooks/useDeals.tsx`** (linha 165)
+   - `limit(5000)` -> `limit(1000)`
+
+6. **`src/hooks/useContacts.tsx`** (linha 43)
+   - Adicionar `.limit(1000)` apos `.order()`
+
+7. **Edge Functions** (corrigir enum):
+   - `distribute-pending-conversations/index.ts:330` - `'web_chat'` -> `'chat'`
+   - `message-listener/index.ts:64` - `'web_chat'` -> `'chat'`
+   - `redistribute-after-hours/index.ts:129` - `'web_chat'` -> `'chat'`
+
+8. **Migration SQL** - Adicionar indices otimizados
+
+### Volume de Dados Atual
+
+| Tabela | Registros |
+|--------|-----------|
+| audit_logs | 274,838 |
+| interactions | 51,704 |
+| ai_usage_logs | 35,103 |
+| contacts | 13,248 |
+| messages | 11,769 |
+| deals | 11,029 |
+| conversations | 792 |
 
 ---
 
-### Resultado Esperado
+## Resultado Esperado
 
-Apos a migration, Marco Cruz (cs_manager) tera acesso total para:
+| Metrica | Antes | Depois |
+|---------|-------|--------|
+| Statement timeouts | Frequentes | Eliminados |
+| Erro enum web_chat | Ativo | Corrigido |
+| Carga de polling | ~15 req/min/usuario | ~3 req/min/usuario |
+| Tempo de carga Inbox | ~2-3s | <1s |
+| Tempo de carga Deals | ~3-5s | <1.5s |
 
-1. **Emails**: Criar, editar, excluir templates, branding, senders
-2. **AI**: Gerenciar personas, tools, routing rules, cenarios, exemplos de treinamento
-3. **Playbooks**: Criar, editar, executar playbooks (ja funciona)
-4. **Chat Flows**: Criar, editar, ativar/desativar fluxos (ja funciona)
-5. **Automacoes**: Criar e gerenciar automacoes
-6. **Cadencias**: Gerenciar templates de cadencia
+### Garantia de Nao Quebrar
 
-Todos os gerentes (cs_manager, general_manager, support_manager, financial_manager) terao permissoes equivalentes para gestao de conteudo.
+- Todas as mudancas sao incrementais
+- Realtime continua funcionando (polling e apenas backup)
+- Indices sao criados com CONCURRENTLY (sem lock)
+- Limites de 1000 registros cobrem 99% dos casos de uso
+- Enum pode ser estendido sem impacto
+
+Posso implementar essas otimizacoes em fases, comecando pelas correcoes imediatas de zero risco?

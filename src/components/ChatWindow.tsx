@@ -45,6 +45,7 @@ import { useMarkAsRead } from "@/hooks/useUnreadCount";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
+import { useAIGlobalConfig } from "@/hooks/useAIGlobalConfig";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Contact = Tables<"contacts"> & {
@@ -85,6 +86,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
   const sendEmail = useSendEmail();
   const takeControl = useTakeControl();
   const returnToAutopilot = useReturnToAutopilot();
+  const { isAIEnabled: isAIGlobalEnabled } = useAIGlobalConfig();
   
   // Verificar se pode assumir esta conversa (baseado no departamento)
   const { canTake: canTakeControl, reason: cantTakeReason } = useCanTakeControl(conversation?.department || null);
@@ -249,8 +251,11 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
   const isDisabled = aiMode === 'disabled';
   const isWaitingHuman = aiMode === 'waiting_human';
   
+  // IA Global desligada = IA não está ativa mesmo em autopilot
+  const isAIActuallyActive = isAutopilot && isAIGlobalEnabled;
+  
   // Mostrar botão "Assumir" quando:
-  // 1. IA está controlando (autopilot)
+  // 1. IA está controlando (autopilot) - mas avisar se global está off
   // 2. Conversa está aguardando humano (waiting_human)
   // 3. Conversa não está atribuída a ninguém (pool geral)
   const canShowTakeControl = isAutopilot || isWaitingHuman || !conversation?.assigned_to;
@@ -443,16 +448,32 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
           </div>
 
           {canShowTakeControl && (
-            <Alert className="m-4 mb-0 border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/50">
-              <Bot className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-              <AlertDescription className="text-violet-800 dark:text-violet-300">
-                {isWaitingHuman 
-                  ? 'Aguardando atendimento humano. Clique em "Assumir" para atender.'
-                  : !conversation?.assigned_to
-                    ? 'Conversa no pool geral. Clique em "Assumir" para atender.'
-                    : activePersona 
-                      ? `Persona "${activePersona.name}" está respondendo automaticamente.` 
-                      : 'IA está respondendo automaticamente.'}
+            <Alert className={cn(
+              "m-4 mb-0",
+              isAutopilot && !isAIGlobalEnabled
+                ? "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50"
+                : "border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/50"
+            )}>
+              <Bot className={cn(
+                "h-4 w-4",
+                isAutopilot && !isAIGlobalEnabled
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-violet-600 dark:text-violet-400"
+              )} />
+              <AlertDescription className={cn(
+                isAutopilot && !isAIGlobalEnabled
+                  ? "text-amber-800 dark:text-amber-300"
+                  : "text-violet-800 dark:text-violet-300"
+              )}>
+                {isAutopilot && !isAIGlobalEnabled
+                  ? '⚠️ IA Global está DESLIGADA. Esta conversa está na fila IA mas não está sendo respondida. Clique em "Assumir" para atender.'
+                  : isWaitingHuman 
+                    ? 'Aguardando atendimento humano. Clique em "Assumir" para atender.'
+                    : !conversation?.assigned_to
+                      ? 'Conversa no pool geral. Clique em "Assumir" para atender.'
+                      : activePersona 
+                        ? `Persona "${activePersona.name}" está respondendo automaticamente.` 
+                        : 'IA está respondendo automaticamente.'}
               </AlertDescription>
             </Alert>
           )}
@@ -502,7 +523,11 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
               <div className="max-w-3xl mx-auto flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-zinc-400">
                 <Bot className="h-4 w-4" />
                 <span>
-                  {isWaitingHuman ? 'Aguardando atendimento humano' : 'Modo Piloto Automático'} - Clique em "Assumir" para digitar
+                  {isAutopilot && !isAIGlobalEnabled 
+                    ? '⚠️ IA Global DESLIGADA - Conversa não atendida' 
+                    : isWaitingHuman 
+                      ? 'Aguardando atendimento humano' 
+                      : 'Modo Piloto Automático'} - Clique em "Assumir" para digitar
                 </span>
               </div>
             </div>

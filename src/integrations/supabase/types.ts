@@ -2255,6 +2255,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          parent_id: string | null
           updated_at: string
           whatsapp_number: string | null
         }
@@ -2265,6 +2266,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          parent_id?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }
@@ -2275,10 +2277,19 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          parent_id?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "departments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_block_conditions: {
         Row: {

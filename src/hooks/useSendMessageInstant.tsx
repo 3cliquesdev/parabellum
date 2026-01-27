@@ -61,6 +61,30 @@ export function useSendMessageInstant() {
       (old: any[] = []) => [...old, optimisticMessage]
     );
 
+    // 2.1 ATUALIZAR inbox_view IMEDIATAMENTE para reordenar a lista
+    // Isso faz a conversa subir para o topo da lista instantaneamente
+    const nowISO = new Date().toISOString();
+    queryClient.setQueriesData(
+      { queryKey: ["inbox-view"], exact: false },
+      (prev: any[] = []) => {
+        const updated = prev.map(item => 
+          item.conversation_id === conversationId 
+            ? { 
+                ...item, 
+                last_snippet: content.slice(0, 100),
+                last_message_at: nowISO,
+                last_sender_type: 'user',
+                updated_at: nowISO,
+              } 
+            : item
+        );
+        // Ordenar por updated_at DESC para mover conversa pro topo
+        return updated.sort((a, b) => 
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
+      }
+    );
+
     // 3. FIRE-AND-FORGET: Persistir em background usando queueMicrotask
     // Isso garante que a UI seja atualizada ANTES da operação de rede
     queueMicrotask(async () => {

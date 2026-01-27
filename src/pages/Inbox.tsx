@@ -289,10 +289,16 @@ export default function Inbox() {
         <InboxSidebar counts={sidebarCounts} />
       </div>
       
-      {/* Conversation List - fixed width */}
-      <div className="w-72 flex-shrink-0 border-r border-border flex flex-col" data-tour="inbox-conversation-list">
-        {/* Mini Header with filters */}
-        <div className="flex-none border-b border-border px-3 py-2 bg-card">
+      {/* Conversation List - fixed width, increased to w-80 for better spacing */}
+      <div className="w-80 lg:w-96 flex-shrink-0 border-r border-border flex flex-col" data-tour="inbox-conversation-list">
+        {/* Mini Header with filters - more padding for breathing room */}
+        <div className="flex-none border-b border-border px-4 py-3 bg-card">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold text-sm text-foreground">Conversas</h3>
+            <span className="text-xs text-muted-foreground">
+              {filteredConversations.length} conversa{filteredConversations.length !== 1 ? 's' : ''}
+            </span>
+          </div>
           <InboxFilterPopover filters={filters} onFiltersChange={setFilters} />
         </div>
         

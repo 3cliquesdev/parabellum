@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Workflow, MoreHorizontal, Pencil, Trash2, ToggleLeft, ToggleRight, MessageSquare, Copy } from "lucide-react";
+import { Plus, Workflow, MoreHorizontal, Pencil, Trash2, ToggleLeft, ToggleRight, MessageSquare, Copy, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ import {
   useDuplicateChatFlow,
   ChatFlow 
 } from "@/hooks/useChatFlows";
+import { useSetMasterFlow } from "@/hooks/useSetMasterFlow";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -50,6 +52,7 @@ export default function ChatFlows() {
   const deleteFlow = useDeleteChatFlow();
   const toggleActive = useToggleChatFlowActive();
   const duplicateFlow = useDuplicateChatFlow();
+  const setMasterFlow = useSetMasterFlow();
 
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -130,13 +133,22 @@ export default function ChatFlows() {
       ) : flows && flows.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {flows.map((flow) => (
-            <Card key={flow.id} className="group hover:shadow-lg transition-shadow">
+            <Card key={flow.id} className={`group hover:shadow-lg transition-shadow ${flow.is_master_flow ? 'ring-2 ring-yellow-500/50 bg-yellow-500/5' : ''}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2">
-                      <MessageSquare className="h-5 w-5 text-primary" />
+                      {flow.is_master_flow ? (
+                        <Crown className="h-5 w-5 text-yellow-500" />
+                      ) : (
+                        <MessageSquare className="h-5 w-5 text-primary" />
+                      )}
                       {flow.name}
+                      {flow.is_master_flow && (
+                        <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600 text-xs">
+                          MESTRE
+                        </Badge>
+                      )}
                     </CardTitle>
                     {flow.description && (
                       <CardDescription className="line-clamp-2">
@@ -174,6 +186,15 @@ export default function ChatFlows() {
                           </>
                         )}
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setMasterFlow.mutate({ flowId: flow.id, setAsMaster: !flow.is_master_flow })}
+                        className={flow.is_master_flow ? "text-yellow-600" : ""}
+                      >
+                        <Crown className={`h-4 w-4 mr-2 ${flow.is_master_flow ? 'text-yellow-500' : ''}`} />
+                        {flow.is_master_flow ? 'Remover como Mestre' : 'Definir como Mestre'}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem 
                         className="text-destructive"
                         onClick={() => {

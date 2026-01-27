@@ -1783,7 +1783,12 @@ Como posso ajudar você hoje?`;
           flowContextPrompt = flowResult.contextPrompt || null;
           flowFallbackMessage = flowResult.fallbackMessage || null;
           
-          console.log('[ai-autopilot-chat] 🎯 Chat Flow definiu configurações para IA (early):', {
+          // 🆕 MASTER FLOW: Log específico quando vem do Master Flow
+          const source = flowResult.masterFlowId ? 'Master Flow' : 'Chat Flow';
+          console.log(`[ai-autopilot-chat] 🎯 ${source} definiu configurações para IA:`, {
+            source,
+            masterFlowId: flowResult.masterFlowId || null,
+            masterFlowName: flowResult.masterFlowName || null,
             personaId: flowPersonaId,
             kbCategories: flowKbCategories,
             hasContextPrompt: !!flowContextPrompt

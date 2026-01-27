@@ -694,8 +694,46 @@ serve(async (req) => {
     }
 
     if (!matchedFlow) {
+      // 🆕 MASTER FLOW: Se não encontrou trigger, verificar se existe um fluxo mestre
+      console.log('[process-chat-flow] No trigger matched - checking for Master Flow...');
+      
+      const { data: masterFlow } = await supabaseClient
+        .from('chat_flows')
+        .select('*')
+        .eq('is_master_flow', true)
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (masterFlow) {
+        console.log('[process-chat-flow] 🎯 MASTER FLOW found:', masterFlow.name);
+        
+        // Extrair configurações do primeiro nó AI do master flow (se existir)
+        const flowDef = masterFlow.flow_definition as any;
+        const aiNode = flowDef?.nodes?.find((n: any) => n.type === 'ai_response');
+        
+        // Retornar configurações do master flow para uso no autopilot
+        return new Response(
+          JSON.stringify({
+            useAI: true,
+            reason: "Master Flow applied",
+            masterFlowId: masterFlow.id,
+            masterFlowName: masterFlow.name,
+            personaId: aiNode?.data?.persona_id || null,
+            kbCategories: aiNode?.data?.kb_categories || null,
+            contextPrompt: aiNode?.data?.context_prompt || null,
+            fallbackMessage: aiNode?.data?.fallback_message || null,
+            debug: {
+              source: 'master_flow',
+              hasAiNode: !!aiNode
+            }
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Nenhum master flow configurado - usar IA padrão
       return new Response(
-        JSON.stringify({ useAI: true, reason: "No trigger matched" }),
+        JSON.stringify({ useAI: true, reason: "No trigger matched and no Master Flow" }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

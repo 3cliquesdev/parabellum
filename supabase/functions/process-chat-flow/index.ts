@@ -522,10 +522,35 @@ serve(async (req) => {
         const triggerNorm = normalizeText(trigger);
         
         // Match 1: Inclusão direta - mensagem contém o trigger
-        if (messageNorm.includes(triggerNorm)) {
-          console.log('[process-chat-flow] ✅ Match direto (msg contém trigger):', trigger);
-          matchedFlow = flow;
-          break;
+        // 🆕 CORREÇÃO: Para triggers longos (>30 chars), exigir keywords ESSENCIAIS
+        if (triggerNorm.length < 30) {
+          // Keyword curto: match por inclusão normal
+          if (messageNorm.includes(triggerNorm)) {
+            console.log('[process-chat-flow] ✅ Match direto (keyword curto):', trigger);
+            matchedFlow = flow;
+            break;
+          }
+        } else {
+          // Trigger longo: exigir palavras essenciais específicas
+          // Evita que "Olá vim pelo site" faça match com "Olá vim pelo email promocao carnaval"
+          const stopWords = ['ola', 'pelo', 'email', 'site', 'gostaria', 'saber', 'sobre', 'quero', 'como', 'para', 'que', 'vim'];
+          const essentialKeywords = triggerNorm.split(/\s+/).filter(w => 
+            w.length > 4 && !stopWords.includes(w)
+          );
+          const matchedEssentials = essentialKeywords.filter(k => messageNorm.includes(k));
+          
+          console.log('[process-chat-flow] Trigger longo check:', { 
+            trigger: trigger.slice(0, 50), 
+            essentials: essentialKeywords, 
+            matched: matchedEssentials 
+          });
+          
+          // Exigir pelo menos 2 keywords essenciais (ex: "promocao" + "carnaval")
+          if (matchedEssentials.length >= 2) {
+            console.log('[process-chat-flow] ✅ Match por keywords essenciais:', matchedEssentials);
+            matchedFlow = flow;
+            break;
+          }
         }
         
         // Match 2: Trigger contém a mensagem (usuário escreveu parte do trigger)

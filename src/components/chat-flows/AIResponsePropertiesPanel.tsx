@@ -1,16 +1,14 @@
 import { Node } from "reactflow";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Bot, BookOpen, Sparkles } from "lucide-react";
+import { Bot, Sparkles, AlertTriangle } from "lucide-react";
 import { usePersonas } from "@/hooks/usePersonas";
-import { useKnowledgeCategories } from "@/hooks/useKnowledgeCategories";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RAGSourcesSection } from "./panels/RAGSourcesSection";
+import { SmartCollectionSection } from "./panels/SmartCollectionSection";
 
 interface AIResponsePropertiesPanelProps {
   selectedNode: Node;
@@ -22,21 +20,9 @@ export function AIResponsePropertiesPanel({
   updateNodeData,
 }: AIResponsePropertiesPanelProps) {
   const { data: personas, isLoading: loadingPersonas } = usePersonas();
-  const { data: kbCategories, isLoading: loadingCategories } = useKnowledgeCategories();
 
   // Personas ativas
   const activePersonas = personas?.filter((p) => p.is_active) || [];
-  
-  // Categorias selecionadas atualmente
-  const selectedCategories: string[] = selectedNode.data.kb_categories || [];
-  
-  const handleCategoryToggle = (category: string) => {
-    const current = selectedNode.data.kb_categories || [];
-    const newCategories = current.includes(category)
-      ? current.filter((c: string) => c !== category)
-      : [...current, category];
-    updateNodeData("kb_categories", newCategories);
-  };
 
   const handlePersonaChange = (personaId: string) => {
     if (personaId === "none") {
@@ -55,7 +41,7 @@ export function AIResponsePropertiesPanel({
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-pink-500" />
-          <Label className="text-xs font-semibold">Agente / Persona</Label>
+          <Label className="text-xs font-semibold uppercase tracking-wide">Agente / Persona</Label>
         </div>
         
         {loadingPersonas ? (
@@ -95,72 +81,19 @@ export function AIResponsePropertiesPanel({
 
       <Separator />
 
-      {/* Seção: Base de Conhecimento */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <BookOpen className="h-4 w-4 text-blue-500" />
-          <Label className="text-xs font-semibold">Base de Conhecimento</Label>
-        </div>
-        
-        <div className="flex items-center justify-between py-1">
-          <Label className="text-xs text-muted-foreground">Usar KB para responder</Label>
-          <Switch
-            checked={selectedNode.data.use_knowledge_base !== false}
-            onCheckedChange={(checked) => updateNodeData("use_knowledge_base", checked)}
-          />
-        </div>
+      {/* Seção: Fontes de Dados RAG (NOVO) */}
+      <RAGSourcesSection
+        selectedNode={selectedNode}
+        updateNodeData={updateNodeData}
+      />
 
-        {selectedNode.data.use_knowledge_base !== false && (
-          <div className="space-y-2">
-            <Label className="text-[11px] text-muted-foreground">
-              Filtrar por categorias (vazio = todas):
-            </Label>
-            
-            {loadingCategories ? (
-              <div className="space-y-1.5">
-                <Skeleton className="h-6 w-full" />
-                <Skeleton className="h-6 w-3/4" />
-              </div>
-            ) : kbCategories && kbCategories.length > 0 ? (
-              <ScrollArea className="max-h-32">
-                <div className="space-y-1.5 pr-2">
-                  {kbCategories.map((category) => (
-                    <label
-                      key={category}
-                      className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 px-2 py-1 rounded"
-                    >
-                      <Checkbox
-                        checked={selectedCategories.includes(category)}
-                        onCheckedChange={() => handleCategoryToggle(category)}
-                      />
-                      <span className="truncate">{category}</span>
-                    </label>
-                  ))}
-                </div>
-              </ScrollArea>
-            ) : (
-              <p className="text-[11px] text-muted-foreground italic">
-                Nenhuma categoria encontrada na KB
-              </p>
-            )}
+      <Separator />
 
-            {selectedCategories.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {selectedCategories.map((cat) => (
-                  <Badge
-                    key={cat}
-                    variant="secondary"
-                    className="text-[10px] px-1.5 cursor-pointer hover:bg-destructive/20"
-                    onClick={() => handleCategoryToggle(cat)}
-                  >
-                    {cat} ×
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Seção: Coleta Inteligente (NOVO) */}
+      <SmartCollectionSection
+        selectedNode={selectedNode}
+        updateNodeData={updateNodeData}
+      />
 
       <Separator />
 
@@ -168,7 +101,7 @@ export function AIResponsePropertiesPanel({
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-amber-500" />
-          <Label className="text-xs font-semibold">Contexto Adicional</Label>
+          <Label className="text-xs font-semibold uppercase tracking-wide">Contexto Adicional</Label>
         </div>
         
         <Textarea
@@ -187,7 +120,10 @@ export function AIResponsePropertiesPanel({
 
       {/* Seção: Fallback */}
       <div className="space-y-2">
-        <Label className="text-xs font-semibold">Mensagem de Fallback</Label>
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-orange-500" />
+          <Label className="text-xs font-semibold uppercase tracking-wide">Mensagem de Fallback</Label>
+        </div>
         <Textarea
           value={selectedNode.data.fallback_message || ""}
           onChange={(e) => updateNodeData("fallback_message", e.target.value)}

@@ -46,6 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { useAIGlobalConfig } from "@/hooks/useAIGlobalConfig";
+import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Contact = Tables<"contacts"> & {
@@ -74,7 +75,8 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
   const [createTicketDialogOpen, setCreateTicketDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [createDealDialogOpen, setCreateDealDialogOpen] = useState(false);
-  const [confirmTakeControlOpen, setConfirmTakeControlOpen] = useState(false);
+  // Captura os IDs antes de abrir o diálogo de confirmação (fix: conversation pode mudar para null)
+  const [pendingTakeControl, setPendingTakeControl] = useState<{ conversationId: string; contactId: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { isAdmin, isManager, isSalesRep } = useUserRole();
@@ -87,6 +89,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
   const takeControl = useTakeControl();
   const returnToAutopilot = useReturnToAutopilot();
   const { isAIEnabled: isAIGlobalEnabled } = useAIGlobalConfig();
+  const { toast } = useToast();
   
   // Verificar se pode assumir esta conversa
   // Regra: qualquer usuário pode assumir conversas “disponíveis” vindas da IA (não atribuídas)
@@ -233,12 +236,29 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
     }
   };
 
-  const handleTakeControl = () => {
-    if (!conversation) return;
-    takeControl.mutate({
+  // Abre o diálogo de confirmação capturando os IDs imediatamente
+  const openTakeControlDialog = () => {
+    // Proteção dupla: verificar conversation E contacts antes de acessar
+    if (!conversation?.contacts?.id) {
+      console.warn('[ChatWindow] openTakeControlDialog: conversation ou contacts é null, ignorando clique');
+      toast({
+        title: "Aguarde",
+        description: "Carregando dados da conversa. Tente novamente em alguns segundos.",
+        variant: "default",
+      });
+      return;
+    }
+    setPendingTakeControl({
       conversationId: conversation.id,
       contactId: conversation.contacts.id
     });
+  };
+
+  // Executa a mutation com os IDs capturados (fix: conversation pode ter mudado para null)
+  const handleTakeControl = () => {
+    if (!pendingTakeControl) return;
+    takeControl.mutate(pendingTakeControl);
+    setPendingTakeControl(null);
   };
 
   const handleReturnToAutopilot = () => {
@@ -371,7 +391,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
                   <Button
                     variant="default"
                     size="sm"
-                    onClick={() => setConfirmTakeControlOpen(true)}
+                    onClick={openTakeControlDialog}
                     disabled={takeControl.isPending || !canTakeControl}
                     title={!canTakeControl ? cantTakeReason : undefined}
                     className="h-7 gap-1 px-2"
@@ -589,7 +609,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
       )}
 
       {/* Diálogo de confirmação para assumir conversa */}
-      <AlertDialog open={confirmTakeControlOpen} onOpenChange={setConfirmTakeControlOpen}>
+      <AlertDialog open={!!pendingTakeControl} onOpenChange={(open) => !open && setPendingTakeControl(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Assumir esta conversa?</AlertDialogTitle>
@@ -599,7 +619,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setPendingTakeControl(null)}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleTakeControl}>
               Sim, assumir conversa
             </AlertDialogAction>

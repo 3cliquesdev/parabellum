@@ -19,6 +19,18 @@ export function useTransferConversation() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Roles elegíveis para receber distribuição automática.
+  // IMPORTANT: consultores e financeiros NÃO devem receber por auto-distribuição.
+  const AUTO_DISTRIBUTE_ROLES = [
+    "support_agent",
+    "sales_rep",
+    "cs_manager",
+    "support_manager",
+    "manager",
+    "general_manager",
+    "admin",
+  ] as const;
+
   return useMutation({
     mutationFn: async ({
       conversationId,
@@ -37,23 +49,54 @@ export function useTransferConversation() {
 
       // Se autoDistribute, buscar um agente online do departamento
       if (autoDistribute) {
-        const { data: onlineAgent } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .eq("department", departmentId)
-          .eq("availability_status", "online")
-          .limit(1)
-          .maybeSingle();
+        // 1) Buscar IDs de usuários elegíveis por role
+        const { data: eligibleRoles, error: eligibleRolesError } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .in("role", [...AUTO_DISTRIBUTE_ROLES]);
 
-        if (onlineAgent) {
-          finalToUserId = onlineAgent.id;
-          finalToUserName = onlineAgent.full_name;
-          console.log("[useTransferConversation] Auto-distribuído para:", onlineAgent.full_name);
-        } else {
-          // Nenhum agente online - vai para pool do departamento (assigned_to = null)
+        if (eligibleRolesError) {
+          console.error("[useTransferConversation] roles query error:", eligibleRolesError);
+          throw eligibleRolesError;
+        }
+
+        const eligibleUserIds = (eligibleRoles || [])
+          .map((r) => r.user_id)
+          .filter(Boolean);
+
+        if (eligibleUserIds.length === 0) {
+          // Sem agentes elegíveis configurados - vai para pool
           finalToUserId = null;
           finalToUserName = "Pool do Departamento";
-          console.log("[useTransferConversation] Nenhum agente online, indo para pool do departamento");
+          console.log("[useTransferConversation] Nenhum agente elegível (roles), indo para pool do departamento");
+        } else {
+
+          // 2) Buscar 1 agente online no mesmo departamento (excluindo o remetente)
+          const { data: onlineAgent, error: onlineAgentError } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .eq("department", departmentId)
+            .in("id", eligibleUserIds)
+            .eq("availability_status", "online")
+            .neq("id", fromUserId)
+            .limit(1)
+            .maybeSingle();
+
+          if (onlineAgentError) {
+            console.error("[useTransferConversation] online agent query error:", onlineAgentError);
+            throw onlineAgentError;
+          }
+
+          if (onlineAgent) {
+            finalToUserId = onlineAgent.id;
+            finalToUserName = onlineAgent.full_name;
+            console.log("[useTransferConversation] Auto-distribuído para:", onlineAgent.full_name);
+          } else {
+            // Nenhum agente online - vai para pool do departamento (assigned_to = null)
+            finalToUserId = null;
+            finalToUserName = "Pool do Departamento";
+            console.log("[useTransferConversation] Nenhum agente online, indo para pool do departamento");
+          }
         }
       }
 

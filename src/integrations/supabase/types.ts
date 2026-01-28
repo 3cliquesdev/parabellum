@@ -8158,7 +8158,7 @@ export type Database = {
         | "other"
         | "web_chat"
       conversation_channel: "whatsapp" | "email" | "web_chat"
-      conversation_status: "open" | "closed"
+      conversation_status: "open" | "resolved" | "closed" | "waiting_human"
       customer_status:
         | "lead"
         | "qualified"
@@ -8401,7 +8401,7 @@ export const Constants = {
         "web_chat",
       ],
       conversation_channel: ["whatsapp", "email", "web_chat"],
-      conversation_status: ["open", "closed"],
+      conversation_status: ["open", "resolved", "closed", "waiting_human"],
       customer_status: [
         "lead",
         "qualified",

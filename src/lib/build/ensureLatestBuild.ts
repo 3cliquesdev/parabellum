@@ -283,7 +283,12 @@ async function hashContent(content: string): Promise<string> {
 /**
  * Função principal: verifica e atualiza se necessário
  */
-export async function ensureLatestBuild(): Promise<void> {
+/**
+ * Função principal: verifica build mas NÃO faz reload automático
+ * O refresh automático foi desativado para não interromper o trabalho do usuário
+ * Usuários podem atualizar manualmente pelo botão no SidebarVersionIndicator
+ */
+export async function ensureLatestBuild(): Promise<boolean> {
   const currentBuildId = getCurrentBuildId();
   console.log('[BuildCheck] 🔍 Build atual:', currentBuildId);
   
@@ -301,7 +306,7 @@ export async function ensureLatestBuild(): Promise<void> {
   
   // Verifica se deve fazer check
   if (!shouldCheck()) {
-    return;
+    return false;
   }
   
   // Marca timestamp do check
@@ -312,24 +317,20 @@ export async function ensureLatestBuild(): Promise<void> {
   
   if (!latestBuildId) {
     console.log('[BuildCheck] ℹ️ Não foi possível verificar build remoto, continuando...');
-    return;
+    return false;
   }
   
-  // Compara builds
+  // Compara builds - apenas loga, NÃO faz reload automático
   if (latestBuildId !== currentBuildId) {
-    console.warn('[BuildCheck] ⚠️ BUILD DESATUALIZADO!');
+    console.warn('[BuildCheck] ⚠️ Nova versão disponível (sem reload automático)');
     console.warn('[BuildCheck] Atual:', currentBuildId);
     console.warn('[BuildCheck] Servidor:', latestBuildId);
-    
-    // Limpa caches e força reload
-    await clearAllCaches();
-    forceReload();
-    return;
+    return true; // Indica que há atualização disponível
   }
   
   console.log('[BuildCheck] ✅ Build atualizado!');
-  // Reseta contador de force updates em caso de sucesso
   sessionStorage.removeItem(STORAGE_KEYS.FORCE_UPDATE_COUNT);
+  return false;
 }
 
 /**

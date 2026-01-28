@@ -102,7 +102,7 @@ async function handleCsvImport(request: any, supabaseClient: any) {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              model: 'google/gemini-2.5-flash',
+              model: 'openai/gpt-5-mini',
               messages: [
                 {
                   role: 'system',
@@ -210,7 +210,7 @@ async function handleDocumentImport(request: DocumentRequest, supabaseClient: an
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'openai/gpt-5-mini',
           messages: [
             {
               role: 'system',
@@ -266,7 +266,7 @@ Retorne APENAS um JSON válido:
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'openai/gpt-5-mini',
           messages: [
             {
               role: 'system',

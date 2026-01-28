@@ -112,7 +112,7 @@ serve(async (req) => {
       .eq('key', 'ai_model_sandbox')
       .single();
 
-    const model = modelConfig?.value || 'google/gemini-2.5-flash';
+    const model = modelConfig?.value || 'openai/gpt-5-mini';
 
     // Fetch persona if provided
     let personaPrompt = '';

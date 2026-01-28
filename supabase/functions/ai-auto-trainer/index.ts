@@ -14,9 +14,9 @@ async function getConfiguredAIModel(supabase: any): Promise<string> {
       .select('value')
       .eq('key', 'ai_model_analysis')
       .single();
-    return data?.value || 'google/gemini-2.5-flash';
+    return data?.value || 'openai/gpt-5-mini';
   } catch {
-    return 'google/gemini-2.5-flash';
+    return 'openai/gpt-5-mini';
   }
 }
 

@@ -16,10 +16,10 @@ async function getConfiguredAIModel(supabase: any): Promise<string> {
       .eq('key', 'ai_default_model')
       .maybeSingle();
     
-    return data?.value || 'google/gemini-2.5-flash';
+    return data?.value || 'openai/gpt-5-mini';
   } catch (error) {
     console.error('[sandbox-chat] Error fetching AI model config:', error);
-    return 'google/gemini-2.5-flash';
+    return 'openai/gpt-5-mini';
   }
 }
 
@@ -143,7 +143,7 @@ Responda APENAS: skip ou search`
               'Authorization': `Bearer ${LOVABLE_API_KEY}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ model: 'google/gemini-2.5-flash', ...intentPayload }),
+            body: JSON.stringify({ model: 'openai/gpt-5-mini', ...intentPayload }),
           });
           intentResponse = await res.json();
         }

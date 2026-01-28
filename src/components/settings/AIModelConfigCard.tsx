@@ -75,7 +75,7 @@ const AI_MODELS: AIModel[] = [
 ];
 
 export default function AIModelConfigCard() {
-  const [currentModel, setCurrentModel] = useState<string>("google/gemini-2.5-flash");
+  const [currentModel, setCurrentModel] = useState<string>("openai/gpt-5-mini");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();

@@ -49,7 +49,7 @@ serve(async (req) => {
       .from("conversations")
       .select("id, contact_id, channel, whatsapp_instance_id")
       .eq("assigned_to", agentId)
-      .in("status", ["open", "pending"]);
+      .eq("status", "open");
 
     if (convError) {
       console.error("[go-offline-manual] Error fetching conversations:", convError);

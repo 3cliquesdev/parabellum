@@ -1,208 +1,109 @@
 
-# Plano: Conectar Fontes de Dados à Persona e Corrigir check_tracking
+# Plano: Corrigir Busca MySQL por Tracking e Order ID
 
-## Diagnóstico Detalhado
+## Problema Identificado
 
-### Problemas Identificados
+A query atual busca **apenas em `box_number`**, mas a estrutura real do MySQL é:
 
-| Problema | Causa | Impacto |
-|----------|-------|---------|
-| **check_tracking não funciona** | Ferramenta existe mas não é chamada corretamente pela IA ou MySQL não conecta | Cliente envia número do pedido → IA faz handoff ao invés de consultar |
-| **Fontes de dados não mapeadas** | PersonaDialog tem 4 toggles genéricos, mas existem 5 fontes específicas na UI | Usuário não consegue controlar acesso granular |
-| **Ferramentas built-in não filtradas** | `check_tracking` sempre disponível independente de `data_access` | IA tem acesso mas não sabe/não pode usar |
+| Coluna | Conteúdo | Exemplo |
+|--------|----------|---------|
+| `tracking_number` | Código de rastreio Correios | `BR258217438746K` |
+| `platform_order_id` | ID completo do pedido | `SABR-N-SHPE-6965-16193159` |
+| `status` | Status do pacote | `PACKED` |
+| `updated_at` | Data/hora de envio | `2026-01-27 15:51:14` |
 
-### Sua Configuração Atual (Persona Helper)
-
-```
-data_access: {
-  customer_data: true,      ← Dados do Cliente
-  knowledge_base: true,     ← Base de Conhecimento
-  order_history: true,      ← Histórico de Pedidos (genérico)
-  financial_data: true      ← Dados Financeiros
-}
-```
-
-**O problema**: `order_history: true` deveria habilitar `check_tracking`, mas o código não faz essa validação.
+O cliente envia apenas o **número final** (ex: `16193159`), mas no banco está como `SABR-N-SHPE-6965-16193159`.
 
 ---
 
 ## Solução
 
-### FASE 1: Adicionar Controle de Rastreio no data_access
+### Modificar `fetch-tracking` para Query Dual
 
-**Arquivo: `src/components/PersonaDialog.tsx`**
+**Arquivo: `supabase/functions/fetch-tracking/index.ts`**
 
-Adicionar novo toggle específico para rastreio:
-
-```typescript
-// Estado
-const [accessTrackingData, setAccessTrackingData] = useState(false);
-
-// No useEffect (linha ~70)
-setAccessTrackingData(dataAccess?.tracking_data ?? false);
-
-// No handleSubmit (linha ~102)
-data_access: {
-  customer_data: accessCustomerData,
-  knowledge_base: accessKnowledgeBase,
-  order_history: accessOrderHistory,
-  financial_data: accessFinancialData,
-  tracking_data: accessTrackingData,  // NOVO
-},
-
-// No JSX (após accessOrderHistory)
-<div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded border">
-  <div>
-    <Label htmlFor="accessTrackingData" className="font-medium">
-      🚚 Rastreio de Pedidos (MySQL)
-    </Label>
-    <p className="text-xs text-muted-foreground">Consulta status de entrega no romaneio</p>
-  </div>
-  <Switch
-    id="accessTrackingData"
-    checked={accessTrackingData}
-    onCheckedChange={setAccessTrackingData}
-  />
-</div>
-```
-
-### FASE 2: Filtrar Ferramentas Built-in por data_access
-
-**Arquivo: `supabase/functions/ai-autopilot-chat/index.ts`**
-
-Modificar a montagem de `allTools` (linha ~4494) para respeitar permissões:
+Lógica de busca:
+1. **Códigos BR.../LP.../LB...** → Buscar em `tracking_number`
+2. **Números puros** → Buscar em `platform_order_id` com `LIKE '%-{numero}'` (final do ID)
 
 ```typescript
-// Antes de montar allTools, definir quais ferramentas built-in estão permitidas
-const canAccessTracking = personaDataAccess.tracking_data === true || personaDataAccess.order_history === true;
-const canAccessFinancial = personaDataAccess.financial_data === true;
-const canAccessCustomer = personaDataAccess.customer_data !== false;
+// Separar códigos por tipo
+const trackingCodes = codes.filter(c => detectSearchType(c) === 'tracking');
+const orderIds = codes.filter(c => detectSearchType(c) === 'order_id');
 
-// Ferramentas sempre disponíveis (core)
-const coreTools = [
-  // create_ticket - sempre disponível
-  { type: 'function', function: { name: 'create_ticket', ... } },
-  // verify_customer_email - sempre disponível (identificação)
-  { type: 'function', function: { name: 'verify_customer_email', ... } },
-  // verify_otp_code - sempre disponível
-  { type: 'function', function: { name: 'verify_otp_code', ... } },
-  // resend_otp - sempre disponível
-  { type: 'function', function: { name: 'resend_otp', ... } },
-  // request_human_agent - sempre disponível
-  { type: 'function', function: { name: 'request_human_agent', ... } },
-  // confirm_email_not_found - sempre disponível
-  { type: 'function', function: { name: 'confirm_email_not_found', ... } },
-];
+let allResults: any[] = [];
 
-// Ferramentas condicionais
-const conditionalTools = [];
-
-// check_tracking - só se tiver permissão de rastreio
-if (canAccessTracking) {
-  conditionalTools.push({
-    type: 'function',
-    function: {
-      name: 'check_tracking',
-      description: 'Consulta status de rastreio de pedidos no sistema de romaneio...',
-      parameters: { ... }
-    }
-  });
-  console.log('[ai-autopilot-chat] ✅ check_tracking HABILITADO (tracking_data ou order_history)');
-} else {
-  console.log('[ai-autopilot-chat] ❌ check_tracking DESABILITADO (sem permissão)');
+// Buscar por código de rastreio (BR..., LP..., LB...)
+if (trackingCodes.length > 0) {
+  const placeholders = trackingCodes.map(() => '?').join(', ');
+  const query = `
+    SELECT platform_order_id, tracking_number, status, updated_at 
+    FROM parcel 
+    WHERE tracking_number IN (${placeholders})
+  `;
+  const results = await client.query(query, trackingCodes);
+  allResults = allResults.concat(results);
 }
 
-// send_financial_otp - só se tiver permissão financeira
-if (canAccessFinancial) {
-  conditionalTools.push({
-    type: 'function',
-    function: { name: 'send_financial_otp', ... }
-  });
-}
-
-const allTools = [
-  ...coreTools,
-  ...conditionalTools,
-  ...enabledTools.map((tool: any) => ({
-    type: 'function',
-    function: tool.function_schema
-  }))
-];
-```
-
-### FASE 3: Melhorar Log e Diagnóstico do check_tracking
-
-**Arquivo: `supabase/functions/ai-autopilot-chat/index.ts`**
-
-Adicionar log detalhado quando `check_tracking` é chamado:
-
-```typescript
-else if (toolCall.function.name === 'check_tracking') {
-  console.log('[ai-autopilot-chat] 🚚 CHECK_TRACKING INVOCADO');
-  console.log('[ai-autopilot-chat] 🚚 Argumentos:', toolCall.function.arguments);
+// Buscar por número do pedido (numérico - final do platform_order_id)
+if (orderIds.length > 0) {
+  // Para cada ID, criar condição LIKE '%-{numero}'
+  const likeConditions = orderIds.map(() => 'platform_order_id LIKE ?').join(' OR ');
+  const likeParams = orderIds.map(id => `%-${id}`);
   
-  try {
-    const args = JSON.parse(toolCall.function.arguments);
-    // ...código existente...
-    
-    // Log antes de chamar fetch-tracking
-    console.log('[ai-autopilot-chat] 🔍 Chamando fetch-tracking com:', { 
-      codes: codesToQuery,
-      uncached: uncachedCodes.length 
-    });
-    
-    const { data: fetchResult, error: fetchError } = await supabaseClient.functions.invoke('fetch-tracking', {
-      body: { tracking_codes: uncachedCodes }
-    });
-    
-    // Log resultado
-    console.log('[ai-autopilot-chat] 🔍 fetch-tracking resultado:', {
-      success: fetchResult?.success,
-      found: fetchResult?.found,
-      error: fetchError?.message
-    });
+  const query = `
+    SELECT platform_order_id, tracking_number, status, updated_at 
+    FROM parcel 
+    WHERE ${likeConditions}
+  `;
+  const results = await client.query(query, likeParams);
+  allResults = allResults.concat(results);
+}
 ```
 
-### FASE 4: Verificar Credenciais MySQL
-
-**Verificar se os secrets estão configurados:**
-
-As credenciais necessárias para o `fetch-tracking` são:
-- `MYSQL_HOST`
-- `MYSQL_PORT`
-- `MYSQL_USER`
-- `MYSQL_PASSWORD`
-- `MYSQL_DATABASE`
-
-Se não estiverem configuradas, a IA não consegue consultar o rastreio e faz handoff.
-
-### FASE 5: Atualizar Widget de Fontes de Conhecimento
-
-**Arquivo: `src/components/settings/PersonaDataAccessWidget.tsx`**
-
-Adicionar a nova fonte de rastreio:
+### Interface de Resultado Atualizada
 
 ```typescript
-const ACCESS_LABELS = [
-  { key: "knowledge_base", label: "Base de Conhecimento", icon: BookOpen, color: "text-blue-500" },
-  { key: "customer_data", label: "Dados de Clientes", icon: User, color: "text-green-500" },
-  { key: "order_history", label: "Histórico de Pedidos", icon: Package, color: "text-purple-500" },
-  { key: "tracking_data", label: "Rastreio Logístico", icon: Truck, color: "text-orange-500" },  // NOVO
-  { key: "financial_data", label: "Dados Financeiros", icon: DollarSign, color: "text-amber-500" },
-];
+interface TrackingResult {
+  platform_order_id: string;        // ID completo do pedido
+  tracking_number: string | null;   // Código de rastreio
+  status: string | null;            // PACKED, SHIPPED, etc.
+  updated_at: Date | null;          // Data/hora de envio
+  updated_at_formatted: string | null; // Formatado para exibição
+  is_packed: boolean;
+}
 ```
 
----
+### Mapeamento de Resposta
 
-## Arquivos a Modificar
+Para manter compatibilidade com o código existente, mapear resultados para o código original solicitado:
 
-| Arquivo | Alteração | Prioridade |
-|---------|-----------|------------|
-| `supabase/functions/ai-autopilot-chat/index.ts` | Filtrar ferramentas por `data_access` | CRÍTICA |
-| `supabase/functions/ai-autopilot-chat/index.ts` | Adicionar logs detalhados para `check_tracking` | ALTA |
-| `src/components/PersonaDialog.tsx` | Adicionar toggle `tracking_data` | ALTA |
-| `src/components/settings/PersonaDataAccessWidget.tsx` | Adicionar ícone/label de Rastreio | MÉDIA |
-| `src/hooks/useUpdatePersona.tsx` | Incluir `tracking_data` no tipo | MÉDIA |
+```typescript
+// Mapear resultados - tanto pelo tracking quanto pelo order_id parcial
+for (const row of allResults) {
+  const trackingNum = row.tracking_number as string | null;
+  const platformOrderId = row.platform_order_id as string | null;
+  const updatedAt = row.updated_at as Date | null;
+  
+  // Identificar qual código original encontrou este resultado
+  const originalCode = codes.find(c => {
+    if (trackingNum && c.toUpperCase() === trackingNum.toUpperCase()) return true;
+    if (platformOrderId && platformOrderId.endsWith(`-${c}`)) return true;
+    return false;
+  });
+  
+  if (originalCode) {
+    trackingData[originalCode] = {
+      platform_order_id: platformOrderId,
+      tracking_number: trackingNum,
+      status: row.status,
+      updated_at: updatedAt,
+      updated_at_formatted: formatDate(updatedAt),
+      is_packed: row.status === 'PACKED' || !!updatedAt,
+    };
+  }
+}
+```
 
 ---
 
@@ -210,91 +111,91 @@ const ACCESS_LABELS = [
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ FLUXO CORRIGIDO - RASTREIO DE PEDIDOS                                        │
+│ FLUXO CORRIGIDO - BUSCA DUAL                                                 │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                               │
-│  CONFIGURAÇÃO DA PERSONA:                                                     │
+│  Cliente: "16193159"                                                          │
+│         │                                                                     │
+│         ▼                                                                     │
 │  ┌─────────────────────────────────────────────┐                             │
-│  │ data_access: {                              │                             │
-│  │   knowledge_base: true   ✅                 │                             │
-│  │   customer_data: true    ✅                 │                             │
-│  │   order_history: true    ✅                 │                             │
-│  │   tracking_data: true    ✅ ← NOVO          │                             │
-│  │   financial_data: true   ✅                 │                             │
-│  │ }                                           │                             │
+│  │ 1. detectSearchType("16193159")             │                             │
+│  │    → Retorna 'order_id' (não começa BR/LP)  │                             │
+│  └─────────────────────────────────────────────┘                             │
+│         │                                                                     │
+│         ▼                                                                     │
+│  ┌─────────────────────────────────────────────┐                             │
+│  │ 2. Query MySQL:                             │                             │
+│  │    SELECT * FROM parcel                     │                             │
+│  │    WHERE platform_order_id LIKE '%-16193159'│                             │
+│  └─────────────────────────────────────────────┘                             │
+│         │                                                                     │
+│         ▼                                                                     │
+│  ┌─────────────────────────────────────────────┐                             │
+│  │ 3. Resultado encontrado:                    │                             │
+│  │    platform_order_id: SABR-N-SHPE-6965-...  │                             │
+│  │    tracking_number: BR258217438746K         │                             │
+│  │    status: PACKED                           │                             │
+│  │    updated_at: 2026-01-27 15:51:14          │                             │
+│  └─────────────────────────────────────────────┘                             │
+│         │                                                                     │
+│         ▼                                                                     │
+│  ┌─────────────────────────────────────────────┐                             │
+│  │ 4. IA responde:                             │                             │
+│  │    "Seu pedido 16193159 foi embalado em     │                             │
+│  │     27/01/2026 às 15:51. Código de rastreio:│                             │
+│  │     BR258217438746K. Status: PACKED"        │                             │
 │  └─────────────────────────────────────────────┘                             │
 │                                                                               │
-│  Cliente: "16315521"                                                          │
-│         │                                                                     │
-│         ▼                                                                     │
-│  ┌─────────────────────────────────────────────┐                             │
-│  │ 1. ai-autopilot-chat recebe mensagem        │                             │
-│  │    → Verifica data_access.tracking_data     │                             │
-│  │    → canAccessTracking = true               │                             │
-│  └─────────────────────────────────────────────┘                             │
-│         │                                                                     │
-│         ▼                                                                     │
-│  ┌─────────────────────────────────────────────┐                             │
-│  │ 2. Monta ferramentas disponíveis:           │                             │
-│  │    ✅ create_ticket (sempre)                │                             │
-│  │    ✅ verify_customer_email (sempre)        │                             │
-│  │    ✅ check_tracking (tracking_data=true)   │ ← ANTES NÃO VERIFICAVA      │
-│  │    ✅ send_financial_otp (financial=true)   │                             │
-│  └─────────────────────────────────────────────┘                             │
-│         │                                                                     │
-│         ▼                                                                     │
-│  ┌─────────────────────────────────────────────┐                             │
-│  │ 3. IA detecta código de pedido:             │                             │
-│  │    → "16315521" parece número de pedido     │                             │
-│  │    → Invoca check_tracking                  │                             │
-│  └─────────────────────────────────────────────┘                             │
-│         │                                                                     │
-│         ▼                                                                     │
-│  ┌─────────────────────────────────────────────┐                             │
-│  │ 4. check_tracking executa:                  │                             │
-│  │    → Chama fetch-tracking com o código      │                             │
-│  │    → Conecta MySQL (MYSQL_HOST, etc)        │                             │
-│  │    → Busca na tabela parcel                 │                             │
-│  └─────────────────────────────────────────────┘                             │
-│         │                                                                     │
-│         ├──── SE ENCONTRADO ────┐                                            │
-│         │                       │                                            │
-│         ▼                       ▼                                            │
-│  ┌─────────────────┐    ┌──────────────────────┐                             │
-│  │ "Seu pedido foi │    │ "Código 16315521     │                             │
-│  │  embalado em    │    │  ainda não consta    │                             │
-│  │  25/01 às 14:30"│    │  no romaneio..."     │                             │
-│  └─────────────────┘    └──────────────────────┘                             │
+│  ──────────────────────────────────────────────                              │
 │                                                                               │
-│  ❌ SEM HANDOFF PREMATURO!                                                    │
+│  Cliente: "BR258217438746K"                                                   │
+│         │                                                                     │
+│         ▼                                                                     │
+│  ┌─────────────────────────────────────────────┐                             │
+│  │ 1. detectSearchType("BR258217438746K")      │                             │
+│  │    → Retorna 'tracking' (começa com BR)     │                             │
+│  └─────────────────────────────────────────────┘                             │
+│         │                                                                     │
+│         ▼                                                                     │
+│  ┌─────────────────────────────────────────────┐                             │
+│  │ 2. Query MySQL:                             │                             │
+│  │    SELECT * FROM parcel                     │                             │
+│  │    WHERE tracking_number = 'BR258217438746K'│                             │
+│  └─────────────────────────────────────────────┘                             │
+│         │                                                                     │
+│         ▼                                                                     │
+│  ✅ Mesmo resultado encontrado!                                               │
 │                                                                               │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Verificação de Secrets MySQL
+## Arquivo a Modificar
 
-Antes de implementar, verificarei se os secrets MySQL estão configurados para garantir que o `fetch-tracking` pode conectar.
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/fetch-tracking/index.ts` | Reescrever query para busca dual (tracking_number + platform_order_id LIKE) |
 
 ---
 
 ## Resultado Esperado
 
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Controle granular de rastreio | ❌ Não existe | ✅ `tracking_data` toggle na persona |
-| Ferramentas filtradas por permissão | ❌ Sempre todas | ✅ Baseado em `data_access` |
-| Log de diagnóstico | ❌ Mínimo | ✅ Detalhado para debug |
-| Comportamento ao receber número | Handoff imediato | Consulta MySQL → responde status |
+| Input do Cliente | Query Gerada | Resultado |
+|------------------|--------------|-----------|
+| `16193159` | `WHERE platform_order_id LIKE '%-16193159'` | ✅ Encontra SABR-N-SHPE-6965-16193159 |
+| `BR258217438746K` | `WHERE tracking_number = 'BR258217438746K'` | ✅ Encontra o registro |
+| `16315521` | `WHERE platform_order_id LIKE '%-16315521'` | ✅ Encontra (se existir) |
 
 ---
 
-## Nota Técnica
+## Nota sobre UI
 
-O problema atual parece ser uma combinação de:
-1. **Falta de filtro de ferramentas** - `check_tracking` existe mas não é controlado
-2. **Possível erro na conexão MySQL** - Preciso verificar logs do `fetch-tracking`
-3. **IA não reconhece código como rastreável** - "16315521" pode não parecer código de rastreio para a IA
+O PersonaDialog já está configurado corretamente com os 5 toggles de acesso a dados:
+- 👤 Dados do Cliente
+- 📚 Base de Conhecimento  
+- 📦 Histórico de Pedidos
+- 💰 Dados Financeiros
+- 🚚 Rastreio de Pedidos (MySQL)
 
-A IA pode estar interpretando "16315521" como algo que não sabe lidar (não é BR..., não é email) e fazendo handoff por "caso complexo" ao invés de tentar `check_tracking`.
+Eles já estão visíveis na mesma tela de configuração de temperature/tokens. Não é necessário modificar a UI.

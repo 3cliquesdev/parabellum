@@ -123,10 +123,10 @@ export function MessageBubble({
 
       {/* Message Content */}
       <div className={cn("flex flex-col", isCustomer ? "items-start" : "items-end")}>
-        {/* Sender Name */}
+        {/* Sender Name - Always show for non-customer messages */}
         {!isCustomer && (
           <p className="text-xs text-muted-foreground mb-1 px-1 font-medium">
-            {isAI ? "Assistente Virtual" : sender?.full_name}
+            {isAI ? "Assistente Virtual" : (sender?.full_name || "Atendente")}
             {sender?.job_title && (
               <span className="ml-2 text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
                 {sender.job_title}

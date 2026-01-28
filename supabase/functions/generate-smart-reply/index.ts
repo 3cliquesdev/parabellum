@@ -133,14 +133,13 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY não configurada');
     }
 
-    const aiPayload = {
-      model: 'google/gemini-2.5-flash',
+    const aiPayload: any = {
+      model: 'openai/gpt-5-mini',
+      max_completion_tokens: persona?.max_tokens || 300,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Contexto da conversa:\n${conversationContext}\n\nGere uma resposta sugerida profissional para o atendente usar.` }
       ],
-      temperature: persona?.temperature || 0.7,
-      max_tokens: persona?.max_tokens || 300
     };
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {

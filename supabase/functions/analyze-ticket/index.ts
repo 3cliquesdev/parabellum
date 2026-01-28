@@ -21,10 +21,10 @@ async function getConfiguredAIModel(): Promise<string> {
       .eq('key', 'ai_default_model')
       .maybeSingle();
     
-    return data?.value || 'google/gemini-2.5-flash';
+    return data?.value || 'openai/gpt-5-mini';
   } catch (error) {
     console.error('[analyze-ticket] Error fetching AI model config:', error);
-    return 'google/gemini-2.5-flash';
+    return 'openai/gpt-5-mini';
   }
 }
 

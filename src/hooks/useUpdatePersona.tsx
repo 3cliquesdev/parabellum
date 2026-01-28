@@ -26,6 +26,7 @@ export const useUpdatePersona = () => {
           knowledge_base?: boolean;
           order_history?: boolean;
           financial_data?: boolean;
+          tracking_data?: boolean;
         };
       };
     }) => {

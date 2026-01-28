@@ -45,6 +45,7 @@ export function PersonaDialog({ trigger, persona, onOpenChange }: PersonaDialogP
   const [accessKnowledgeBase, setAccessKnowledgeBase] = useState(true);
   const [accessOrderHistory, setAccessOrderHistory] = useState(false);
   const [accessFinancialData, setAccessFinancialData] = useState(false);
+  const [accessTrackingData, setAccessTrackingData] = useState(false);
 
   const createPersona = useCreatePersona();
   const updatePersona = useUpdatePersona();
@@ -68,6 +69,7 @@ export function PersonaDialog({ trigger, persona, onOpenChange }: PersonaDialogP
       setAccessKnowledgeBase(dataAccess?.knowledge_base ?? true);
       setAccessOrderHistory(dataAccess?.order_history ?? false);
       setAccessFinancialData(dataAccess?.financial_data ?? false);
+      setAccessTrackingData(dataAccess?.tracking_data ?? false);
     } else {
       setName("");
       setRole("");
@@ -84,6 +86,7 @@ export function PersonaDialog({ trigger, persona, onOpenChange }: PersonaDialogP
       setAccessKnowledgeBase(true);
       setAccessOrderHistory(false);
       setAccessFinancialData(false);
+      setAccessTrackingData(false);
     }
   }, [persona, open]);
 
@@ -104,6 +107,7 @@ export function PersonaDialog({ trigger, persona, onOpenChange }: PersonaDialogP
         knowledge_base: accessKnowledgeBase,
         order_history: accessOrderHistory,
         financial_data: accessFinancialData,
+        tracking_data: accessTrackingData,
       },
     };
 
@@ -370,6 +374,20 @@ export function PersonaDialog({ trigger, persona, onOpenChange }: PersonaDialogP
                   id="accessFinancialData"
                   checked={accessFinancialData}
                   onCheckedChange={setAccessFinancialData}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded border border-orange-300 dark:border-orange-700">
+                <div>
+                  <Label htmlFor="accessTrackingData" className="font-medium text-orange-700 dark:text-orange-400">
+                    🚚 Rastreio de Pedidos (MySQL)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Consulta status de entrega no romaneio</p>
+                </div>
+                <Switch
+                  id="accessTrackingData"
+                  checked={accessTrackingData}
+                  onCheckedChange={setAccessTrackingData}
                 />
               </div>
             </div>

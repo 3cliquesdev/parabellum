@@ -2309,12 +2309,21 @@ Como posso ajudar você hoje?`;
       customer_data: true,
       knowledge_base: true,
       order_history: false,
-      financial_data: false
+      financial_data: false,
+      tracking_data: false
     };
     
     const canAccessCustomerData = personaDataAccess.customer_data !== false;
     const canAccessKnowledgeBase = personaDataAccess.knowledge_base !== false;
     const canAccessFinancialData = personaDataAccess.financial_data === true;
+    const canAccessTracking = personaDataAccess.tracking_data === true || personaDataAccess.order_history === true;
+    
+    console.log('[ai-autopilot-chat] 🔐 Permissões calculadas:', {
+      canAccessCustomerData,
+      canAccessKnowledgeBase,
+      canAccessFinancialData,
+      canAccessTracking
+    });
 
     // 🎓 Buscar exemplos de treinamento (Few-Shot Learning)
     const { data: trainingExamples } = await supabaseClient
@@ -4491,8 +4500,9 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
       total: aiPayload.messages.length
     });
 
-    // Add built-in tools + persona tools
-    const allTools = [
+    // Add built-in tools + persona tools (FILTRADO por data_access)
+    // 🔐 Ferramentas CORE (sempre disponíveis)
+    const coreTools = [
       {
         type: 'function',
         function: {
@@ -4582,19 +4592,6 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
           }
         }
       },
-      // 🆕 TOOL: Enviar OTP para operações financeiras (quando cliente já está identificado)
-      {
-        type: 'function',
-        function: {
-          name: 'send_financial_otp',
-          description: 'Envia código OTP para email JÁ VERIFICADO quando cliente solicita operação FINANCEIRA (saque, reembolso, etc). Use apenas após cliente já ter sido identificado por email na base. NÃO use para identificação inicial - para isso use verify_customer_email.',
-          parameters: {
-            type: 'object',
-            properties: {},
-            required: []
-          }
-        }
-      },
       // TOOL: Confirmar email não encontrado na base
       {
         type: 'function',
@@ -4634,20 +4631,26 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
             required: ['reason']
           }
         }
-      },
-      // TOOL: Consultar rastreio de pedidos via MySQL externo (suporta múltiplos códigos)
-      {
+      }
+    ];
+    
+    // 🔐 Ferramentas CONDICIONAIS (baseadas em data_access)
+    const conditionalTools: any[] = [];
+    
+    // check_tracking - só se tiver permissão de rastreio ou histórico de pedidos
+    if (canAccessTracking) {
+      conditionalTools.push({
         type: 'function',
         function: {
           name: 'check_tracking',
-          description: 'Consulta status de rastreio de pedidos no sistema de romaneio. Use quando cliente perguntar sobre entrega, rastreio ou status. IMPORTANTE: Se cliente enviar múltiplos códigos, extraia TODOS em um array.',
+          description: 'Consulta status de rastreio de pedidos no sistema de romaneio. Use quando cliente perguntar sobre entrega, rastreio ou status, ou quando enviar um número de pedido/código de rastreio. IMPORTANTE: Se cliente enviar múltiplos códigos, extraia TODOS em um array. Números como "16315521" também podem ser códigos de pedido - consulte mesmo assim.',
           parameters: {
             type: 'object',
             properties: {
               tracking_codes: { 
                 type: 'array',
                 items: { type: 'string' },
-                description: 'Lista de códigos de rastreio (ex: ["BR123456789BR", "MS-12345"]). Aceita um ou vários códigos.'
+                description: 'Lista de códigos de rastreio ou números de pedido (ex: ["BR123456789BR", "MS-12345", "16315521"]). Aceita um ou vários códigos.'
               },
               customer_email: { 
                 type: 'string', 
@@ -4657,12 +4660,41 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
             required: []
           }
         }
-      },
+      });
+      console.log('[ai-autopilot-chat] ✅ check_tracking HABILITADO (tracking_data ou order_history)');
+    } else {
+      console.log('[ai-autopilot-chat] ❌ check_tracking DESABILITADO (sem permissão de rastreio)');
+    }
+    
+    // send_financial_otp - só se tiver permissão financeira
+    if (canAccessFinancialData) {
+      conditionalTools.push({
+        type: 'function',
+        function: {
+          name: 'send_financial_otp',
+          description: 'Envia código OTP para email JÁ VERIFICADO quando cliente solicita operação FINANCEIRA (saque, reembolso, etc). Use apenas após cliente já ter sido identificado por email na base. NÃO use para identificação inicial - para isso use verify_customer_email.',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        }
+      });
+      console.log('[ai-autopilot-chat] ✅ send_financial_otp HABILITADO (financial_data)');
+    } else {
+      console.log('[ai-autopilot-chat] ❌ send_financial_otp DESABILITADO (sem permissão financeira)');
+    }
+    
+    const allTools = [
+      ...coreTools,
+      ...conditionalTools,
       ...enabledTools.map((tool: any) => ({
         type: 'function',
         function: tool.function_schema
       }))
     ];
+    
+    console.log('[ai-autopilot-chat] 🛠️ Total de ferramentas disponíveis:', allTools.length, '| Core:', coreTools.length, '| Condicionais:', conditionalTools.length, '| Custom:', enabledTools.length);
 
     if (allTools.length > 0) {
       aiPayload.tools = allTools;
@@ -5433,8 +5465,13 @@ Sobre qual pedido você gostaria de saber mais?`;
         }
         // TOOL: check_tracking - Consultar rastreio via MySQL externo (suporta múltiplos códigos)
         else if (toolCall.function.name === 'check_tracking') {
+          console.log('[ai-autopilot-chat] 🚚 CHECK_TRACKING INVOCADO');
+          console.log('[ai-autopilot-chat] 🚚 Argumentos brutos:', toolCall.function.arguments);
+          
           try {
             const args = JSON.parse(toolCall.function.arguments);
+            console.log('[ai-autopilot-chat] 🚚 Argumentos parseados:', args);
+            
             // Suporta tanto tracking_codes (array) quanto tracking_code (string legado)
             let trackingCodes: string[] = [];
             if (args.tracking_codes && Array.isArray(args.tracking_codes)) {
@@ -5444,7 +5481,7 @@ Sobre qual pedido você gostaria de saber mais?`;
             }
             const customerEmail = args.customer_email?.toLowerCase().trim();
             
-            console.log('[ai-autopilot-chat] 📦 Consultando rastreio:', { trackingCodes, customerEmail });
+            console.log('[ai-autopilot-chat] 📦 Consultando rastreio:', { trackingCodes, customerEmail, numCodes: trackingCodes.length });
 
             let codesToQuery: string[] = [];
 
@@ -5502,20 +5539,37 @@ Sobre qual pedido você gostaria de saber mais?`;
 
             // Buscar códigos não cacheados no MySQL externo
             if (uncachedCodes.length > 0) {
-              console.log('[ai-autopilot-chat] 🔍 Buscando no MySQL:', uncachedCodes);
+              console.log('[ai-autopilot-chat] 🔍 Buscando no MySQL:', { 
+                codes: uncachedCodes,
+                totalCodesToQuery: codesToQuery.length,
+                cachedCount: cachedCodes.length,
+                uncachedCount: uncachedCodes.length
+              });
               
               try {
+                console.log('[ai-autopilot-chat] 🔍 Chamando fetch-tracking edge function...');
                 const { data: fetchResult, error: fetchError } = await supabaseClient.functions.invoke('fetch-tracking', {
                   body: { tracking_codes: uncachedCodes }
+                });
+
+                console.log('[ai-autopilot-chat] 🔍 fetch-tracking resultado:', {
+                  success: fetchResult?.success,
+                  found: fetchResult?.found,
+                  total_requested: fetchResult?.total_requested,
+                  hasData: !!fetchResult?.data,
+                  error: fetchError?.message
                 });
 
                 if (fetchError) {
                   console.error('[ai-autopilot-chat] ❌ Erro fetch-tracking:', fetchError);
                 } else if (fetchResult?.success && fetchResult?.data) {
+                  console.log('[ai-autopilot-chat] ✅ fetch-tracking sucesso, processando resultados...');
                   // Atualizar cache e agregar resultados
                   for (const [code, info] of Object.entries(fetchResult.data)) {
                     if (info) {
                       const trackingInfo = info as any;
+                      console.log('[ai-autopilot-chat] 📦 Código encontrado:', code, trackingInfo);
+                      
                       // Upsert no cache
                       await supabaseClient
                         .from('tracking_cache')
@@ -5537,8 +5591,12 @@ Sobre qual pedido você gostaria de saber mais?`;
                         is_packed: trackingInfo.is_packed,
                         external_updated_at: trackingInfo.updated_at
                       });
+                    } else {
+                      console.log('[ai-autopilot-chat] ⚠️ Código não encontrado no MySQL:', code);
                     }
                   }
+                } else {
+                  console.log('[ai-autopilot-chat] ⚠️ fetch-tracking sem sucesso ou sem dados:', fetchResult);
                 }
               } catch (fetchErr) {
                 console.error('[ai-autopilot-chat] ❌ Erro ao chamar fetch-tracking:', fetchErr);

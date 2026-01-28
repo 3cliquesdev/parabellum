@@ -91,6 +91,23 @@ function maskPhone(phone: string | null | undefined): string {
 }
 
 // ============================================================
+// 🔢 HELPER: Formatar opções de múltipla escolha como texto
+// Transforma array de opções em lista numerada com emojis
+// ============================================================
+function formatOptionsAsText(options: Array<{label: string; value: string}> | null | undefined): string {
+  if (!options || options.length === 0) return '';
+  
+  const emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+  
+  const formatted = options.map((opt, idx) => {
+    const emoji = emojis[idx] || `${idx + 1}.`;
+    return `${emoji} ${opt.label}`;
+  }).join('\n');
+  
+  return `\n\n${formatted}`;
+}
+
+// ============================================================
 // 🆕 EXTRATOR DE EMAIL TOLERANTE (WhatsApp-safe)
 // Reconhece emails mesmo quando quebrados por newline/espaços
 // ============================================================
@@ -1722,12 +1739,21 @@ Como posso ajudar você hoje?`;
             }
           }
           
+          // 🆕 Formatar mensagem com opções de múltipla escolha (se houver)
+          const formattedFlowResponse = flowResult.response + formatOptionsAsText(flowResult.options);
+          
+          console.log('[ai-autopilot-chat] 📋 Flow response formatted:', {
+            hasOptions: !!flowResult.options?.length,
+            optionsCount: flowResult.options?.length || 0,
+            responsePreview: formattedFlowResponse.substring(0, 100)
+          });
+          
           // Salvar resposta do fluxo
           const { data: flowMsgData } = await supabaseClient
             .from("messages")
             .insert({
               conversation_id: conversationId,
-              content: flowResult.response,
+              content: formattedFlowResponse,
               sender_type: "user",
               is_ai_generated: true,
               channel: responseChannel,
@@ -1755,7 +1781,7 @@ Como posso ajudar você hoje?`;
                 supabaseClient,
                 whatsappResult,
                 contact.phone,
-                flowResult.response,
+                formattedFlowResponse,
                 conversationId,
                 contact.whatsapp_id
               );
@@ -1765,7 +1791,7 @@ Como posso ajudar você hoje?`;
           // Retornar resposta do fluxo - BYPASS TOTAL DA TRIAGEM
           return new Response(
             JSON.stringify({
-              response: flowResult.response,
+              response: formattedFlowResponse,
               messageId: flowMsgData?.id,
               source: 'chat_flow_early',
               flowId: flowResult.flowId,

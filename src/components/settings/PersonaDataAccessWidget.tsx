@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, BookOpen, User, Package, DollarSign, Check, X } from "lucide-react";
+import { Users, BookOpen, User, Package, DollarSign, Truck, Check, X } from "lucide-react";
 import { usePersonas } from "@/hooks/usePersonas";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -9,12 +9,14 @@ interface DataAccess {
   knowledge_base?: boolean;
   order_history?: boolean;
   financial_data?: boolean;
+  tracking_data?: boolean;
 }
 
 const ACCESS_LABELS = [
   { key: "knowledge_base", label: "Base de Conhecimento", icon: BookOpen, color: "text-blue-500" },
   { key: "customer_data", label: "Dados de Clientes", icon: User, color: "text-green-500" },
   { key: "order_history", label: "Histórico de Pedidos", icon: Package, color: "text-purple-500" },
+  { key: "tracking_data", label: "Rastreio Logístico", icon: Truck, color: "text-orange-500" },
   { key: "financial_data", label: "Dados Financeiros", icon: DollarSign, color: "text-amber-500" },
 ];
 

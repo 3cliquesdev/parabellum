@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "next-themes";
 import App from "./App.tsx";
 import "./index.css";
-import { ensureLatestBuild, getCurrentBuildId } from "./lib/build/ensureLatestBuild";
+import { getCurrentBuildId } from "./lib/build/ensureLatestBuild";
 
 // ============================================
 // SISTEMA DE AUTO-HEAL DE BUILD + LIMPEZA
@@ -72,28 +72,8 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
-// 5. Verifica se o build está atualizado (auto-heal)
-ensureLatestBuild().catch((e) => {
-  console.warn('[Main] ⚠️ Erro no ensureLatestBuild:', e);
-});
-
-// 6. Verificar build quando a janela ganha foco (útil no Preview do editor)
-window.addEventListener('focus', () => {
-  console.log('[Main] 👀 Janela focada, verificando build...');
-  ensureLatestBuild().catch((e) => {
-    console.warn('[Main] ⚠️ Erro no ensureLatestBuild (focus):', e);
-  });
-});
-
-// 7. Verificar build quando visibilidade muda (tab ativa)
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    console.log('[Main] 👁️ Tab visível, verificando build...');
-    ensureLatestBuild().catch((e) => {
-      console.warn('[Main] ⚠️ Erro no ensureLatestBuild (visibility):', e);
-    });
-  }
-});
+// 5. Verificação de build desativada - usuário atualiza manualmente pelo SidebarVersionIndicator
+// (evita refresh automático que pode interromper o trabalho do usuário)
 
 console.log('[Main] 🚀 App iniciando');
 

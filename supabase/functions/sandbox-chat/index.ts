@@ -87,15 +87,26 @@ serve(async (req) => {
     console.log('[sandbox-chat] Training examples (ai_training_examples):', trainingExamples?.length || 0);
 
     // 🎓 TAMBÉM buscar artigos de treinamento do Sandbox (salvos em knowledge_articles)
-    const { data: sandboxTrainingArticles } = await supabase
+    const { data: rawSandboxArticles } = await supabase
       .from('knowledge_articles')
       .select('id, title, content')
       .eq('source', 'sandbox_training')
       .eq('is_published', true)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(50); // Buscar mais para deduplicar
 
-    console.log('[sandbox-chat] Sandbox training articles (knowledge_articles):', sandboxTrainingArticles?.length || 0);
+    // 🔄 Deduplicar artigos pelo título (manter apenas o mais recente)
+    const seenTitles = new Set<string>();
+    const sandboxTrainingArticles = rawSandboxArticles?.filter((article: any) => {
+      const normalizedTitle = article.title.toLowerCase().trim();
+      if (seenTitles.has(normalizedTitle)) {
+        return false;
+      }
+      seenTitles.add(normalizedTitle);
+      return true;
+    }).slice(0, 10) || [];
+
+    console.log('[sandbox-chat] Sandbox training articles (after dedup):', sandboxTrainingArticles?.length || 0, '(raw:', rawSandboxArticles?.length || 0, ')');
 
     // Build tools array from persona's linked tools
     const tools = persona.ai_persona_tools
@@ -195,7 +206,7 @@ Responda APENAS: skip ou search`
     // O título contém a pergunta ("Treinamento: [pergunta]") e o content contém a resposta correta
     const fewShotFromSandbox = sandboxTrainingArticles?.flatMap((article: any) => {
       // Extrair pergunta do título: "Treinamento: [pergunta...]" → "[pergunta...]"
-      const question = article.title.replace(/^Treinamento:\s*/i, '');
+      const question = article.title.replace(/^Treinamento:\s*/i, '').substring(0, 200);
       return [
         { role: 'user', content: question },
         { role: 'assistant', content: article.content }
@@ -205,7 +216,13 @@ Responda APENAS: skip ou search`
     // Combinar ambas as fontes (limite de 10 pares no total)
     const fewShotMessages = [...fewShotFromSandbox, ...fewShotFromExamples].slice(0, 20);
 
-    console.log('[sandbox-chat] Few-shot messages prepared:', fewShotMessages.length, '(sandbox:', fewShotFromSandbox.length, '+ examples:', fewShotFromExamples.length, ')');
+    console.log('[sandbox-chat] Few-shot messages prepared:', fewShotMessages.length, '(sandbox:', fewShotFromSandbox.length / 2, 'pares + examples:', fewShotFromExamples.length / 2, 'pares)');
+
+    // 🎓 Se temos exemplos de treinamento, adicionar instrução PRIORITÁRIA
+    // Esta instrução deve sobrescrever qualquer outra regra do prompt
+    const trainingInstruction = fewShotMessages.length > 0
+      ? `## 🎯 REGRA ABSOLUTA (SOBRESCREVE TODAS AS OUTRAS):\nVocê foi TREINADO com exemplos específicos abaixo. Quando a pergunta do cliente for SIMILAR ou IDÊNTICA a um dos exemplos, você DEVE copiar a resposta do exemplo EXATAMENTE como está, sem modificar, sem pedir informações adicionais, sem seguir nenhuma outra regra deste prompt. Os exemplos de treinamento têm PRIORIDADE MÁXIMA sobre qualquer outra instrução.\n\n`
+      : '';
 
     let knowledgeArticles: any[] = [];
     let systemPrompt = persona.system_prompt;
@@ -367,8 +384,11 @@ Você está conversando com um cliente identificado. Use essas informações par
       console.log('[sandbox-chat] Customer context injected into prompt');
     }
 
+    // Adicionar instrução de treinamento NO INÍCIO do system prompt (prioridade)
+    const finalSystemPrompt = trainingInstruction + systemPrompt;
+
     const aiMessages = [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: finalSystemPrompt },
       ...fewShotMessages,  // ✨ Injetar exemplos de treinamento
       ...messages
     ];

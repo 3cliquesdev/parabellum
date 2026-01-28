@@ -397,10 +397,32 @@ serve(async (req) => {
       if (currentNode.type === 'ask_options') {
         // Encontrar opção selecionada
         const options = currentNode.data?.options || [];
-        const selectedOption = options.find((opt: any) => 
+        let selectedOption = options.find((opt: any) => 
           opt.label.toLowerCase() === userMessage.toLowerCase() ||
           opt.value.toLowerCase() === userMessage.toLowerCase()
         );
+        
+        // 🆕 MATCHING NUMÉRICO: Permitir resposta "1", "2", "3"...
+        if (!selectedOption) {
+          const numericChoice = parseInt(userMessage.trim());
+          if (!isNaN(numericChoice) && numericChoice >= 1 && numericChoice <= options.length) {
+            selectedOption = options[numericChoice - 1];
+            console.log('[process-chat-flow] 🔢 Numeric choice matched:', numericChoice, '→', selectedOption?.label);
+          }
+        }
+        
+        // 🆕 MATCHING FUZZY: Tentar match parcial se nenhum match exato
+        if (!selectedOption) {
+          const normalizedInput = userMessage.toLowerCase().trim();
+          selectedOption = options.find((opt: any) => 
+            opt.label.toLowerCase().includes(normalizedInput) ||
+            normalizedInput.includes(opt.label.toLowerCase().split(' ')[0])
+          );
+          if (selectedOption) {
+            console.log('[process-chat-flow] 🔍 Fuzzy match found:', userMessage, '→', selectedOption.label);
+          }
+        }
+        
         if (selectedOption) {
           path = selectedOption.id;
           collectedData[currentNode.data?.save_as || 'choice'] = selectedOption.value;

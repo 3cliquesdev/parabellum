@@ -549,10 +549,14 @@ export function useInboxCounts(userId?: string) {
   const { role, loading: roleLoading } = useUserRole();
   const { departmentIds, isLoading: deptLoading } = useDepartmentsByRole(role);
 
+  // Fallback seguro: enquanto o role ainda não foi resolvido (ou não existe),
+  // tratamos como o menor privilégio possível para evitar “sumir” contagens.
+  const effectiveRole = role ?? "user";
+
   return useQuery<InboxCounts>({
-    queryKey: ["inbox-counts", userId, role, departmentIds],
-    // Rodar assim que tivermos role (departmentIds pode ser null para admins)
-    enabled: !!role && !roleLoading,
+    queryKey: ["inbox-counts", userId, effectiveRole, departmentIds],
+    // Rodar assim que tivermos usuário (role pode demorar/vir null)
+    enabled: !!userId && !roleLoading && !deptLoading,
     queryFn: async (): Promise<InboxCounts> => {
       // Buscar dados de inbox com filtro de role
       let query = supabase
@@ -560,8 +564,8 @@ export function useInboxCounts(userId?: string) {
         .select("conversation_id, ai_mode, status, sla_status, unread_count, assigned_to, department, last_sender_type");
 
       // Aplicar filtros de role no nível do banco
-      if (role && userId && !hasFullInboxAccess(role)) {
-        if (role === "sales_rep" || role === "support_agent" || role === "financial_agent") {
+      if (userId && !hasFullInboxAccess(effectiveRole)) {
+        if (effectiveRole === "sales_rep" || effectiveRole === "support_agent" || effectiveRole === "financial_agent") {
           if (departmentIds && departmentIds.length > 0) {
             // Incluir conversas sem departamento (pool geral da IA)
             query = query.or(
@@ -573,7 +577,7 @@ export function useInboxCounts(userId?: string) {
               `assigned_to.eq.${userId},and(assigned_to.is.null,department.is.null)`
             );
           }
-        } else if (role === "consultant" || role === "user") {
+        } else if (effectiveRole === "consultant" || effectiveRole === "user") {
           query = query.eq("assigned_to", userId);
         }
       }
@@ -645,5 +649,21 @@ export function useInboxCounts(userId?: string) {
     },
     staleTime: 15 * 1000,
     refetchInterval: 30 * 1000,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 3000),
+    placeholderData: {
+      total: 0,
+      mine: 0,
+      aiQueue: 0,
+      humanQueue: 0,
+      slaCritical: 0,
+      slaWarning: 0,
+      notResponded: 0,
+      unassigned: 0,
+      unread: 0,
+      closed: 0,
+      byDepartment: [],
+      byTag: [],
+    },
   });
 }

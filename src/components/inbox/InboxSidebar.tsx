@@ -85,18 +85,17 @@ function FilterItem({ icon, label, count, isActive, onClick, variant = "default"
         {icon}
         <span>{label}</span>
       </div>
-      {count > 0 && (
-        <Badge 
-          variant={isActive ? "default" : "secondary"} 
-          className={cn(
-            "min-w-6 justify-center",
-            variant === "danger" && !isActive && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-            variant === "warning" && !isActive && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-          )}
-        >
-          {count}
-        </Badge>
-      )}
+      <Badge 
+        variant={isActive ? "default" : "secondary"} 
+        className={cn(
+          "min-w-6 justify-center",
+          count === 0 && "opacity-60",
+          variant === "danger" && !isActive && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+          variant === "warning" && !isActive && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+        )}
+      >
+        {count}
+      </Badge>
     </button>
   );
 }
@@ -453,11 +452,12 @@ export function InboxSidebar({ counts }: InboxSidebarProps) {
                       />
                       <span className="truncate">{dept.name}</span>
                     </div>
-                    {deptCount > 0 && (
-                      <Badge variant={isActive ? "default" : "secondary"} className="min-w-6 justify-center">
-                        {deptCount}
-                      </Badge>
-                    )}
+                    <Badge
+                      variant={isActive ? "default" : "secondary"}
+                      className={cn("min-w-6 justify-center", deptCount === 0 && "opacity-60")}
+                    >
+                      {deptCount}
+                    </Badge>
                   </button>
                 );
               })}
@@ -522,11 +522,12 @@ export function InboxSidebar({ counts }: InboxSidebarProps) {
                       />
                       <span className="truncate">{tag.name}</span>
                     </div>
-                    {tagCount > 0 && (
-                      <Badge variant={isActive ? "default" : "secondary"} className="min-w-6 justify-center">
-                        {tagCount}
-                      </Badge>
-                    )}
+                    <Badge
+                      variant={isActive ? "default" : "secondary"}
+                      className={cn("min-w-6 justify-center", tagCount === 0 && "opacity-60")}
+                    >
+                      {tagCount}
+                    </Badge>
                   </button>
                 );
               })}

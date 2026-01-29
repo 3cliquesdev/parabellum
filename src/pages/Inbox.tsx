@@ -129,10 +129,25 @@ export default function Inbox() {
     setMobileView("chat");
   };
 
+  // IDs das conversas que passaram pelos filtros do useInboxView (incluindo busca)
+  const inboxItemIds = useMemo(() => {
+    if (!inboxItems) return new Set<string>();
+    return new Set(inboxItems.map(item => item.conversation_id));
+  }, [inboxItems]);
+
   const filteredConversations = useMemo(() => {
     if (!conversations) return [];
     
     let result = conversations;
+
+    // 🔍 IMPORTANTE: Se há busca ativa, filtrar APENAS pelas conversas que estão no inboxItems
+    // O inboxItems já foi filtrado pelo useInboxView com o termo de busca
+    const hasActiveSearch = filters.search && filters.search.trim().length > 0;
+    if (hasActiveSearch && inboxItems) {
+      result = result.filter(c => inboxItemIds.has(c.id));
+      // Se está buscando, não aplicar outros filtros que possam esconder resultados
+      return result;
+    }
 
     // Apply department filter
     if (departmentFilter) {
@@ -177,7 +192,7 @@ export default function Inbox() {
       default:
         return result.filter(c => c.status !== 'closed');
     }
-  }, [conversations, filter, departmentFilter, user?.id, role]);
+  }, [conversations, filter, departmentFilter, user?.id, role, filters.search, inboxItems, inboxItemIds]);
 
   // Ordenação e filtragem por tempo de espera
   const orderedConversations = useMemo(() => {

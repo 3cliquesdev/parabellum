@@ -559,9 +559,11 @@ export function useInboxCounts(userId?: string) {
     enabled: !!userId && !roleLoading && !deptLoading,
     queryFn: async (): Promise<InboxCounts> => {
       // Buscar dados de inbox com filtro de role
+      // Buscar todas as conversas (sem limite padrão de 1000)
       let query = supabase
         .from("inbox_view")
-        .select("conversation_id, ai_mode, status, sla_status, unread_count, assigned_to, department, last_sender_type");
+        .select("conversation_id, ai_mode, status, sla_status, unread_count, assigned_to, department, last_sender_type")
+        .limit(5000);
 
       // Aplicar filtros de role no nível do banco
       if (userId && !hasFullInboxAccess(effectiveRole)) {

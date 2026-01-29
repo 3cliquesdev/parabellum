@@ -50,6 +50,7 @@ const DEFAULT_FILTERS: InboxFilters = {
   hasAttachments: undefined,
   aiMode: undefined,
   includeArchived: undefined,
+  waitingTime: 'oldest', // Por padrão, mostrar mais antigas primeiro para priorização
 };
 
 type MobileView = "list" | "chat" | "details";
@@ -178,26 +179,62 @@ export default function Inbox() {
     }
   }, [conversations, filter, departmentFilter, user?.id, role]);
 
-  // Ordenação: usar a prioridade do inbox_view (mais antigas primeiro)
-  // para refletir o SLA/fila corretamente, sem mudar a fonte de dados (conversations).
+  // Ordenação e filtragem por tempo de espera
   const orderedConversations = useMemo(() => {
     if (!filteredConversations) return [];
-    if (!inboxItems || inboxItems.length === 0) return filteredConversations;
-
-    const indexById = new Map<string, number>();
-    for (let i = 0; i < inboxItems.length; i++) {
-      indexById.set(inboxItems[i].conversation_id, i);
+    
+    let result = [...filteredConversations];
+    const now = new Date();
+    
+    // Aplicar filtro de tempo de espera
+    if (filters.waitingTime && filters.waitingTime !== 'all' && filters.waitingTime !== 'newest' && filters.waitingTime !== 'oldest') {
+      const thresholds: Record<string, number> = {
+        '1h': 1 * 60 * 60 * 1000,
+        '4h': 4 * 60 * 60 * 1000,
+        '24h': 24 * 60 * 60 * 1000,
+        '7d': 7 * 24 * 60 * 60 * 1000,
+      };
+      const threshold = thresholds[filters.waitingTime];
+      if (threshold) {
+        result = result.filter(c => {
+          const lastMsg = new Date(c.last_message_at);
+          return (now.getTime() - lastMsg.getTime()) >= threshold;
+        });
+      }
+    }
+    
+    // Ordenar por tempo de espera
+    if (filters.waitingTime === 'newest') {
+      // Mais recentes primeiro (ordenação decrescente por last_message_at)
+      result.sort((a, b) => 
+        new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+      );
+    } else {
+      // Por padrão e 'oldest': mais antigas primeiro (maior tempo de espera = prioridade)
+      // Se temos inboxItems, usar a ordenação deles (já está otimizada para SLA)
+      if (inboxItems && inboxItems.length > 0) {
+        const indexById = new Map<string, number>();
+        for (let i = 0; i < inboxItems.length; i++) {
+          indexById.set(inboxItems[i].conversation_id, i);
+        }
+        result.sort((a, b) => {
+          const ia = indexById.get(a.id);
+          const ib = indexById.get(b.id);
+          if (ia == null && ib == null) return 0;
+          if (ia == null) return 1;
+          if (ib == null) return -1;
+          return ia - ib;
+        });
+      } else {
+        // Fallback: ordenar por last_message_at ascendente (mais antigas primeiro)
+        result.sort((a, b) => 
+          new Date(a.last_message_at).getTime() - new Date(b.last_message_at).getTime()
+        );
+      }
     }
 
-    return [...filteredConversations].sort((a, b) => {
-      const ia = indexById.get(a.id);
-      const ib = indexById.get(b.id);
-      if (ia == null && ib == null) return 0;
-      if (ia == null) return 1;
-      if (ib == null) return -1;
-      return ia - ib;
-    });
-  }, [filteredConversations, inboxItems]);
+    return result;
+  }, [filteredConversations, inboxItems, filters.waitingTime]);
 
   // Bulk selection handlers (after filteredConversations is defined)
   const handleToggleSelect = useCallback((id: string) => {
@@ -395,8 +432,15 @@ export default function Inbox() {
                 </>
               )}
             </Button>
+          </div>
+          <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-muted-foreground">
-              {filteredConversations.length} conversa{filteredConversations.length !== 1 ? 's' : ''}
+              {orderedConversations.length} de {counts?.total || 0} conversa{(counts?.total || 0) !== 1 ? 's' : ''}
+              {filters.waitingTime && filters.waitingTime !== 'all' && filters.waitingTime !== 'newest' && filters.waitingTime !== 'oldest' && (
+                <span className="ml-1 text-warning">
+                  (filtrado por tempo)
+                </span>
+              )}
             </span>
           </div>
           <InboxFilterPopover filters={filters} onFiltersChange={setFilters} />

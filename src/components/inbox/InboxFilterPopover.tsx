@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Filter, X, Search, Mic, Paperclip, Bot, Clock, Archive } from "lucide-react";
+import { Filter, X, Search, Mic, Paperclip, Bot, Clock, Archive, Timer } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,8 @@ export interface InboxFilters {
   hasAttachments?: boolean;
   aiMode?: string;
   includeArchived?: boolean;
+  // Filtro de tempo de espera para priorização
+  waitingTime?: 'all' | 'newest' | 'oldest' | '1h' | '4h' | '24h' | '7d';
 }
 
 interface InboxFilterPopoverProps {
@@ -62,6 +64,16 @@ const AI_MODE_OPTIONS = [
   { value: "disabled", label: "❌ Desabilitado" },
 ];
 
+const WAITING_TIME_OPTIONS = [
+  { value: "all", label: "Todas" },
+  { value: "newest", label: "⚡ Mais recentes primeiro" },
+  { value: "oldest", label: "🕐 Mais antigas primeiro" },
+  { value: "1h", label: "⏱️ Aguardando +1h" },
+  { value: "4h", label: "⚠️ Aguardando +4h" },
+  { value: "24h", label: "🔴 Aguardando +24h" },
+  { value: "7d", label: "💀 Aguardando +7 dias" },
+];
+
 export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFilterPopoverProps) {
   const [open, setOpen] = useState(false);
   const { data: users } = useUsers();
@@ -78,6 +90,7 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
     filters.hasAudio ? 1 : 0,
     filters.hasAttachments ? 1 : 0,
     filters.aiMode ? 1 : 0,
+    filters.waitingTime && filters.waitingTime !== 'all' ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
   const handleChannelToggle = (channel: string) => {
@@ -114,6 +127,7 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
       hasAttachments: undefined,
       aiMode: undefined,
       includeArchived: undefined,
+      waitingTime: 'all',
     });
   };
 
@@ -132,6 +146,30 @@ export default function InboxFilterPopover({ filters, onFiltersChange }: InboxFi
 
       {/* Quick Filters - wrap nicely */}
       <div className="flex gap-1.5 flex-wrap">
+        {/* Waiting Time Filter - NOVO! */}
+        <Select
+          value={filters.waitingTime || "all"}
+          onValueChange={(v) => onFiltersChange({ ...filters, waitingTime: v as InboxFilters['waitingTime'] })}
+        >
+          <SelectTrigger className="h-7 w-auto min-w-[140px] text-xs gap-1">
+            <Timer className="h-3 w-3" />
+            <SelectValue placeholder="Tempo de espera" />
+          </SelectTrigger>
+          <SelectContent 
+            position="popper" 
+            side="bottom" 
+            align="start"
+            sideOffset={4}
+            className="z-[100] max-h-[200px] overflow-y-auto"
+          >
+            {WAITING_TIME_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         {/* SLA Expired */}
         <Button
           variant={filters.slaExpired ? "destructive" : "outline"}

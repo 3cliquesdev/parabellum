@@ -141,6 +141,8 @@ export function useConversations(filters?: ConversationFilters) {
   return useQuery({
     queryKey: ["conversations", user?.id, role, filters],
     queryFn: async () => {
+      // IMPORTANTE: Buscar todas as conversas sem limite para refletir contagens corretas
+      // O inbox_view já filtra por status, aqui buscamos os dados completos para a lista
       let query = supabase
         .from("conversations")
         .select(`
@@ -148,7 +150,8 @@ export function useConversations(filters?: ConversationFilters) {
           contacts(*, organizations(*)),
           department_data:departments!department(id, name, color),
           assigned_user:profiles!assigned_to(id, full_name, avatar_url, job_title, department)
-        `);
+        `)
+        .limit(5000); // Alinhado com useInboxCounts para consistência
 
       // Role-based filtering por departamento
       if (role && user?.id && !hasFullInboxAccess(role)) {

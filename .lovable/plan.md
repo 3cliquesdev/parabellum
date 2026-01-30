@@ -1,87 +1,147 @@
 
-# Plano: Corrigir Fluxo que Para de Funcionar após Envio de Opções
+# Plano: Corrigir Filtro "Minhas" que Não Mostra Conversa Ativa
 
 ## Diagnóstico Completo
 
-### O que está acontecendo
-1. O cliente envia uma mensagem (ex: "Olá, vim pelo site")
-2. O fluxo processa e retorna opções (ex: "Você já é nosso cliente? 1️⃣ Sim 2️⃣ Não")
-3. O webhook chama `send-meta-whatsapp` para enviar essa resposta
-4. O `send-meta-whatsapp` **erroneamente** detecta essa mensagem como "de humano" porque:
-   - É uma mensagem de texto simples (`body.message`)
-   - Não é template (`!body.template`)
-   - Não é interativo (`!body.interactive`)
-5. O `send-meta-whatsapp` muda `ai_mode` de `autopilot` para `copilot`
-6. Cliente responde "1"
-7. O `process-chat-flow` verifica o `ai_mode`, vê que é `copilot` e retorna `skipAutoResponse: true`
-8. O fluxo não avança - fica mudo
+### Evidência no Banco
+A conversa existe e está correta:
+- **ID**: `eaa94b00-34d0-4c16-a09f-e9271a6937c7`
+- **Contato**: Ronildo Oliveira / fabiosou1542@gmail.com  
+- **Status**: `open`
+- **assigned_to**: `697a5d4e-9637-4b85-b7a0-bd880151648b` (você)
+- **last_sender_type**: `user` (por isso não aparece em "Não respondidas" - correto)
 
-### Evidência nos logs
-```
-18:49:50Z [process-chat-flow] 📍 Content node: ask_options
-18:49:52Z [send-meta-whatsapp] 🛡️ Human sent message - updating ai_mode from 'autopilot' to 'copilot' ← BUG!
-18:50:05Z [process-chat-flow] ai_mode_copilot - fluxo/IA bloqueados ← Consequência
-```
+### Causa Raiz: Cache Dessincronizado
 
-### Causa raiz
-A lógica no `send-meta-whatsapp` (linhas 385-407) assume que toda mensagem de texto simples é de humano:
+O código atual usa **duas instâncias** do hook `useInboxView`:
+
 ```typescript
-const isHumanMessage = body.message && !body.template && !body.interactive;
+// Linha 106 - Com filtros (atualizado pelo realtime)
+const { data: inboxItems } = useInboxView(inboxViewFilters);
+
+// Linha 110 - Sem filtros (NÃO atualizado pelo realtime!)
+const { data: rawInboxItems } = useInboxView();
 ```
 
-Mas o fluxo também envia mensagens de texto simples - são mensagens do BOT, não de humano!
+O problema está na **linha 247**:
+```typescript
+const sourceInboxItems = rawInboxItems ?? inboxItems;
+```
+
+Quando `rawInboxItems` existe (mesmo stale), ele é usado em vez de `inboxItems`.
+
+O realtime atualiza APENAS o cache que inclui os filtros atuais (linha 308-309):
+```typescript
+queryClient.setQueryData<InboxViewItem[]>(
+  [...QUERY_KEY, user?.id, currentRole, currentDeptIds, currentFilters],
+  // ↑ Inclui filtros - só atualiza o cache com filtros!
+)
+```
+
+O `rawInboxItems` (filters = undefined) **NUNCA é atualizado pelo realtime**, ficando stale.
+
+### Fluxo do Bug
+
+```
+1. Conversa é atribuída ao usuário
+         ↓
+2. Realtime recebe o evento
+         ↓
+3. Atualiza cache de inboxItems (com filtros) ✅
+         ↓
+4. NÃO atualiza cache de rawInboxItems (sem filtros) ❌
+         ↓
+5. Filtro "mine" usa: rawInboxItems ?? inboxItems
+         ↓
+6. rawInboxItems existe (stale) → usa ele
+         ↓
+7. Conversa nova não está no rawInboxItems stale
+         ↓
+8. Lista "Minhas" não mostra a conversa!
+```
 
 ---
 
-## Solução Proposta
+## Solução
 
-### Mudança 1: Adicionar flag `is_bot_message` no payload
+### Opção 1: Criar Hook Dedicado para "Minhas" (Recomendado)
+Similar ao que fizemos para "Não respondidas", criar um hook que consulta diretamente o banco:
 
-**Arquivo: `supabase/functions/meta-whatsapp-webhook/index.ts`**
-
-Quando o webhook envia mensagens do fluxo, adicionar uma flag indicando que é mensagem de bot:
-
-```typescript
-// Linha ~641
-const sendResponse = await supabase.functions.invoke("send-meta-whatsapp", {
-  body: {
-    instance_id: instance.id,
-    phone_number: fromNumber,
-    message: formattedMessage,
-    conversation_id: conversation.id,
-    skip_db_save: false,
-    is_bot_message: true,  // 🆕 Indica que é mensagem do bot/fluxo
-  },
-});
-```
-
-Aplicar em TODOS os lugares onde o webhook envia mensagens automaticas:
-- Resposta do fluxo (linha ~641)
-- Mensagem de "aguarde na fila" (linha ~596-605)
-- Qualquer outro envio automático
-
-### Mudança 2: Respeitar flag `is_bot_message` no send-meta-whatsapp
-
-**Arquivo: `supabase/functions/send-meta-whatsapp/index.ts`**
-
-Ajustar a lógica de detecção de "mensagem humana":
+**Novo arquivo**: `src/hooks/useMyInboxItems.tsx`
 
 ```typescript
-// Linha ~385
-// ANTES:
-const isHumanMessage = body.message && !body.template && !body.interactive;
+export function useMyInboxItems() {
+  const { user } = useAuth();
 
-// DEPOIS:
-// 🛡️ Mensagem de humano = texto simples que NÃO é do bot/fluxo
-const isHumanMessage = body.message && 
-                       !body.template && 
-                       !body.interactive && 
-                       !body.is_bot_message;  // 🆕 Respeitar flag do fluxo
+  return useQuery({
+    queryKey: ["my-inbox-items", user?.id],
+    queryFn: async (): Promise<InboxViewItem[]> => {
+      if (!user?.id) return [];
 
-if (isHumanMessage) {
-  // ... lógica de proteção humana (mantém)
+      const { data, error } = await supabase
+        .from("inbox_view")
+        .select("*")
+        .eq("assigned_to", user.id)
+        .neq("status", "closed")
+        .order("updated_at", { ascending: true })
+        .limit(5000);
+
+      if (error) throw error;
+      return data as InboxViewItem[];
+    },
+    staleTime: 2000,
+    refetchOnWindowFocus: true,
+    enabled: !!user?.id,
+  });
 }
 ```
+
+**Inbox.tsx**: Usar esse hook no filtro "mine":
+```typescript
+if (filter === "mine") {
+  if (!myInboxItems || myInboxItems.length === 0) return [];
+  return myInboxItems.map(item => {
+    const fullConv = fullConversations.find(c => c.id === item.conversation_id);
+    return fullConv || inboxItemToConversation(item);
+  });
+}
+```
+
+### Opção 2: Invalidar Todos os Caches no Realtime (Alternativa)
+Modificar o realtime para usar `setQueriesData` em vez de `setQueryData`:
+
+```typescript
+// Antes (linha 308)
+queryClient.setQueryData<InboxViewItem[]>(
+  [...QUERY_KEY, user?.id, currentRole, currentDeptIds, currentFilters],
+  ...
+)
+
+// Depois - atualiza TODOS os caches do inbox-view
+queryClient.setQueriesData<InboxViewItem[]>(
+  { queryKey: ["inbox-view"], exact: false },
+  (prev = []) => mergeInboxItems(prev, [row])
+);
+```
+
+---
+
+## Plano de Implementação
+
+### Mudança 1: Criar hook `useMyInboxItems`
+**Novo arquivo**: `src/hooks/useMyInboxItems.tsx`
+- Consulta direta ao banco para conversas do usuário atual
+- Status != closed
+- Ordenação por updated_at ASC
+
+### Mudança 2: Usar hook no Inbox.tsx
+**Arquivo**: `src/pages/Inbox.tsx`
+- Importar `useMyInboxItems`
+- Substituir lógica do filtro "mine" (linhas 280-289)
+- Remover dependência de `rawInboxItems` para este filtro
+
+### Mudança 3: (Opcional) Remover `rawInboxItems`
+Se não for mais necessário após as mudanças, podemos remover a linha 110 para simplificar.
 
 ---
 
@@ -89,62 +149,29 @@ if (isHumanMessage) {
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/meta-whatsapp-webhook/index.ts` | Adicionar `is_bot_message: true` em 2-3 lugares |
-| `supabase/functions/send-meta-whatsapp/index.ts` | Adicionar `&& !body.is_bot_message` na condição |
-
----
-
-## Fluxo Corrigido
-
-```
-Cliente envia "Olá"
-         |
-         v
-   process-chat-flow → ask_options
-         |
-         v
-   meta-whatsapp-webhook
-   envia com is_bot_message: true
-         |
-         v
-   send-meta-whatsapp
-   isHumanMessage = false (é bot!)
-   NÃO muda ai_mode
-         |
-         v
-   ai_mode continua "autopilot"
-         |
-         v
-   Cliente responde "1"
-         |
-         v
-   process-chat-flow verifica:
-   ai_mode = "autopilot" ✓
-         |
-         v
-   Fluxo avança normalmente ✓
-```
+| `src/hooks/useMyInboxItems.tsx` | **CRIAR** - Hook dedicado |
+| `src/pages/Inbox.tsx` | Usar novo hook no filtro "mine" |
 
 ---
 
 ## Validação Pós-Implementação
 
-1. Iniciar nova conversa no WhatsApp
-2. Receber opções do fluxo ("1 Sim, 2 Não")
-3. Responder "1"
-4. **Esperado**: Fluxo avança para o próximo nó
-5. **Antes do fix**: Fluxo ficava mudo
+1. Atribuir conversa ao usuário
+2. Ir para "Minhas" (`/inbox?filter=mine`)
+3. **Esperado**: Conversa aparece imediatamente
+4. **Antes do fix**: Conversa não aparecia (cache stale)
 
 Testes adicionais:
-- Humano enviar mensagem pelo Inbox → `ai_mode` deve mudar para `copilot` (proteção mantida)
-- Bot enviar mensagem do fluxo → `ai_mode` NÃO muda (bug corrigido)
-- Verificar logs: "Human sent message" só aparece quando é realmente humano
+- Badge de "Minhas" bate com a lista
+- Realtime funciona (nova conversa aparece sem refresh)
+- "Não respondidas" continua funcionando
+- Busca global continua funcionando
 
 ---
 
 ## Conformidade com Regras
 
-- **Upgrade, não downgrade**: Corrige bug sem quebrar proteção humana
-- **Zero regressão**: Mensagens de humano continuam mudando para copilot
-- **Soberania do fluxo**: Fluxo agora pode enviar mensagens sem auto-desligar
-- **Read-only no frontend**: Mudanças apenas em edge functions
+- **Upgrade, não downgrade**: Melhora consistência sem quebrar outros filtros
+- **Zero regressão**: Outros filtros usam lógica separada
+- **Read-only**: Hook apenas faz SELECT, nunca UPDATE
+- **Fonte de verdade**: Consulta direta ao banco, não depende de cache stale

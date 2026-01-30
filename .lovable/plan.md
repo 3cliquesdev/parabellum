@@ -1,113 +1,396 @@
 
-Analisei o projeto atual e sigo as regras da base de conhecimento.
+# Plano: Implementar Travessia Automática de Nós Sem Conteúdo
 
-Objetivo do ajuste: fazer o WhatsApp (Meta) “seguir o fluxo” de verdade, usando a mesma arquitetura soberana que você já tem no Web Chat: **process-chat-flow primeiro**, e só depois (se e somente se) o fluxo permitir, chamar IA. Hoje o `meta-whatsapp-webhook` salva a mensagem e chama `ai-autopilot-chat` direto, então o fluxo pode ser ignorado.
+## Diagnóstico Confirmado
 
-## Diagnóstico (por que não está seguindo o fluxo)
-1) **WhatsApp não passa pelo `message-listener`**
-- O `message-listener` deliberadamente “pula” WhatsApp (`channel === 'whatsapp'`) com log “já processado por webhook”.
-- Ou seja: toda a regra “Flow soberano → IA só se aiNodeActive=true” **não roda** para WhatsApp.
+### Problema Identificado
+O Master Flow tem a seguinte estrutura:
+```
+start (input) → condition → ask_options/transfer
+```
 
-2) **`meta-whatsapp-webhook` chama a IA direto**
-No arquivo `supabase/functions/meta-whatsapp-webhook/index.ts`, o pipeline atual é:
-- encontra/cria conversa
-- salva mensagem
-- (agora) checa kill switch antes de IA
-- **se ai_mode === 'autopilot'** → chama `ai-autopilot-chat` diretamente
+Quando o `process-chat-flow` inicia o Master Flow:
+1. Encontra o primeiro nó: `startNode.type = "input"`
+2. Vai para linha 951-970: retorna `response: startNode.data?.message || ""`
+3. Como nó `input` **não tem** propriedade `message`, retorna `response: ""`
+4. No `meta-whatsapp-webhook`, a condição `!flowData.useAI && flowData.response` falha porque `""` é falsy
+5. Cai no **CASO 4**: "No active flow → waiting_human (fallback)"
 
-Resultado: o cliente pode receber resposta da IA ou mensagens fora do “Master Flow” porque o fluxo nem foi consultado.
+### Log que comprova:
+```
+[process-chat-flow] 🚀 Iniciando Master Flow - primeiro nó: input start
+[meta-whatsapp-webhook] 📋 Flow response: {"useAI":false,"response":"","options":null,...}
+[AUTO-DECISION] [WhatsApp Meta] No active flow → waiting_human (fallback)
+```
 
-## O que vamos corrigir (upgrade sem quebrar o existente)
-Vamos implementar no `meta-whatsapp-webhook` o mesmo padrão do `message-listener`:
+---
 
-### A) Chamar `process-chat-flow` antes de qualquer decisão de automação
-Depois de salvar a mensagem (e depois do Kill Switch, que já está no lugar), vamos:
-- chamar `process-chat-flow` com `{ conversationId, userMessage }`
-- analisar o retorno:
-  - `skipAutoResponse: true` → não enviar nada (e garantir `ai_mode = waiting_human`)
-  - `useAI: false` + `response` → **enviar a resposta do fluxo** pelo WhatsApp (usando `send-meta-whatsapp`)
-  - `useAI: true` + `aiNodeActive: true` → chamar `ai-autopilot-chat` **com flow_context**
-  - sem fluxo e sem AIResponseNode → fallback controlado (opcional) + mover para humano (mantendo o padrão atual do seu sistema)
+## Solução: Travessia Automática de Nós Sem Conteúdo
 
-### B) Garantir “IA só roda se o fluxo permitir” também no WhatsApp
-Ou seja, substituir a condição atual:
-- `if (conversation.ai_mode === "autopilot" && !conversation.awaiting_rating) { call ai-autopilot-chat }`
-por:
-- `if (conversation.ai_mode === "autopilot" && !conversation.awaiting_rating && flowData.useAI && flowData.aiNodeActive) { call ai-autopilot-chat com flow_context }`
+### Conceito
+Após identificar o `startNode`, verificar se ele é um nó "vazio" (sem conteúdo para o usuário):
+- Tipos vazios: `input`, `start`
+- Tipos que precisam avaliação: `condition`
+- Se for vazio: **atravessar** automaticamente para o próximo nó com conteúdo
 
-### C) Responder mensagens de fluxo via WhatsApp do jeito correto (sem duplicar persistência)
-Para WhatsApp Meta, a regra correta é: **quem envia e persiste outbound é o `send-meta-whatsapp`** (single source of truth).
-Então, quando `process-chat-flow` retornar `response`, vamos:
-- chamar `send-meta-whatsapp` com:
-  - `instance_id: instance.id`
-  - `phone_number: fromNumber`
-  - `message: flowData.response`
-  - `conversation_id: conversation.id`
-  - `skip_db_save: false` (para persistir corretamente a mensagem enviada e evitar inserts manuais duplicados)
+### Nós que Produzem Conteúdo
+| Tipo | Conteúdo |
+|------|----------|
+| `message` | Texto estático |
+| `ask_options` | Texto + opções |
+| `ask_name`, `ask_email`, `ask_phone`, `ask_cpf`, `ask_text` | Pergunta |
+| `ai_response` | Ativa IA |
+| `transfer` | Mensagem + transferência |
+| `end` | Fim do fluxo |
 
-### D) Ajuste de consistência: não “reabrir” conversa fechada de forma agressiva
-Hoje, ao encontrar conversa existente, o webhook força:
-- `status: "open" // Reabrir se estava fechada`
-Mas ao mesmo tempo ele faz `.neq("status", "closed")`, então essa reabertura é meio incoerente e pode atrapalhar estados.
-Vamos revisar esse trecho e alinhar com a regra de produto:
-- manter fechado quando `awaiting_rating=true` (já coberto pelo CSAT guard)
-- e definir de forma clara quando reabre/quando cria nova (sem mudar comportamento atual sem necessidade; apenas remover inconsistências)
+### Nós Sem Conteúdo (Atravessar)
+| Tipo | Ação |
+|------|------|
+| `input` / `start` | Encontrar próximo via edges |
+| `condition` | Avaliar condição e seguir caminho true/false |
 
-## Arquivos envolvidos
-- `supabase/functions/meta-whatsapp-webhook/index.ts` (principal)
-- (sem mudança planejada agora) `supabase/functions/process-chat-flow/index.ts`
-- (sem mudança planejada agora) `supabase/functions/ai-autopilot-chat/index.ts`
+---
 
-## Sequência de implementação (passo a passo)
-1) No `meta-whatsapp-webhook`, localizar o ponto após salvar a mensagem inbound.
-2) Manter o Kill Switch já existente (ele está correto e cedo o suficiente antes da IA).
-3) Inserir chamada ao `process-chat-flow`:
-   - `fetch(`${SUPABASE_URL}/functions/v1/process-chat-flow`...)` com service role
-4) Interpretar `flowData` e tomar decisão:
-   - se `flowData.skipAutoResponse` → update `ai_mode=waiting_human` e `continue`
-   - se `!flowData.useAI && flowData.response` → `send-meta-whatsapp` com `skip_db_save:false` e `continue`
-   - se `flowData.useAI && flowData.aiNodeActive` → chamar `ai-autopilot-chat` com `flow_context` (espelhando o contrato do message-listener)
-   - se não tem flow/aiNodeActive → fallback (se IA estiver ligada) + `waiting_human`
-5) Revisar o trecho que “reabre conversa” para remover inconsistência com a query que ignora `closed`.
-6) Adicionar logs `[AUTO-DECISION]` no WhatsApp também (mesmo formato do message-listener), para auditoria.
+## Fluxo Corrigido
 
-## Testes obrigatórios (regressão zero)
-Vou validar os cenários abaixo:
+```text
+Cliente envia "Bom dia" via WhatsApp
+         │
+         ▼
+meta-whatsapp-webhook → process-chat-flow
+         │
+         ▼
+Encontra startNode: "input"
+         │
+         ▼ [NOVO: Travessia automática]
+Atravessa: input → condition
+         │
+         ▼
+Avalia condition (ex: isValidatedCustomer?)
+         │
+    ┌────┴────┐
+    │         │
+  true      false
+    │         │
+    ▼         ▼
+ask_options transfer
+    │
+    ▼
+Retorna response: "Olá! Como posso ajudar?\n1-Pedidos\n2-Sistema"
+         │
+         ▼
+meta-whatsapp-webhook recebe response não-vazio
+         │
+         ▼
+Envia via send-meta-whatsapp ✅
+```
 
-1) IA Global OFF (Kill Switch OFF):
-- Cliente manda mensagem no WhatsApp
-- Resultado esperado:
-  - nenhuma resposta automática
-  - conversa vai para `waiting_human`
-  - o fluxo não manda mensagem
-  - a IA não roda
+---
 
-2) IA Global ON + Shadow Mode ON:
-- Cliente manda mensagem que ativa um AIResponseNode no fluxo
-- Resultado esperado:
-  - fluxo decide `aiNodeActive=true`
-  - IA gera sugestão (sem enviar automaticamente, conforme seu Shadow Mode)
-  - nenhum texto automático é disparado se a arquitetura atual já bloqueia “apply”
+## Alterações Técnicas
 
-3) Fluxo com resposta estática (Message/AskOptions etc.):
-- Cliente manda mensagem que o fluxo consegue responder sem IA
-- Resultado esperado:
-  - `process-chat-flow` retorna `response`
-  - `send-meta-whatsapp` envia exatamente essa resposta
-  - IA não é chamada
+### Arquivo: `supabase/functions/process-chat-flow/index.ts`
 
-4) CSAT (já corrigido) continua estável:
-- conversa fechada + awaiting_rating=true
-- cliente manda “5”
-- Resultado esperado:
-  - não cria novo chat
-  - salva rating
-  - envia agradecimento
-  - não roda fluxo nem IA
+**Local**: Linhas 879-971 (bloco do Master Flow)
 
-## Resultado esperado final (arquitetura ideal)
-- WhatsApp Meta passa a respeitar o “Flow soberano”
-- IA só roda quando o fluxo permitir (`aiNodeActive=true`)
-- Kill Switch bloqueia tudo (IA/fluxo/fallback) também no WhatsApp
-- Zero mensagens duplicadas / fora do fluxo
+**Substituir** o bloco atual por:
+
+```typescript
+// Encontrar primeiro nó (sem edges apontando para ele)
+const targetIds = new Set((flowDef.edges || []).map((e: any) => e.target));
+const startNode = flowDef.nodes.find((n: any) => !targetIds.has(n.id)) || flowDef.nodes[0];
+
+console.log('[process-chat-flow] 🚀 Iniciando Master Flow - primeiro nó:', startNode.type, startNode.id);
+
+// ============================================================
+// 🆕 TRAVESSIA AUTOMÁTICA: Atravessar nós sem conteúdo
+// Nós como 'input', 'start' e 'condition' não têm mensagem direta
+// Precisamos navegar até encontrar um nó com conteúdo
+// ============================================================
+const noContentTypes = ['input', 'start'];
+let contentNode = startNode;
+let traversalCount = 0;
+const MAX_TRAVERSAL = 10; // Evitar loop infinito
+let collectedData: Record<string, any> = {};
+
+// Buscar dados do contato para avaliar condições
+const { data: convData } = await supabaseClient
+  .from('conversations')
+  .select('contact_id')
+  .eq('id', conversationId)
+  .maybeSingle();
+
+let contactData: Record<string, any> | null = null;
+if (convData?.contact_id) {
+  const { data: contact } = await supabaseClient
+    .from('contacts')
+    .select('*')
+    .eq('id', convData.contact_id)
+    .maybeSingle();
+  contactData = contact;
+}
+
+// Função auxiliar para avaliar condição no contexto do fluxo
+function evaluateNodeCondition(conditionData: any): boolean {
+  if (!conditionData) return true;
+  
+  const { condition_type, condition_field, condition_value } = conditionData;
+  
+  // Determinar de onde vem o valor
+  let fieldValue: any = null;
+  
+  // Primeiro tentar dados coletados
+  if (collectedData[condition_field]) {
+    fieldValue = collectedData[condition_field];
+  } 
+  // Depois tentar dados do contato
+  else if (contactData && condition_field in contactData) {
+    fieldValue = contactData[condition_field];
+  }
+  // Checagem especial para campos comuns
+  else if (condition_field === 'is_validated_customer' || condition_field === 'isValidatedCustomer') {
+    fieldValue = contactData?.is_validated_customer ?? false;
+  }
+  else if (condition_field === 'email' && contactData?.email) {
+    fieldValue = contactData.email;
+  }
+  else if (condition_field === 'cpf' && contactData?.cpf) {
+    fieldValue = contactData.cpf;
+  }
+  
+  console.log('[process-chat-flow] 🔍 Evaluating condition:', {
+    condition_type,
+    condition_field,
+    condition_value,
+    fieldValue: typeof fieldValue === 'string' ? fieldValue?.slice(0, 20) : fieldValue
+  });
+  
+  switch (condition_type) {
+    case 'has_data':
+    case 'not_empty':
+      return !!fieldValue && String(fieldValue).trim().length > 0;
+    case 'is_empty':
+    case 'no_data':
+      return !fieldValue || String(fieldValue).trim().length === 0;
+    case 'equals':
+      return String(fieldValue).toLowerCase() === String(condition_value || '').toLowerCase();
+    case 'not_equals':
+      return String(fieldValue).toLowerCase() !== String(condition_value || '').toLowerCase();
+    case 'is_true':
+      return fieldValue === true || fieldValue === 'true';
+    case 'is_false':
+      return fieldValue === false || fieldValue === 'false' || !fieldValue;
+    case 'contains':
+      return String(fieldValue || '').toLowerCase().includes(String(condition_value || '').toLowerCase());
+    default:
+      console.log('[process-chat-flow] ⚠️ Unknown condition_type:', condition_type);
+      return false;
+  }
+}
+
+// Loop de travessia: atravessar nós sem conteúdo
+while ((noContentTypes.includes(contentNode.type) || contentNode.type === 'condition') && traversalCount < MAX_TRAVERSAL) {
+  traversalCount++;
+  console.log(`[process-chat-flow] ⏩ Traversing[${traversalCount}]: ${contentNode.type} (${contentNode.id})`);
+  
+  let path: string | undefined;
+  
+  // Se é um nó de condição, avaliar para determinar o caminho
+  if (contentNode.type === 'condition') {
+    const conditionResult = evaluateNodeCondition(contentNode.data);
+    path = conditionResult ? 'true' : 'false';
+    console.log(`[process-chat-flow] 🔀 Condition evaluated: ${path}`);
+  }
+  
+  const nextNode = findNextNode(flowDef, contentNode, path);
+  
+  if (!nextNode) {
+    console.log('[process-chat-flow] ⚠️ No next node found during traversal');
+    break;
+  }
+  
+  contentNode = nextNode;
+}
+
+console.log('[process-chat-flow] 📍 Content node reached:', contentNode.type, contentNode.id, `(after ${traversalCount} traversals)`);
+
+// Criar estado do fluxo apontando para o nó com conteúdo
+const { data: newState, error: createError } = await supabaseClient
+  .from('chat_flow_states')
+  .insert({
+    conversation_id: conversationId,
+    flow_id: masterFlow.id,
+    current_node_id: contentNode.id, // 🆕 Salvar o nó com conteúdo, não o input
+    collected_data: collectedData,
+    status: 'active',
+  })
+  .select()
+  .single();
+
+if (createError) {
+  console.error('[process-chat-flow] Error creating master flow state:', createError);
+  const aiNode = flowDef?.nodes?.find((n: any) => n.type === 'ai_response');
+  return new Response(
+    JSON.stringify({
+      useAI: true,
+      reason: "Error creating master flow state - fallback to AI config",
+      masterFlowId: masterFlow.id,
+      personaId: aiNode?.data?.persona_id || null,
+      kbCategories: aiNode?.data?.kb_categories || null,
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+console.log('[process-chat-flow] ✅ Master Flow started:', newState.id, '- content node:', contentNode.type);
+
+// Processar o nó com conteúdo encontrado
+
+// Se é nó de transferência
+if (contentNode.type === 'transfer') {
+  await supabaseClient
+    .from('chat_flow_states')
+    .update({ status: 'transferred' })
+    .eq('id', newState.id);
+  
+  return new Response(
+    JSON.stringify({
+      useAI: false,
+      response: replaceVariables(contentNode.data?.message || "Transferindo para um atendente...", collectedData),
+      transfer: true,
+      transferType: contentNode.data?.transfer_type,
+      departmentId: contentNode.data?.department_id,
+      flowId: masterFlow.id,
+      flowStarted: true,
+      isMasterFlow: true,
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+// Se é nó de AI, retornar useAI true com configs
+if (contentNode.type === 'ai_response') {
+  return new Response(
+    JSON.stringify({
+      useAI: true,
+      aiNodeActive: true,
+      nodeId: contentNode.id,
+      reason: "Master Flow started with AI node",
+      masterFlowId: masterFlow.id,
+      masterFlowName: masterFlow.name,
+      flowId: masterFlow.id,
+      flowStarted: true,
+      allowedSources: contentNode.data?.allowed_sources || ['kb', 'crm', 'tracking'],
+      responseFormat: 'text_only',
+      personaId: contentNode.data?.persona_id || null,
+      kbCategories: contentNode.data?.kb_categories || null,
+      contextPrompt: contentNode.data?.context_prompt || null,
+      fallbackMessage: contentNode.data?.fallback_message || null,
+      objective: contentNode.data?.objective || null,
+      maxSentences: contentNode.data?.max_sentences ?? 3,
+      forbidQuestions: contentNode.data?.forbid_questions ?? true,
+      forbidOptions: contentNode.data?.forbid_options ?? true,
+      debug: {
+        source: 'master_flow',
+        startNodeType: startNode.type,
+        contentNodeType: contentNode.type,
+        traversalCount,
+        hasAiNode: true
+      }
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+// Se é nó de fim
+if (contentNode.type === 'end') {
+  await supabaseClient
+    .from('chat_flow_states')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .eq('id', newState.id);
+  
+  const endMessage = contentNode.data?.message 
+    ? replaceVariables(contentNode.data.message, collectedData)
+    : "";
+  
+  return new Response(
+    JSON.stringify({
+      useAI: false,
+      response: endMessage,
+      flowCompleted: true,
+      flowId: masterFlow.id,
+      isMasterFlow: true,
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+// Se é nó com mensagem (message, ask_options, ask_name, etc)
+const contentMessage = replaceVariables(contentNode.data?.message || "", collectedData);
+const options = contentNode.type === 'ask_options' 
+  ? (contentNode.data?.options || []).map((opt: any) => ({ label: opt.label, value: opt.value, id: opt.id }))
+  : null;
+
+return new Response(
+  JSON.stringify({
+    useAI: false,
+    response: contentMessage,
+    options,
+    flowId: masterFlow.id,
+    flowStarted: true,
+    isMasterFlow: true,
+    debug: {
+      source: 'master_flow',
+      startNodeType: startNode.type,
+      contentNodeType: contentNode.type,
+      traversalCount
+    }
+  }),
+  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+);
+```
+
+---
+
+## Resumo das Mudanças
+
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| Nó inicial `input` | Retornava `response: ""` | Atravessa até nó com conteúdo |
+| Nó `condition` | Não processado na inicialização | Avaliado e seguido automaticamente |
+| Estado do fluxo | Salvava `current_node_id: input` | Salva `current_node_id: contentNode` |
+| Dados do contato | Não buscados | Buscados para avaliar condições |
+| Proteção loop | Não existia | `MAX_TRAVERSAL = 10` |
+
+---
+
+## Testes Obrigatórios
+
+| Cenário | Resultado Esperado |
+|---------|-------------------|
+| Master Flow com `input → condition → ask_options` | Retorna mensagem do ask_options |
+| Master Flow com `input → ai_response` | Retorna `aiNodeActive: true` |
+| Condition `is_validated_customer = true` | Segue caminho `true` |
+| Condition `is_validated_customer = false` | Segue caminho `false` (transfer) |
+| Loop infinito (proteção) | Para após MAX_TRAVERSAL |
+| Cliente novo (sem email) | Segue caminho do fluxo para novos |
+
+---
+
+## Critérios de Aceitação
+
+| Teste | Esperado |
+|-------|----------|
+| Enviar "Bom dia" no WhatsApp | Receber mensagem do fluxo (não ficar mudo) |
+| Logs mostram `⏩ Traversing` | Confirma travessia automática |
+| Logs mostram `📍 Content node reached: ask_options` | Confirma nó correto |
+| Não vai para `waiting_human` automaticamente | Segue o fluxo normalmente |
+
+---
+
+## Arquivos a Modificar
+
+| Arquivo | Linhas | Ação |
+|---------|--------|------|
+| `supabase/functions/process-chat-flow/index.ts` | 879-971 | Substituir bloco do Master Flow |
 

@@ -1,14 +1,14 @@
 
 
-# Plano de Ajustes Finos — Fase 5 (Produção-Ready)
+# Plano de Upgrades Opcionais — Fase 5 (Future-Proof)
 
 ## Resumo Executivo
 
-Este plano implementa 3 ajustes finos para aumentar transparência, confiabilidade e eficiência da Fase 5:
+Este plano implementa 2 upgrades opcionais para aumentar rastreabilidade e auditoria da Fase 5:
 
-- **Ajuste A**: Health Score explicável — componentes individuais retornados pelo RPC
-- **Ajuste B**: Insights com nível de confiança — indicador determinístico de volume de dados
-- **Ajuste C**: Cache inteligente dos Insights — evitar custos e inconsistências
+- **Opcional 1**: Versão do Health Score — permite comparar evolução histórica mesmo após mudança de fórmula
+- **Opcional 2**: Snapshot de insights críticos — auditoria e compliance de riscos detectados
+- **Opcional 3**: ✅ Já implementado (thresholds visuais: <40 vermelho, 40-70 amarelo, ≥70 verde)
 
 ---
 
@@ -16,203 +16,112 @@ Este plano implementa 3 ajustes finos para aumentar transparência, confiabilida
 
 | Ajuste | Status | Impacto |
 |--------|--------|---------|
-| Health Score explicável | ❌ Falta | Gestor não sabe por que score é X e não Y |
-| Confiança nos insights | ❌ Falta | Insights "fortes" em bases pequenas |
-| Cache de insights | ❌ Falta | Custo desnecessário e mudanças frequentes |
+| Versão do Health Score | ❌ Falta | Impossível comparar scores com fórmulas diferentes |
+| Snapshot de insights críticos | ❌ Falta | Sem histórico de riscos para auditoria |
+| Thresholds visuais | ✅ Implementado | Cores por faixa funcionando |
 
 ---
 
 ## Alterações Detalhadas
 
-### Ajuste A — Health Score Explicável
+### Opcional 1 — Versão do Health Score
 
-**Objetivo**: Retornar os 4 componentes individuais do score (cada um vale 0-25 pts)
+**Objetivo**: Permitir rastreabilidade quando a fórmula mudar no futuro
 
 **Migração SQL** — Atualizar RPC `get_copilot_health_score`:
 
 ```sql
--- Adicionar colunas de componentes na RETURNS TABLE:
-adoption_component NUMERIC,    -- 0-25 pts
-kb_component NUMERIC,          -- 0-25 pts
-csat_component NUMERIC,        -- 0-25 pts
-usage_component NUMERIC,       -- 0-25 pts
-data_quality TEXT              -- 'alta' | 'média' | 'baixa'
+-- Adicionar coluna de versão na RETURNS TABLE:
+health_score_version TEXT   -- Ex: 'v1', 'v2'
 
--- Cálculo individual (já existe, só expor):
-adoption_component = (adoption_rate / 100) * 25
-kb_component = (kb_coverage_rate / 100) * 25
-csat_component = (csat_normalizado / 100) * 25
-usage_component = (suggestion_usage_rate / 100) * 25
-
--- data_quality baseado em volume:
--- 'alta' = total_conversations >= 100
--- 'média' = total_conversations >= 30
--- 'baixa' = total_conversations < 30
+-- No SELECT final:
+'v1'::text as health_score_version
 ```
 
-**Frontend** — Atualizar `HealthScoreGauge.tsx`:
-
-Adicionar breakdown abaixo do gauge:
-
-```text
-Health Score: 72
-├ Adoção IA: 18 pts
-├ Cobertura KB: 17 pts
-├ CSAT: 19 pts
-└ Aproveitamento: 18 pts
-```
-
-Se `data_quality = 'baixa'`, mostrar aviso:
-
-```text
-⚠️ Poucos dados — score pode não refletir tendência real
-```
-
-**Atualizar interface TypeScript**:
+**Frontend** — Atualizar interface TypeScript:
 
 ```typescript
 interface CopilotHealthScore {
   // ... campos existentes ...
-  adoption_component: number;
-  kb_component: number;
-  csat_component: number;
-  usage_component: number;
-  data_quality: 'alta' | 'média' | 'baixa';
+  health_score_version: string;  // 'v1', 'v2', etc.
 }
 ```
 
+**Uso futuro**:
+- Quando mudar pesos (ex: CSAT 30% em vez de 25%), criar 'v2'
+- Dashboard pode mostrar: "Score calculado com fórmula v1"
+- Permite comparar evolução histórica corretamente
+
 ---
 
-### Ajuste B — Insights com Nível de Confiança
+### Opcional 2 — Snapshot de Insights Críticos
 
-**Objetivo**: Cada insight indica se tem volume suficiente para ser confiável
+**Objetivo**: Manter histórico de warnings para auditoria e compliance
 
-**Lógica (determinística, fora da IA)**:
+**Migração SQL** — Criar tabela `copilot_insights_events`:
 
-```typescript
-// Regra simples baseada em volume:
-const getConfidence = (totalConversations: number): 'alta' | 'média' => {
-  return totalConversations >= 50 ? 'alta' : 'média';
-};
+```sql
+CREATE TABLE IF NOT EXISTS public.copilot_insights_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  insight_type TEXT NOT NULL,                    -- 'positive', 'warning', 'opportunity'
+  title TEXT NOT NULL,
+  description TEXT,
+  action TEXT,
+  confidence TEXT DEFAULT 'alta',
+  health_score_at_time NUMERIC,
+  total_conversations_at_time INTEGER,
+  department_id UUID REFERENCES departments(id),
+  source TEXT DEFAULT 'ai',                      -- 'ai', 'fallback'
+  health_score_version TEXT DEFAULT 'v1',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- RLS: apenas leitura autenticada (gestores)
+ALTER TABLE copilot_insights_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated can read insight events"
+  ON copilot_insights_events FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Índices para consultas de auditoria
+CREATE INDEX idx_insight_events_type ON copilot_insights_events(insight_type);
+CREATE INDEX idx_insight_events_created ON copilot_insights_events(created_at DESC);
+CREATE INDEX idx_insight_events_department ON copilot_insights_events(department_id);
 ```
 
 **Edge Function** — Atualizar `generate-copilot-insights`:
 
-1. Calcular confiança ANTES de enviar para IA
-2. Adicionar campo `confidence` ao retorno
-3. Se poucos dados, ajustar prompt para IA ser mais cautelosa
+Após gerar insights, salvar apenas os do tipo `warning`:
 
 ```typescript
-interface Insight {
-  type: 'positive' | 'warning' | 'opportunity';
-  title: string;
-  description: string;
-  action: string;
-  confidence: 'alta' | 'média';  // NOVO
+// Salvar warnings para auditoria
+const warnings = insights.filter(i => i.type === 'warning');
+
+if (warnings.length > 0) {
+  await supabaseClient
+    .from('copilot_insights_events')
+    .insert(
+      warnings.map(w => ({
+        insight_type: w.type,
+        title: w.title,
+        description: w.description,
+        action: w.action,
+        confidence: w.confidence,
+        health_score_at_time: healthScore?.health_score,
+        total_conversations_at_time: totalConversations,
+        department_id: departmentId,
+        source: 'ai',
+        health_score_version: 'v1'
+      }))
+    );
 }
 ```
 
-**Frontend** — Atualizar `CopilotInsightsCard.tsx`:
-
-Mostrar badge de confiança ao lado do tipo:
-
-```text
-[Positivo] [Confiança: Alta] Alta adoção do Copilot
-```
-
-Se confiança = 'média', mostrar tooltip:
-
-```text
-"Baseado em volume limitado de dados. Aguarde mais conversas para maior precisão."
-```
-
----
-
-### Ajuste C — Cache Inteligente dos Insights
-
-**Objetivo**: Evitar regenerar insights a cada refresh
-
-**Estratégia**:
-
-1. Criar tabela `copilot_insights_cache`
-2. Chave: `period + department_id`
-3. TTL: 12 horas
-4. Invalidar: manualmente ou quando período muda
-
-**Migração SQL**:
-
-```sql
-CREATE TABLE IF NOT EXISTS public.copilot_insights_cache (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cache_key TEXT UNIQUE NOT NULL,         -- "30_null" ou "30_dept-uuid"
-  insights JSONB NOT NULL,
-  source TEXT DEFAULT 'ai',
-  confidence TEXT DEFAULT 'alta',
-  total_conversations INTEGER,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  expires_at TIMESTAMPTZ DEFAULT (now() + INTERVAL '12 hours')
-);
-
--- RLS: apenas leitura autenticada
-ALTER TABLE copilot_insights_cache ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Authenticated can read cache"
-  ON copilot_insights_cache FOR SELECT
-  TO authenticated
-  USING (true);
-
--- Índice para busca por cache_key
-CREATE INDEX idx_insights_cache_key ON copilot_insights_cache(cache_key);
-
--- Função para limpar cache expirado
-CREATE OR REPLACE FUNCTION cleanup_expired_insights_cache()
-RETURNS void AS $$
-BEGIN
-  DELETE FROM copilot_insights_cache WHERE expires_at < now();
-END;
-$$ LANGUAGE plpgsql;
-```
-
-**Edge Function** — Atualizar lógica:
-
-```typescript
-// 1. Verificar cache
-const cacheKey = `${period}_${departmentId || 'null'}`;
-const { data: cached } = await supabase
-  .from('copilot_insights_cache')
-  .select('*')
-  .eq('cache_key', cacheKey)
-  .gt('expires_at', new Date().toISOString())
-  .maybeSingle();
-
-if (cached) {
-  return { insights: cached.insights, source: 'cache', confidence: cached.confidence };
-}
-
-// 2. Gerar novos insights
-const insights = await generateWithAI(...);
-
-// 3. Salvar no cache
-await supabase.from('copilot_insights_cache').upsert({
-  cache_key: cacheKey,
-  insights,
-  source: 'ai',
-  confidence,
-  total_conversations: healthScore.total_conversations,
-  expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()
-}, { onConflict: 'cache_key' });
-```
-
-**Frontend** — Indicar fonte do insight:
-
-```typescript
-// No CopilotInsightsCard, mostrar badge:
-{source === 'cache' && (
-  <Badge variant="outline" className="text-xs">
-    Cache
-  </Badge>
-)}
-```
+**Uso futuro**:
+- Consulta: "Quais riscos foram detectados nos últimos 90 dias?"
+- Compliance e auditoria interna
+- Análise de tendências de problemas
 
 ---
 
@@ -220,12 +129,10 @@ await supabase.from('copilot_insights_cache').upsert({
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| Migração SQL | Criar | Atualizar RPC + criar tabela de cache |
-| `src/hooks/useCopilotHealthScore.tsx` | Modificar | Adicionar novos campos na interface |
-| `src/components/copilot/HealthScoreGauge.tsx` | Modificar | Mostrar breakdown de componentes |
-| `supabase/functions/generate-copilot-insights/index.ts` | Modificar | Adicionar cache e confiança |
-| `src/hooks/useCopilotInsights.tsx` | Modificar | Atualizar interface com confidence |
-| `src/components/copilot/CopilotInsightsCard.tsx` | Modificar | Mostrar badges de confiança e cache |
+| Migração SQL | Criar | Adicionar versão no RPC + criar tabela eventos |
+| `src/hooks/useCopilotHealthScore.tsx` | Modificar | Adicionar `health_score_version` na interface |
+| `src/components/copilot/HealthScoreGauge.tsx` | Modificar | Exibir versão (opcional, tooltip) |
+| `supabase/functions/generate-copilot-insights/index.ts` | Modificar | Salvar warnings na tabela de eventos |
 
 ---
 
@@ -235,61 +142,43 @@ await supabase.from('copilot_insights_cache').upsert({
 
 ```typescript
 export interface CopilotHealthScore {
-  // Métricas existentes
-  total_conversations: number;
-  copilot_active_count: number;
-  copilot_adoption_rate: number;
-  // ... outras métricas ...
-  health_score: number;
-  
-  // NOVOS: Componentes explicáveis
-  adoption_component: number;    // 0-25
-  kb_component: number;          // 0-25
-  csat_component: number;        // 0-25
-  usage_component: number;       // 0-25
-  data_quality: 'alta' | 'média' | 'baixa';
+  // ... campos existentes ...
+  health_score_version: string;  // 'v1'
 }
 ```
 
-### Nova Interface TypeScript — CopilotInsight
+### Esquema da Tabela copilot_insights_events
 
-```typescript
-export interface CopilotInsight {
-  type: 'positive' | 'warning' | 'opportunity';
-  title: string;
-  description: string;
-  action: string;
-  confidence: 'alta' | 'média';  // NOVO
-}
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID | PK |
+| `insight_type` | TEXT | 'warning' (só salvamos warnings) |
+| `title` | TEXT | Título do insight |
+| `description` | TEXT | Descrição do padrão |
+| `action` | TEXT | Ação sugerida |
+| `confidence` | TEXT | 'alta' ou 'média' |
+| `health_score_at_time` | NUMERIC | Score no momento |
+| `total_conversations_at_time` | INTEGER | Volume de dados |
+| `department_id` | UUID | Departamento (nullable) |
+| `source` | TEXT | 'ai' ou 'fallback' |
+| `health_score_version` | TEXT | 'v1' |
+| `created_at` | TIMESTAMPTZ | Timestamp do evento |
 
-export interface InsightsResponse {
-  insights: CopilotInsight[];
-  source: 'ai' | 'cache' | 'fallback';
-  confidence: 'alta' | 'média';
-  generatedAt: string;
-}
-```
-
-### Fórmula do Health Score (Explicável)
-
-```text
-Health Score = adoption_component + kb_component + csat_component + usage_component
-
-Onde:
-├ adoption_component = (copilot_adoption_rate / 100) × 25
-├ kb_component = (kb_coverage_rate / 100) × 25
-├ csat_component = (CSAT_normalizado / 100) × 25  [CSAT × 20]
-└ usage_component = (suggestion_usage_rate / 100) × 25
-```
-
-### Lógica de Data Quality
+### Consulta de Auditoria (exemplo)
 
 ```sql
-CASE 
-  WHEN total >= 100 THEN 'alta'
-  WHEN total >= 30 THEN 'média'
-  ELSE 'baixa'
-END as data_quality
+-- Riscos detectados nos últimos 90 dias
+SELECT 
+  created_at,
+  title,
+  description,
+  action,
+  confidence,
+  health_score_at_time
+FROM copilot_insights_events
+WHERE insight_type = 'warning'
+  AND created_at > now() - INTERVAL '90 days'
+ORDER BY created_at DESC;
 ```
 
 ---
@@ -298,45 +187,50 @@ END as data_quality
 
 | Teste | Resultado Esperado |
 |-------|-------------------|
-| Ver Health Score | ✅ Mostra breakdown: Adoção X pts, KB Y pts... |
-| Score com poucos dados | ✅ Aviso de "data_quality = baixa" |
-| Insight com volume alto | ✅ Badge "Confiança: Alta" |
-| Insight com pouco volume | ✅ Badge "Confiança: Média" + tooltip |
-| Refresh rápido (<12h) | ✅ Usa cache, não chama IA |
-| Mudar período | ✅ Invalida cache, gera novo |
-| Badge de cache | ✅ Mostra "Cache" quando aplicável |
+| Ver Health Score | ✅ Retorna `health_score_version: 'v1'` |
+| Insight warning gerado | ✅ Salvo em `copilot_insights_events` |
+| Consultar auditoria | ✅ Lista warnings dos últimos 90 dias |
+| Mudar fórmula no futuro | ✅ Basta atualizar para 'v2' no RPC |
 
 ---
 
 ## Ordem de Implementação
 
-1. **Migração SQL**: Atualizar RPC + criar tabela cache
-2. **Frontend**: Atualizar interfaces TypeScript
-3. **Backend**: Atualizar edge function com cache e confiança
-4. **Frontend**: Atualizar HealthScoreGauge com breakdown
-5. **Frontend**: Atualizar CopilotInsightsCard com badges
-6. **Deploy**: Publicar edge functions
-7. **Teste**: Validar todos os critérios
+1. **Migração SQL**: Adicionar versão no RPC + criar tabela eventos
+2. **Frontend**: Atualizar interface TypeScript
+3. **Backend**: Atualizar edge function para salvar warnings
+4. **Deploy**: Publicar edge functions
+5. **Teste**: Validar auditoria funcional
 
 ---
 
 ## Resultado Esperado
 
 **Antes**:
-> "Health Score: 68 — por que não 75?"
+> "Mudamos a fórmula do score, como comparar com meses anteriores?"
 
 **Depois**:
-> "Health Score: 68 = Adoção 17pts + KB 18pts + CSAT 16pts + Uso 17pts"
+> "Histórico marcado como v1, novo cálculo é v2 — comparação segura"
 
 **Antes**:
-> Insights mudam a cada refresh, custando tokens
+> "Quais riscos foram detectados nos últimos 90 dias?"
 
 **Depois**:
-> Cache de 12h, custo reduzido em ~90%
+> Consulta SQL simples retorna todos os warnings com contexto
 
-**Antes**:
-> Insight "forte" baseado em 10 conversas
+---
 
-**Depois**:
-> Badge "Confiança: Média" + tooltip explicativo
+## Nota
+
+O **Opcional 3 (Threshold visual)** já está implementado em `HealthScoreGauge.tsx`:
+
+```typescript
+const getScoreColor = (value: number) => {
+  if (value >= 70) return "hsl(var(--chart-2))"; // Verde
+  if (value >= 40) return "hsl(var(--chart-4))"; // Amarelo
+  return "hsl(var(--destructive))";              // Vermelho
+};
+```
+
+Nenhuma alteração necessária para este item.
 

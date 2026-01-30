@@ -1,167 +1,164 @@
 
 
-# Plano: Corrigir Conversas Não Chegando para o Oliveira
+# Plano: Alinhar Sistema ao Super Prompt Oficial v2.2
 
-## Diagnóstico Confirmado
+## Validação Completa do Código vs Contrato
 
-O Oliveira está **online** no departamento **Suporte de Pedidos**, mas não recebe conversas porque:
+Analisei cada contrato do Super Prompt v2.2 contra o código real. Resultado:
 
-| Conversa | ai_mode | assigned_to | dispatch_status | handoff_executed_at |
-|----------|---------|-------------|-----------------|---------------------|
-| faebc30d | **autopilot** | NULL | assigned | NULL |
-| b4126696 | **autopilot** | NULL | assigned | NULL |
-| 07769a75 | **autopilot** | NULL | assigned | NULL |
-| c641d41b | **autopilot** | NULL | assigned | 2026-01-29 |
+### ✅ Contratos 100% Alinhados
 
-O dispatcher (linha 121) **só processa** conversas em `ai_mode = 'waiting_human'`. Todas estão em `autopilot`, então são ignoradas.
+| Contrato | Status | Evidência |
+|----------|--------|-----------|
+| **3. ai_mode** | ✅ OK | `waiting_human`, `autopilot`, `copilot`, `disabled` corretamente usados |
+| **4. Kill Switch** | ✅ OK | `ai_global_enabled` bloqueia IA/Fluxos/Fallbacks em todas funções |
+| **5. Distribuição** | ✅ OK | `dispatch-conversations` exige `waiting_human` + `assigned_to IS NULL` + `department IS NOT NULL` |
+| **6. Capacidade** | ✅ OK | Conta `waiting_human`, `copilot`, `disabled` na linha 330-332 |
+| **9. Shadow Mode** | ✅ OK | `ai_shadow_mode` implementado com `suggested_only` |
+| **10. Auto-Close** | ✅ OK | Controlado por departamento |
 
-## Causa Raiz (Bug no meta-whatsapp-webhook)
+### ⚠️ Discrepância CRÍTICA #1: `go-offline-manual` ENCERRA conversas
 
-Quando o fluxo retorna uma transferência, o webhook:
+**Contrato v2.2 (§1):**
+> "Mudar status NUNCA encerra conversas"
 
-1. **Atualiza** `ai_mode = 'waiting_human'` e `department`
-2. **Mas continua** no loop e pode cair no "CASO 4" (fallback) que reverte para `waiting_human` OU a mensagem não termina com `continue` corretamente
-
-Analisando o código do webhook (linhas 600-672):
-
-```text
-// CASO 2: Fluxo retornou resposta estática
-if (!flowData.useAI && flowData.response) {
-  ... enviar mensagem ...
-  
-  // EXECUTAR TRANSFERÊNCIA
-  if (flowData.transfer) {
-    await supabase.update({ ai_mode: 'waiting_human', handoff_executed_at: ... })
-  }
-  continue; // Deveria sair aqui
-}
-
-// CASO 4: Fallback
-await supabase.update({ ai_mode: 'waiting_human' })
+**Código atual (`go-offline-manual/index.ts` linha 116-123):**
+```typescript
+// 4b. Fechar a conversa
+await supabaseAdmin.from("conversations")
+  .update({ 
+    status: "closed",  // ❌ VIOLA CONTRATO
+    closed_at: new Date().toISOString(),
+    closed_by: agentId,
+  })
 ```
 
-O problema é que a conversa é criada inicialmente com `ai_mode: 'autopilot'` e se o fluxo falhar em algum ponto ou a transferência não for processada corretamente, ela permanece em autopilot.
+**Correção necessária:**
+- Remover fechamento automático
+- Apenas remover `assigned_to` e mover para `waiting_human`
 
-## Solução em 2 Partes
+---
 
-### Parte 1: Correção Imediata de Dados
+### ⚠️ Discrepância CRÍTICA #2: UI mente sobre comportamento
 
-Mover as 4 conversas para `waiting_human` para o Oliveira receber agora:
+**Contrato v2.2 (§11):**
+> "É proibido exibir: 'Suas conversas serão encerradas ao ficar offline'"
 
+**`OfflineConfirmationDialog.tsx` (linha 52-64):**
+```tsx
+<li>Suas conversas serão <strong>encerradas</strong></li>  // ❌ PROIBIDO
+<li>Conversas serão <strong>redistribuídas</strong></li>  // ❌ PROIBIDO
+<li>A <strong>IA assumirá</strong> temporariamente</li>   // ❌ PROIBIDO
+```
+
+**Texto correto (§11):**
+> "Você deixará de receber novas conversas. Suas conversas atuais permanecerão abertas e atribuídas."
+
+---
+
+### ⚠️ Discrepância #3: Status `away` não existe
+
+**Contrato v2.2 (§1):**
+> Status válidos: `online`, `busy`, `away`, `offline`
+
+**Código atual (migration 20251125):**
+```sql
+CREATE TYPE availability_status AS ENUM ('online', 'busy', 'offline');
+-- 'away' NÃO EXISTE
+```
+
+**Decisão:** Adicionar `away` ao enum OU remover do contrato?
+
+---
+
+### ⚠️ Discrepância #4: Trigger redistribui automaticamente
+
+**Contrato v2.2 (§7):**
+> "Conversas NÃO são redistribuídas automaticamente"
+
+**Código atual (`redistribute_on_agent_offline` trigger):**
 ```sql
 UPDATE conversations
-SET 
-  ai_mode = 'waiting_human',
-  dispatch_status = 'pending'
-WHERE 
-  id IN (
-    'faebc30d-7e61-4fd8-905f-bc2952553145',
-    'b4126696-6b50-4b8c-93f5-acf85b05f8f7',
-    '07769a75-e921-4d31-bc73-22409bd56697',
-    'c641d41b-3742-4e79-b513-7675c9c3a16e'
-  )
-  AND status = 'open'
-  AND assigned_to IS NULL;
+SET assigned_to = NULL, ai_mode = 'autopilot'  -- ❌ REDISTRIBUI
+WHERE assigned_to = OLD.id AND status = 'open';
 ```
 
-### Parte 2: Correção Preventiva (Trigger SQL)
+**Correção:** O trigger deve apenas enviar para `waiting_human`, NÃO para `autopilot`
 
-Criar um trigger que corrige automaticamente conversas com `handoff_executed_at` preenchido mas `ai_mode` ainda em `autopilot`:
+---
+
+## Alterações Propostas
+
+### Alteração 1: Corrigir `go-offline-manual/index.ts`
+
+Comportamento novo (alinhado ao contrato):
+- **NÃO** fechar conversas
+- **NÃO** enviar CSAT (só em fechamento explícito)
+- Remover `assigned_to` e mover para `waiting_human`
+- Criar jobs de distribuição para outros agentes
+
+```typescript
+// ANTES (viola contrato)
+status: "closed"
+
+// DEPOIS (alinhado)
+assigned_to: null,
+ai_mode: 'waiting_human',
+dispatch_status: 'pending'
+// status permanece 'open'
+```
+
+### Alteração 2: Corrigir `OfflineConfirmationDialog.tsx`
+
+```tsx
+// ANTES (viola contrato)
+<li>Suas conversas serão encerradas</li>
+<li>IA assumirá temporariamente</li>
+
+// DEPOIS (alinhado ao §11)
+<li>Você deixará de receber novas conversas</li>
+<li>Suas conversas atuais permanecerão abertas e na fila</li>
+```
+
+### Alteração 3: Corrigir trigger `redistribute_on_agent_offline`
 
 ```sql
-CREATE OR REPLACE FUNCTION fix_handoff_not_completed()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Se handoff_executed_at foi preenchido mas ai_mode ainda é autopilot, corrigir
-  IF NEW.handoff_executed_at IS NOT NULL 
-     AND OLD.handoff_executed_at IS NULL
-     AND NEW.ai_mode = 'autopilot' THEN
-    NEW.ai_mode := 'waiting_human';
-    NEW.dispatch_status := 'pending';
-    RAISE NOTICE 'Fixed orphan handoff: % → waiting_human', NEW.id;
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- ANTES (viola §7)
+ai_mode = 'autopilot'
 
-CREATE TRIGGER trigger_fix_handoff_not_completed
-  BEFORE UPDATE ON conversations
-  FOR EACH ROW
-  EXECUTE FUNCTION fix_handoff_not_completed();
+-- DEPOIS (alinhado)
+ai_mode = 'waiting_human'  -- Todas vão para fila humana
 ```
 
-## Resultado Esperado
+### Alteração 4: Salvar Super Prompt como documento oficial
 
-| Antes | Depois |
-|-------|--------|
-| 4 conversas em `autopilot` ignoradas | 4 conversas em `waiting_human` |
-| Oliveira recebe 0 chats | Oliveira recebe até 3 chats (capacidade) |
-| Handoff não completado = perdido | Trigger garante completude |
+Criar arquivo `src/docs/SUPER_PROMPT_v2.2.md` com o contrato completo para referência.
 
-## Fluxo Corrigido
+---
 
-```text
-Cliente responde no fluxo
-         │
-         ▼
-┌────────────────────────────────┐
-│ process-chat-flow retorna      │
-│ transfer: true, departmentId   │
-└────────────────────────────────┘
-         │
-         ▼
-┌────────────────────────────────┐
-│ meta-whatsapp-webhook atualiza │
-│ → ai_mode = 'waiting_human'    │
-│ → handoff_executed_at = NOW()  │
-│ → department = departmentId    │
-└────────────────────────────────┘
-         │
-         ▼
-┌────────────────────────────────┐
-│ Trigger: ensure_dispatch_job   │
-│ → Cria job de distribuição     │
-└────────────────────────────────┘
-         │
-         ▼
-┌────────────────────────────────┐
-│ CRON: dispatch-conversations   │
-│ → Atribui ao Oliveira (online) │
-└────────────────────────────────┘
-```
+## Decisão Pendente: Status `away`
 
-## Seção Técnica
+O contrato menciona `away` mas o banco não tem. Opções:
 
-### Arquivos/Recursos Modificados
+1. **Adicionar `away`**: Migração para adicionar ao enum + UI para exibir
+2. **Remover do contrato**: Se `busy` cobre o caso de uso
 
-1. **SQL Insert** - Correção imediata das 4 conversas
-2. **Migração SQL** - Trigger preventivo para futuros handoffs
+Qual preferência?
 
-### Impacto
+---
 
-- **Zero breaking changes** - Apenas corrige estado inconsistente
-- **Backward compatible** - Trigger só age quando há inconsistência
-- **Auditável** - RAISE NOTICE registra correções
+## Arquivos Modificados
 
-### Teste Após Deploy
+| Arquivo | Tipo de Mudança |
+|---------|-----------------|
+| `supabase/functions/go-offline-manual/index.ts` | Refatorar (não fechar conversas) |
+| `src/components/OfflineConfirmationDialog.tsx` | Corrigir textos |
+| `supabase/migrations/xxx.sql` | Corrigir trigger |
+| `src/docs/SUPER_PROMPT_v2.2.md` | Criar documento |
 
-1. Verificar se as 4 conversas foram para `waiting_human`:
-```sql
-SELECT id, ai_mode, dispatch_status 
-FROM conversations 
-WHERE department = '2dd0ee5c-fd20-44be-94ad-f83f1be1c4e9'
-AND status = 'open';
-```
+## Impacto
 
-2. Aguardar 1 minuto (CRON)
-
-3. Verificar se Oliveira recebeu atribuição:
-```sql
-SELECT id, assigned_to, p.full_name 
-FROM conversations c
-JOIN profiles p ON p.id = c.assigned_to
-WHERE c.department = '2dd0ee5c-fd20-44be-94ad-f83f1be1c4e9'
-AND c.status = 'open';
-```
+- **Zero breaking changes** para operação normal
+- **Mudança de comportamento**: Offline não fecha mais conversas
+- **100% alinhamento** com contrato de governança
 

@@ -1,164 +1,211 @@
 
 
-# Plano: Alinhar Sistema ao Super Prompt Oficial v2.2
+# Plano: Broadcast de Reengajamento para Fila da IA
 
-## Validação Completa do Código vs Contrato
+## Situação Confirmada
 
-Analisei cada contrato do Super Prompt v2.2 contra o código real. Resultado:
+| Métrica | Valor |
+|---------|-------|
+| Conversas na fila IA | **263** |
+| Canal | WhatsApp |
+| Provider | 100% Meta Cloud API |
+| Dados disponíveis | `phone` e `whatsapp_id` em todos |
 
-### ✅ Contratos 100% Alinhados
+---
 
-| Contrato | Status | Evidência |
-|----------|--------|-----------|
-| **3. ai_mode** | ✅ OK | `waiting_human`, `autopilot`, `copilot`, `disabled` corretamente usados |
-| **4. Kill Switch** | ✅ OK | `ai_global_enabled` bloqueia IA/Fluxos/Fallbacks em todas funções |
-| **5. Distribuição** | ✅ OK | `dispatch-conversations` exige `waiting_human` + `assigned_to IS NULL` + `department IS NOT NULL` |
-| **6. Capacidade** | ✅ OK | Conta `waiting_human`, `copilot`, `disabled` na linha 330-332 |
-| **9. Shadow Mode** | ✅ OK | `ai_shadow_mode` implementado com `suggested_only` |
-| **10. Auto-Close** | ✅ OK | Controlado por departamento |
+## Mensagem a Ser Enviada
 
-### ⚠️ Discrepância CRÍTICA #1: `go-offline-manual` ENCERRA conversas
+```text
+Olá! 👋 Sou a assistente virtual da 3Cliques. 
 
-**Contrato v2.2 (§1):**
-> "Mudar status NUNCA encerra conversas"
+Tivemos uma instabilidade técnica e sua mensagem pode não ter sido respondida. 
 
-**Código atual (`go-offline-manual/index.ts` linha 116-123):**
+Ainda precisa de atendimento? Responda aqui que já te ajudo! 🚀
+```
+
+---
+
+## Arquitetura da Solução
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                         INBOX                               │
+│         Filtro: ai_queue (/inbox?filter=ai_queue)           │
+├─────────────────────────────────────────────────────────────┤
+│  [📢 Broadcast para Fila]  ← Novo botão (admin/manager)     │
+└──────────────┬──────────────────────────────────────────────┘
+               │ click
+               ▼
+┌─────────────────────────────────────────────────────────────┐
+│            BroadcastAIQueueDialog                           │
+├─────────────────────────────────────────────────────────────┤
+│  • Exibe: "263 conversas serão notificadas"                 │
+│  • Campo de texto editável com mensagem                     │
+│  • Checkbox: [ ] Modo teste (não envia de verdade)          │
+│  • Botões: [Cancelar] [Enviar Broadcast]                    │
+└──────────────┬──────────────────────────────────────────────┘
+               │ confirmar
+               ▼
+┌─────────────────────────────────────────────────────────────┐
+│           Edge Function: broadcast-ai-queue                 │
+├─────────────────────────────────────────────────────────────┤
+│  1. Busca instância Meta ativa                              │
+│  2. Busca conversas:                                        │
+│     - ai_mode = 'autopilot'                                 │
+│     - status = 'open'                                       │
+│     - assigned_to IS NULL                                   │
+│  3. Para cada conversa:                                     │
+│     - Busca phone do contato                                │
+│     - Envia via send-meta-whatsapp                          │
+│     - Salva mensagem como sender_type = 'system'            │
+│  4. Retorna relatório: {sent: X, failed: Y}                 │
+└──────────────┬──────────────────────────────────────────────┘
+               │ resposta do cliente
+               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Webhook recebe → Fluxo/IA processa normalmente             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Alterações a Implementar
+
+### 1. Nova Edge Function: `broadcast-ai-queue`
+
+**Localização:** `supabase/functions/broadcast-ai-queue/index.ts`
+
+**Parâmetros de entrada:**
 ```typescript
-// 4b. Fechar a conversa
-await supabaseAdmin.from("conversations")
-  .update({ 
-    status: "closed",  // ❌ VIOLA CONTRATO
-    closed_at: new Date().toISOString(),
-    closed_by: agentId,
-  })
+{
+  message: string;           // Texto da mensagem
+  dry_run?: boolean;         // Se true, simula sem enviar
+  limit?: number;            // Limite de conversas (default: 500)
+}
 ```
 
-**Correção necessária:**
-- Remover fechamento automático
-- Apenas remover `assigned_to` e mover para `waiting_human`
+**Lógica:**
+1. Buscar instância Meta ativa (`whatsapp_meta_instances.status = 'active'`)
+2. Query nas conversas elegíveis
+3. Para cada conversa:
+   - Delay de 200ms entre envios (evitar throttling Meta)
+   - Chamar `send-meta-whatsapp` com:
+     - `instance_id`: da instância Meta
+     - `phone_number`: do contato
+     - `message`: texto do broadcast
+     - `conversation_id`: para vincular
+     - `skip_db_save: false` (salvar no histórico)
+4. Retornar relatório
+
+**Rate Limiting:**
+- Delay de 200ms entre mensagens
+- Máximo 500 por execução
+- Timeout de 120s para a função
+
+### 2. Componente UI: `BroadcastAIQueueDialog`
+
+**Localização:** `src/components/inbox/BroadcastAIQueueDialog.tsx`
+
+**Features:**
+- Modal com preview da quantidade de destinatários
+- Campo de texto editável (pré-preenchido com mensagem padrão)
+- Toggle de modo teste (dry_run)
+- Progress bar durante envio
+- Resultado final: "X enviados, Y falhas"
+
+### 3. Componente UI: `BroadcastAIQueueButton`
+
+**Localização:** `src/components/inbox/BroadcastAIQueueButton.tsx`
+
+**Features:**
+- Botão "📢 Broadcast" visível apenas quando:
+  - Filtro = `ai_queue`
+  - Role = `admin`, `manager`, ou `general_manager`
+- Abre o dialog de broadcast
+
+### 4. Integração no Inbox
+
+**Arquivo:** `src/pages/Inbox.tsx`
+
+**Mudanças:**
+- Importar `BroadcastAIQueueButton`
+- Adicionar botão no header quando filtro = `ai_queue`
+- Estado para controlar dialog
 
 ---
 
-### ⚠️ Discrepância CRÍTICA #2: UI mente sobre comportamento
+## Detalhes Técnicos
 
-**Contrato v2.2 (§11):**
-> "É proibido exibir: 'Suas conversas serão encerradas ao ficar offline'"
+### Query de Conversas Elegíveis
 
-**`OfflineConfirmationDialog.tsx` (linha 52-64):**
-```tsx
-<li>Suas conversas serão <strong>encerradas</strong></li>  // ❌ PROIBIDO
-<li>Conversas serão <strong>redistribuídas</strong></li>  // ❌ PROIBIDO
-<li>A <strong>IA assumirá</strong> temporariamente</li>   // ❌ PROIBIDO
-```
-
-**Texto correto (§11):**
-> "Você deixará de receber novas conversas. Suas conversas atuais permanecerão abertas e atribuídas."
-
----
-
-### ⚠️ Discrepância #3: Status `away` não existe
-
-**Contrato v2.2 (§1):**
-> Status válidos: `online`, `busy`, `away`, `offline`
-
-**Código atual (migration 20251125):**
 ```sql
-CREATE TYPE availability_status AS ENUM ('online', 'busy', 'offline');
--- 'away' NÃO EXISTE
+SELECT 
+  c.id as conversation_id,
+  ct.phone,
+  ct.whatsapp_id
+FROM conversations c
+JOIN contacts ct ON ct.id = c.contact_id
+WHERE c.ai_mode = 'autopilot' 
+  AND c.status = 'open' 
+  AND c.assigned_to IS NULL
+  AND ct.phone IS NOT NULL
+LIMIT 500
 ```
 
-**Decisão:** Adicionar `away` ao enum OU remover do contrato?
-
----
-
-### ⚠️ Discrepância #4: Trigger redistribui automaticamente
-
-**Contrato v2.2 (§7):**
-> "Conversas NÃO são redistribuídas automaticamente"
-
-**Código atual (`redistribute_on_agent_offline` trigger):**
-```sql
-UPDATE conversations
-SET assigned_to = NULL, ai_mode = 'autopilot'  -- ❌ REDISTRIBUI
-WHERE assigned_to = OLD.id AND status = 'open';
-```
-
-**Correção:** O trigger deve apenas enviar para `waiting_human`, NÃO para `autopilot`
-
----
-
-## Alterações Propostas
-
-### Alteração 1: Corrigir `go-offline-manual/index.ts`
-
-Comportamento novo (alinhado ao contrato):
-- **NÃO** fechar conversas
-- **NÃO** enviar CSAT (só em fechamento explícito)
-- Remover `assigned_to` e mover para `waiting_human`
-- Criar jobs de distribuição para outros agentes
+### Formato da Mensagem Salva
 
 ```typescript
-// ANTES (viola contrato)
-status: "closed"
-
-// DEPOIS (alinhado)
-assigned_to: null,
-ai_mode: 'waiting_human',
-dispatch_status: 'pending'
-// status permanece 'open'
+{
+  conversation_id: string,
+  content: mensagem,
+  sender_type: 'system',
+  metadata: {
+    broadcast_id: uuid,
+    broadcast_type: 'ai_queue_reengagement'
+  }
+}
 ```
-
-### Alteração 2: Corrigir `OfflineConfirmationDialog.tsx`
-
-```tsx
-// ANTES (viola contrato)
-<li>Suas conversas serão encerradas</li>
-<li>IA assumirá temporariamente</li>
-
-// DEPOIS (alinhado ao §11)
-<li>Você deixará de receber novas conversas</li>
-<li>Suas conversas atuais permanecerão abertas e na fila</li>
-```
-
-### Alteração 3: Corrigir trigger `redistribute_on_agent_offline`
-
-```sql
--- ANTES (viola §7)
-ai_mode = 'autopilot'
-
--- DEPOIS (alinhado)
-ai_mode = 'waiting_human'  -- Todas vão para fila humana
-```
-
-### Alteração 4: Salvar Super Prompt como documento oficial
-
-Criar arquivo `src/docs/SUPER_PROMPT_v2.2.md` com o contrato completo para referência.
 
 ---
 
-## Decisão Pendente: Status `away`
+## Segurança
 
-O contrato menciona `away` mas o banco não tem. Opções:
-
-1. **Adicionar `away`**: Migração para adicionar ao enum + UI para exibir
-2. **Remover do contrato**: Se `busy` cobre o caso de uso
-
-Qual preferência?
+| Controle | Implementação |
+|----------|---------------|
+| Autorização | Apenas `admin`, `manager`, `general_manager` |
+| Rate Limit | 200ms entre envios, máx 500/execução |
+| Audit Trail | Todas mensagens salvas com metadata `broadcast_type` |
+| Dry Run | Modo teste para validar antes de enviar |
+| Confirmação | Dialog obrigatório antes do envio |
 
 ---
 
-## Arquivos Modificados
+## Arquivos a Criar
 
-| Arquivo | Tipo de Mudança |
-|---------|-----------------|
-| `supabase/functions/go-offline-manual/index.ts` | Refatorar (não fechar conversas) |
-| `src/components/OfflineConfirmationDialog.tsx` | Corrigir textos |
-| `supabase/migrations/xxx.sql` | Corrigir trigger |
-| `src/docs/SUPER_PROMPT_v2.2.md` | Criar documento |
+| Arquivo | Tipo |
+|---------|------|
+| `supabase/functions/broadcast-ai-queue/index.ts` | Edge Function |
+| `src/components/inbox/BroadcastAIQueueButton.tsx` | Componente |
+| `src/components/inbox/BroadcastAIQueueDialog.tsx` | Componente |
 
-## Impacto
+## Arquivos a Modificar
 
-- **Zero breaking changes** para operação normal
-- **Mudança de comportamento**: Offline não fecha mais conversas
-- **100% alinhamento** com contrato de governança
+| Arquivo | Mudança |
+|---------|---------|
+| `src/pages/Inbox.tsx` | Adicionar botão no header da ai_queue |
+
+---
+
+## Fluxo de Uso
+
+1. Admin acessa `/inbox?filter=ai_queue`
+2. Vê botão "📢 Broadcast para Fila"
+3. Clica e vê dialog com:
+   - "263 conversas serão notificadas"
+   - Mensagem editável
+   - Opção de teste
+4. Clica "Enviar Broadcast"
+5. Progress bar mostra envio
+6. Resultado: "263 enviados, 0 falhas"
+7. Quando clientes respondem, IA processa normalmente
 

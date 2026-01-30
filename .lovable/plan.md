@@ -1,214 +1,129 @@
 
-# Plano: Corrigir `ai_mode` na Transferência Manual
+# Plano: Corrigir Permissão de UPDATE em Departamentos para Support Manager
 
 ## Problema Identificado
 
-A função SQL `transfer_conversation_secure` (usada em transferências manuais) **não atualiza o `ai_mode`**, permitindo que a IA continue respondendo após a transferência.
+O **support_manager** consegue acessar a tela de Departamentos mas **não consegue salvar alterações** (como tempo de inatividade) porque a política RLS só permite UPDATE para o role `admin`.
 
-### Comparativo
+### Situação Atual
 
-| Tipo de Transferência | Função | Atualiza `ai_mode`? | Resultado |
-|----------------------|--------|-------------------|-----------|
-| Automática (dispatcher) | `dispatch-conversations` | ✅ `copilot` | IA para, humano responde |
-| IA transfere para humano | `auto-handoff` | ✅ `waiting_human` | IA para, aguarda fila |
-| **Manual (agente→agente)** | `transfer_conversation_secure` | ❌ **NÃO** | ❌ IA continua respondendo |
+**Tabela `role_permissions`:**
+| Role | `settings.departments` | `cadastros.manage_departments` |
+|------|------------------------|-------------------------------|
+| `support_manager` | ✅ `true` (acessa tela) | ❌ `false` |
+| `cs_manager` | ❌ `false` | ❌ `false` |
+| `general_manager` | ✅ `true` | ✅ `true` |
 
-### Código Atual (Problema)
+**Políticas RLS em `departments`:**
+| Policy | Comando | Roles |
+|--------|---------|-------|
+| `admins_can_manage_departments` | ALL | `admin` |
+| `support_manager_can_view_departments` | SELECT | `support_manager` |
 
-```sql
--- transfer_conversation_secure (linhas 57-62)
-UPDATE conversations
-SET 
-  assigned_to = p_to_user_id,
-  department = p_to_department_id,
-  previous_agent_id = v_conversation.assigned_to
-  -- ❌ FALTA: ai_mode = 'copilot' ou 'waiting_human'
-WHERE id = p_conversation_id;
-```
+O `support_manager` tem permissão para VER a tela mas não para SALVAR no banco!
 
 ## Solução
 
-Adicionar `ai_mode` na atualização da função SQL:
+1. **Adicionar política RLS de UPDATE** para `support_manager` na tabela `departments`
+2. **Incluir outros gerentes** que também precisam dessa capacidade (`cs_manager`, `general_manager`, `manager`)
 
-- Se `p_to_user_id IS NOT NULL` (transferindo para pessoa específica): `ai_mode = 'copilot'`
-- Se `p_to_user_id IS NULL` (transferindo para pool): `ai_mode = 'waiting_human'`
-
-### Código Corrigido
+### Nova Política RLS
 
 ```sql
-UPDATE conversations
-SET 
-  assigned_to = p_to_user_id,
-  department = p_to_department_id,
-  previous_agent_id = v_conversation.assigned_to,
-  -- ✅ FIX: Atualizar ai_mode para pausar a IA
-  ai_mode = CASE 
-    WHEN p_to_user_id IS NOT NULL THEN 'copilot'  -- Humano específico assume
-    ELSE 'waiting_human'  -- Vai para fila do departamento
-  END
-WHERE id = p_conversation_id;
+CREATE POLICY "managers_can_update_departments" ON departments
+FOR UPDATE TO authenticated
+USING (
+  has_role(auth.uid(), 'support_manager')
+  OR has_role(auth.uid(), 'cs_manager')
+  OR has_role(auth.uid(), 'general_manager')
+  OR has_role(auth.uid(), 'manager')
+)
+WITH CHECK (
+  has_role(auth.uid(), 'support_manager')
+  OR has_role(auth.uid(), 'cs_manager')
+  OR has_role(auth.uid(), 'general_manager')
+  OR has_role(auth.uid(), 'manager')
+);
 ```
 
 ## Impacto
 
 ### Antes (Bug)
 
-| Ação | ai_mode | Resultado |
-|------|---------|-----------|
-| Agente A transfere para Agente B | `autopilot` (inalterado) | ❌ IA continua respondendo |
-| Agente B responde | `autopilot` | ❌ IA pode interromper/duplicar |
+| Ação | Role | Resultado |
+|------|------|-----------|
+| Alterar tempo de inatividade | `support_manager` | ❌ Erro de política RLS |
+| Alterar tempo de inatividade | `admin` | ✅ Funciona |
 
 ### Depois (Corrigido)
 
-| Ação | ai_mode | Resultado |
-|------|---------|-----------|
-| Agente A transfere para Agente B | `copilot` | ✅ IA para, B responde |
-| Agente A transfere para Pool | `waiting_human` | ✅ IA para, aguarda atribuição |
+| Ação | Role | Resultado |
+|------|------|-----------|
+| Alterar tempo de inatividade | `support_manager` | ✅ Funciona |
+| Alterar tempo de inatividade | `cs_manager` | ✅ Funciona |
+| Alterar tempo de inatividade | `general_manager` | ✅ Funciona |
+| Alterar tempo de inatividade | `admin` | ✅ Funciona (via policy ALL) |
+
+## Compatibilidade
+
+- ✅ Mantém policy existente de `admin` com ALL
+- ✅ Mantém SELECT público para roles autenticados
+- ✅ Não permite INSERT/DELETE para gerentes (apenas `admin`)
+- ✅ Alinhado com memória: "support_manager has expanded RLS permissions equivalent to cs_manager"
 
 ## Arquivos a Modificar
 
 | Arquivo | Tipo | Mudança |
 |---------|------|---------|
-| Nova migration SQL | Banco de Dados | `ALTER FUNCTION` ou `CREATE OR REPLACE` para `transfer_conversation_secure` |
+| Nova migration SQL | Banco de Dados | Adicionar policy de UPDATE para gerentes |
 
-## Compatibilidade
-
-- ✅ Não quebra transferências existentes
-- ✅ Alinhado com o Super Prompt v2.3 (Seção 14: `copilot` = humano responde, IA sugere internamente)
-- ✅ Mantém comportamento do dispatcher automático
-- ✅ Resolve 100% do problema reportado
+---
 
 ## Seção Técnica
 
 ### Migration SQL Completa
 
 ```sql
--- Corrigir função de transferência para atualizar ai_mode
-CREATE OR REPLACE FUNCTION public.transfer_conversation_secure(
-  p_conversation_id UUID,
-  p_to_user_id UUID,
-  p_to_department_id UUID,
-  p_transfer_note TEXT DEFAULT NULL
+-- Adicionar permissão de UPDATE em departments para roles de gerência
+-- Resolve: support_manager não conseguia alterar tempo de inatividade
+
+-- Policy para UPDATE (INSERT/DELETE permanece apenas para admin)
+CREATE POLICY "managers_can_update_departments" ON departments
+FOR UPDATE TO authenticated
+USING (
+  has_role(auth.uid(), 'support_manager')
+  OR has_role(auth.uid(), 'cs_manager')
+  OR has_role(auth.uid(), 'general_manager')
+  OR has_role(auth.uid(), 'manager')
 )
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_caller_id UUID := auth.uid();
-  v_has_permission BOOLEAN;
-  v_conversation RECORD;
-  v_from_user_name TEXT;
-  v_to_user_name TEXT;
-  v_department_name TEXT;
-BEGIN
-  -- 1. Verificar se o usuário tem permissão inbox.transfer
-  SELECT EXISTS(
-    SELECT 1 FROM role_permissions rp
-    JOIN user_roles ur ON ur.role::text = rp.role::text
-    WHERE ur.user_id = v_caller_id
-      AND rp.permission_key = 'inbox.transfer'
-      AND rp.enabled = true
-  ) OR public.has_role(v_caller_id, 'admin')
-  INTO v_has_permission;
+WITH CHECK (
+  has_role(auth.uid(), 'support_manager')
+  OR has_role(auth.uid(), 'cs_manager')
+  OR has_role(auth.uid(), 'general_manager')
+  OR has_role(auth.uid(), 'manager')
+);
 
-  IF NOT v_has_permission THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Sem permissão para transferir conversas');
-  END IF;
-
-  -- 2. Verificar se a conversa existe e buscar dados atuais
-  SELECT c.*, ct.first_name, ct.last_name
-  INTO v_conversation
-  FROM conversations c
-  JOIN contacts ct ON ct.id = c.contact_id
-  WHERE c.id = p_conversation_id;
-
-  IF v_conversation IS NULL THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Conversa não encontrada');
-  END IF;
-
-  -- 3. Buscar nomes para auditoria
-  SELECT full_name INTO v_from_user_name 
-  FROM profiles WHERE id = v_conversation.assigned_to;
-  
-  SELECT full_name INTO v_to_user_name 
-  FROM profiles WHERE id = p_to_user_id;
-  
-  SELECT name INTO v_department_name 
-  FROM departments WHERE id = p_to_department_id;
-
-  -- 4. Executar transferência (bypassa RLS por ser SECURITY DEFINER)
-  --    🆕 FIX: Atualizar ai_mode para pausar IA após transferência manual
-  UPDATE conversations
-  SET 
-    assigned_to = p_to_user_id,
-    department = p_to_department_id,
-    previous_agent_id = v_conversation.assigned_to,
-    -- Se transferindo para pessoa específica: copilot (humano assume)
-    -- Se transferindo para pool (null): waiting_human (aguarda distribuição)
-    ai_mode = CASE 
-      WHEN p_to_user_id IS NOT NULL THEN 'copilot'
-      ELSE 'waiting_human'
-    END
-  WHERE id = p_conversation_id;
-
-  -- 5. Registrar interação de auditoria
-  INSERT INTO interactions (
-    customer_id,
-    type,
-    content,
-    channel,
-    metadata
-  ) VALUES (
-    v_conversation.contact_id,
-    'conversation_transferred',
-    format('🔄 Conversa transferida de %s para %s (%s)',
-      COALESCE(v_from_user_name, 'Pool'),
-      COALESCE(v_to_user_name, 'Pool do Departamento'),
-      COALESCE(v_department_name, 'Departamento')
-    ),
-    'other',
-    jsonb_build_object(
-      'from_user_id', v_conversation.assigned_to,
-      'to_user_id', p_to_user_id,
-      'from_user_name', v_from_user_name,
-      'to_user_name', v_to_user_name,
-      'to_department_id', p_to_department_id,
-      'to_department_name', v_department_name,
-      'conversation_id', p_conversation_id,
-      'transfer_note', p_transfer_note,
-      'transferred_by', v_caller_id,
-      'is_internal', true,
-      'ai_mode_set_to', CASE WHEN p_to_user_id IS NOT NULL THEN 'copilot' ELSE 'waiting_human' END
-    )
-  );
-
-  RETURN jsonb_build_object(
-    'success', true,
-    'conversation_id', p_conversation_id,
-    'to_user_id', p_to_user_id,
-    'to_department_id', p_to_department_id,
-    'ai_mode', CASE WHEN p_to_user_id IS NOT NULL THEN 'copilot' ELSE 'waiting_human' END
-  );
-END;
-$$;
+-- Também atualizar role_permissions para consistência da UI
+UPDATE role_permissions
+SET enabled = true
+WHERE permission_key = 'cadastros.manage_departments'
+AND role IN ('support_manager', 'cs_manager');
 ```
 
 ### Fluxo Corrigido
 
 ```text
-Agente A transfere para Agente B (manual)
+Support Manager acessa /departments
         ↓
-transfer_conversation_secure()
+Tela de Departamentos carrega (SELECT ok)
         ↓
-UPDATE conversations SET
-  assigned_to = B,
-  ai_mode = 'copilot'  🆕
+Altera tempo de inatividade para 30min
         ↓
-IA verifica ai_mode antes de responder
+useUpdateDepartment().mutate({ auto_close_minutes: 30 })
         ↓
-ai_mode = 'copilot' → ❌ IA não responde
+UPDATE departments SET auto_close_minutes = 30 WHERE id = ?
         ↓
-Agente B recebe conversa com composer habilitado ✅
+RLS verifica: has_role(auth.uid(), 'support_manager') → ✅ TRUE
+        ↓
+Toast: "Departamento atualizado" ✅
 ```

@@ -1,86 +1,125 @@
-# Plano de Upgrade: Auto-Encerramento + Avaliação Configurável por Departamento
 
-## ✅ STATUS: IMPLEMENTADO
+# Ajustes de Ordem e Captura CSAT
 
----
+## Resumo das Alterações
 
-## 📋 Resumo Executivo
-
-Sistema de encerramento automático transformado de **hardcoded** para **configurável por departamento**:
-- **Suporte**: Fecha após 30 minutos de inatividade, envia CSAT ✅
-- **Comercial**: Nunca fecha automaticamente ✅
-
----
-
-## ✅ Alterações Implementadas
-
-### 1. Banco de Dados (Migration Executada)
-- [x] `departments.auto_close_enabled` (boolean) - Habilita auto-encerramento
-- [x] `departments.auto_close_minutes` (integer) - Tempo de inatividade em minutos
-- [x] `departments.send_rating_on_close` (boolean) - Enviar CSAT ao fechar
-- [x] `conversations.closed_reason` (text) - Motivo: inactivity | manual | system
-- [x] `conversation_ratings.department_id` (uuid) - Para relatórios por departamento
-- [x] Índice criado para performance de relatórios
-- [x] Departamentos iniciais configurados (Suporte: 30min, Comercial: desativado)
-
-### 2. Edge Functions Refatoradas
-- [x] `auto-close-conversations` - Lógica dinâmica baseada em configuração do departamento
-  - Busca departamentos com `auto_close_enabled = true`
-  - Calcula inatividade específica para cada departamento
-  - Define `closed_reason = 'inactivity'`
-  - Envia CSAT apenas se `send_rating_on_close = true`
-  
-- [x] `handle-whatsapp-event` - Captura de rating simplificada
-  - `extractRating()` agora aceita apenas números 1-5 e emojis ⭐ (determinístico)
-  - Salva `department_id` junto com o rating para relatórios
-
-### 3. Frontend Atualizado
-- [x] `DepartmentDialog.tsx` - Campos de configuração de auto-close
-  - Switch: Encerrar por inatividade
-  - Input: Tempo em minutos
-  - Switch: Enviar pesquisa CSAT
-  
-- [x] `Departments.tsx` - Exibe status de auto-close no card
-- [x] `useDepartments.tsx` - Tipagem atualizada
-- [x] `useCreateDepartment.tsx` - Novos campos na mutation
-- [x] `useUpdateDepartment.tsx` - Novos campos na mutation
+| Componente | Status Atual | Ajuste |
+|------------|--------------|--------|
+| `awaiting_rating` | ✅ Já existe | Nenhum |
+| `extractRating` | ✅ Já simplificado (1-5 + ⭐) | Nenhum |
+| Ordem CSAT → close | ⚠️ Invertida | Corrigir |
 
 ---
 
-## 📊 Relatórios Disponíveis
+## Problema Atual
 
-Com `department_id` na tabela `conversation_ratings`:
+No `auto-close-conversations`, a sequência está **invertida**:
 
-```sql
--- Média por departamento
-SELECT d.name, AVG(r.rating) as avg_rating, COUNT(*) as total
-FROM conversation_ratings r
-JOIN departments d ON r.department_id = d.id
-GROUP BY d.id, d.name;
+```text
+ATUAL (ERRADO):
+1. Insert mensagem de encerramento ✅
+2. Adicionar tag desistência ✅
+3. UPDATE conversations SET status = 'closed' ← FECHA ANTES
+4. Insert mensagem CSAT ← MENSAGEM VEM DEPOIS
+5. Enviar WhatsApp
+```
 
--- Histórico por período
-SELECT * FROM conversation_ratings
-WHERE created_at BETWEEN '2025-01-01' AND '2025-01-31';
+## Correção Necessária
+
+```text
+CORRETO:
+1. Insert mensagem de encerramento ✅
+2. Adicionar tag desistência ✅
+3. Insert mensagem CSAT ← MENSAGEM VEM ANTES
+4. Enviar WhatsApp ← ENVIA ANTES DE FECHAR
+5. UPDATE conversations SET status = 'closed' ← FECHA POR ÚLTIMO
 ```
 
 ---
 
-## 🛡️ Garantias de Segurança
+## Arquivo a Modificar
 
-- ✅ Sem IA na decisão de fechamento
-- ✅ Sem lógica no frontend (tudo via backend)
-- ✅ Comportamento determinístico
-- ✅ Auditável (closed_reason + closed_at)
-- ✅ Não reabre conversa após rating
+**`supabase/functions/auto-close-conversations/index.ts`**
+
+### Antes (linhas 171-208)
+```typescript
+// 7. Fechar a conversa (ANTES do CSAT - ERRADO)
+const updateData = { status: 'closed', ... };
+await supabase.from('conversations').update(updateData)...
+
+// 8. Enviar CSAT (DEPOIS de fechar - ERRADO)
+if (dept.send_rating_on_close) {
+  await supabase.from('messages').insert({ content: CSAT_MESSAGE })...
+  if (conversation.channel === 'whatsapp') {
+    await sendWhatsAppMessages(...)
+  }
+}
+```
+
+### Depois
+```typescript
+// 7. Enviar CSAT ANTES de fechar (se configurado)
+if (dept.send_rating_on_close) {
+  await supabase.from('messages').insert({ content: CSAT_MESSAGE })...
+  
+  // Enviar via WhatsApp se aplicável
+  if (conversation.channel === 'whatsapp') {
+    await sendWhatsAppMessages(supabase, conversation, INACTIVITY_CLOSE_MESSAGE, CSAT_MESSAGE);
+  }
+} else if (conversation.channel === 'whatsapp') {
+  await sendWhatsAppMessages(supabase, conversation, INACTIVITY_CLOSE_MESSAGE, null);
+}
+
+// 8. AGORA fechar a conversa (DEPOIS do CSAT)
+const updateData = { 
+  status: 'closed',
+  auto_closed: true,
+  closed_at: new Date().toISOString(),
+  closed_reason: 'inactivity',
+  ai_mode: 'disabled',
+  awaiting_rating: dept.send_rating_on_close,
+  rating_sent_at: dept.send_rating_on_close ? new Date().toISOString() : null,
+};
+await supabase.from('conversations').update(updateData)...
+```
 
 ---
 
-## 🧪 Testes Recomendados
+## Validação do extractRating
 
-| Teste | Cenário | Resultado Esperado |
-|-------|---------|-------------------|
-| Suporte | 30+ min inativo | Conversa fecha, CSAT enviado |
-| Comercial | Horas/dias inativo | Conversa **NÃO** fecha |
-| Rating | Cliente responde "4" | Salvo em conversation_ratings com department_id |
-| Rating | Cliente responde "oi" | **Ignorado** (não é número 1-5) |
-| UI | Criar/editar departamento | Campos de auto-close visíveis |
+A função já está correta:
+
+```typescript
+function extractRating(message: string): number | null {
+  const normalized = message.trim();
+  
+  // ✅ Só aceita número direto: "1", "2", "3", "4", "5"
+  const numMatch = normalized.match(/^[1-5]$/);
+  if (numMatch) return parseInt(numMatch[0]);
+  
+  // ✅ Fallback visual: ⭐⭐⭐⭐⭐
+  const starCount = (message.match(/⭐/g) || []).length;
+  if (starCount >= 1 && starCount <= 5) return starCount;
+  
+  // ❌ Não interpreta texto (comportamento determinístico)
+  return null;
+}
+```
+
+---
+
+## Checklist de Implementação
+
+| Tarefa | Status |
+|--------|--------|
+| Campo `awaiting_rating` existe | ✅ Verificado |
+| Função `extractRating` simplificada | ✅ Verificado |
+| Corrigir ordem CSAT → close | 🔧 A fazer |
+
+---
+
+## Resultado Esperado
+
+1. Cliente recebe CSAT **antes** da conversa ser marcada como fechada
+2. Sistema aguarda resposta (1-5) mesmo com conversa fechada
+3. Captura determinística (sem IA interpretando texto)

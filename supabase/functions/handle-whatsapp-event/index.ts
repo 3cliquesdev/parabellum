@@ -1137,6 +1137,64 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
   if (isAIGloballyEnabled && conversationAIMode === 'autopilot') {
     console.log('[handle-whatsapp-event] Triggering AI autopilot...');
     
+    // ============================================================
+    // 🔄 PROCESS-CHAT-FLOW PRIMEIRO (Anti-Duplicação)
+    // Se fluxo retornar resposta, enviar e NÃO chamar a IA
+    // ============================================================
+    console.log('[handle-whatsapp-event] 🔄 Verificando fluxo de chat...');
+    
+    let flowHandled = false;
+    try {
+      const { data: flowResult, error: flowError } = await supabase.functions.invoke('process-chat-flow', {
+        body: {
+          conversationId: conversationId,
+          userMessage: messageText
+        }
+      });
+
+      if (!flowError && flowResult && !flowResult.useAI && flowResult.response) {
+        console.log('[handle-whatsapp-event] 📋 Fluxo retornou resposta:', flowResult.response?.slice(0, 50));
+        flowHandled = true;
+
+        // Inserir resposta do fluxo no banco
+        const { data: savedFlowMsg } = await supabase.from('messages').insert({
+          conversation_id: conversationId,
+          content: flowResult.response,
+          sender_type: 'user',
+          is_ai_generated: true, // Marcar como automático para UI mostrar "Assistente Virtual"
+          channel: 'whatsapp'
+        }).select('id').single();
+
+        // Enviar para WhatsApp com skip_db_save (já salvamos acima)
+        if (savedFlowMsg?.id) {
+          await supabase.functions.invoke('send-meta-whatsapp', {
+            body: {
+              instance_id: instance.id,
+              phone_number: phoneForDatabase,
+              message: flowResult.response,
+              conversation_id: conversationId,
+              skip_db_save: true // 🆕 CRÍTICO: Evita duplicação
+            }
+          });
+          console.log('[handle-whatsapp-event] ✅ Resposta do fluxo enviada via WhatsApp');
+        }
+      }
+    } catch (flowError) {
+      console.error('[handle-whatsapp-event] ❌ Erro ao processar fluxo:', flowError);
+    }
+
+    // ============================================================
+    // 🤖 IA APENAS SE FLUXO NÃO TRATOU
+    // ============================================================
+    if (flowHandled) {
+      console.log('[handle-whatsapp-event] ⏭️ Fluxo já tratou - pulando IA');
+      return new Response(JSON.stringify({
+        success: true,
+        message_saved: true,
+        flow_handled: true
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
     try {
       // 🚨 FASE 3: INVOCAR AI E INTERCEPTAR FALLBACK
       const { data: aiResponse, error: aiError } = await supabase.functions.invoke('ai-autopilot-chat', {

@@ -43,6 +43,21 @@ serve(async (req) => {
     }
 
     // ============================================================
+    // 🚫 ANTI-DUPLICAÇÃO: Se canal WhatsApp, já foi processado
+    // handle-whatsapp-event chama ai-autopilot-chat diretamente
+    // ============================================================
+    if (conversation?.channel === 'whatsapp') {
+      console.log('[message-listener] ⏭️ Canal WhatsApp - já processado por handle-whatsapp-event');
+      return new Response(JSON.stringify({ 
+        status: 'skipped', 
+        reason: 'whatsapp_handled_by_webhook',
+        message: 'WhatsApp messages are processed by handle-whatsapp-event'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // ============================================================
     // 🛑 KILL SWITCH: Se IA global desligada, NÃO processar nada
     // Apenas logar e retornar - humano precisa assumir
     // ============================================================

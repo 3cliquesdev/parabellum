@@ -290,32 +290,63 @@ async function findEligibleAgent(
 
   const eligibleUserIds = eligibleUserRoles.map((r: { user_id: string }) => r.user_id);
 
-  // 2. Get department info to check for parent
+  // 2. Get department info to check for parent and siblings
   const { data: department } = await supabase
     .from('departments')
     .select('id, parent_id')
     .eq('id', departmentId)
     .single();
 
-  // Include parent department if exists
+  // Build department hierarchy:
+  // 1. Primary: the exact department
+  // 2. Siblings: other children of same parent (for fallback)
+  // 3. Parent: if exists (for fallback)
   const deptIds = [departmentId];
+  
   if (department?.parent_id) {
+    // Include parent department
     deptIds.push(department.parent_id);
+    
+    // Also include sibling departments (other children of the same parent)
+    const { data: siblings } = await supabase
+      .from('departments')
+      .select('id')
+      .eq('parent_id', department.parent_id)
+      .neq('id', departmentId);
+    
+    if (siblings?.length) {
+      deptIds.push(...siblings.map((s: { id: string }) => s.id));
+    }
   }
 
-  // 3. Get online profiles in department with capacity info
+  console.log(`[findEligibleAgent] Searching in depts: ${deptIds.join(', ')}`);
+
+  // 3. Get online profiles in department hierarchy with capacity info
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
-    .select('id, full_name, last_status_change')
+    .select('id, full_name, last_status_change, department')
     .eq('availability_status', 'online')
     .eq('is_blocked', false)
     .in('department', deptIds)
     .in('id', eligibleUserIds);
 
   if (profilesError || !profiles?.length) {
-    console.log('[findEligibleAgent] No online profiles in department');
+    console.log('[findEligibleAgent] No online profiles in department hierarchy');
     return null;
   }
+
+  // Prioritize agents: exact dept first, then parent, then siblings
+  // deno-lint-ignore no-explicit-any
+  profiles.sort((a: any, b: any) => {
+    const aDept = a.department;
+    const bDept = b.department;
+    
+    // Priority: exact match > parent > sibling
+    const aPriority = aDept === departmentId ? 0 : (aDept === department?.parent_id ? 1 : 2);
+    const bPriority = bDept === departmentId ? 0 : (bDept === department?.parent_id ? 1 : 2);
+    
+    return aPriority - bPriority;
+  });
 
   // 4. Get team settings for max chats
   const { data: teamMembers } = await supabase

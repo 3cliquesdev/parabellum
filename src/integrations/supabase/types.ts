@@ -8286,6 +8286,62 @@ export type Database = {
           won_deals: number
         }[]
       }
+      get_copilot_comparison: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          avg_csat: number
+          avg_resolution_seconds: number
+          avg_suggestions_used: number
+          group_label: string
+          total_conversations: number
+        }[]
+      }
+      get_copilot_health_score: {
+        Args: {
+          p_department_id?: string
+          p_end_date?: string
+          p_start_date?: string
+        }
+        Returns: {
+          avg_csat_with_copilot: number
+          avg_csat_without_copilot: number
+          avg_resolution_time_with_copilot: number
+          avg_resolution_time_without_copilot: number
+          copilot_active_count: number
+          copilot_adoption_rate: number
+          csat_improvement_percent: number
+          health_score: number
+          kb_coverage_rate: number
+          kb_gap_count: number
+          resolution_improvement_percent: number
+          suggestion_usage_rate: number
+          suggestions_available_total: number
+          suggestions_used_total: number
+          total_conversations: number
+        }[]
+      }
+      get_copilot_monthly_evolution: {
+        Args: { p_department_id?: string; p_months?: number }
+        Returns: {
+          adoption_rate: number
+          avg_csat: number
+          avg_resolution_time: number
+          copilot_active_count: number
+          kb_gaps_created: number
+          month: string
+          month_date: string
+          total_conversations: number
+        }[]
+      }
+      get_kb_gaps_by_category: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          category: string
+          gap_count: number
+          gap_rate: number
+          total_conversations: number
+        }[]
+      }
       get_least_loaded_consultant: { Args: never; Returns: string }
       get_least_loaded_sales_rep: { Args: never; Returns: string }
       get_least_loaded_sales_rep_for_pipeline: {

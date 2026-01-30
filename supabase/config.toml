@@ -351,3 +351,6 @@ verify_jwt = true
 
 [functions.generate-kb-draft]
 verify_jwt = true
+
+[functions.generate-copilot-insights]
+verify_jwt = true

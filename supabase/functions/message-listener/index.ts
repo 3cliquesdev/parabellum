@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getAIConfig } from "../_shared/ai-config-cache.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,9 +42,41 @@ serve(async (req) => {
       throw convError;
     }
 
+    // ============================================================
+    // 🛑 KILL SWITCH: Se IA global desligada, NÃO processar nada
+    // Apenas logar e retornar - humano precisa assumir
+    // ============================================================
+    const aiConfig = await getAIConfig(supabase);
+    const isTestMode = conversation?.is_test_mode === true;
+
+    if (!aiConfig.ai_global_enabled && !isTestMode) {
+      console.log('[message-listener] 🛑 KILL SWITCH ATIVO - Nenhum envio automático');
+      
+      // Mover conversa para fila humana se estiver em autopilot
+      if (conversation?.ai_mode === 'autopilot') {
+        await supabase
+          .from('conversations')
+          .update({ ai_mode: 'waiting_human' })
+          .eq('id', record.conversation_id);
+        console.log('[message-listener] 📋 Conversa movida para fila humana');
+      }
+      
+      return new Response(JSON.stringify({ 
+        status: 'kill_switch_active',
+        action: 'skip_all_auto',
+        reason: 'ai_global_enabled = false',
+        message: 'Aguardando atendente humano'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     // 🆕 MODO DE TESTE: Logar se a conversa está em modo de teste
-    if (conversation?.is_test_mode) {
+    if (isTestMode) {
       console.log('[message-listener] 🧪 MODO TESTE ATIVO para conversa:', record.conversation_id);
+      if (!aiConfig.ai_global_enabled) {
+        console.log('[message-listener] 🧪 Kill Switch ativo, mas MODO TESTE permite processar');
+      }
     }
 
     // 🆕 DETECTAR RESPOSTA DO AGENTE: Se agente enviou mensagem e está em waiting_human, mudar para copilot
@@ -172,6 +205,25 @@ serve(async (req) => {
       
       // Se não há fluxo ativo e não há AIResponseNode, enviar fallback
       if (!flowData.flowId && !flowData.response) {
+        // 🆕 REGRA: Se skipAutoResponse (Kill Switch ativo no flow), NÃO enviar fallback
+        if (flowData.skipAutoResponse) {
+          console.log('[message-listener] ⏸️ skipAutoResponse = true - Não enviando fallback');
+          
+          // Apenas marcar para transferência, sem enviar mensagem
+          await supabase
+            .from('conversations')
+            .update({ ai_mode: 'waiting_human' })
+            .eq('id', record.conversation_id);
+          
+          return new Response(JSON.stringify({ 
+            status: 'waiting_human_no_message', 
+            reason: 'kill_switch_active'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        // Comportamento original (só quando IA está ligada)
         const fallbackMessage = flowData.fallbackMessage || 
           'No momento não tenho essa informação. Vou te encaminhar para um atendente humano.';
         

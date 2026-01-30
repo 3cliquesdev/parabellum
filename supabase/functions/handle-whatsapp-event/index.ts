@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getAIConfig } from "../_shared/ai-config-cache.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -939,10 +940,10 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
     console.warn('[handle-whatsapp-event] ⚠️ Validação Kiwify falhou (não crítico):', kiwifyErr);
   }
 
-  // Buscar estado atual da conversa (incluindo instância atual para detectar swap)
+  // Buscar estado atual da conversa (incluindo instância atual para detectar swap e is_test_mode)
   const { data: currentConv } = await supabase
     .from('conversations')
-    .select('ai_mode, assigned_to, department, whatsapp_instance_id')
+    .select('ai_mode, assigned_to, department, whatsapp_instance_id, is_test_mode')
     .eq('id', conversationId)
     .single();
 
@@ -1090,22 +1091,47 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
     }
   }
 
-  // 6. Verificar toggle global de IA ANTES de processar
-  const { data: globalAIConfig } = await supabase
-    .from('system_configurations')
-    .select('value')
-    .eq('key', 'ai_global_enabled')
-    .maybeSingle();
-
-  const isAIGloballyEnabled = globalAIConfig?.value !== 'false';
+  // 6. Verificar toggle global de IA ANTES de processar (usando cache)
+  const aiConfig = await getAIConfig(supabase);
+  const isAIGloballyEnabled = aiConfig.ai_global_enabled;
   
-  console.log('[handle-whatsapp-event] 🤖 AI Global Status:', isAIGloballyEnabled ? 'ENABLED' : 'DISABLED');
+  console.log('[handle-whatsapp-event] 🤖 AI Global Status (cached):', isAIGloballyEnabled ? 'ENABLED' : 'DISABLED');
   console.log('[handle-whatsapp-event] 🤖 Instance AI Mode:', instance.ai_mode);
   
   // 🔧 FIX: Usar ai_mode da CONVERSA, não da instância!
   // Isso garante que se atendente assumiu (copilot), IA não responde automaticamente
   const conversationAIMode = currentConv?.ai_mode || instance.ai_mode;
   console.log('[handle-whatsapp-event] 🤖 Conversation AI Mode (decisão final):', conversationAIMode);
+
+  // ============================================================
+  // 🛑 KILL SWITCH: Bloquear TODO envio automático
+  // ============================================================
+  const isTestMode = currentConv?.is_test_mode === true;
+  
+  if (!isAIGloballyEnabled && !isTestMode) {
+    console.log('[handle-whatsapp-event] 🛑 Kill Switch ativo - Nenhum envio automático');
+    
+    // Mover conversa para fila humana se estiver em autopilot
+    if (conversationAIMode === 'autopilot') {
+      await supabase
+        .from('conversations')
+        .update({ ai_mode: 'waiting_human' })
+        .eq('id', conversationId);
+      console.log('[handle-whatsapp-event] 📋 Conversa movida para fila humana');
+    }
+    
+    // NÃO chamar ai-autopilot-chat nem process-chat-flow
+    return new Response(JSON.stringify({ 
+      success: true,
+      message_saved: true,
+      ai_processed: false,
+      reason: 'kill_switch_active'
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+  
+  if (isTestMode && !isAIGloballyEnabled) {
+    console.log('[handle-whatsapp-event] 🧪 Kill Switch ativo, mas MODO TESTE permite processar');
+  }
 
   // 7. Se ai_mode = 'autopilot' E IA global está ativada, disparar AI
   if (isAIGloballyEnabled && conversationAIMode === 'autopilot') {

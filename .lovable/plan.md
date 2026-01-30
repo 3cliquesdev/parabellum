@@ -1,91 +1,109 @@
 
-# Plano: Implementar Fallback Hierárquico no Dispatcher
+# Plano: Corrigir Transferências Não Executadas pelo Fluxo
 
-## Problema Identificado
+## Diagnóstico Completo
 
-O dispatcher de conversas está com política "Strict Department" que **não possui fallback** para departamentos pai, causando:
+Após investigação profunda, identifiquei o **bug raiz** que faz com que conversas transferidas para o departamento Comercial continuem sendo respondidas pela IA.
 
-1. **20+ conversas órfãs** em "Suporte Sistema" (nenhum agente configurado)
-2. **Miguel com apenas 5 chats** enquanto poderia atender mais
-3. **Juliana com 12 chats** também subutilizada
-4. **Camila em "Suporte" pai** com apenas 2 chats - potencial fallback
+### Evidências Encontradas
 
-### Estrutura Atual
+| Conversa | Departamento | ai_mode | handoff_executed_at | Problema |
+|----------|--------------|---------|---------------------|----------|
+| 2c34993d... | Comercial | **autopilot** | NULL | ❌ Transferência não executou |
+| 87415fb1... | Comercial | **autopilot** | 2026-01-29 14:50:18 | ❌ ai_mode não mudou |
+| 0f668c7d... | Comercial | **autopilot** | NULL | ❌ Transferência não executou |
+| + 7 outras | Comercial | **autopilot** | misto | ❌ Mesmo problema |
 
-```text
-Suporte (36ce66cd) - Camila: 2 chats, online ✅
-├── Suporte Pedidos (2dd0ee5c) - Miguel: 5, Juliana: 12 ✅
-└── Suporte Sistema (fd4fcc90) - NENHUM AGENTE ❌
-    └── 20 conversas aguardando ⏳
+### Estado dos Agentes do Comercial
+
+Todos os 30+ agentes do departamento Comercial estão **offline**. Isso explica por que o dispatcher não consegue atribuir, mas não explica por que o `ai_mode` não muda para `waiting_human`.
+
+### Bug Identificado
+
+O problema está no **meta-whatsapp-webhook** nas linhas 621-674:
+
+```typescript
+// CASO 2: Fluxo retornou resposta estática (Message/AskOptions/etc)
+if (!flowData.useAI && flowData.response) {  // ❌ BUG: Requer response
+  // ... envia mensagem ...
+  
+  // 🆕 EXECUTAR TRANSFERÊNCIA SE NECESSÁRIO
+  if (flowData.transfer) {  // ❌ NUNCA EXECUTA SE response é vazio/undefined
+    // atualiza ai_mode = 'waiting_human'
+  }
+}
 ```
 
-### Comportamento Atual vs Esperado
+A condição `flowData.response` é **obrigatória** para entrar no CASO 2. Se o nó de transferência não tem mensagem configurada (ou foi apagada), a transferência **nunca é executada**.
 
-| Cenário | Atual | Esperado |
-|---------|-------|----------|
-| Conversa em "Suporte Sistema" | ❌ Fica órfã (manual_only) | ✅ Fallback para "Suporte" pai |
-| Agente no parent_id | Ignorado | Atende subdepartamentos |
+### Fluxo do Bug
+
+```text
+Cliente responde "1" (Drop Nacional)
+        ↓
+process-chat-flow retorna:
+  { transfer: true, departmentId: "Comercial", response: "" }
+        ↓
+meta-whatsapp-webhook verifica CASO 2:
+  !flowData.useAI (✅ true) && flowData.response (❌ "" = falsy)
+        ↓
+CASO 2 NÃO ENTRA → Pula para CASO 3
+        ↓
+CASO 3: flowData.useAI (❌ false) → Não entra
+        ↓
+CASO 4 (fallback): ai_mode = 'waiting_human'
+        ↓
+❌ MAS: department não foi atualizado!
+❌ E: handoff_executed_at não foi setado!
+```
+
+**Resultado**: A conversa fica em `waiting_human` MAS sem departamento correto, ou fica em `autopilot` se alguma outra lógica interferir.
 
 ## Solução
 
-Implementar **fallback hierárquico** na função `findEligibleAgent`:
+Separar a **verificação de transferência** da verificação de resposta, garantindo que transferências sejam executadas **independentemente** de haver mensagem.
 
-1. Tentar encontrar agente no departamento **EXATO** da conversa
-2. Se não encontrar → buscar no **departamento PAI** (parent_id)
-3. Se não encontrar → marcar como manual_only (comportamento atual)
+### Mudanças Necessárias
 
-### Fluxo Corrigido
+**Arquivo:** `supabase/functions/meta-whatsapp-webhook/index.ts`
 
-```text
-Conversa em "Suporte Sistema"
-        ↓
-findEligibleAgent(dept: "Suporte Sistema")
-        ↓
-Busca agentes online em "Suporte Sistema" → []
-        ↓
-Fallback: Buscar parent_id → "Suporte"
-        ↓
-Busca agentes online em "Suporte" → [Camila]
-        ↓
-Camila tem capacidade (2 < 30)? ✅
-        ↓
-Atribuir conversa para Camila ✅
-```
+1. **Mover a execução de transferência para ANTES do continue** (ou para um bloco separado)
+2. **Verificar `flowData.transfer` de forma independente** de `flowData.response`
+3. **Garantir que `ai_mode = 'waiting_human'` seja setado** mesmo se não há mensagem
 
-## Mudanças Necessárias
-
-### 1. Edge Function `dispatch-conversations/index.ts`
-
-Modificar `findEligibleAgent` para:
-- Aceitar parâmetro adicional `attemptedDepts` para evitar loops
-- Buscar `parent_id` do departamento quando não encontrar agentes
-- Recursivamente tentar no parent (máximo 2 níveis: subdept → dept pai)
-
-### 2. Lógica de Fallback
+### Código Corrigido
 
 ```typescript
-async function findEligibleAgent(supabase, departmentId, attemptedDepts = []) {
-  // Evitar loops infinitos
-  if (attemptedDepts.includes(departmentId)) return null;
-  attemptedDepts.push(departmentId);
+// CASO 2: Fluxo retornou resposta estática (Message/AskOptions/etc)
+if (!flowData.useAI && flowData.response) {
+  // ... envia mensagem normalmente ...
+}
+
+// 🆕 EXECUTAR TRANSFERÊNCIA INDEPENDENTEMENTE DE HAVER RESPOSTA
+if (flowData.transfer) {
+  console.log("[meta-whatsapp-webhook] 🔄 Executing transfer to department:", flowData.departmentId);
   
-  // 1. Tentar departamento exato
-  const agent = await searchInDepartment(supabase, departmentId);
-  if (agent) return agent;
+  const updateData: Record<string, unknown> = {
+    ai_mode: 'waiting_human',
+    handoff_executed_at: new Date().toISOString(),
+  };
   
-  // 2. Fallback para parent
-  const { data: dept } = await supabase
-    .from('departments')
-    .select('parent_id')
-    .eq('id', departmentId)
-    .single();
-  
-  if (dept?.parent_id) {
-    console.log(`[findEligibleAgent] Fallback to parent: ${dept.parent_id}`);
-    return findEligibleAgent(supabase, dept.parent_id, attemptedDepts);
+  if (flowData.departmentId) {
+    updateData.department = flowData.departmentId;
   }
   
-  return null; // Nenhum agente encontrado em toda hierarquia
+  const { error: updateError } = await supabase
+    .from("conversations")
+    .update(updateData)
+    .eq("id", conversation.id);
+  
+  if (updateError) {
+    console.error("[meta-whatsapp-webhook] ❌ Error executing transfer:", updateError);
+  } else {
+    console.log("[meta-whatsapp-webhook] ✅ Transfer executed → department:", flowData.departmentId, "ai_mode: waiting_human");
+  }
+  
+  continue; // Pular para próxima mensagem após transferência
 }
 ```
 
@@ -93,152 +111,81 @@ async function findEligibleAgent(supabase, departmentId, attemptedDepts = []) {
 
 ### Antes (Bug)
 
-| Conversa em | Agente Encontrado | Resultado |
-|-------------|-------------------|-----------|
-| Suporte Sistema | ❌ Nenhum | manual_only (órfã) |
-| Suporte Pedidos | ✅ Miguel/Juliana | assigned |
+| Cenário | Resultado |
+|---------|-----------|
+| Transferência com mensagem | ✅ Funciona |
+| Transferência sem mensagem | ❌ IA continua respondendo |
+| Transferência com response vazio | ❌ IA continua respondendo |
 
 ### Depois (Corrigido)
 
-| Conversa em | Agente Encontrado | Fallback | Resultado |
-|-------------|-------------------|----------|-----------|
-| Suporte Sistema | ❌ Nenhum | → Suporte (Camila) | assigned ✅ |
-| Suporte Pedidos | ✅ Miguel/Juliana | - | assigned ✅ |
-| Financeiro | ❌ Nenhum | Sem parent | manual_only |
+| Cenário | Resultado |
+|---------|-----------|
+| Transferência com mensagem | ✅ Funciona |
+| Transferência sem mensagem | ✅ ai_mode = waiting_human |
+| Transferência com response vazio | ✅ ai_mode = waiting_human |
 
-## Compatibilidade
+## Correção Adicional: Conversas Órfãs
 
-- ✅ Mantém preferência por departamento exato
-- ✅ Fallback é transparente para o agente (conversa aparece normalmente)
-- ✅ Máximo 2 níveis de fallback (evita performance issues)
-- ✅ Alinhado com memória `department-routing-fallback-logic`
+Além da correção do código, precisamos corrigir as **10 conversas** que já estão em autopilot mas deveriam estar em waiting_human:
+
+```sql
+UPDATE conversations
+SET ai_mode = 'waiting_human'
+WHERE department = 'f446e202-bdc3-4bb3-aeda-8c0aa04ee53c'  -- Comercial
+  AND ai_mode = 'autopilot'
+  AND status = 'open'
+  AND assigned_to IS NULL;
+```
 
 ## Arquivos a Modificar
 
 | Arquivo | Tipo | Mudança |
 |---------|------|---------|
-| `supabase/functions/dispatch-conversations/index.ts` | Edge Function | Adicionar fallback hierárquico |
+| `supabase/functions/meta-whatsapp-webhook/index.ts` | Edge Function | Separar lógica de transferência |
+| Migration SQL | Banco de Dados | Corrigir conversas órfãs |
+
+## Compatibilidade
+
+- Não afeta transferências que já funcionam (com resposta)
+- Corrige edge case de transferências sem mensagem
+- Mantém toda lógica existente de fluxo/IA
 
 ---
 
 ## Seção Técnica
 
-### Código Completo da Modificação
-
-```typescript
-// ANTES (linha 319-421):
-async function findEligibleAgent(supabase, departmentId) {
-  // Busca APENAS no departamento exato
-  console.log(`[findEligibleAgent] Searching ONLY in exact dept: ${departmentId}`);
-  // ...
-}
-
-// DEPOIS:
-async function findEligibleAgent(
-  supabase: any,
-  departmentId: string,
-  attemptedDepts: string[] = []
-): Promise<EligibleAgent | null> {
-  
-  // Evitar loops infinitos
-  if (attemptedDepts.includes(departmentId)) {
-    console.log(`[findEligibleAgent] Already tried dept ${departmentId}, stopping`);
-    return null;
-  }
-  attemptedDepts.push(departmentId);
-  
-  const eligibleRoles = [
-    'support_agent', 'sales_rep', 'cs_manager', 
-    'support_manager', 'manager', 'general_manager', 'admin'
-  ];
-
-  const { data: eligibleUserRoles, error: rolesError } = await supabase
-    .from('user_roles')
-    .select('user_id')
-    .in('role', eligibleRoles);
-
-  if (rolesError || !eligibleUserRoles?.length) {
-    return null;
-  }
-
-  const eligibleUserIds = eligibleUserRoles.map((r) => r.user_id);
-
-  console.log(`[findEligibleAgent] Searching in dept: ${departmentId}`);
-
-  // Buscar agentes online no departamento
-  const { data: profiles, error: profilesError } = await supabase
-    .from('profiles')
-    .select('id, full_name, last_status_change')
-    .eq('availability_status', 'online')
-    .eq('is_blocked', false)
-    .eq('department', departmentId)
-    .in('id', eligibleUserIds);
-
-  // Se encontrou agentes, processar normalmente
-  if (!profilesError && profiles?.length) {
-    // ... (código existente para calcular capacidade e retornar agente)
-    const agent = await processAgentCapacity(supabase, profiles);
-    if (agent) return agent;
-  }
-
-  // FALLBACK: Tentar departamento pai
-  console.log(`[findEligibleAgent] No agents in ${departmentId}, trying parent...`);
-  
-  const { data: dept } = await supabase
-    .from('departments')
-    .select('parent_id')
-    .eq('id', departmentId)
-    .single();
-
-  if (dept?.parent_id) {
-    console.log(`[findEligibleAgent] Fallback to parent: ${dept.parent_id}`);
-    return findEligibleAgent(supabase, dept.parent_id, attemptedDepts);
-  }
-
-  console.log(`[findEligibleAgent] No parent for ${departmentId}, no agents found`);
-  return null;
-}
-```
-
-### Atualização em `checkDepartmentHasAgents`
-
-Também deve verificar hierarquia:
-
-```typescript
-async function checkDepartmentHasAgents(supabase, departmentId, attemptedDepts = []) {
-  if (attemptedDepts.includes(departmentId)) return false;
-  attemptedDepts.push(departmentId);
-  
-  // Verificar departamento exato
-  const { count } = await supabase
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
-    .eq('department', departmentId)
-    .in('id', eligibleUserIds);
-
-  if (count > 0) return true;
-  
-  // Verificar parent
-  const { data: dept } = await supabase
-    .from('departments')
-    .select('parent_id')
-    .eq('id', departmentId)
-    .single();
-
-  if (dept?.parent_id) {
-    return checkDepartmentHasAgents(supabase, dept.parent_id, attemptedDepts);
-  }
-  
-  return false;
-}
-```
-
-### Log Esperado Após Correção
+### Estrutura Final do Webhook (Pseudocódigo)
 
 ```text
-[findEligibleAgent] Searching in dept: fd4fcc90 (Suporte Sistema)
-[findEligibleAgent] No agents in fd4fcc90, trying parent...
-[findEligibleAgent] Fallback to parent: 36ce66cd (Suporte)
-[findEligibleAgent] Found 1 agents: [Camila]
-[dispatch-conversations] ✅ Assigned xxx to Camila (150ms)
+// CASO 1: skipAutoResponse (cliente na fila)
+if (flowData.skipAutoResponse) → continue
+
+// CASO 2: Resposta estática (envia mensagem)
+if (!flowData.useAI && flowData.response) {
+  → enviar mensagem
+}
+
+// CASO 2.5: 🆕 TRANSFERÊNCIA (independente de response)
+if (flowData.transfer) {
+  → atualizar ai_mode = 'waiting_human'
+  → atualizar department = flowData.departmentId
+  → continue
+}
+
+// CASO 3: AIResponseNode
+if (flowData.useAI && flowData.aiNodeActive) {
+  → chamar ai-autopilot-chat
+  → continue
+}
+
+// CASO 4: Fallback
+→ ai_mode = 'waiting_human'
 ```
+
+### Verificação Pós-Deploy
+
+1. Enviar mensagem de teste que dispare transferência
+2. Verificar logs: deve aparecer "🔄 Executing transfer"
+3. Verificar banco: `ai_mode = 'waiting_human'` e `department` correto
+4. Cliente não deve receber mais respostas da IA

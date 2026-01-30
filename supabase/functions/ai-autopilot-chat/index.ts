@@ -520,7 +520,8 @@ async function sendWhatsAppMessage(
           instance_id: whatsappResult.instance.id,
           phone_number: phoneNumber?.replace(/\D/g, ''),
           message,
-          conversation_id: conversationId
+          conversation_id: conversationId,
+          skip_db_save: true // 🆕 CRÍTICO: Quem chama já salvou a mensagem
         }
       });
       
@@ -7331,7 +7332,8 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
               instance_id: whatsappInstance.id,
               phone_number: contact.phone?.replace(/\D/g, ''),
               message: assistantMessage,
-              conversation_id: conversationId
+              conversation_id: conversationId,
+              skip_db_save: true // 🆕 CRÍTICO: Já salvamos na linha 7193
             },
           });
 

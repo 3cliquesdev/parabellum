@@ -458,6 +458,48 @@ Analise e gere suas sugestões em JSON.`;
       .update({ last_suggestion_at: new Date().toISOString() })
       .eq('id', conversationId);
 
+    // ============================================================
+    // AJUSTE 3: Registrar suggestions_available para métricas
+    // ============================================================
+    const replyCount = savedSuggestions.filter(s => s.suggestion_type === 'reply').length;
+    
+    if (replyCount > 0) {
+      // Buscar agente atribuído à conversa
+      const { data: convAgent } = await supabaseClient
+        .from('conversations')
+        .select('assigned_to')
+        .eq('id', conversationId)
+        .single();
+
+      if (convAgent?.assigned_to) {
+        // Buscar registro existente de métricas
+        const { data: existingMetric } = await supabaseClient
+          .from('agent_quality_metrics')
+          .select('id, suggestions_available')
+          .eq('conversation_id', conversationId)
+          .eq('agent_id', convAgent.assigned_to)
+          .maybeSingle();
+
+        // Acumular (soma novas replies ao total existente)
+        const currentAvailable = existingMetric?.suggestions_available || 0;
+        const newTotal = currentAvailable + replyCount;
+
+        await supabaseClient
+          .from('agent_quality_metrics')
+          .upsert({
+            agent_id: convAgent.assigned_to,
+            conversation_id: conversationId,
+            suggestions_available: newTotal,
+            copilot_active: true,
+          }, { 
+            onConflict: 'agent_id,conversation_id',
+            ignoreDuplicates: false 
+          });
+
+        console.log(`[generate-smart-reply] 📊 Métricas atualizadas: suggestions_available = ${newTotal}`);
+      }
+    }
+
     console.log(`[generate-smart-reply] ✅ ${savedSuggestions.length} sugestões salvas com sucesso!`);
 
     return new Response(JSON.stringify({ 

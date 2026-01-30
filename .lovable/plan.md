@@ -1,15 +1,56 @@
 
 
-# Plano: Validação Estrita para `ask_options` + Atualização do Super Prompt
+# Plano: Respeitar `waiting_human` - Bloquear Fluxo/IA Quando Cliente Está na Fila
 
 ## Problema Identificado
 
-O código atual no `process-chat-flow` tem matching numérico e fuzzy para `ask_options`, **mas quando nenhuma opção é encontrada**, ele:
-1. Deixa `path = undefined`
-2. Chama `findNextNode()` com path indefinido
-3. O sistema busca "qualquer edge" como fallback e pode avançar incorretamente
+Quando o cliente **entra na fila** (`ai_mode = 'waiting_human'`) e manda outra mensagem:
 
-**Resultado:** Cliente digita "Fff", fluxo avança para nó errado em vez de pedir que repita a resposta.
+1. O `meta-whatsapp-webhook` chama `process-chat-flow` (sem verificar `ai_mode`)
+2. O `process-chat-flow` NÃO encontra fluxo ativo (porque foi completado)
+3. O `process-chat-flow` busca um novo fluxo para iniciar
+4. Encontra o **Master Flow** e reinicia do começo!
+
+**Resultado:** O bot repete "Olá! Como posso ajudar? 1️⃣ Pedidos 2️⃣ Sistema..." quando o cliente deveria estar aguardando um humano.
+
+---
+
+## Solução: Verificação Obrigatória de `ai_mode`
+
+Adicionar verificação no início do `process-chat-flow` (logo após o Kill Switch) para respeitar o contrato do Super Prompt v2.3:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    FLUXO DE DECISÃO CORRIGIDO                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. Mensagem chega no webhook                                               │
+│     └──▶ Salva mensagem no banco                                            │
+│                                                                             │
+│  2. Webhook chama process-chat-flow                                         │
+│     └──▶ [NOVO] Verificar ai_mode da conversa PRIMEIRO                      │
+│                                                                             │
+│  3. Se ai_mode = 'waiting_human':                                           │
+│     └──▶ NÃO processar fluxo                                                │
+│     └──▶ NÃO chamar IA                                                      │
+│     └──▶ Retornar { skipAutoResponse: true, reason: 'waiting_human' }       │
+│     └──▶ Mensagem fica apenas no histórico para humano ver                  │
+│                                                                             │
+│  4. Se ai_mode = 'copilot':                                                 │
+│     └──▶ NÃO processar fluxo                                                │
+│     └──▶ NÃO chamar IA automaticamente                                      │
+│     └──▶ Humano já está respondendo                                         │
+│                                                                             │
+│  5. Se ai_mode = 'disabled':                                                │
+│     └──▶ NÃO processar fluxo                                                │
+│     └──▶ NÃO chamar IA                                                      │
+│     └──▶ Atendimento manual                                                 │
+│                                                                             │
+│  6. Se ai_mode = 'autopilot':                                               │
+│     └──▶ Processar fluxo normalmente (comportamento atual)                  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -17,145 +58,66 @@ O código atual no `process-chat-flow` tem matching numérico e fuzzy para `ask_
 
 ### 1. Edge Function: `process-chat-flow/index.ts`
 
-**Linhas 480-518** - Adicionar validação estrita com reenvio de opções:
+**Após a linha 294** (após o Kill Switch), adicionar verificação de `ai_mode`:
 
 ```typescript
-if (currentNode.type === 'ask_options') {
-  const options = currentNode.data?.options || [];
-  let selectedOption = options.find((opt: any) => 
-    opt.label.toLowerCase() === userMessage.toLowerCase() ||
-    opt.value.toLowerCase() === userMessage.toLowerCase()
-  );
+// ============================================================
+// 🛡️ PROTEÇÃO: Respeitar ai_mode da conversa (Contrato v2.3)
+// Se cliente está na fila ou com humano, NÃO processar fluxo
+// ============================================================
+const { data: convState } = await supabaseClient
+  .from('conversations')
+  .select('ai_mode, assigned_to')
+  .eq('id', conversationId)
+  .maybeSingle();
+
+const currentAiMode = convState?.ai_mode;
+
+// waiting_human: Cliente na fila, aguardando humano
+// copilot: Humano atendendo com sugestões da IA
+// disabled: Atendimento 100% manual
+if (currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled') {
+  console.log(`[process-chat-flow] 🛡️ PROTEÇÃO: ai_mode=${currentAiMode} - NÃO processar fluxo/IA`);
+  console.log(`[process-chat-flow] 📋 assigned_to: ${convState?.assigned_to || 'null'}`);
   
-  // 🔢 MATCHING NUMÉRICO: Permitir resposta "1", "2", "3"...
-  if (!selectedOption) {
-    const numericChoice = parseInt(userMessage.trim());
-    if (!isNaN(numericChoice) && numericChoice >= 1 && numericChoice <= options.length) {
-      selectedOption = options[numericChoice - 1];
-      console.log('[process-chat-flow] 🔢 Numeric choice matched:', numericChoice, '→', selectedOption?.label);
-    }
-  }
-  
-  // 🔍 MATCHING FUZZY: Match parcial (desabilitado por padrão - muito permissivo)
-  // Removido para garantir validação estrita
-  
-  // ❌ VALIDAÇÃO ESTRITA: Se nenhuma opção válida, NÃO avança
-  if (!selectedOption) {
-    console.log('[process-chat-flow] ❌ Invalid option response:', userMessage);
-    
-    // Formatar opções para reenvio
-    const formattedOptions = options.map((opt: any, idx: number) => ({
-      label: opt.label,
-      value: opt.value,
-      id: opt.id
-    }));
-    
-    return new Response(
-      JSON.stringify({
-        useAI: false,
-        response: "❗ Não entendi sua resposta.\n\nPor favor, responda com o *número* ou *nome* de uma das opções:",
-        options: formattedOptions,
-        retry: true,
-        flowId: activeState.flow_id,
-        nodeId: currentNode.id, // Mantém no mesmo nó
-        invalidOption: true,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-  
-  // ✅ Opção válida - avança normalmente
-  path = selectedOption.id;
-  collectedData[currentNode.data?.save_as || 'choice'] = selectedOption.value;
+  return new Response(JSON.stringify({
+    useAI: false,
+    aiNodeActive: false,
+    skipAutoResponse: true,
+    reason: `ai_mode_${currentAiMode}`,
+    message: `Conversa em modo ${currentAiMode} - fluxo/IA bloqueados`
+  }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
 }
+
+// autopilot: IA ativa, processar normalmente
+console.log(`[process-chat-flow] ✅ ai_mode=${currentAiMode} - processando fluxo`);
 ```
 
-**Mudanças principais:**
-- Remover matching fuzzy (muito permissivo, causa confusão)
-- Adicionar validação estrita com mensagem clara
-- Retornar `retry: true` para manter no mesmo nó
-- Incluir `nodeId` e `invalidOption` para tracking
+### 2. Atualizar Super Prompt v2.3
 
-### 2. Função Helper: `matchAskOption()`
-
-Adicionar função utilitária no início do arquivo para padronizar matching:
-
-```typescript
-// Matcher estrito para ask_options
-function matchAskOption(
-  userInput: string,
-  options: Array<{ label: string; value?: string; id?: string }>
-): { label: string; value?: string; id?: string } | null {
-  const normalized = userInput.trim().toLowerCase();
-
-  // 1️⃣ Número (1, 2, 3…)
-  const index = parseInt(normalized, 10);
-  if (!isNaN(index) && options[index - 1]) {
-    return options[index - 1];
-  }
-
-  // 2️⃣ Texto exato da opção (label ou value)
-  const exactMatch = options.find(opt =>
-    opt.label.toLowerCase() === normalized ||
-    (opt.value && opt.value.toLowerCase() === normalized)
-  );
-  
-  return exactMatch || null;
-}
-```
-
-### 3. Super Prompt v2.3: Adicionar Contrato de `ask_options`
-
-**Arquivo:** `src/docs/SUPER_PROMPT_v2.2.md` → renomear para `v2.3`
-
-**Nova seção a adicionar:**
+Adicionar regra explícita na documentação:
 
 ```markdown
----
-
-## 13. Contrato de `ask_options` (Validação Estrita)
+## 14. Contrato de Proteção de Modo
 
 ### Regras obrigatórias
-Nós do tipo `ask_options` exigem validação estrita de resposta.
+O motor de fluxos DEVE verificar o `ai_mode` da conversa ANTES de qualquer processamento.
 
-### Entradas válidas
-✅ Número correspondente à posição (1, 2, 3...)
-✅ Texto exato do label da opção
-✅ Texto exato do value da opção
+### Comportamento por modo
 
-### Entradas inválidas
-❌ Texto parcial ou fuzzy
-❌ Números fora do range
-❌ Qualquer outra resposta
+| ai_mode | Processar Fluxo | Chamar IA | Enviar Resposta |
+|---------|-----------------|-----------|-----------------|
+| autopilot | ✅ Sim | ✅ Se AIResponseNode | ✅ Sim |
+| waiting_human | ❌ Não | ❌ Não | ❌ Não |
+| copilot | ❌ Não | ❌ Não | ❌ Não |
+| disabled | ❌ Não | ❌ Não | ❌ Não |
 
-### Comportamento para entrada inválida
-1. Fluxo **NÃO avança**
-2. Fluxo **NÃO transfere**
-3. Fluxo **NÃO chama IA**
-4. Sistema reenvia a pergunta com orientação clara:
-
-```
-❗ Não entendi sua resposta.
-
-Por favor, responda com o *número* ou *nome* de uma das opções:
-1️⃣ Pedidos
-2️⃣ Sistema
-3️⃣ Acesso
-4️⃣ Outros
-```
-
-### Exemplo de comportamento
-
-| Entrada | Resultado |
-|---------|-----------|
-| `1` | ✅ Avança para opção 1 |
-| `Pedidos` | ✅ Avança para opção "Pedidos" |
-| `pedidos` | ✅ Avança (case-insensitive) |
-| `Fff` | ❌ Repete opções |
-| `5` (se só há 4 opções) | ❌ Repete opções |
-| `Ped` | ❌ Repete opções (sem fuzzy) |
-
----
+### Justificativa
+- `waiting_human`: Cliente está na fila aguardando humano. Fluxo e IA devem ficar silenciosos.
+- `copilot`: Humano está atendendo. IA pode sugerir internamente, mas NÃO enviar.
+- `disabled`: Atendimento 100% manual. Nenhuma automação.
 ```
 
 ---
@@ -164,45 +126,66 @@ Por favor, responda com o *número* ou *nome* de uma das opções:
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/process-chat-flow/index.ts` | Validação estrita + helper `matchAskOption()` |
-| `src/docs/SUPER_PROMPT_v2.2.md` | Atualizar para v2.3 com contrato de `ask_options` |
+| `supabase/functions/process-chat-flow/index.ts` | Adicionar verificação de `ai_mode` após Kill Switch |
+| `src/docs/SUPER_PROMPT_v2.3.md` | Adicionar seção 14 - Contrato de Proteção de Modo |
 
 ---
 
 ## Impacto
 
-### Antes
-| Entrada | Resultado |
+### Antes (Bug)
+| Cenário | Resultado |
 |---------|-----------|
-| `Fff` | ❌ Avança para nó errado (fallback) |
-| `5` (4 opções) | ❌ Comportamento indefinido |
-| `Ped` | ⚠️ Fuzzy match - pode acertar ou errar |
+| Cliente na fila manda "Oi" | ❌ Fluxo reinicia do começo |
+| Cliente na fila manda "Cadê meu pedido?" | ❌ IA responde (deveria esperar humano) |
+| Humano atendendo, cliente manda foto | ❌ Fluxo pode interferir |
 
-### Depois
-| Entrada | Resultado |
+### Depois (Corrigido)
+| Cenário | Resultado |
 |---------|-----------|
-| `Fff` | ✅ Repete opções com orientação |
-| `5` (4 opções) | ✅ Repete opções |
-| `Ped` | ✅ Repete opções (sem fuzzy) |
+| Cliente na fila manda "Oi" | ✅ Mensagem salva, aguarda humano |
+| Cliente na fila manda "Cadê meu pedido?" | ✅ Mensagem salva, aguarda humano |
+| Humano atendendo, cliente manda foto | ✅ Foto vai pro chat, humano vê |
 
 ---
 
-## Segurança
+## Segurança e Conformidade
 
 | Controle | Status |
 |----------|--------|
-| Fluxo não avança com entrada inválida | ✅ |
-| IA não é chamada com entrada inválida | ✅ |
-| Transferência não ocorre com entrada inválida | ✅ |
-| Cliente recebe feedback claro | ✅ |
-| Matching fuzzy removido (ambíguo) | ✅ |
+| Fluxo não reinicia quando cliente está na fila | ✅ |
+| IA não responde quando humano está atendendo | ✅ |
+| Mensagens são salvas normalmente | ✅ (já funciona) |
+| Compatível com Super Prompt v2.3 | ✅ |
+| Sem breaking changes | ✅ |
+
+---
+
+## Diagrama de Sequência
+
+```text
+Cliente (na fila)         Webhook         process-chat-flow         Banco
+       |                     |                    |                    |
+       |--- "Oi, cadê?"----->|                    |                    |
+       |                     |--save message----->|                    |
+       |                     |                    |                    |
+       |                     |--process flow?---->|                    |
+       |                     |                    |--get ai_mode------>|
+       |                     |                    |<--waiting_human----|
+       |                     |                    |                    |
+       |                     |<--skipAutoResponse-|                    |
+       |                     |   (não enviar)     |                    |
+       |                     |                    |                    |
+       |        [Mensagem fica no histórico para humano ver]           |
+```
 
 ---
 
 ## Compatibilidade
 
 A mudança é **backward compatible**:
-- Entradas numéricas (1, 2, 3) continuam funcionando
-- Entradas de texto exato continuam funcionando
-- Apenas fuzzy matching foi removido (era fonte de bugs)
+- Conversas em `autopilot` continuam funcionando normalmente
+- Conversas em `waiting_human/copilot/disabled` agora respeitam o contrato
+- Nenhuma tabela ou coluna nova necessária
+- Deploy apenas da Edge Function
 

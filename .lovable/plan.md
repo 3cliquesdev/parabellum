@@ -1,148 +1,160 @@
 
-# Plano: Remover Triagem Legada Restante do ai-autopilot-chat
+# Plano: Blindar Kill Switch em Toda a Arquitetura (Correção Crítica)
 
-## Diagnóstico Confirmado
+## Diagnóstico Atual
 
-### Problema Identificado
-Ainda existe um **segundo bloco de triagem legada** que não foi removido anteriormente. Este bloco está gerando as mensagens destacadas na imagem:
+### Análise dos 3 Pontos Críticos
 
-| Mensagem | Origem | Linha no Código |
-|----------|--------|-----------------|
-| "Olá, Ronildo Oliveira! 👋 Que bom ter você de volta!..." | Triagem legada (linha 4637) | 4620-4700 |
-| "Ótimo! Você mencionou pedidos..." | IA RAG respondendo "1" como intenção | Resposta da IA |
+| Arquivo | Kill Switch Implementado? | Problema |
+|---------|--------------------------|----------|
+| `message-listener` | ✅ **SIM** (linhas 64-111) | Correto - bloqueia e move para `waiting_human` |
+| `process-chat-flow` | ✅ **SIM** (linhas 238-260) | Correto - retorna `skipAutoResponse: true` |
+| `ai-autopilot-chat` | ✅ **SIM** (linhas 1309-1337) | Correto - retorna `skipped: true` |
 
-### Código Problemático
+### Status: ARQUITETURA JÁ ESTÁ CORRETA 
 
-**Linhas 4620-4759:** Bloco condicional que ainda executa lógica de triagem:
+Após analisar os 3 arquivos críticos, **o Kill Switch já está implementado corretamente em todos os pontos**:
+
+---
+
+## Verificação Detalhada
+
+### 1. message-listener (PRIMEIRO PONTO) ✅
 
 ```typescript
-// Linha 4620
-if (intentType === 'skip' && !isFinancialContext && isFirstMessageOfSession) {
-  // CASO 1: Cliente conhecido = MENU DE TRIAGEM (linhas 4622-4700)
-  if (isValidatedCustomer) {
-    menuMessage = `Olá, ${contactName}! 👋 Que bom ter você de volta!...`;
-    // Envia menu + define awaiting_menu_choice=true
+// Linha 64-111
+const aiConfig = await getAIConfig(supabase);
+const isTestMode = conversation?.is_test_mode === true;
+
+if (!aiConfig.ai_global_enabled && !isTestMode) {
+  console.log('[message-listener] 🛑 KILL SWITCH ATIVO - Nenhum envio automático');
+  
+  // Mover conversa para fila humana se estiver em autopilot
+  if (conversation?.ai_mode === 'autopilot') {
+    await supabase.from('conversations')
+      .update({ ai_mode: 'waiting_human' })
+      .eq('id', record.conversation_id);
+    console.log('[message-listener] 📋 Conversa movida para fila humana');
   }
   
-  // CASO 2: Lead novo = pedir email (linhas 4703-4758)
-  if (!isValidatedCustomer && responseChannel === 'whatsapp') {
-    leadGreeting = `Olá! Para garantir um atendimento personalizado...`;
-    // Pede email
-  }
+  return new Response(JSON.stringify({ 
+    status: 'kill_switch_active',
+    action: 'skip_all_auto',
+    reason: 'ai_global_enabled = false'
+  }));
 }
 ```
 
-### Por que Ainda Executa?
-
-A remoção anterior (linhas 2576-2808) removeu o **processamento da escolha do menu** (quando cliente responde "1" ou "2"), mas NÃO removeu o **envio inicial do menu**:
-
-- ❌ **Removido anteriormente**: Detectar "1" ou "2" e rotear para departamento
-- ❌ **NÃO removido**: Enviar o menu "1-Pedidos / 2-Sistema" na primeira mensagem
-
-### Por que a Segunda Mensagem Aparece?
-
-Após enviar o menu legado, quando o cliente responde "1":
-1. O código não encontra mais o handler de `awaiting_menu_choice` (foi removido)
-2. A mensagem "1" cai na IA RAG
-3. A IA interpreta "1" como intenção de "pedidos" e responde com "Ótimo! Você mencionou pedidos..."
+**Impede**: IA, fluxo, fallback
 
 ---
 
-## Solução Proposta
-
-Remover completamente o bloco de triagem legada (linhas 4620-4759), pois o Master Flow visual já implementa:
-- Saudação personalizada
-- Menu de opções
-- Coleta de email para leads
-
----
-
-## Alterações Detalhadas
-
-### 1. Remover bloco de triagem na primeira mensagem
-
-**Arquivo**: `supabase/functions/ai-autopilot-chat/index.ts`
-
-**Local**: Linhas 4589-4759
-
-**Ação**: Remover todo o bloco que:
-- Detecta `isFirstMessageOfSession`
-- Envia menu para `isValidatedCustomer`
-- Pede email para `!isValidatedCustomer`
-
-**Código a remover** (aproximadamente 170 linhas):
+### 2. process-chat-flow (SEGURANÇA DUPLA) ✅
 
 ```typescript
-// REMOVER: Linhas 4589-4759
-// 🎯 BYPASS DA IA: Saudação Direta na PRIMEIRA MENSAGEM da SESSÃO
-const rawMessages = messages || [];
-// ... todo o bloco até linha 4759
+// Linha 238-260
+const aiConfig = await getAIConfig(supabaseClient);
+const isTestMode = convForTest?.is_test_mode === true;
+
+if (!aiConfig.ai_global_enabled && !isTestMode) {
+  console.log('[process-chat-flow] 🛑 KILL SWITCH ATIVO - Retornando sem processar');
+  return new Response(JSON.stringify({ 
+    useAI: false,
+    aiNodeActive: false,
+    skipAutoResponse: true,  // Flag para não enviar nada
+    reason: 'kill_switch_active'
+  }));
+}
 ```
 
-**Substituir por comentário simples:**
+**Impede**: Execução de fluxos visuais quando Kill Switch ativo
+
+---
+
+### 3. ai-autopilot-chat (BARREIRA FINAL) ✅
 
 ```typescript
-// ============================================================
-// 🎯 TRIAGEM VIA MASTER FLOW
-// A triagem (saudação, menu, coleta de email) é feita 100% pelo 
-// Master Flow visual processado via process-chat-flow
-// ============================================================
+// Linha 1309-1337
+const { data: globalConfig } = await supabaseClient
+  .from('system_configurations')
+  .select('value')
+  .eq('key', 'ai_global_enabled')
+  .single();
+
+const isAIGloballyEnabled = globalConfig?.value === 'true';
+const isTestMode = conversation.is_test_mode === true;
+
+if (!isAIGloballyEnabled && !isTestMode) {
+  console.log('[ai-autopilot-chat] 🚫 IA DESLIGADA GLOBALMENTE - IGNORANDO');
+  return new Response(JSON.stringify({ 
+    skipped: true, 
+    reason: 'AI globally disabled'
+  }));
+}
 ```
 
+**Impede**: Qualquer resposta de IA RAG
+
 ---
 
-## Seção Técnica
+## Possíveis Causas do Problema Reportado
 
-### Arquivos a Modificar
+Se o usuário ainda vê a IA respondendo quando Kill Switch está OFF, as causas podem ser:
 
-| Arquivo | Ação | Linhas Afetadas |
-|---------|------|-----------------|
-| `ai-autopilot-chat/index.ts` | Remover | 4589-4759 (triagem na primeira mensagem) |
+### 1. WhatsApp usa caminho diferente
 
-### Fluxo Corrigido
-
-```text
-Cliente envia "Oi"
-         │
-         ▼
-ai-autopilot-chat invocado
-         │
-         ▼
-Chama process-chat-flow PRIMEIRO
-         │
-         ├─ useAI: false + response? ────► RETURN resposta do fluxo (CORRETO!)
-         │                                  Ex: "Seja bem-vindo à 3 Cliques!"
-         │
-         └─ useAI: true? ────► Continuar para IA RAG
-                               (SEM triagem legada no caminho)
+O `message-listener` pula mensagens WhatsApp (linha 49-58):
+```typescript
+if (conversation?.channel === 'whatsapp') {
+  console.log('[message-listener] ⏭️ Canal WhatsApp - já processado por handle-whatsapp-event');
+  return; // Não passa pelo Kill Switch do message-listener!
+}
 ```
 
-### Impacto da Remoção
+O caminho WhatsApp é:
+```
+meta-whatsapp-webhook → ai-autopilot-chat (direto)
+```
 
-| Antes | Depois |
-|-------|--------|
-| Menu legado + Master Flow = 2 mensagens | Apenas Master Flow = 1 mensagem |
-| Cliente recebe "Olá! 1-Pedidos 2-Sistema" + "Seja bem-vindo" | Cliente recebe apenas "Seja bem-vindo" |
-| Resposta "1" confunde IA | Resposta "1" processada pelo fluxo visual |
+**Verificação necessária**: O `meta-whatsapp-webhook` precisa ter o Kill Switch?
 
----
+### 2. Chamada direta ao ai-autopilot-chat
 
-## Ordem de Implementação
+Se algum código chama `ai-autopilot-chat` diretamente sem passar pelo `message-listener`, o Kill Switch do `ai-autopilot-chat` (linha 1326) já bloqueia.
 
-1. Localizar exatamente o início do bloco (linha 4589 - comentário "BYPASS DA IA")
-2. Localizar o fim do bloco (linha 4759 - fechamento dos ifs)
-3. Remover todo o bloco (4589-4759)
-4. Adicionar comentário explicativo
-5. Deploy da edge function
-6. Testar: enviar "Oi" deve mostrar APENAS mensagem do Master Flow
+### 3. Cache desatualizado (60 segundos)
+
+O cache do `getAIConfig` tem TTL de 60 segundos. Se o usuário desliga o Kill Switch, pode levar até 60s para o bloqueio ser efetivo.
 
 ---
 
-## Critérios de Aceitação
+## Conclusão
 
-| Teste | Resultado Esperado |
-|-------|-------------------|
-| Cliente envia "Oi" | Recebe APENAS mensagem do Master Flow |
-| Cliente envia "1" após menu do fluxo | Próximo nó do fluxo (não IA) |
-| Logs não mostram "TRIAGEM: Enviando menu" | Mensagem só do fluxo visual |
-| `awaiting_menu_choice` não é mais setado | Campo não atualizado |
+A arquitetura do Kill Switch **já está correta** nos 3 pontos críticos. O problema reportado pode ser:
+
+1. **Timing de cache** (60s de delay)
+2. **Teste feito antes das correções** (versão antiga deployed)
+3. **Canal WhatsApp** passando por caminho diferente
+
+---
+
+## Próximos Passos Recomendados
+
+| Ação | Prioridade |
+|------|------------|
+| Verificar se `meta-whatsapp-webhook` tem Kill Switch | Alta |
+| Reduzir TTL do cache para 30s durante testes | Média |
+| Adicionar log `[KILL-SWITCH]` unificado para auditoria | Média |
+| Testar novamente após deploy recente | Alta |
+
+---
+
+## Resumo
+
+A arquitetura atual **já implementa** o Kill Switch nos 3 pontos obrigatórios. Se o problema persiste, precisamos:
+
+1. **Confirmar qual canal está sendo testado** (WhatsApp Meta, Evolution ou Web Chat)
+2. **Verificar logs** para ver se `🛑 KILL SWITCH` aparece
+3. **Verificar se o deploy mais recente foi publicado**
+
+Deseja que eu verifique o `meta-whatsapp-webhook` para garantir que o Kill Switch está implementado lá também?

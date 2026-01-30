@@ -45,13 +45,14 @@ export function useTrackQualityMetric() {
           baseData.suggestions_available = data.suggestionsAvailable;
         }
       } else if (event === 'conversation_closed') {
-        if (data?.resolutionTime !== undefined) {
+        // AJUSTE 2: Só atualizar se ainda estiver nulo (idempotência)
+        if (data?.resolutionTime !== undefined && !existing?.resolution_time_seconds) {
           baseData.resolution_time_seconds = data.resolutionTime;
         }
-        if (data?.csatRating !== undefined) {
+        if (data?.csatRating !== undefined && !existing?.csat_rating) {
           baseData.csat_rating = data.csatRating;
         }
-        if (data?.classification) {
+        if (data?.classification && !existing?.classification_label) {
           baseData.classification_label = data.classification;
         }
       } else if (event === 'kb_gap_created') {

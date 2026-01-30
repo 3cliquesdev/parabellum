@@ -166,6 +166,7 @@ Gere um artigo de base de conhecimento em JSON.`;
         draft_from_gap_id: gapId,
         source_conversation_id: convId,
         is_published: false, // NEVER auto-publish
+        needs_review: true, // AJUSTE 1: Marcar sempre para revisão obrigatória
         embedding_generated: false,
       })
       .select()

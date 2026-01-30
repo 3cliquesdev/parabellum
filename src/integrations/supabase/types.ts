@@ -4357,6 +4357,7 @@ export type Database = {
           embedding_generated: boolean | null
           id: string
           is_published: boolean
+          needs_review: boolean | null
           problem: string | null
           published_at: string | null
           reviewed_at: string | null
@@ -4386,6 +4387,7 @@ export type Database = {
           embedding_generated?: boolean | null
           id?: string
           is_published?: boolean
+          needs_review?: boolean | null
           problem?: string | null
           published_at?: string | null
           reviewed_at?: string | null
@@ -4415,6 +4417,7 @@ export type Database = {
           embedding_generated?: boolean | null
           id?: string
           is_published?: boolean
+          needs_review?: boolean | null
           problem?: string | null
           published_at?: string | null
           reviewed_at?: string | null

@@ -168,7 +168,26 @@ Deno.serve(async (req) => {
               ignoreDuplicates: true
             });
 
-          // 7. Fechar a conversa com closed_reason = 'inactivity'
+          // 7. Enviar CSAT ANTES de fechar (se configurado)
+          if (dept.send_rating_on_close) {
+            await supabase
+              .from('messages')
+              .insert({
+                conversation_id: conversation.id,
+                content: CSAT_MESSAGE,
+                sender_type: 'user',
+              });
+
+            // Enviar via WhatsApp se for canal WhatsApp
+            if (conversation.channel === 'whatsapp') {
+              await sendWhatsAppMessages(supabase, conversation, INACTIVITY_CLOSE_MESSAGE, CSAT_MESSAGE);
+            }
+          } else if (conversation.channel === 'whatsapp') {
+            // Enviar apenas mensagem de encerramento se não envia CSAT
+            await sendWhatsAppMessages(supabase, conversation, INACTIVITY_CLOSE_MESSAGE, null);
+          }
+
+          // 8. AGORA fechar a conversa (DEPOIS do CSAT)
           const updateData: Record<string, unknown> = {
             status: 'closed',
             auto_closed: true,
@@ -187,25 +206,6 @@ Deno.serve(async (req) => {
             .from('conversations')
             .update(updateData)
             .eq('id', conversation.id);
-
-          // 8. Enviar CSAT se configurado
-          if (dept.send_rating_on_close) {
-            await supabase
-              .from('messages')
-              .insert({
-                conversation_id: conversation.id,
-                content: CSAT_MESSAGE,
-                sender_type: 'user',
-              });
-
-            // 9. Enviar via WhatsApp se for canal WhatsApp
-            if (conversation.channel === 'whatsapp') {
-              await sendWhatsAppMessages(supabase, conversation, INACTIVITY_CLOSE_MESSAGE, CSAT_MESSAGE);
-            }
-          } else if (conversation.channel === 'whatsapp') {
-            // Enviar apenas mensagem de encerramento se não envia CSAT
-            await sendWhatsAppMessages(supabase, conversation, INACTIVITY_CLOSE_MESSAGE, null);
-          }
 
           deptClosedCount++;
           totalClosedCount++;

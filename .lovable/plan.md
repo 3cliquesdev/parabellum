@@ -114,7 +114,7 @@ function extractRating(message: string): number | null {
 |--------|--------|
 | Campo `awaiting_rating` existe | ✅ Verificado |
 | Função `extractRating` simplificada | ✅ Verificado |
-| Corrigir ordem CSAT → close | 🔧 A fazer |
+| Corrigir ordem CSAT → close | ✅ Implementado |
 
 ---
 

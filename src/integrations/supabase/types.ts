@@ -4273,48 +4273,221 @@ export type Database = {
       }
       knowledge_articles: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           category: string | null
+          confidence_score: number | null
           content: string
           created_at: string
           created_by: string | null
+          department_id: string | null
           embedding: string | null
           id: string
           is_published: boolean
+          problem: string | null
+          solution: string | null
           source: string | null
+          source_conversation_id: string | null
           status: string | null
           tags: string[] | null
           title: string
           updated_at: string
+          version: number | null
+          when_not_to_use: string | null
+          when_to_use: string | null
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           category?: string | null
+          confidence_score?: number | null
           content: string
           created_at?: string
           created_by?: string | null
+          department_id?: string | null
           embedding?: string | null
           id?: string
           is_published?: boolean
+          problem?: string | null
+          solution?: string | null
           source?: string | null
+          source_conversation_id?: string | null
           status?: string | null
           tags?: string[] | null
           title: string
           updated_at?: string
+          version?: number | null
+          when_not_to_use?: string | null
+          when_to_use?: string | null
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           category?: string | null
+          confidence_score?: number | null
           content?: string
           created_at?: string
           created_by?: string | null
+          department_id?: string | null
           embedding?: string | null
           id?: string
           is_published?: boolean
+          problem?: string | null
+          solution?: string | null
           source?: string | null
+          source_conversation_id?: string | null
           status?: string | null
           tags?: string[] | null
           title?: string
           updated_at?: string
+          version?: number | null
+          when_not_to_use?: string | null
+          when_to_use?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_articles_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_articles_source_conversation_id_fkey"
+            columns: ["source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_candidates: {
+        Row: {
+          category: string | null
+          confidence_score: number | null
+          created_at: string | null
+          department_id: string | null
+          extracted_by: string | null
+          id: string
+          problem: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          solution: string
+          source_conversation_id: string | null
+          status: string | null
+          tags: string[] | null
+          updated_at: string | null
+          when_not_to_use: string | null
+          when_to_use: string | null
+        }
+        Insert: {
+          category?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          department_id?: string | null
+          extracted_by?: string | null
+          id?: string
+          problem: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          solution: string
+          source_conversation_id?: string | null
+          status?: string | null
+          tags?: string[] | null
+          updated_at?: string | null
+          when_not_to_use?: string | null
+          when_to_use?: string | null
+        }
+        Update: {
+          category?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          department_id?: string | null
+          extracted_by?: string | null
+          id?: string
+          problem?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          solution?: string
+          source_conversation_id?: string | null
+          status?: string | null
+          tags?: string[] | null
+          updated_at?: string | null
+          when_not_to_use?: string | null
+          when_to_use?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_candidates_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_candidates_source_conversation_id_fkey"
+            columns: ["source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_versions: {
+        Row: {
+          category: string | null
+          change_reason: string | null
+          changed_by: string | null
+          content: string
+          created_at: string | null
+          id: string
+          knowledge_article_id: string
+          problem: string | null
+          solution: string | null
+          tags: string[] | null
+          title: string
+          version: number
+        }
+        Insert: {
+          category?: string | null
+          change_reason?: string | null
+          changed_by?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          knowledge_article_id: string
+          problem?: string | null
+          solution?: string | null
+          tags?: string[] | null
+          title: string
+          version?: number
+        }
+        Update: {
+          category?: string | null
+          change_reason?: string | null
+          changed_by?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          knowledge_article_id?: string
+          problem?: string | null
+          solution?: string | null
+          tags?: string[] | null
+          title?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_versions_knowledge_article_id_fkey"
+            columns: ["knowledge_article_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_articles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lead_distribution_logs: {
         Row: {

@@ -47,7 +47,8 @@ serve(async (req) => {
         closed_at,
         assigned_to,
         related_ticket_id,
-        customer_metadata
+        customer_metadata,
+        department
       `)
       .eq('status', 'closed')
       .gte('closed_at', twentyFourHoursAgo)
@@ -74,11 +75,40 @@ serve(async (req) => {
 
     for (const conversation of closedConversations) {
       try {
+        // 🆕 FASE 2: Validar CSAT >= 4 antes de processar
+        const { data: rating } = await supabase
+          .from('conversation_ratings')
+          .select('rating')
+          .eq('conversation_id', conversation.id)
+          .maybeSingle();
+
+        if (!rating || rating.rating < 4) {
+          console.log(`[passive-learning-cron] ⏭️ Conversa ${conversation.id} pulada: CSAT ${rating?.rating || 'null'} < 4`);
+          skippedCount++;
+          
+          // Marcar como processada mesmo assim para não reprocessar
+          const currentMetadata = conversation.customer_metadata || {};
+          await supabase
+            .from('conversations')
+            .update({
+              customer_metadata: {
+                ...currentMetadata,
+                passive_learning_processed: true,
+                passive_learning_skipped_reason: `CSAT ${rating?.rating || 'null'} < 4`,
+                passive_learning_processed_at: new Date().toISOString()
+              }
+            })
+            .eq('id', conversation.id);
+          
+          continue;
+        }
+
         // Chamar função de extração de conhecimento
         const { data: extractResult, error: extractError } = await supabase.functions.invoke('extract-knowledge-from-chat', {
           body: {
             conversationId: conversation.id,
-            ticketId: conversation.related_ticket_id
+            ticketId: conversation.related_ticket_id,
+            departmentId: conversation.department // 🆕 FASE 2: Passar departamento
           }
         });
 

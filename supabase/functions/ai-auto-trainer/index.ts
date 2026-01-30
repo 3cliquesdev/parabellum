@@ -78,12 +78,13 @@ async function checkDuplicate(supabase: any, embedding: number[]): Promise<{ isD
   }
 }
 
-// Minerar conhecimento de conversa bem-sucedida
+// 🆕 FASE 2: Minerar conhecimento de conversa bem-sucedida (CSAT >= 4)
 async function mineSuccessConversation(
   supabase: any,
   conversationId: string,
   aiModel: string,
-  LOVABLE_API_KEY: string
+  LOVABLE_API_KEY: string,
+  departmentId?: string
 ): Promise<{ items: any[]; skipped: boolean; reason?: string; confidence?: number; reasoning?: string }> {
   // Buscar mensagens da conversa
   const { data: messages, error } = await supabase
@@ -96,6 +97,15 @@ async function mineSuccessConversation(
     return { items: [], skipped: true, reason: 'insufficient_messages' };
   }
 
+  // Verificar se teve intervenção humana (pelo menos 1 mensagem de agente não-IA)
+  const hasHumanAgent = messages.some((m: any) => 
+    m.sender_type === 'user' && !m.is_ai_generated
+  );
+  
+  if (!hasHumanAgent) {
+    return { items: [], skipped: true, reason: 'no_human_intervention' };
+  }
+
   // Construir transcript
   const transcript = messages.map((m: any) => 
     `${m.sender_type === 'user' ? 'AGENTE' : 'CLIENTE'}: ${m.content}`
@@ -106,6 +116,41 @@ async function mineSuccessConversation(
   }
 
   try {
+    // 🆕 FASE 2: Prompt estruturado
+    const structuredPrompt = `Você é um Agente de Extração de Conhecimento.
+
+Analise este atendimento BEM-SUCEDIDO (CSAT >= 4) e extraia conhecimento REUTILIZÁVEL.
+
+IGNORE COMPLETAMENTE:
+- Saudações, agradecimentos, despedidas
+- Informações específicas do cliente (nome, CPF, pedido)
+- Contexto pessoal ou emocional
+- Promessas ou exceções feitas para este cliente
+
+EXTRAIA APENAS:
+- Procedimentos técnicos explicados
+- Regras de negócio mencionadas
+- Soluções para problemas recorrentes
+- Políticas da empresa
+
+RETORNE JSON ESTRUTURADO:
+{
+  "extracted_items": [
+    {
+      "problem": "Problema em 1 frase clara (máx 150 caracteres)",
+      "solution": "Solução objetiva e completa (máx 500 caracteres)",
+      "when_to_use": "Quando aplicar esta solução",
+      "when_not_to_use": "Quando NÃO aplicar (exceções)",
+      "tags": ["tag1", "tag2"],
+      "category": "Categoria apropriada"
+    }
+  ],
+  "confidence_score": 0-100,
+  "reasoning": "Por que você extraiu isso"
+}
+
+Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence_score": 0, "reasoning": "Sem conhecimento extraível" }`;
+
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -115,40 +160,10 @@ async function mineSuccessConversation(
       body: JSON.stringify({
         model: aiModel,
         messages: [
-          {
-            role: 'system',
-            content: `Você é um Agente de Treinamento de IA. Analise este atendimento e extraia APENAS conhecimento técnico ou regras de negócio.
-
-IGNORE COMPLETAMENTE:
-- Saudações (bom dia, obrigado, etc)
-- Conversas pessoais
-- Confirmações genéricas
-- Informações que dependem de contexto específico do cliente
-
-EXTRAIA:
-- Procedimentos técnicos explicados
-- Regras de negócio mencionadas
-- Soluções para problemas recorrentes
-- Políticas da empresa
-
-RETORNE JSON VÁLIDO:
-{
-  "extracted_items": [
-    {
-      "question": "Pergunta que este conhecimento responde",
-      "answer": "Resposta completa e técnica",
-      "category": "Categoria (Suporte, Pagamento, Produto, etc)"
-    }
-  ],
-  "confidence_score": 0-100,
-  "reasoning": "Por que você extraiu isso e qual a confiança"
-}
-
-Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence_score": 0, "reasoning": "Sem conhecimento extraível" }`
-          },
+          { role: 'system', content: structuredPrompt },
           { role: 'user', content: `TRANSCRIPT:\n${transcript.substring(0, 10000)}` }
         ],
-        temperature: 0.3, // Baixa temperatura para extração consistente
+        temperature: 0.3,
         max_tokens: 2000,
       }),
     });
@@ -161,10 +176,8 @@ Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence
     const aiData = await response.json();
     const content = aiData.choices?.[0]?.message?.content || '{}';
     
-    // Parse JSON (tentar extrair do content)
     let parsed;
     try {
-      // Tentar extrair JSON de dentro do texto
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
     } catch {
@@ -292,17 +305,26 @@ RETORNE JSON VÁLIDO:
   }
 }
 
-// Salvar conhecimento extraído
-async function saveKnowledge(
+// 🆕 FASE 2: Salvar em knowledge_candidates (NÃO diretamente na KB)
+async function saveKnowledgeCandidate(
   supabase: any,
   item: any,
-  source: string
-): Promise<{ created: boolean; status: string; articleId?: string; skipped?: boolean; reason?: string; confidence?: number }> {
-  // Gerar embedding
-  const textForEmbedding = `${item.question}\n${item.answer}`;
+  source: string,
+  conversationId?: string,
+  departmentId?: string
+): Promise<{ created: boolean; status: string; candidateId?: string; skipped?: boolean; reason?: string; confidence?: number }> {
+  const confidence = item.confidence_score || 0;
+  
+  // 🆕 FASE 2: Descartar se confiança < 70
+  if (confidence < 70) {
+    console.log(`[ai-auto-trainer] Baixa confiança ${confidence}, descartando`);
+    return { created: false, status: 'discarded', skipped: true, reason: 'low_confidence', confidence };
+  }
+
+  // Verificar duplicata via embedding (opcional)
+  const textForEmbedding = `${item.problem || item.question}\n${item.solution || item.answer}`;
   const embedding = await generateEmbedding(textForEmbedding);
 
-  // Verificar duplicata se tiver embedding
   if (embedding) {
     const { isDuplicate, similarTo } = await checkDuplicate(supabase, embedding);
     if (isDuplicate) {
@@ -311,45 +333,36 @@ async function saveKnowledge(
     }
   }
 
-  // Decidir status baseado no confidence_score
-  const confidence = item.confidence_score || 0;
-  let status = 'draft';
-  let isPublished = false;
-
-  if (confidence > 90) {
-    status = 'published';
-    isPublished = true;
-  } else if (confidence < 70) {
-    // Muito baixa confiança - descartar
-    return { created: false, status: 'discarded', skipped: true, reason: 'low_confidence' };
-  }
-
-  // Salvar artigo
-  const { data: article, error } = await supabase
-    .from('knowledge_articles')
+  // 🆕 FASE 2: Salvar como candidato pendente (NUNCA diretamente na KB)
+  const { data: candidate, error } = await supabase
+    .from('knowledge_candidates')
     .insert({
-      title: item.question,
-      content: item.answer,
+      problem: (item.problem || item.question || '').substring(0, 500),
+      solution: (item.solution || item.answer || '').substring(0, 2000),
+      when_to_use: item.when_to_use?.substring(0, 500) || null,
+      when_not_to_use: item.when_not_to_use?.substring(0, 500) || null,
       category: item.category || 'Auto-Aprendizado',
-      tags: [source, confidence > 90 ? 'auto_approved' : 'pending_review'],
-      source: source,
-      is_published: isPublished,
-      embedding: embedding,
+      tags: item.tags || [source, 'pending_review'],
+      source_conversation_id: conversationId || null,
+      department_id: departmentId || null,
+      confidence_score: confidence,
+      extracted_by: source,
+      status: 'pending', // 🆕 SEMPRE pendente para curadoria
     })
     .select()
     .single();
 
   if (error) {
-    console.error('[ai-auto-trainer] Save error:', error);
+    console.error('[ai-auto-trainer] Save candidate error:', error);
     return { created: false, status: 'error', reason: error.message };
   }
 
-  console.log(`[ai-auto-trainer] Artigo salvo: ${article.id} (${status}, confidence: ${confidence})`);
+  console.log(`[ai-auto-trainer] Candidato salvo: ${candidate.id} (pending, confidence: ${confidence})`);
 
   return {
     created: true,
-    status: status,
-    articleId: article.id,
+    status: 'pending',
+    candidateId: candidate.id,
     confidence: confidence,
   };
 }
@@ -394,33 +407,47 @@ serve(async (req) => {
     // ===== FONTE 1: SUCESSOS HUMANOS =====
     console.log('[ai-auto-trainer] 📊 Buscando conversas bem-sucedidas...');
     
-    // Buscar conversas fechadas com rating >= 4 ou status resolved
+    // 🆕 FASE 2: Buscar conversas fechadas COM CSAT >= 4 (obrigatório)
     const { data: successConversations, error: convError } = await supabase
       .from('conversations')
       .select(`
         id,
         status,
         closed_at,
+        department,
         conversation_ratings(rating)
       `)
       .eq('status', 'closed')
       .gte('closed_at', oneHourAgo)
-      .limit(20); // Limitar para não sobrecarregar
+      .limit(20);
 
     if (convError) {
       console.error('[ai-auto-trainer] Erro buscando conversas:', convError);
     }
 
+    // 🆕 FASE 2: Critérios rigorosos de elegibilidade
     const eligibleConversations = (successConversations || []).filter((c: any) => {
       const rating = c.conversation_ratings?.[0]?.rating;
-      return rating >= 4 || c.status === 'closed';
+      
+      // Critério 1: CSAT >= 4 (OBRIGATÓRIO)
+      if (!rating || rating < 4) {
+        console.log(`[ai-auto-trainer] Conversa ${c.id} pulada: CSAT ${rating || 'null'} < 4`);
+        return false;
+      }
+      
+      // Critério 2: Status fechado
+      if (c.status !== 'closed') {
+        return false;
+      }
+      
+      return true;
     });
 
-    console.log(`[ai-auto-trainer] Encontradas ${eligibleConversations.length} conversas elegíveis`);
+    console.log(`[ai-auto-trainer] Encontradas ${eligibleConversations.length} conversas elegíveis (CSAT >= 4)`);
 
     for (const conv of eligibleConversations) {
       conversationsProcessed++;
-      const result = await mineSuccessConversation(supabase, conv.id, aiModel, LOVABLE_API_KEY);
+      const result = await mineSuccessConversation(supabase, conv.id, aiModel, LOVABLE_API_KEY, conv.department);
       
       if (result.skipped) {
         console.log(`[ai-auto-trainer] Conversa ${conv.id} pulada: ${result.reason}`);
@@ -428,16 +455,14 @@ serve(async (req) => {
       }
 
       for (const item of result.items) {
-        if (!item.question || !item.answer) continue;
+        if (!item.problem && !item.question) continue;
+        if (!item.solution && !item.answer) continue;
 
-        const saveResult = await saveKnowledge(supabase, item, 'auto_mining_success');
+        // 🆕 FASE 2: Salvar como candidato, não diretamente na KB
+        const saveResult = await saveKnowledgeCandidate(supabase, item, 'auto_mining_success', conv.id, conv.department);
         
         if (saveResult.created) {
-          if (saveResult.status === 'published') {
-            articlesPublished++;
-          } else {
-            articlesAsDraft++;
-          }
+          articlesAsDraft++; // Agora sempre vai para curadoria
         } else if (saveResult.reason?.includes('Similar')) {
           skippedDuplicates++;
         } else if (saveResult.status === 'discarded') {
@@ -475,14 +500,11 @@ serve(async (req) => {
         continue;
       }
 
-      const saveResult = await saveKnowledge(supabase, result.item, 'auto_mining_failure_fix');
+      // 🆕 FASE 2: Salvar como candidato também para correções
+      const saveResult = await saveKnowledgeCandidate(supabase, result.item, 'auto_mining_failure_fix', convId);
       
       if (saveResult.created) {
-        if (saveResult.status === 'published') {
-          articlesPublished++;
-        } else {
-          articlesAsDraft++;
-        }
+        articlesAsDraft++;
       } else if (saveResult.reason?.includes('Similar')) {
         skippedDuplicates++;
       } else if (saveResult.status === 'discarded') {

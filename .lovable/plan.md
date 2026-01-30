@@ -1,112 +1,110 @@
 
-
-# Plano: Corrigir Opções Não Formatadas no WhatsApp (Master Flow)
+# Plano: Executar Transferência Real no Nó Transfer
 
 ## Problema Identificado
 
-O fluxo `ask_options` está retornando a mensagem corretamente, mas **as opções não estão sendo formatadas junto com a mensagem** antes de enviar ao WhatsApp.
+O fluxo envia a mensagem "Já estou transferindo seu contato..." mas **não executa a transferência real**:
+- A conversa permanece na "Fila IA" / "Pool"
+- `ai_mode` continua como `autopilot`
+- `department_id` não é atualizado para o departamento Comercial
 
-### Evidência nos Logs
-```json
-{
-  "response": "Seja bem-vindo à 3 Cliques! Antes de transferi-lo para um Cliquer, preciso saber: \nVocê já é nosso cliente?",
-  "options": [{"label":"SIm","id":"opt_1769459506022"}, {"label":"Não","id":"opt_1769459507383"}]
-}
-```
-
-### O que deveria aparecer no WhatsApp
-```
-Seja bem-vindo à 3 Cliques! Antes de transferi-lo para um Cliquer, preciso saber:
-Você já é nosso cliente?
-
-1️⃣ Sim
-2️⃣ Não
-```
-
-### O que está aparecendo
-```
-Seja bem-vindo à 3 Cliques! Antes de transferi-lo para um Cliquer, preciso saber:
-Você já é nosso cliente?
-```
-**(Sem as opções!)**
+### Evidência
+- Mensagem de transferência foi enviada ✅
+- Conversa ainda mostra "Pool" e "Fila IA" ❌
+- `department_id` = null (não foi atribuído ao Comercial)
 
 ---
 
 ## Causa Raiz
 
-No arquivo `supabase/functions/meta-whatsapp-webhook/index.ts` (linhas 556-577), o **CASO 2** envia apenas `flowData.response`:
+### Arquivo: `supabase/functions/meta-whatsapp-webhook/index.ts`
 
+**Linha 519-526 - Interface `flowData` incompleta:**
+```typescript
+let flowData: {
+  useAI?: boolean;
+  aiNodeActive?: boolean;
+  response?: string;
+  options?: Array<{label: string; value?: string; id?: string}>;
+  skipAutoResponse?: boolean;
+  flow_context?: Record<string, unknown>;
+  // ❌ FALTANDO: transfer, transferType, departmentId
+} = {};
+```
+
+**Linha 569-596 - CASO 2 ignora transferência:**
 ```typescript
 // CASO 2: Fluxo retornou resposta estática
 if (!flowData.useAI && flowData.response) {
-  await supabase.functions.invoke("send-meta-whatsapp", {
-    body: {
-      message: flowData.response,  // ❌ Ignora flowData.options!
-      // ...
-    },
-  });
+  // Envia mensagem ✅
+  await supabase.functions.invoke("send-meta-whatsapp", {...});
+  continue;  // ❌ Para aqui - não verifica flowData.transfer
 }
 ```
-
-O campo `flowData.options` existe mas está sendo **ignorado**.
 
 ---
 
 ## Solução
 
-### 1. Adicionar função `formatOptionsAsText` no meta-whatsapp-webhook
+### 1. Atualizar Interface `flowData`
 
-Mesma função já usada no `ai-autopilot-chat`:
-
-```typescript
-function formatOptionsAsText(options: Array<{label: string; value?: string}> | null | undefined): string {
-  if (!options || options.length === 0) return '';
-  
-  const emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-  
-  const formatted = options.map((opt, idx) => {
-    const emoji = emojis[idx] || `${idx + 1}.`;
-    return `${emoji} ${opt.label}`;
-  }).join('\n');
-  
-  return `\n\n${formatted}`;
-}
-```
-
-### 2. Modificar CASO 2 para incluir opções formatadas
-
-```typescript
-// CASO 2: Fluxo retornou resposta estática (Message/AskOptions/etc)
-if (!flowData.useAI && flowData.response) {
-  // 🆕 Formatar opções junto com a mensagem
-  const formattedMessage = flowData.response + formatOptionsAsText(flowData.options);
-  
-  console.log("[AUTO-DECISION] [WhatsApp Meta] Flow static response → send-meta-whatsapp");
-  await supabase.functions.invoke("send-meta-whatsapp", {
-    body: {
-      instance_id: instance.id,
-      phone_number: fromNumber,
-      message: formattedMessage,  // ✅ Inclui opções formatadas
-      conversation_id: conversation.id,
-      skip_db_save: false,
-    },
-  });
-}
-```
-
-### 3. Atualizar tipagem de flowData
-
-Adicionar `options` na interface:
+Adicionar campos de transferência:
 
 ```typescript
 let flowData: {
   useAI?: boolean;
   aiNodeActive?: boolean;
   response?: string;
-  options?: Array<{label: string; value?: string; id?: string}>;  // 🆕
+  options?: Array<{label: string; value?: string; id?: string}>;
   skipAutoResponse?: boolean;
   flow_context?: Record<string, unknown>;
+  transfer?: boolean;           // 🆕
+  transferType?: string;        // 🆕
+  departmentId?: string;        // 🆕
 } = {};
+```
+
+### 2. Adicionar Verificação de Transferência após CASO 2
+
+Após enviar a mensagem, verificar se é transferência:
+
+```typescript
+// CASO 2: Fluxo retornou resposta estática (Message/AskOptions/etc)
+if (!flowData.useAI && flowData.response) {
+  const formattedMessage = flowData.response + formatOptionsAsText(flowData.options);
+  
+  // Enviar mensagem
+  await supabase.functions.invoke("send-meta-whatsapp", {
+    body: {...}
+  });
+  
+  // 🆕 EXECUTAR TRANSFERÊNCIA SE NECESSÁRIO
+  if (flowData.transfer) {
+    console.log("[meta-whatsapp-webhook] 🔄 Executing transfer to department:", flowData.departmentId);
+    
+    // Atualizar conversa: ai_mode + department_id
+    const updateData: Record<string, unknown> = {
+      ai_mode: 'waiting_human',
+    };
+    
+    if (flowData.departmentId) {
+      updateData.department_id = flowData.departmentId;
+    }
+    
+    const { error: updateError } = await supabase
+      .from("conversations")
+      .update(updateData)
+      .eq("id", conversation.id);
+    
+    if (updateError) {
+      console.error("[meta-whatsapp-webhook] ❌ Error executing transfer:", updateError);
+    } else {
+      console.log("[meta-whatsapp-webhook] ✅ Transfer executed → department:", flowData.departmentId);
+    }
+  }
+  
+  continue;
+}
 ```
 
 ---
@@ -115,27 +113,33 @@ let flowData: {
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/meta-whatsapp-webhook/index.ts` | Adicionar `formatOptionsAsText` + usar no CASO 2 |
+| `supabase/functions/meta-whatsapp-webhook/index.ts` | Linha 519-526: Adicionar campos `transfer`, `transferType`, `departmentId` à interface |
+| `supabase/functions/meta-whatsapp-webhook/index.ts` | Linha 569-596: Adicionar lógica de transferência após envio da mensagem |
 
 ---
 
 ## Fluxo Corrigido
 
 ```text
-process-chat-flow retorna:
-  response: "Mensagem..."
-  options: [{label: "Sim"}, {label: "Não"}]
-       │
-       ▼
+Cliente responde "1" (Drop Nacional)
+         │
+         ▼
+process-chat-flow:
+  response: "Já estou transferindo..."
+  transfer: true
+  departmentId: "f446e202-bdc3-4bb3-aeda-8c0aa04ee53c"
+         │
+         ▼
 meta-whatsapp-webhook (CASO 2):
-  formattedMessage = response + formatOptionsAsText(options)
-       │
-       ▼
-send-meta-whatsapp:
-  "Mensagem...\n\n1️⃣ Sim\n2️⃣ Não"
-       │
-       ▼
-WhatsApp exibe mensagem completa ✅
+  1. Envia mensagem via WhatsApp ✅
+  2. Verifica flowData.transfer === true
+  3. Atualiza conversa:
+     - ai_mode: 'waiting_human'
+     - department_id: 'f446e202-...' (Comercial)
+         │
+         ▼
+Conversa aparece na Fila do Comercial ✅
+Agentes podem atender ✅
 ```
 
 ---
@@ -144,17 +148,18 @@ WhatsApp exibe mensagem completa ✅
 
 | Antes | Depois |
 |-------|--------|
-| "Você já é nosso cliente?" | "Você já é nosso cliente?\n\n1️⃣ Sim\n2️⃣ Não" |
-| Opções ignoradas | Opções formatadas com emojis |
+| Mensagem enviada, conversa no Pool | Mensagem enviada + conversa no Comercial |
+| `ai_mode: autopilot` | `ai_mode: waiting_human` |
+| `department_id: null` | `department_id: f446e202-...` (Comercial) |
+| Aparece em "Fila IA" | Aparece em "Comercial" |
 
 ---
 
-## Testes
+## Testes Obrigatórios
 
-| Cenário | Esperado |
-|---------|----------|
-| ask_options com 2 opções | "1️⃣ Sim\n2️⃣ Não" aparece |
-| ask_options com 4 opções | "1️⃣...\n2️⃣...\n3️⃣...\n4️⃣..." |
-| message sem options | Apenas mensagem (sem quebras extras) |
-| options vazio | Apenas mensagem |
-
+| Cenário | Resultado Esperado |
+|---------|-------------------|
+| Fluxo com nó transfer + departmentId | Conversa movida para departamento correto |
+| Fluxo com nó transfer sem departmentId | `ai_mode: waiting_human`, departamento inalterado |
+| Fluxo ask_options sem transfer | Apenas envia mensagem, não muda ai_mode |
+| Fluxo message sem transfer | Apenas envia mensagem, não muda ai_mode |

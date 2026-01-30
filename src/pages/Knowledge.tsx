@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Search, Plus, Edit, Trash2, BookOpen, Eye, EyeOff, Upload, Sparkles, AlertTriangle } from "lucide-react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Search, Plus, Edit, Trash2, BookOpen, Eye, EyeOff, Upload, Sparkles, AlertTriangle, GraduationCap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -11,6 +11,7 @@ import { useDeleteKnowledgeArticle } from "@/hooks/useDeleteKnowledgeArticle";
 import { useGenerateBatchEmbeddings } from "@/hooks/useGenerateBatchEmbeddings";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
 import { useKnowledgeStats } from "@/hooks/useKnowledgeStats";
+import { useKnowledgeCandidateStats } from "@/hooks/useKnowledgeCandidates";
 import { KnowledgeBrainStatus } from "@/components/KnowledgeBrainStatus";
 import KnowledgeArticleDialog from "@/components/KnowledgeArticleDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,24 +28,36 @@ import {
 
 export default function Knowledge() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const filterParam = searchParams.get('filter');
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [articleToDelete, setArticleToDelete] = useState<string | null>(null);
+  
+  // 🆕 FASE 2: Filtrar por draft se ?filter=draft
+  const [showDraftsOnly] = useState(filterParam === 'draft');
 
   const { data: articles = [], isLoading } = useKnowledgeArticles({ searchQuery, category });
   const deleteArticle = useDeleteKnowledgeArticle();
   const generateEmbeddings = useGenerateBatchEmbeddings();
   const { hasPermission } = useRolePermissions();
   const { data: stats } = useKnowledgeStats();
+  const { data: candidateStats } = useKnowledgeCandidateStats();
 
   // Dynamic permission check
   const canManageArticles = hasPermission('knowledge.manage_articles');
 
   // Extract unique categories
   const categories = ["all", ...Array.from(new Set(articles.map(a => a.category).filter(Boolean)))];
+  
+  // 🆕 FASE 2: Filtrar artigos (drafts ou todos)
+  const filteredArticles = showDraftsOnly 
+    ? articles.filter(a => !a.is_published) 
+    : articles;
 
   const handleCreateNew = () => {
     setSelectedArticle(null);
@@ -84,6 +97,30 @@ export default function Knowledge() {
         </div>
         {canManageArticles && (
           <div className="flex gap-2">
+            {/* 🆕 FASE 2: Botão de Curadoria com badge de pendentes */}
+            {candidateStats && candidateStats.pending > 0 && (
+              <Button 
+                variant="outline" 
+                onClick={() => navigate('/knowledge/curation')}
+                className="gap-2"
+              >
+                <GraduationCap className="h-4 w-4" />
+                Curadoria
+                <Badge variant="secondary" className="ml-1">
+                  {candidateStats.pending}
+                </Badge>
+              </Button>
+            )}
+            {!candidateStats?.pending && canManageArticles && (
+              <Button 
+                variant="ghost" 
+                onClick={() => navigate('/knowledge/curation')}
+                className="gap-2"
+              >
+                <GraduationCap className="h-4 w-4" />
+                Curadoria
+              </Button>
+            )}
             <Button 
               variant="outline" 
               onClick={() => generateEmbeddings.mutate()}
@@ -177,20 +214,22 @@ export default function Knowledge() {
         <div className="text-center py-12 text-muted-foreground">
           Carregando artigos...
         </div>
-      ) : articles.length === 0 ? (
+      ) : filteredArticles.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
               {searchQuery || category !== "all" 
                 ? "Nenhum artigo encontrado com os filtros aplicados"
+                : showDraftsOnly
+                ? "Nenhum rascunho disponível"
                 : "Nenhum artigo disponível ainda"}
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4">
-          {articles.map((article) => (
+          {filteredArticles.map((article) => (
             <Card key={article.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">

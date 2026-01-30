@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { conversationId, ticketId } = await req.json();
+    const { conversationId, ticketId, departmentId } = await req.json();
     
     console.log('[extract-knowledge] Processing conversation:', conversationId);
 
@@ -62,6 +62,42 @@ serve(async (req) => {
       `${m.sender_type === 'user' && m.sender_id ? 'Agente' : 'Cliente'}: ${m.content}`
     ).join('\n\n');
 
+    // 🆕 FASE 2: Prompt estruturado para extração
+    const structuredPrompt = `Você é um Agente de Extração de Conhecimento.
+
+Analise este atendimento BEM-SUCEDIDO (CSAT >= 4) e extraia conhecimento REUTILIZÁVEL.
+
+IGNORE COMPLETAMENTE:
+- Saudações (bom dia, obrigado, etc)
+- Agradecimentos e despedidas
+- Informações específicas do cliente (nome, CPF, número de pedido)
+- Contexto pessoal ou emocional
+- Promessas ou exceções feitas para este cliente específico
+
+EXTRAIA APENAS:
+- Procedimentos técnicos explicados pelo agente
+- Regras de negócio mencionadas
+- Soluções para problemas recorrentes
+- Políticas da empresa
+
+RETORNE JSON ESTRUTURADO:
+{
+  "extracted_items": [
+    {
+      "problem": "Problema em 1 frase clara (máx 150 caracteres)",
+      "solution": "Solução objetiva e completa (máx 500 caracteres)",
+      "when_to_use": "Quando aplicar esta solução",
+      "when_not_to_use": "Quando NÃO aplicar (exceções)",
+      "tags": ["tag1", "tag2"],
+      "category": "Categoria apropriada (ex: Pagamento, Rastreio, Produto)"
+    }
+  ],
+  "confidence_score": 0-100,
+  "reasoning": "Por que você extraiu isso e qual a confiança"
+}
+
+Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence_score": 0, "reasoning": "Motivo" }`;
+
     // Chamar IA para extrair conhecimento
     console.log('[extract-knowledge] Calling AI to analyze conversation...');
     
@@ -76,26 +112,15 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um assistente especializado em extrair conhecimento de conversas de suporte.
-
-Analise o histórico de conversa abaixo e identifique:
-1. Qual era a DÚVIDA ou PROBLEMA principal do cliente
-2. Qual foi a SOLUÇÃO dada pelo agente
-
-Retorne um JSON com:
-{
-  "question": "Pergunta/problema do cliente (max 200 caracteres)",
-  "solution": "Solução completa dada pelo agente (max 1000 caracteres)",
-  "category": "Categoria da dúvida (ex: Pedidos, Pagamento, Produto, etc)"
-}
-
-Se não conseguir extrair conhecimento útil, retorne null.`
+            content: structuredPrompt
           },
           {
             role: 'user',
-            content: `Histórico da conversa:\n\n${chatHistory}`
+            content: `Histórico da conversa:\n\n${chatHistory.substring(0, 15000)}`
           }
         ],
+        temperature: 0.3, // Baixa temperatura para extração consistente
+        max_tokens: 2000,
         response_format: { type: "json_object" }
       }),
     });
@@ -105,70 +130,108 @@ Se não conseguir extrair conhecimento útil, retorne null.`
     }
 
     const aiData = await response.json();
-    const extractedKnowledge = JSON.parse(aiData.choices[0].message.content);
-
-    if (!extractedKnowledge || !extractedKnowledge.question || !extractedKnowledge.solution) {
-      console.log('[extract-knowledge] No useful knowledge extracted');
+    let extractedKnowledge;
+    
+    try {
+      const content = aiData.choices[0].message.content;
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      extractedKnowledge = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+    } catch (parseError) {
+      console.error('[extract-knowledge] Parse error:', parseError);
       return new Response(
-        JSON.stringify({ success: false, reason: 'no_knowledge_found' }),
+        JSON.stringify({ success: false, reason: 'parse_error' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[extract-knowledge] Knowledge extracted:', extractedKnowledge);
+    const items = extractedKnowledge.extracted_items || [];
+    const globalConfidence = extractedKnowledge.confidence_score || 0;
 
-    // Salvar como DRAFT (rascunho) para aprovação
-    const { data: article, error: insertError } = await supabase
-      .from('knowledge_articles')
-      .insert({
-        title: extractedKnowledge.question,
-        content: extractedKnowledge.solution,
-        category: extractedKnowledge.category || 'Aprendizado Passivo',
-        tags: ['passive_learning', 'draft', conversationId],
-        source: 'passive_learning',
-        status: 'draft', // Rascunho - precisa aprovação
-        is_published: false,
-        created_by: agentId,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('[extract-knowledge] Error saving article:', insertError);
-      throw insertError;
+    if (items.length === 0) {
+      console.log('[extract-knowledge] No useful knowledge extracted');
+      return new Response(
+        JSON.stringify({ success: false, reason: 'no_knowledge_found', reasoning: extractedKnowledge.reasoning }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Notificar gerentes para aprovar
-    const { data: managers } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .in('role', ['admin', 'manager', 'support_manager']);
+    // 🆕 FASE 2: Filtrar itens com confiança muito baixa
+    if (globalConfidence < 70) {
+      console.log(`[extract-knowledge] Confidence too low: ${globalConfidence}`);
+      return new Response(
+        JSON.stringify({ success: false, reason: 'low_confidence', confidence: globalConfidence }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    if (managers && managers.length > 0) {
-      for (const manager of managers) {
-        await supabase.from('notifications').insert({
-          user_id: manager.user_id,
-          type: 'knowledge_approval',
-          title: '🤖 IA Aprendeu com Atendimento',
-          message: `A IA extraiu conhecimento do atendimento de ${agentName}. Aprove para publicar: "${extractedKnowledge.question.substring(0, 60)}..."`,
-          metadata: {
-            article_id: article.id,
-            conversation_id: conversationId,
-            ticket_id: ticketId,
-            agent_name: agentName,
-          },
-          read: false,
-        });
+    console.log(`[extract-knowledge] Extracted ${items.length} items with confidence ${globalConfidence}`);
+
+    // 🆕 FASE 2: Salvar em knowledge_candidates (NÃO em KB diretamente)
+    const savedCandidates = [];
+    
+    for (const item of items) {
+      if (!item.problem || !item.solution) continue;
+
+      const { data: candidate, error: insertError } = await supabase
+        .from('knowledge_candidates')
+        .insert({
+          problem: item.problem.substring(0, 500),
+          solution: item.solution.substring(0, 2000),
+          when_to_use: item.when_to_use?.substring(0, 500) || null,
+          when_not_to_use: item.when_not_to_use?.substring(0, 500) || null,
+          category: item.category || 'Aprendizado Passivo',
+          tags: item.tags || ['passive_learning'],
+          source_conversation_id: conversationId,
+          department_id: departmentId || null,
+          confidence_score: globalConfidence,
+          extracted_by: 'extract-knowledge-from-chat',
+          status: 'pending', // 🆕 Sempre como pendente para curadoria
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('[extract-knowledge] Error saving candidate:', insertError);
+      } else {
+        savedCandidates.push(candidate);
+        console.log(`[extract-knowledge] Candidate saved: ${candidate.id}`);
       }
     }
 
-    console.log('[extract-knowledge] Knowledge saved as draft:', article.id);
+    // Notificar gerentes sobre novos candidatos
+    if (savedCandidates.length > 0) {
+      const { data: managers } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .in('role', ['admin', 'manager', 'support_manager', 'cs_manager']);
+
+      if (managers && managers.length > 0) {
+        for (const manager of managers) {
+          await supabase.from('notifications').insert({
+            user_id: manager.user_id,
+            type: 'knowledge_approval',
+            title: '🤖 Conhecimento Extraído para Curadoria',
+            message: `A IA extraiu ${savedCandidates.length} item(s) do atendimento de ${agentName}. Revise na curadoria.`,
+            metadata: {
+              candidate_ids: savedCandidates.map(c => c.id),
+              conversation_id: conversationId,
+              ticket_id: ticketId,
+              agent_name: agentName,
+              confidence: globalConfidence,
+            },
+            read: false,
+          });
+        }
+      }
+    }
+
+    console.log(`[extract-knowledge] ${savedCandidates.length} candidates saved for curation`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        article_id: article.id,
-        question: extractedKnowledge.question,
+        candidates_created: savedCandidates.length,
+        confidence: globalConfidence,
         agent_name: agentName,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

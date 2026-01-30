@@ -37,6 +37,7 @@ serve(async (req) => {
     }
 
     // Buscar conversas fechadas nas últimas 24h que ainda não foram processadas
+    // 🆕 FASE 2: Adicionar filtro learned_at IS NULL
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
     const { data: closedConversations, error: convError } = await supabase
@@ -48,10 +49,12 @@ serve(async (req) => {
         assigned_to,
         related_ticket_id,
         customer_metadata,
-        department
+        department,
+        learned_at
       `)
       .eq('status', 'closed')
       .gte('closed_at', twentyFourHoursAgo)
+      .is('learned_at', null) // 🆕 FASE 2: Evitar reprocessamento
       .is('customer_metadata->passive_learning_processed', null)
       .limit(20); // Processar em batches
 
@@ -75,7 +78,14 @@ serve(async (req) => {
 
     for (const conversation of closedConversations) {
       try {
-        // 🆕 FASE 2: Validar CSAT >= 4 antes de processar
+        // 🆕 FASE 2: Guard-rail - verificar learned_at antes de processar
+        if (conversation.learned_at) {
+          console.log(`[passive-learning-cron] ⏭️ Conversa ${conversation.id} já aprendida em ${conversation.learned_at}`);
+          skippedCount++;
+          continue;
+        }
+
+        // 🆕 FASE 2: Validar CSAT >= 4 ANTES de chamar IA (guard-rail)
         const { data: rating } = await supabase
           .from('conversation_ratings')
           .select('rating')
@@ -86,7 +96,7 @@ serve(async (req) => {
           console.log(`[passive-learning-cron] ⏭️ Conversa ${conversation.id} pulada: CSAT ${rating?.rating || 'null'} < 4`);
           skippedCount++;
           
-          // Marcar como processada mesmo assim para não reprocessar
+          // Marcar como processada para não reprocessar (mas NÃO learned_at)
           const currentMetadata = conversation.customer_metadata || {};
           await supabase
             .from('conversations')
@@ -103,12 +113,13 @@ serve(async (req) => {
           continue;
         }
 
+        // 🔒 GUARD-RAIL: Só chama IA se passou nos critérios de elegibilidade
         // Chamar função de extração de conhecimento
         const { data: extractResult, error: extractError } = await supabase.functions.invoke('extract-knowledge-from-chat', {
           body: {
             conversationId: conversation.id,
             ticketId: conversation.related_ticket_id,
-            departmentId: conversation.department // 🆕 FASE 2: Passar departamento
+            departmentId: conversation.department
           }
         });
 
@@ -118,6 +129,12 @@ serve(async (req) => {
         } else if (extractResult?.success) {
           extractedCount++;
           console.log(`[passive-learning-cron] ✅ Conhecimento extraído da conversa ${conversation.id}`);
+          
+          // 🆕 FASE 2: Marcar conversa com learned_at para evitar reprocessamento
+          await supabase
+            .from('conversations')
+            .update({ learned_at: new Date().toISOString() })
+            .eq('id', conversation.id);
         } else {
           skippedCount++;
           console.log(`[passive-learning-cron] ⏭️ Conversa ${conversation.id} pulada: ${extractResult?.reason}`);

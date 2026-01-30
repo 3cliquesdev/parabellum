@@ -346,7 +346,7 @@ export default function KnowledgeCuration() {
 
                     {/* Actions for pending candidates */}
                     {candidate.status === 'pending' && (
-                      <div className="flex items-center gap-2 pt-2 border-t">
+                      <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
                         <Button 
                           variant="default" 
                           size="sm"
@@ -374,6 +374,24 @@ export default function KnowledgeCuration() {
                         >
                           <XCircle className="h-4 w-4" />
                           Rejeitar
+                        </Button>
+                        {/* 🆕 FASE 2: Botão "Já existe na KB" para rejeição rápida */}
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedCandidate(candidate);
+                            setRejectionReason("Conhecimento duplicado - já existe na base de conhecimento");
+                            rejectCandidate.mutate({
+                              candidateId: candidate.id,
+                              reason: "duplicate_knowledge",
+                            });
+                          }}
+                          disabled={rejectCandidate.isPending}
+                          className="gap-1 text-orange-600 hover:text-orange-700"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                          Já existe na KB
                         </Button>
                         {candidate.source_conversation_id && (
                           <Button 

@@ -30,6 +30,7 @@ export function useApproveCandidate() {
       if (!user) throw new Error('Usuário não autenticado');
 
       // 3. Create article in knowledge_articles
+      // 🆕 FASE 2: is_published = true, mas embedding_generated = false até embedding OK
       const { data: article, error: insertError } = await supabase
         .from('knowledge_articles')
         .insert({
@@ -45,7 +46,8 @@ export function useApproveCandidate() {
           source_conversation_id: candidate.source_conversation_id,
           department_id: candidate.department_id,
           confidence_score: candidate.confidence_score,
-          is_published: true,
+          is_published: false, // 🆕 FASE 2: Começa como NÃO publicado
+          embedding_generated: false, // 🆕 FASE 2: Aguarda embedding
           approved_by: user.id,
           approved_at: new Date().toISOString(),
           version: 1,
@@ -74,9 +76,25 @@ export function useApproveCandidate() {
         throw new Error('Erro ao atualizar status do candidato');
       }
 
-      // 5. Generate embedding asynchronously (don't wait)
+      // 5. Generate embedding asynchronously and then publish
+      // 🆕 FASE 2: Só publica após embedding gerado com sucesso
       supabase.functions.invoke('generate-article-embedding', {
-        body: { articleId: article.id }
+        body: { articleId: article.id, publishAfterEmbedding: true }
+      }).then(async (result) => {
+        if (result.error) {
+          console.warn('Embedding generation failed:', result.error);
+          return;
+        }
+        // Marcar como publicado após embedding OK
+        await supabase
+          .from('knowledge_articles')
+          .update({ 
+            is_published: true, 
+            embedding_generated: true,
+            published_at: new Date().toISOString()
+          })
+          .eq('id', article.id);
+        console.log(`[useApproveCandidate] Article ${article.id} published after embedding`);
       }).catch(err => {
         console.warn('Embedding generation failed (non-blocking):', err);
       });

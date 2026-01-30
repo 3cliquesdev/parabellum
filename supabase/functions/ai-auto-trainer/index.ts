@@ -78,6 +78,55 @@ async function checkDuplicate(supabase: any, embedding: number[]): Promise<{ isD
   }
 }
 
+// 🆕 FASE 2: Calcular system_confidence_score baseado em critérios objetivos
+function calculateSystemConfidence(item: any, messageCount: number): number {
+  let score = 0;
+  
+  // +30 → tem solução clara (não vazia, >= 50 chars)
+  if (item.solution && item.solution.length >= 50) score += 30;
+  else if (item.solution && item.solution.length >= 20) score += 15;
+  
+  // +20 → tem when_to_use
+  if (item.when_to_use && item.when_to_use.length >= 10) score += 20;
+  
+  // +20 → tem when_not_to_use
+  if (item.when_not_to_use && item.when_not_to_use.length >= 10) score += 20;
+  
+  // +30 → conversa tem >= 6 mensagens técnicas (mínimo razoável)
+  if (messageCount >= 10) score += 30;
+  else if (messageCount >= 6) score += 20;
+  else if (messageCount >= 4) score += 10;
+  
+  return Math.min(score, 100);
+}
+
+// 🆕 FASE 2: Buscar conhecimento existente para evitar duplicatas no prompt
+async function getExistingKnowledgeSummary(supabase: any, departmentId?: string): Promise<string> {
+  try {
+    let query = supabase
+      .from('knowledge_articles')
+      .select('problem, title')
+      .eq('is_published', true)
+      .limit(20);
+    
+    if (departmentId) {
+      query = query.eq('department_id', departmentId);
+    }
+    
+    const { data: articles } = await query;
+    
+    if (!articles || articles.length === 0) return '';
+    
+    const summary = articles
+      .map((a: any) => `- ${a.problem || a.title}`)
+      .join('\n');
+    
+    return `\n\nCONHECIMENTOS JÁ EXISTENTES NA BASE (não extraia duplicados):\n${summary}\n\nSe o conteúdo for DUPLICADO ou muito parecido com algum acima, retorne extracted_items vazio.`;
+  } catch {
+    return '';
+  }
+}
+
 // 🆕 FASE 2: Minerar conhecimento de conversa bem-sucedida (CSAT >= 4)
 async function mineSuccessConversation(
   supabase: any,
@@ -85,7 +134,7 @@ async function mineSuccessConversation(
   aiModel: string,
   LOVABLE_API_KEY: string,
   departmentId?: string
-): Promise<{ items: any[]; skipped: boolean; reason?: string; confidence?: number; reasoning?: string }> {
+): Promise<{ items: any[]; skipped: boolean; reason?: string; confidence?: number; reasoning?: string; messageCount?: number }> {
   // Buscar mensagens da conversa
   const { data: messages, error } = await supabase
     .from('messages')
@@ -116,7 +165,10 @@ async function mineSuccessConversation(
   }
 
   try {
-    // 🆕 FASE 2: Prompt estruturado
+    // 🆕 FASE 2: Buscar conhecimento existente para evitar duplicatas
+    const existingKnowledge = await getExistingKnowledgeSummary(supabase, departmentId);
+    
+    // 🆕 FASE 2: Prompt estruturado com anti-duplicidade
     const structuredPrompt = `Você é um Agente de Extração de Conhecimento.
 
 Analise este atendimento BEM-SUCEDIDO (CSAT >= 4) e extraia conhecimento REUTILIZÁVEL.
@@ -132,6 +184,7 @@ EXTRAIA APENAS:
 - Regras de negócio mencionadas
 - Soluções para problemas recorrentes
 - Políticas da empresa
+${existingKnowledge}
 
 RETORNE JSON ESTRUTURADO:
 {
@@ -149,7 +202,7 @@ RETORNE JSON ESTRUTURADO:
   "reasoning": "Por que você extraiu isso"
 }
 
-Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence_score": 0, "reasoning": "Sem conhecimento extraível" }`;
+Se não houver conhecimento útil OU se for duplicado, retorne: { "extracted_items": [], "confidence_score": 0, "reasoning": "Motivo" }`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -163,7 +216,6 @@ Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence
           { role: 'system', content: structuredPrompt },
           { role: 'user', content: `TRANSCRIPT:\n${transcript.substring(0, 10000)}` }
         ],
-        temperature: 0.3,
         max_tokens: 2000,
       }),
     });
@@ -190,6 +242,7 @@ Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence
       skipped: false,
       confidence: parsed.confidence_score,
       reasoning: parsed.reasoning,
+      messageCount: messages.length,
     };
   } catch (error) {
     console.error('[ai-auto-trainer] Mining error:', error);
@@ -311,14 +364,23 @@ async function saveKnowledgeCandidate(
   item: any,
   source: string,
   conversationId?: string,
-  departmentId?: string
+  departmentId?: string,
+  messageCount?: number
 ): Promise<{ created: boolean; status: string; candidateId?: string; skipped?: boolean; reason?: string; confidence?: number }> {
-  const confidence = item.confidence_score || 0;
+  const aiConfidence = item.confidence_score || 0;
   
-  // 🆕 FASE 2: Descartar se confiança < 70
-  if (confidence < 70) {
-    console.log(`[ai-auto-trainer] Baixa confiança ${confidence}, descartando`);
-    return { created: false, status: 'discarded', skipped: true, reason: 'low_confidence', confidence };
+  // 🆕 FASE 2: Calcular system_confidence_score
+  const systemConfidence = calculateSystemConfidence(item, messageCount || 0);
+  
+  // 🆕 FASE 2: Final confidence = min(ai, system) - nunca confiar só na IA
+  const finalConfidence = Math.min(aiConfidence, systemConfidence);
+  
+  console.log(`[ai-auto-trainer] Scores: AI=${aiConfidence}, System=${systemConfidence}, Final=${finalConfidence}`);
+  
+  // 🆕 FASE 2: Descartar se confiança final < 70
+  if (finalConfidence < 70) {
+    console.log(`[ai-auto-trainer] Baixa confiança final ${finalConfidence}, descartando`);
+    return { created: false, status: 'discarded', skipped: true, reason: 'low_confidence', confidence: finalConfidence };
   }
 
   // Verificar duplicata via embedding (opcional)
@@ -333,7 +395,7 @@ async function saveKnowledgeCandidate(
     }
   }
 
-  // 🆕 FASE 2: Salvar como candidato pendente (NUNCA diretamente na KB)
+  // 🆕 FASE 2: Salvar como candidato pendente com dual confidence
   const { data: candidate, error } = await supabase
     .from('knowledge_candidates')
     .insert({
@@ -345,9 +407,11 @@ async function saveKnowledgeCandidate(
       tags: item.tags || [source, 'pending_review'],
       source_conversation_id: conversationId || null,
       department_id: departmentId || null,
-      confidence_score: confidence,
+      ai_confidence_score: aiConfidence,
+      system_confidence_score: systemConfidence,
+      confidence_score: finalConfidence, // Final = min(ai, system)
       extracted_by: source,
-      status: 'pending', // 🆕 SEMPRE pendente para curadoria
+      status: 'pending',
     })
     .select()
     .single();
@@ -357,13 +421,21 @@ async function saveKnowledgeCandidate(
     return { created: false, status: 'error', reason: error.message };
   }
 
-  console.log(`[ai-auto-trainer] Candidato salvo: ${candidate.id} (pending, confidence: ${confidence})`);
+  // 🆕 FASE 2: Marcar conversa como "learned" para evitar reprocessamento
+  if (conversationId) {
+    await supabase
+      .from('conversations')
+      .update({ learned_at: new Date().toISOString() })
+      .eq('id', conversationId);
+  }
+
+  console.log(`[ai-auto-trainer] Candidato salvo: ${candidate.id} (pending, confidence: ${finalConfidence})`);
 
   return {
     created: true,
     status: 'pending',
     candidateId: candidate.id,
-    confidence: confidence,
+    confidence: finalConfidence,
   };
 }
 
@@ -407,7 +479,7 @@ serve(async (req) => {
     // ===== FONTE 1: SUCESSOS HUMANOS =====
     console.log('[ai-auto-trainer] 📊 Buscando conversas bem-sucedidas...');
     
-    // 🆕 FASE 2: Buscar conversas fechadas COM CSAT >= 4 (obrigatório)
+    // 🆕 FASE 2: Buscar conversas fechadas COM CSAT >= 4 E que ainda não foram aprendidas
     const { data: successConversations, error: convError } = await supabase
       .from('conversations')
       .select(`
@@ -415,27 +487,35 @@ serve(async (req) => {
         status,
         closed_at,
         department,
+        learned_at,
         conversation_ratings(rating)
       `)
       .eq('status', 'closed')
       .gte('closed_at', oneHourAgo)
+      .is('learned_at', null) // 🆕 FASE 2: Evitar reprocessamento
       .limit(20);
 
     if (convError) {
       console.error('[ai-auto-trainer] Erro buscando conversas:', convError);
     }
 
-    // 🆕 FASE 2: Critérios rigorosos de elegibilidade
+    // 🆕 FASE 2: Critérios rigorosos de elegibilidade - GUARD-RAIL ANTES DA IA
     const eligibleConversations = (successConversations || []).filter((c: any) => {
       const rating = c.conversation_ratings?.[0]?.rating;
       
-      // Critério 1: CSAT >= 4 (OBRIGATÓRIO)
+      // 🔒 GUARD-RAIL 1: Já foi aprendido? (redundante mas seguro)
+      if (c.learned_at) {
+        console.log(`[ai-auto-trainer] Conversa ${c.id} pulada: já aprendida em ${c.learned_at}`);
+        return false;
+      }
+      
+      // 🔒 GUARD-RAIL 2: CSAT >= 4 (OBRIGATÓRIO) - NÃO CHAMAR IA SE NÃO ELEGÍVEL
       if (!rating || rating < 4) {
         console.log(`[ai-auto-trainer] Conversa ${c.id} pulada: CSAT ${rating || 'null'} < 4`);
         return false;
       }
       
-      // Critério 2: Status fechado
+      // Critério 3: Status fechado
       if (c.status !== 'closed') {
         return false;
       }
@@ -443,14 +523,21 @@ serve(async (req) => {
       return true;
     });
 
-    console.log(`[ai-auto-trainer] Encontradas ${eligibleConversations.length} conversas elegíveis (CSAT >= 4)`);
+    console.log(`[ai-auto-trainer] Encontradas ${eligibleConversations.length} conversas elegíveis (CSAT >= 4, não processadas)`);
 
     for (const conv of eligibleConversations) {
       conversationsProcessed++;
+      
+      // 🆕 FASE 2: Só chama IA se passou nos guard-rails
       const result = await mineSuccessConversation(supabase, conv.id, aiModel, LOVABLE_API_KEY, conv.department);
       
       if (result.skipped) {
         console.log(`[ai-auto-trainer] Conversa ${conv.id} pulada: ${result.reason}`);
+        // Marcar como processada mesmo se pulada para evitar loop
+        await supabase
+          .from('conversations')
+          .update({ learned_at: new Date().toISOString() })
+          .eq('id', conv.id);
         continue;
       }
 
@@ -458,11 +545,18 @@ serve(async (req) => {
         if (!item.problem && !item.question) continue;
         if (!item.solution && !item.answer) continue;
 
-        // 🆕 FASE 2: Salvar como candidato, não diretamente na KB
-        const saveResult = await saveKnowledgeCandidate(supabase, item, 'auto_mining_success', conv.id, conv.department);
+        // 🆕 FASE 2: Salvar com dual confidence e messageCount
+        const saveResult = await saveKnowledgeCandidate(
+          supabase, 
+          item, 
+          'auto_mining_success', 
+          conv.id, 
+          conv.department,
+          result.messageCount
+        );
         
         if (saveResult.created) {
-          articlesAsDraft++; // Agora sempre vai para curadoria
+          articlesAsDraft++;
         } else if (saveResult.reason?.includes('Similar')) {
           skippedDuplicates++;
         } else if (saveResult.status === 'discarded') {

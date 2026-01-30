@@ -1728,6 +1728,7 @@ export type Database = {
           id: string
           is_test_mode: boolean | null
           last_message_at: string
+          learned_at: string | null
           needs_human_review: boolean | null
           previous_agent_id: string | null
           rating_sent_at: string | null
@@ -1757,6 +1758,7 @@ export type Database = {
           id?: string
           is_test_mode?: boolean | null
           last_message_at?: string
+          learned_at?: string | null
           needs_human_review?: boolean | null
           previous_agent_id?: string | null
           rating_sent_at?: string | null
@@ -1786,6 +1788,7 @@ export type Database = {
           id?: string
           is_test_mode?: boolean | null
           last_message_at?: string
+          learned_at?: string | null
           needs_human_review?: boolean | null
           previous_agent_id?: string | null
           rating_sent_at?: string | null
@@ -4282,9 +4285,11 @@ export type Database = {
           created_by: string | null
           department_id: string | null
           embedding: string | null
+          embedding_generated: boolean | null
           id: string
           is_published: boolean
           problem: string | null
+          published_at: string | null
           solution: string | null
           source: string | null
           source_conversation_id: string | null
@@ -4306,9 +4311,11 @@ export type Database = {
           created_by?: string | null
           department_id?: string | null
           embedding?: string | null
+          embedding_generated?: boolean | null
           id?: string
           is_published?: boolean
           problem?: string | null
+          published_at?: string | null
           solution?: string | null
           source?: string | null
           source_conversation_id?: string | null
@@ -4330,9 +4337,11 @@ export type Database = {
           created_by?: string | null
           department_id?: string | null
           embedding?: string | null
+          embedding_generated?: boolean | null
           id?: string
           is_published?: boolean
           problem?: string | null
+          published_at?: string | null
           solution?: string | null
           source?: string | null
           source_conversation_id?: string | null
@@ -4363,6 +4372,7 @@ export type Database = {
       }
       knowledge_candidates: {
         Row: {
+          ai_confidence_score: number | null
           category: string | null
           confidence_score: number | null
           created_at: string | null
@@ -4376,12 +4386,14 @@ export type Database = {
           solution: string
           source_conversation_id: string | null
           status: string | null
+          system_confidence_score: number | null
           tags: string[] | null
           updated_at: string | null
           when_not_to_use: string | null
           when_to_use: string | null
         }
         Insert: {
+          ai_confidence_score?: number | null
           category?: string | null
           confidence_score?: number | null
           created_at?: string | null
@@ -4395,12 +4407,14 @@ export type Database = {
           solution: string
           source_conversation_id?: string | null
           status?: string | null
+          system_confidence_score?: number | null
           tags?: string[] | null
           updated_at?: string | null
           when_not_to_use?: string | null
           when_to_use?: string | null
         }
         Update: {
+          ai_confidence_score?: number | null
           category?: string | null
           confidence_score?: number | null
           created_at?: string | null
@@ -4414,6 +4428,7 @@ export type Database = {
           solution?: string
           source_conversation_id?: string | null
           status?: string | null
+          system_confidence_score?: number | null
           tags?: string[] | null
           updated_at?: string | null
           when_not_to_use?: string | null

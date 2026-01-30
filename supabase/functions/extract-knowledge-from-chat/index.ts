@@ -21,6 +21,21 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // 🆕 FASE 2: Guard-rail - verificar se já foi aprendido
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('learned_at')
+      .eq('id', conversationId)
+      .single();
+
+    if (conversation?.learned_at) {
+      console.log(`[extract-knowledge] Conversa ${conversationId} já aprendida em ${conversation.learned_at}`);
+      return new Response(
+        JSON.stringify({ success: false, reason: 'already_learned' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {

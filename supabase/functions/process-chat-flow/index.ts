@@ -7,6 +7,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============================================================
+// 🆕 MATCHER ESTRITO PARA ask_options (Contrato v2.3)
+// ============================================================
+interface AskOption {
+  label: string;
+  value?: string;
+  id?: string;
+}
+
+function matchAskOption(
+  userInput: string,
+  options: AskOption[]
+): AskOption | null {
+  const normalized = userInput.trim().toLowerCase();
+
+  // 1️⃣ Número (1, 2, 3…)
+  const index = parseInt(normalized, 10);
+  if (!isNaN(index) && index >= 1 && index <= options.length) {
+    return options[index - 1];
+  }
+
+  // 2️⃣ Texto exato da opção (label ou value) - case-insensitive
+  const exactMatch = options.find(opt =>
+    opt.label.toLowerCase() === normalized ||
+    (opt.value && opt.value.toLowerCase() === normalized)
+  );
+  
+  return exactMatch || null;
+}
+
 // Validadores
 const validators: Record<string, (value: string) => { valid: boolean; error?: string }> = {
   email: (value) => {
@@ -478,38 +508,44 @@ serve(async (req) => {
       let path: string | undefined;
 
       if (currentNode.type === 'ask_options') {
-        // Encontrar opção selecionada
+        // ============================================================
+        // 🆕 VALIDAÇÃO ESTRITA (Contrato v2.3)
+        // - Só aceita número válido OU texto exato
+        // - NÃO usa fuzzy matching
+        // - Se inválido: NÃO avança, reenvia opções
+        // ============================================================
         const options = currentNode.data?.options || [];
-        let selectedOption = options.find((opt: any) => 
-          opt.label.toLowerCase() === userMessage.toLowerCase() ||
-          opt.value.toLowerCase() === userMessage.toLowerCase()
-        );
+        const selectedOption = matchAskOption(userMessage, options);
         
-        // 🆕 MATCHING NUMÉRICO: Permitir resposta "1", "2", "3"...
         if (!selectedOption) {
-          const numericChoice = parseInt(userMessage.trim());
-          if (!isNaN(numericChoice) && numericChoice >= 1 && numericChoice <= options.length) {
-            selectedOption = options[numericChoice - 1];
-            console.log('[process-chat-flow] 🔢 Numeric choice matched:', numericChoice, '→', selectedOption?.label);
-          }
-        }
-        
-        // 🆕 MATCHING FUZZY: Tentar match parcial se nenhum match exato
-        if (!selectedOption) {
-          const normalizedInput = userMessage.toLowerCase().trim();
-          selectedOption = options.find((opt: any) => 
-            opt.label.toLowerCase().includes(normalizedInput) ||
-            normalizedInput.includes(opt.label.toLowerCase().split(' ')[0])
+          // ❌ ENTRADA INVÁLIDA → NÃO AVANÇA
+          console.log('[process-chat-flow] ❌ Invalid option response:', userMessage, '| Options:', options.map((o: any) => o.label).join(', '));
+          
+          // Formatar opções para reenvio
+          const formattedOptions = options.map((opt: any) => ({
+            label: opt.label,
+            value: opt.value,
+            id: opt.id
+          }));
+          
+          return new Response(
+            JSON.stringify({
+              useAI: false,
+              response: "❗ Não entendi sua resposta.\n\nPor favor, responda com o *número* ou *nome* de uma das opções:",
+              options: formattedOptions,
+              retry: true,
+              flowId: activeState.flow_id,
+              nodeId: currentNode.id, // Mantém no mesmo nó
+              invalidOption: true,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
-          if (selectedOption) {
-            console.log('[process-chat-flow] 🔍 Fuzzy match found:', userMessage, '→', selectedOption.label);
-          }
         }
         
-        if (selectedOption) {
-          path = selectedOption.id;
-          collectedData[currentNode.data?.save_as || 'choice'] = selectedOption.value;
-        }
+        // ✅ Opção válida - avança normalmente
+        console.log('[process-chat-flow] ✅ Valid option selected:', selectedOption.label);
+        path = selectedOption.id;
+        collectedData[currentNode.data?.save_as || 'choice'] = selectedOption.value || selectedOption.label;
       } else if (currentNode.type === 'condition') {
         const conditionResult = evaluateCondition(currentNode.data, collectedData, userMessage);
         path = conditionResult ? 'true' : 'false';

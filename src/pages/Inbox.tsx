@@ -14,6 +14,7 @@ import InboxFilterPopover, { type InboxFilters } from "@/components/inbox/InboxF
 import { BulkActionsBar } from "@/components/inbox/BulkActionsBar";
 import { InboxBulkDistributeBar } from "@/components/inbox/InboxBulkDistributeBar";
 import { InboxBulkDistributeDialog } from "@/components/inbox/InboxBulkDistributeDialog";
+import { BroadcastAIQueueButton } from "@/components/inbox/BroadcastAIQueueButton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -432,6 +433,7 @@ export default function Inbox() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-sm text-foreground">Conversas</h3>
+              <BroadcastAIQueueButton queueCount={aiQueueCount} filter={filter} />
             </div>
             <Button
               variant={selectionMode ? "default" : "outline"}

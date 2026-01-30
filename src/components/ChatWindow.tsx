@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,9 +70,10 @@ interface ChatWindowProps {
   conversation: Conversation | null;
   isContactPanelOpen?: boolean;
   onToggleContactPanel?: () => void;
+  onConversationUpdated?: (conversation: Conversation) => void;
 }
 
-export default function ChatWindow({ conversation, isContactPanelOpen = true, onToggleContactPanel }: ChatWindowProps) {
+export default function ChatWindow({ conversation, isContactPanelOpen = true, onToggleContactPanel, onConversationUpdated }: ChatWindowProps) {
   const [message, setMessage] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [isEmailMode, setIsEmailMode] = useState(false);
@@ -96,6 +98,7 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
   const { isAIEnabled: isAIGlobalEnabled } = useAIGlobalConfig();
   const { isTestMode, toggle: toggleTestMode, isPending: isTestModePending } = useTestModeToggle(conversation?.id || null);
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   // Verificar se pode assumir esta conversa
   // Regra: qualquer usuário pode assumir conversas “disponíveis” vindas da IA (não atribuídas)
@@ -264,9 +267,28 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
   };
 
   // Executa a mutation com os IDs capturados (fix: conversation pode ter mudado para null)
+  // 🚀 UPGRADE: Navegar para "Minhas" após assumir para mostrar o composer instantaneamente
   const handleTakeControl = () => {
     if (!pendingTakeControl) return;
-    takeControl.mutate(pendingTakeControl);
+    const conversationToUpdate = conversation; // Capturar antes da mutation
+    takeControl.mutate({
+      ...pendingTakeControl,
+      onSuccessCallback: () => {
+        // Navegar para "Minhas" para que a conversa apareça com o composer
+        setSearchParams(prev => {
+          prev.set('filter', 'mine');
+          return prev;
+        });
+        // Re-selecionar a conversa atualizada para manter o foco
+        if (conversationToUpdate && onConversationUpdated) {
+          onConversationUpdated({
+            ...conversationToUpdate,
+            ai_mode: 'copilot',
+            assigned_to: user?.id || null
+          });
+        }
+      }
+    });
     setPendingTakeControl(null);
   };
 

@@ -33,7 +33,7 @@ export function useTakeControl() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ conversationId, contactId }: TakeControlParams) => {
+    mutationFn: async ({ conversationId, contactId, onSuccessCallback }: TakeControlParams & { onSuccessCallback?: () => void }) => {
       if (!user?.id) throw new Error('Usuário não autenticado');
 
       console.log('[useTakeControl] Assumindo controle da conversa:', conversationId);
@@ -207,7 +207,7 @@ export function useTakeControl() {
         console.error('[useTakeControl] Erro ao registrar interação:', interactionError);
       }
 
-      return { conversationId };
+      return { conversationId, onSuccessCallback };
     },
     onMutate: async ({ conversationId }) => {
       // 🚀 OPTIMISTIC UPDATE: Atualiza o cache ANTES da mutation completar
@@ -258,7 +258,7 @@ export function useTakeControl() {
         variant: "destructive",
       });
     },
-    onSuccess: ({ conversationId }) => {
+    onSuccess: ({ conversationId, onSuccessCallback }) => {
       // Revalidate to sync with server
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["ai-mode", conversationId] });
@@ -268,6 +268,11 @@ export function useTakeControl() {
         title: "✋ Controle Assumido",
         description: "Você agora está no modo Copilot. A IA irá sugerir respostas para você.",
       });
+      
+      // 🚀 Callback para navegação após assumir
+      if (onSuccessCallback) {
+        onSuccessCallback();
+      }
     },
   });
 }

@@ -368,7 +368,9 @@ async function findEligibleAgent(
   const capacityMap = new Map<string, number>();
   // deno-lint-ignore no-explicit-any
   for (const tm of (teamMembers || []) as any[]) {
-    const maxChats = tm.team?.team_settings?.max_concurrent_chats ?? 10;
+    // D5: Forçar mínimo de 30 conversas por agente para alta demanda
+    const configuredMax = tm.team?.team_settings?.max_concurrent_chats;
+    const maxChats = Math.max(configuredMax ?? 30, 30);
     capacityMap.set(tm.user_id, maxChats);
   }
 
@@ -395,7 +397,7 @@ async function findEligibleAgent(
     .map((p: any) => ({
       id: p.id,
       full_name: p.full_name,
-      max_chats: capacityMap.get(p.id) ?? 10,
+      max_chats: capacityMap.get(p.id) ?? 30, // D5: Fallback para mínimo 30
       active_chats: activeChatsMap.get(p.id) ?? 0,
       last_status_change: p.last_status_change,
     }))

@@ -368,3 +368,6 @@ verify_jwt = false
 [functions.check-ai-anomalies.cron]
 schedule = "0 6 * * *"
 region = "us-east-1"
+
+[functions.broadcast-ai-queue]
+verify_jwt = true

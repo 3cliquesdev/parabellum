@@ -1,5 +1,12 @@
 project_id = "zaeozfdjhrmblfaxsyuu"
 
+[functions.dispatch-conversations]
+verify_jwt = false
+
+[functions.dispatch-conversations.cron]
+schedule = "* * * * *"
+region = "us-east-1"
+
 [functions.keep-alive]
 verify_jwt = false
 

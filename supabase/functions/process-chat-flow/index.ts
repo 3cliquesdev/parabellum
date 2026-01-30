@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getAIConfig } from "../_shared/ai-config-cache.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -228,6 +229,38 @@ serve(async (req) => {
         JSON.stringify({ useAI: true, reason: "No conversationId provided" }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // ============================================================
+    // 🛑 KILL SWITCH: Se IA global desligada, retornar sem processar
+    // Exceto se a conversa está em modo de teste individual
+    // ============================================================
+    const aiConfig = await getAIConfig(supabaseClient);
+    
+    // Verificar modo de teste individual
+    const { data: convForTest } = await supabaseClient
+      .from('conversations')
+      .select('is_test_mode')
+      .eq('id', conversationId)
+      .maybeSingle();
+    
+    const isTestMode = convForTest?.is_test_mode === true;
+
+    if (!aiConfig.ai_global_enabled && !isTestMode) {
+      console.log('[process-chat-flow] 🛑 KILL SWITCH ATIVO - Retornando sem processar');
+      return new Response(JSON.stringify({ 
+        useAI: false,
+        aiNodeActive: false,
+        skipAutoResponse: true, // 🆕 Flag para indicar que não deve enviar nada
+        reason: 'kill_switch_active',
+        message: 'IA desligada globalmente - aguardando humano'
+      }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    if (isTestMode && !aiConfig.ai_global_enabled) {
+      console.log('[process-chat-flow] 🧪 Kill Switch ativo, mas MODO TESTE permite processar');
     }
 
     // ============================================================

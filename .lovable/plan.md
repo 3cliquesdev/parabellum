@@ -1,129 +1,86 @@
 
-# Plano: Filtro "Não Respondidas" no Estilo Octadesk
+# Plano: Corrigir Filtro "Não Respondidas" para Ignorar Outros Filtros
 
-## Contexto
+## Problema Identificado
 
-No Octadesk, o agente vê duas listas distintas na sidebar:
-1. **Suas conversas** (2) - todas as conversas atribuídas ao agente
-2. **Não respondidas** (1) - conversas do agente onde a última mensagem foi do cliente (aguardando resposta)
+O filtro "Não respondidas" mostra contagem correta (1), mas a lista aparece vazia porque:
 
-Isso evita que conversas "se percam" - o agente sempre sabe quais precisa responder.
+1. O `result` usado no filtro já foi pré-filtrado por outros critérios (busca, filtros do popover)
+2. A lógica de busca ativa retorna cedo (linha 156), nunca alcançando o `case "not_responded"`
+3. O cruzamento entre `conversations` filtrado e `notRespondedIds` resulta em conjunto vazio
 
-## Diagnóstico Atual
+## Solução
 
-### O que já existe:
-- Campo `last_sender_type` no `inbox_view` (valores: `contact`, `user`, `system`)
-- Contagem `notResponded` já calculada no backend (`get-inbox-counts`)
-- Filtro na sidebar já exibe "Não respondidas" com contagem
-
-### Problema:
-O filtro `not_responded` em `Inbox.tsx` está com **placeholder** que não filtra nada:
-```typescript
-case "not_responded":
-  // Last message from contact - would need last_sender_type field
-  return result.filter(c => c.status !== 'closed'); // ← NÃO FILTRA!
-```
-
-Além disso, a contagem `notResponded` do backend mostra **TODAS** as conversas não respondidas do sistema, não apenas as do agente atual.
-
----
-
-## Solução Proposta
-
-### 1. Modificar contagem do backend para "Minhas Não Respondidas"
-
-Adicionar nova contagem `myNotResponded` específica para conversas:
-- Atribuídas ao usuário atual
-- Com `last_sender_type = 'contact'`
-- Status não fechado
-
-### 2. Modificar filtro no frontend
-
-Usar dados do `inboxItems` (que tem `last_sender_type`) para filtrar corretamente.
-
-### 3. Separar visualmente na sidebar
-
-Criar seção visual distinta no estilo Octadesk:
-- **Minhas** (total de conversas atribuídas)
-- **↳ Não respondidas** (subset - aguardando resposta do agente)
+Reestruturar a lógica do filtro `not_responded` para usar uma abordagem **direta**, ignorando filtros prévios.
 
 ---
 
 ## Mudanças Técnicas
 
-### Arquivo 1: `supabase/functions/get-inbox-counts/index.ts`
+### Arquivo: `src/pages/Inbox.tsx`
 
-Adicionar campo `myNotResponded` calculado com filtro do usuário:
+#### Mudança 1: Mover lógica do `not_responded` ANTES do early return de busca
+
+O filtro `not_responded` deve ser processado antes de qualquer outro filtro ser aplicado:
 
 ```typescript
-// Linha ~228, após calcular notResponded
-const myNotResponded = inboxActive.filter(
-  (i: any) => i.last_sender_type === "contact" && i.assigned_to === userId
-).length;
+// Linhas 145-214 - Reestruturar filteredConversations
+
+const filteredConversations = useMemo(() => {
+  if (!conversations) return [];
+  
+  // 🔒 FILTRO ESPECIAL: not_responded - IGNORAR outros filtros
+  // Deve retornar TODAS as conversas do agente aguardando resposta
+  if (filter === "not_responded") {
+    const sourceInboxItems = rawInboxItems ?? inboxItems;
+    const notRespondedIds = new Set(
+      sourceInboxItems
+        ?.filter(item => 
+          item.last_sender_type === 'contact' && 
+          item.assigned_to === user?.id &&
+          item.status !== 'closed'
+        )
+        .map(item => item.conversation_id) || []
+    );
+    // Filtrar diretamente de conversations (sem outros filtros)
+    return conversations.filter(c => notRespondedIds.has(c.id));
+  }
+  
+  let result = conversations;
+
+  // ... resto da lógica existente (busca, departamento, outros filtros)
 ```
 
-Atualizar tipo `InboxCounts`:
-```typescript
-type InboxCounts = {
-  // ... existing fields
-  myNotResponded: number;  // NOVO
-};
-```
+#### Mudança 2: Remover o `case "not_responded"` duplicado do switch
 
-### Arquivo 2: `src/hooks/useInboxView.tsx`
-
-Atualizar interface `InboxCounts`:
-```typescript
-export interface InboxCounts {
-  // ... existing
-  myNotResponded: number;  // NOVO
-}
-```
-
-### Arquivo 3: `src/pages/Inbox.tsx`
-
-Corrigir o filtro `not_responded` para usar dados do `inboxItems`:
+Após mover a lógica para cima, remover o case antigo:
 
 ```typescript
+// Remover linhas 189-203 (o case antigo)
 case "not_responded":
-  // Usar inboxItems para filtrar por last_sender_type
-  const notRespondedIds = new Set(
-    inboxItems
-      ?.filter(item => 
-        item.last_sender_type === 'contact' && 
-        item.assigned_to === user?.id &&
-        item.status !== 'closed'
-      )
-      .map(item => item.conversation_id) || []
-  );
-  return result.filter(c => notRespondedIds.has(c.id));
+  // Deletar este bloco inteiro
 ```
 
-### Arquivo 4: `src/components/inbox/InboxSidebar.tsx`
+---
 
-Reorganizar layout da sidebar para mostrar "Não respondidas" como sub-item de "Minhas":
+## Fluxo Corrigido
 
-```typescript
-// Após "Minhas"
-<FilterItem
-  icon={<User className="h-4 w-4" />}
-  label="Minhas"
-  count={counts.mine}
-  isActive={isFilterActive("mine")}
-  onClick={() => setFilter("mine")}
-/>
-
-{/* Sub-item indentado */}
-<div className="pl-4">
-  <FilterItem
-    icon={<Clock className="h-4 w-4" />}
-    label="Não respondidas"
-    count={counts.myNotResponded}
-    isActive={isFilterActive("not_responded")}
-    onClick={() => setFilter("not_responded")}
-    variant="warning"
-  />
-</div>
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Usuário clica em "Não respondidas"                         │
+│  (filter = "not_responded")                                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1. filteredConversations detecta filter === "not_responded"│
+│  2. Busca rawInboxItems (sem filtros de popover)            │
+│  3. Filtra por: last_sender_type='contact' + assigned_to=me │
+│  4. Retorna conversas DIRETAMENTE, ignorando:               │
+│     ❌ Filtro de busca                                       │
+│     ❌ Filtro de departamento                                │
+│     ❌ Filtros do popover (áudio, anexos, etc.)              │
+│                                                              │
+│  ✅ Lista mostra conversa não respondida                     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -132,44 +89,23 @@ Reorganizar layout da sidebar para mostrar "Não respondidas" como sub-item de "
 
 | Arquivo | Ação |
 |---------|------|
-| `supabase/functions/get-inbox-counts/index.ts` | Adicionar `myNotResponded` |
-| `src/hooks/useInboxView.tsx` | Atualizar interface `InboxCounts` |
-| `src/pages/Inbox.tsx` | Corrigir filtro `not_responded` |
-| `src/components/inbox/InboxSidebar.tsx` | Reorganizar layout visual |
+| `src/pages/Inbox.tsx` | Mover lógica not_responded para início do useMemo |
 
 ---
 
-## Fluxo Visual Após Implementação
+## Validação Pós-Implementação
 
-```text
-┌──────────────────────────────┐
-│  📬 Conversas                │
-├──────────────────────────────┤
-│  🔹 Todas           (150)    │
-│  👤 Minhas           (8)     │
-│    └→ 🕐 Não respondidas (3) │  ← Sub-item destacado
-│  ⚠️ SLA Excedido     (2)     │
-│  ❌ Não atribuídas   (12)    │
-│  ─────────────────────────── │
-│  🤖 Fila IA          (45)    │
-│  👥 Fila Humana      (80)    │
-└──────────────────────────────┘
-```
+1. Abrir Inbox
+2. Clicar em "Não respondidas" (mostra 1)
+3. Conversa deve aparecer na lista
+4. Aplicar filtro de busca com outro termo
+5. Voltar para "Não respondidas"
+6. Conversa ainda deve aparecer (ignorando busca)
 
 ---
 
-## Regras Aplicadas (Base de Conhecimento)
+## Conformidade com Regras
 
-- **Upgrade, não downgrade**: Melhoria que não quebra nada existente
-- **Preservação do existente**: Mantém filtro `notResponded` global para gestores
-- **Zero regressão**: Lógica atual permanece funcional
-
----
-
-## Validação
-
-Após implementação:
-1. Agente com 5 conversas, 2 aguardando resposta
-2. **Minhas** deve mostrar `(5)`
-3. **Não respondidas** deve mostrar `(2)` - apenas as do agente
-4. Filtro `not_responded` deve listar apenas as 2 conversas corretas
+- **Upgrade, não downgrade**: Melhora precisão do filtro sem quebrar outros
+- **Zero regressão**: Outros filtros continuam funcionando normalmente
+- **Preservação do existente**: Lógica original mantida para demais filtros

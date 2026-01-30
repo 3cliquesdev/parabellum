@@ -1,4 +1,4 @@
-# 🧠 SUPER PROMPT OFICIAL — SISTEMA DE ATENDIMENTO (v2.2)
+# 🧠 SUPER PROMPT OFICIAL — SISTEMA DE ATENDIMENTO (v2.3)
 
 ## 0. Princípio Supremo
 
@@ -194,6 +194,50 @@ A UI DEVE refletir exatamente o comportamento real
 
 ---
 
+## 13. Contrato de `ask_options` (Validação Estrita)
+
+### Regras obrigatórias
+Nós do tipo `ask_options` exigem validação estrita de resposta.
+
+### Entradas válidas
+✅ Número correspondente à posição (1, 2, 3...)
+✅ Texto exato do label da opção (case-insensitive)
+✅ Texto exato do value da opção (case-insensitive)
+
+### Entradas inválidas
+❌ Texto parcial ou fuzzy (ex: "Ped" para "Pedidos")
+❌ Números fora do range (ex: "5" quando só há 4 opções)
+❌ Qualquer outra resposta
+
+### Comportamento para entrada inválida
+1. Fluxo **NÃO avança**
+2. Fluxo **NÃO transfere**
+3. Fluxo **NÃO chama IA**
+4. Sistema reenvia a pergunta com orientação clara:
+
+```
+❗ Não entendi sua resposta.
+
+Por favor, responda com o *número* ou *nome* de uma das opções:
+1️⃣ Pedidos
+2️⃣ Sistema
+3️⃣ Acesso
+4️⃣ Outros
+```
+
+### Exemplo de comportamento
+
+| Entrada | Resultado |
+|---------|-----------|
+| `1` | ✅ Avança para opção 1 |
+| `Pedidos` | ✅ Avança para opção "Pedidos" |
+| `pedidos` | ✅ Avança (case-insensitive) |
+| `Fff` | ❌ Repete opções |
+| `5` (se só há 4 opções) | ❌ Repete opções |
+| `Ped` | ❌ Repete opções (sem fuzzy) |
+
+---
+
 ## ✅ Status de Alinhamento
 
 - ✔️ Alinhado com 100% do código atual
@@ -203,4 +247,4 @@ A UI DEVE refletir exatamente o comportamento real
 
 ---
 
-*Versão: 2.2 | Última atualização: 2026-01-30*
+*Versão: 2.3 | Última atualização: 2026-01-30*

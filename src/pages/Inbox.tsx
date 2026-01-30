@@ -365,7 +365,7 @@ export default function Inbox() {
             </Button>
           </div>
           <div className="flex-1 overflow-hidden">
-            <ChatWindow conversation={activeConversation} />
+            <ChatWindow conversation={activeConversation} onConversationUpdated={handleSelectConversation} />
           </div>
         </div>
       );
@@ -510,6 +510,7 @@ export default function Inbox() {
           conversation={activeConversation} 
           isContactPanelOpen={isContactPanelOpen}
           onToggleContactPanel={() => setIsContactPanelOpen(!isContactPanelOpen)}
+          onConversationUpdated={handleSelectConversation}
         />
       </div>
       

@@ -290,63 +290,23 @@ async function findEligibleAgent(
 
   const eligibleUserIds = eligibleUserRoles.map((r: { user_id: string }) => r.user_id);
 
-  // 2. Get department info to check for parent and siblings
-  const { data: department } = await supabase
-    .from('departments')
-    .select('id, parent_id')
-    .eq('id', departmentId)
-    .single();
+  // SIMPLES: Buscar apenas no departamento EXATO da conversa
+  // Sem fallback para parent/siblings - gerente decide transferências manualmente
+  console.log(`[findEligibleAgent] Searching ONLY in exact dept: ${departmentId}`);
 
-  // Build department hierarchy:
-  // 1. Primary: the exact department
-  // 2. Siblings: other children of same parent (for fallback)
-  // 3. Parent: if exists (for fallback)
-  const deptIds = [departmentId];
-  
-  if (department?.parent_id) {
-    // Include parent department
-    deptIds.push(department.parent_id);
-    
-    // Also include sibling departments (other children of the same parent)
-    const { data: siblings } = await supabase
-      .from('departments')
-      .select('id')
-      .eq('parent_id', department.parent_id)
-      .neq('id', departmentId);
-    
-    if (siblings?.length) {
-      deptIds.push(...siblings.map((s: { id: string }) => s.id));
-    }
-  }
-
-  console.log(`[findEligibleAgent] Searching in depts: ${deptIds.join(', ')}`);
-
-  // 3. Get online profiles in department hierarchy with capacity info
+  // 2. Get online profiles in EXACT department with capacity info
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
-    .select('id, full_name, last_status_change, department')
+    .select('id, full_name, last_status_change')
     .eq('availability_status', 'online')
     .eq('is_blocked', false)
-    .in('department', deptIds)
+    .eq('department', departmentId)  // EXATO - sem .in()
     .in('id', eligibleUserIds);
 
   if (profilesError || !profiles?.length) {
-    console.log('[findEligibleAgent] No online profiles in department hierarchy');
+    console.log(`[findEligibleAgent] No online profiles in dept ${departmentId}`);
     return null;
   }
-
-  // Prioritize agents: exact dept first, then parent, then siblings
-  // deno-lint-ignore no-explicit-any
-  profiles.sort((a: any, b: any) => {
-    const aDept = a.department;
-    const bDept = b.department;
-    
-    // Priority: exact match > parent > sibling
-    const aPriority = aDept === departmentId ? 0 : (aDept === department?.parent_id ? 1 : 2);
-    const bPriority = bDept === departmentId ? 0 : (bDept === department?.parent_id ? 1 : 2);
-    
-    return aPriority - bPriority;
-  });
 
   // 4. Get team settings for max chats
   const { data: teamMembers } = await supabase
@@ -434,23 +394,12 @@ async function checkDepartmentHasAgents(
 
   const eligibleUserIds = eligibleUserRoles.map((r: { user_id: string }) => r.user_id);
 
-  // Check for parent department
-  const { data: department } = await supabase
-    .from('departments')
-    .select('id, parent_id')
-    .eq('id', departmentId)
-    .single();
-
-  const deptIds = [departmentId];
-  if (department?.parent_id) {
-    deptIds.push(department.parent_id);
-  }
-
-  // Count profiles in department with eligible roles (any status)
+  // SIMPLES: Verificar apenas no departamento EXATO
+  // Count profiles in EXACT department with eligible roles (any status)
   const { count, error } = await supabase
     .from('profiles')
     .select('id', { count: 'exact', head: true })
-    .in('department', deptIds)
+    .eq('department', departmentId)  // EXATO - sem .in()
     .in('id', eligibleUserIds);
 
   if (error) {

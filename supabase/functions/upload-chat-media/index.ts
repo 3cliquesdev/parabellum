@@ -113,17 +113,20 @@ serve(async (req) => {
     const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const storagePath = `${conversationId}/${timestamp}_${sanitizedFilename}`;
 
-    console.log(`📁 Uploading file: ${file.name} (${file.type}, ${file.size} bytes)`);
+    // Extract base MIME type for storage (Supabase Storage doesn't accept codec params)
+    const baseContentType = file.type.split(';')[0].trim();
+    
+    console.log(`📁 Uploading file: ${file.name} (${file.type} → ${baseContentType}, ${file.size} bytes)`);
     console.log(`📂 Storage path: ${storagePath}`);
 
     // Read file as ArrayBuffer
     const fileBuffer = await file.arrayBuffer();
 
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage (use base MIME type without codec params)
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('chat-attachments')
       .upload(storagePath, fileBuffer, {
-        contentType: file.type,
+        contentType: baseContentType,
         cacheControl: '3600',
         upsert: false,
       });

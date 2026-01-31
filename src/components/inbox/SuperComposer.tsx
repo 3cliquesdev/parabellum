@@ -12,6 +12,7 @@ import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { useSendMessage } from "@/hooks/useMessages";
 import { useSendMessageInstant } from "@/hooks/useSendMessageInstant";
 import { useAuth } from "@/hooks/useAuth";
+import { useAutoResizeTextarea } from "@/hooks/useAutoResizeTextarea";
 import { supabase } from "@/integrations/supabase/client";
 import { getFreshMediaUrl } from "@/hooks/useMediaUrls";
 import { needsTranscoding, transcodeToOgg, preloadFFmpeg } from "@/lib/audio/audioTranscoder";
@@ -74,6 +75,9 @@ export function SuperComposer({
   const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Auto-resize até 6 linhas, depois scroll interno
+  useAutoResizeTextarea(textareaRef, message, 6, 22);
   
   const { user } = useAuth();
   const sendMessage = useSendMessage();
@@ -532,7 +536,7 @@ export function SuperComposer({
   const canSend = (message.trim() || (hasAttachments && allUploaded && !hasErrors)) && !isUploading;
 
   return (
-    <div className="flex-none bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-t border-slate-200 dark:border-zinc-800">
+    <div className="border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-surface))]">
       {/* Tabs */}
       <div className="px-4 pt-3 flex items-center justify-between gap-3">
         <Tabs
@@ -640,9 +644,9 @@ export function SuperComposer({
         </div>
       )}
 
-      {/* Input Area */}
-      <div className="p-4 pt-3">
-        <div className="max-w-3xl mx-auto flex gap-2 items-end">
+      {/* ========== WRAPPER ENTERPRISE (WhatsApp Web Style) ========== */}
+      <div className="max-w-[1180px] mx-auto px-4 py-3">
+        <div className="flex items-end gap-2 rounded-2xl border border-[hsl(var(--chat-border))] bg-background p-2">
           {isRecordingAudio ? (
             <AudioRecorder
               onRecordingComplete={handleAudioComplete}
@@ -694,7 +698,7 @@ export function SuperComposer({
                 </PopoverContent>
               </Popover>
 
-              {/* Textarea with Slash Commands - Campo maior para melhor visualização */}
+              {/* TEXTAREA ATUALIZADO - Auto-resize */}
               <SlashCommandMenu value={message} onChange={setMessage}>
                 <Textarea
                   ref={textareaRef}
@@ -703,12 +707,15 @@ export function SuperComposer({
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
                   disabled={isSending || isDisabled}
-                  rows={2}
+                  rows={1}
                   className={cn(
-                    "flex-1 min-h-[60px] max-h-40 resize-none py-3 px-4 rounded-2xl transition-colors text-base",
-                    isInternal
-                      ? "bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 focus-visible:ring-yellow-500"
-                      : "bg-slate-50 dark:bg-zinc-800 border-slate-200 dark:border-zinc-700"
+                    "w-full resize-none bg-transparent border-0",
+                    "text-[15px] leading-[22px]",
+                    "px-3 py-2",
+                    "min-h-[44px] max-h-[160px]",
+                    "focus-visible:ring-0 focus-visible:ring-offset-0",
+                    "placeholder:text-muted-foreground",
+                    isInternal && "bg-yellow-50/50 dark:bg-yellow-900/20"
                   )}
                 />
               </SlashCommandMenu>
@@ -731,6 +738,11 @@ export function SuperComposer({
               </Button>
             </>
           )}
+        </div>
+
+        {/* HINT ENTERPRISE */}
+        <div className="mt-1 flex justify-end text-[11px] text-muted-foreground">
+          Enter envia • Shift+Enter quebra linha
         </div>
       </div>
     </div>

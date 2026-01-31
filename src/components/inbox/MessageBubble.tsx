@@ -138,12 +138,13 @@ export function MessageBubble({
         {/* Bubble */}
         <div
           className={cn(
-            "max-w-[85%] min-w-[120px] px-4 py-3 shadow-sm",
+            "max-w-[78%] min-w-[120px] px-4 py-3",
+            "text-[14px] leading-5 shadow-sm",
             isCustomer
               ? "bg-slate-900 text-white rounded-2xl rounded-tl-none"
               : isAI
-              ? "bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 rounded-2xl rounded-tr-none text-violet-900 dark:text-violet-300"
-              : "bg-blue-600 dark:bg-blue-600/90 text-white rounded-2xl rounded-tr-none"
+              ? "bg-[hsl(var(--chat-surface))] border border-[hsl(var(--chat-border))] text-foreground rounded-2xl rounded-tr-none"
+              : "bg-primary text-primary-foreground rounded-2xl rounded-tr-none"
           )}
         >
           {/* Attachments */}
@@ -231,7 +232,7 @@ export function MessageBubble({
           {/* Metadata Row */}
           <div
             className={cn(
-              "text-[10px] mt-1 flex items-center gap-1.5",
+              "text-[11px] mt-1 flex items-center gap-1.5",
               isCustomer
                 ? "text-slate-400 dark:text-zinc-500"
                 : isAI

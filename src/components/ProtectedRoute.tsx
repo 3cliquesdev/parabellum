@@ -2,6 +2,9 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
+import { AccessDenied } from "@/components/AccessDenied";
+import { PageLoadingSkeleton } from "@/components/PageLoadingSkeleton";
+import { hasFullAccess, ROLE_HOME_PAGES } from "@/config/roles";
 
 type AppRole = "admin" | "general_manager" | "manager" | "sales_rep" | "consultant" | "support_agent" | "support_manager" | "financial_manager" | "financial_agent" | "cs_manager";
 
@@ -16,23 +19,12 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children, allowedRoles, requiredPermission }: ProtectedRouteProps) {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
-  const { hasPermission, permissions, loading: permLoading } = useRolePermissions();
+  const { hasPermission, ready: permReady, loading: permLoading } = useRolePermissions();
   const location = useLocation();
 
-  // Loading state - include permission loading when using requiredPermission
-  // Also check if permissions object exists (prevents race conditions)
-  const permissionsReady = !requiredPermission || (permissions !== undefined && !permLoading);
-  const isLoading = authLoading || roleLoading || !permissionsReady;
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
-    );
+  // Loading state - auth e role sempre precisam carregar
+  if (authLoading || roleLoading) {
+    return <PageLoadingSkeleton />;
   }
 
   if (!isAuthenticated) {
@@ -45,47 +37,47 @@ export default function ProtectedRoute({ children, allowedRoles, requiredPermiss
     return <Navigate to="/setup-password" replace />;
   }
 
-  // Smart redirect based on user role
-  const roleHomePage: Record<string, string> = {
-    support_manager: "/support",
-    support_agent: "/support",
-    financial_manager: "/support",
-    financial_agent: "/support",
-    cs_manager: "/cs-management",
-    consultant: "/my-portfolio",
-    sales_rep: "/",
-    general_manager: "/analytics",
-    admin: "/",
-    manager: "/",
-    user: "/client-portal",
-    ecommerce_analyst: "/analytics",
-  };
-
   // Permission-based access control (new unified system)
-  if (requiredPermission && role) {
-    const hasAccess = hasPermission(requiredPermission);
+  if (requiredPermission) {
+    // Espera permissões ficarem prontas (nunca nega enquanto carrega)
+    if (!permReady || permLoading) {
+      return <PageLoadingSkeleton />;
+    }
+
+    const access = hasPermission(requiredPermission);
     
-    if (!hasAccess) {
-      console.log("ProtectedRoute: Permission denied", { 
-        path: location.pathname, 
-        role, 
-        requiredPermission,
-        hasAccess 
-      });
-      const targetPage = roleHomePage[role] || "/";
-      return <Navigate to={targetPage} replace />;
+    // Tri-state: undefined = still loading
+    if (access === undefined) {
+      return <PageLoadingSkeleton />;
+    }
+    
+    if (access === false) {
+      // Logs de diagnóstico (apenas DEV)
+      if (import.meta.env.DEV) {
+        console.log("[ProtectedRoute] Acesso negado", { 
+          path: location.pathname, 
+          role, 
+          requiredPermission,
+          isFullAccessRole: hasFullAccess(role)
+        });
+      }
+      
+      // ✅ NOVO: Mostrar AccessDenied em vez de redirect silencioso
+      return <AccessDenied permission={requiredPermission} />;
     }
   }
   
   // Legacy role-based access control (kept for backward compatibility)
+  // @deprecated - migrar para requiredPermission
   if (allowedRoles && role && !allowedRoles.includes(role as AppRole)) {
-    console.log("ProtectedRoute: Role not allowed (legacy)", { 
-      path: location.pathname, 
-      role, 
-      allowedRoles 
-    });
-    const targetPage = roleHomePage[role] || "/";
-    return <Navigate to={targetPage} replace />;
+    if (import.meta.env.DEV) {
+      console.log("[ProtectedRoute] Role não permitido (legacy)", { 
+        path: location.pathname, 
+        role, 
+        allowedRoles 
+      });
+    }
+    return <AccessDenied />;
   }
 
   return <>{children}</>;

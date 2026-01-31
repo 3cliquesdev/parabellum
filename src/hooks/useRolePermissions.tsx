@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "./useUserRole";
 import { toast } from "sonner";
+import { hasFullAccess } from "@/config/roles";
 
 export interface RolePermission {
   id: string;
@@ -41,16 +42,30 @@ export function useRolePermissions() {
     refetchOnMount: true, // Recarrega ao montar o componente
   });
 
-  const hasPermission = (key: string): boolean => {
-    // Admin always has all permissions
-    if (role === 'admin') return true;
-    // If still loading OR permissions not yet loaded, deny by default
-    // This prevents race conditions where loading is false but data isn't ready
-    if (isLoading || !permissions) return false;
-    return permissions[key] ?? false;
+  // NOVO: Estado "pronto" para verificar permissões
+  const ready = !isLoading && permissions !== undefined;
+
+  // TRI-STATE: true | false | undefined
+  // - true: permitido
+  // - false: negado (permissões carregadas e explicitamente não habilitado)
+  // - undefined: ainda carregando / indeterminado (nunca negar aqui)
+  const hasPermission = (key: string): boolean | undefined => {
+    // Roles com acesso total sempre true
+    if (hasFullAccess(role)) return true;
+    
+    // 🔥 CRÍTICO: Não negar enquanto carrega - retornar undefined
+    if (!ready) return undefined;
+    
+    // enabled === true é a única condição válida
+    return permissions?.[key] === true;
   };
 
-  return { permissions, hasPermission, loading: isLoading };
+  return { 
+    permissions, 
+    hasPermission, 
+    loading: isLoading,
+    ready,  // NOVO: indica se permissões estão prontas para verificação
+  };
 }
 
 // Hook for managing all permissions (admin only)

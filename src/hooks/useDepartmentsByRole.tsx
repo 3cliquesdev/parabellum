@@ -1,5 +1,9 @@
 import { useMemo } from "react";
 import { useDepartments } from "./useDepartments";
+import { FULL_ACCESS_ROLES, hasFullAccess } from "@/config/roles";
+
+// Re-exportar para compatibilidade com código existente
+export { FULL_ACCESS_ROLES };
 
 /**
  * Hook para retornar IDs de departamentos permitidos baseado no role do usuário
@@ -79,17 +83,6 @@ export function useDepartmentsByRole(role: string | null) {
   };
 }
 
-// Roles que têm acesso total ao inbox (sem filtro de departamento)
-export const FULL_ACCESS_ROLES = [
-  "admin",
-  "manager",
-  "general_manager",
-  "support_manager",
-  "cs_manager",
-];
-
 // Helper para verificar se um role tem acesso total
-export function hasFullInboxAccess(role: string | null): boolean {
-  if (!role) return false;
-  return FULL_ACCESS_ROLES.includes(role);
-}
+// Usa a função centralizada de @/config/roles
+export const hasFullInboxAccess = hasFullAccess;

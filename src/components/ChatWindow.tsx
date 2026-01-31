@@ -141,9 +141,31 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
     }
   }, [conversation?.id]);
 
+  // ========== SMART SCROLL (WhatsApp-like) ==========
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [shouldStickToBottom, setShouldStickToBottom] = useState(true);
+
+  // Detectar se usuário scrollou para cima
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const onScroll = () => {
+      const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
+      setShouldStickToBottom(distance < 140);
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Scroll apenas se estiver "grudado" no final
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !shouldStickToBottom) return;
+    el.scrollTop = el.scrollHeight; // instant (WhatsApp-like)
+  }, [messages?.length, shouldStickToBottom]);
 
   // FASE 5 & 7: handleSendMessage com suporte a notas internas
   const handleSendMessage = async (isInternal: boolean = false) => {
@@ -396,9 +418,9 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
                         variant={isAutopilot ? "default" : isCopilot ? "info" : "secondary"}
                         className="text-[10px] px-1.5 py-0 h-5 shrink-0"
                       >
-                        {isAutopilot && "🤖 Autopilot"}
-                        {isCopilot && "🧠 Copilot"}
-                        {isDisabled && "👤 Manual"}
+                        {isAutopilot && "Autopilot"}
+                        {isCopilot && "Copilot"}
+                        {isDisabled && "Manual"}
                       </Badge>
                     )}
                     {!((conversation.customer_metadata as any)?.session_verified ?? true) && (
@@ -577,7 +599,7 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
             </Alert>
           )}
 
-          <div className="flex-1 min-h-0 overflow-y-auto bg-slate-100/50 dark:bg-background">
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto bg-[hsl(var(--chat-bg))]">
             <div className="p-4 md:p-6">
               <div className="max-w-3xl mx-auto w-full">
                 {conversation.status === "closed" && (

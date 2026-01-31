@@ -9,6 +9,11 @@
   }
   
   :root {
+    /* === CHAT TOKENS (Enterprise) === */
+    --chat-bg: 210 20% 98%;
+    --chat-surface: 0 0% 100%;
+    --chat-border: 215 16% 88%;
+    
     /* === BRAND === */
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
@@ -99,6 +104,11 @@
   }
 
   .dark {
+    /* === CHAT TOKENS (Enterprise) === */
+    --chat-bg: 222 18% 12%;
+    --chat-surface: 222 18% 14%;
+    --chat-border: 215 10% 28%;
+    
     /* === BRAND === */
     --background: 0 0% 2%;
     --foreground: 0 0% 92%;

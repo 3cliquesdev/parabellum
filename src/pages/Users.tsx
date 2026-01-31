@@ -102,9 +102,15 @@ export default function Users() {
     
     const canAccessUsers = hasPermission("settings.manage_users");
     console.log("[Users] Checking access", { role, canAccessUsers, isAdmin });
-    
-    // Redirect if user doesn't have permission
-    if (!canAccessUsers) {
+
+    // TRI-STATE safety:
+    // - true: allowed
+    // - false: deny
+    // - undefined: still loading/indeterminate (NEVER redirect here)
+    if (canAccessUsers === undefined) return;
+
+    // Redirect only when explicitly denied
+    if (canAccessUsers === false) {
       console.log("[Users] User lacks settings.manage_users permission, redirecting");
       navigate("/");
     }

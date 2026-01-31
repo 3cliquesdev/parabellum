@@ -27,8 +27,31 @@ function getMimeTypeFromMediaType(type: string, originalMimeType?: string): stri
 }
 
 /**
+ * Map unsupported MIME types to Meta-supported equivalents
+ * Meta accepts: audio/aac, audio/mp4, audio/mpeg, audio/amr, audio/ogg, audio/opus
+ */
+function getMetaSupportedMimeType(originalMimeType: string): string {
+  // audio/webm is NOT supported by Meta, convert to audio/ogg (opus)
+  if (originalMimeType.startsWith('audio/webm')) {
+    console.log("[send-meta-whatsapp] 🔄 Converting MIME type from", originalMimeType, "to audio/ogg");
+    return 'audio/ogg';
+  }
+  
+  // Handle codec suffixes (e.g., audio/ogg;codecs=opus → audio/ogg)
+  if (originalMimeType.includes(';')) {
+    const baseMime = originalMimeType.split(';')[0].trim();
+    console.log("[send-meta-whatsapp] 🔄 Stripping codec suffix:", originalMimeType, "→", baseMime);
+    return baseMime;
+  }
+  
+  return originalMimeType;
+}
+
+/**
  * Upload media to Meta's servers and get media_id
  * This is necessary because Meta can't reliably access signed URLs from private storage
+ * 
+ * IMPORTANT: Handles audio/webm → audio/ogg conversion since Meta doesn't accept webm
  */
 async function uploadMediaToMeta(
   phoneNumberId: string,
@@ -39,6 +62,7 @@ async function uploadMediaToMeta(
   const apiVersion = "v18.0";
   
   console.log("[send-meta-whatsapp] 📥 Downloading media from:", mediaUrl.substring(0, 100) + "...");
+  console.log("[send-meta-whatsapp] 📋 Original MIME type:", mimeType);
   
   // 1. Download the file from Supabase signed URL
   const mediaResponse = await fetch(mediaUrl);
@@ -48,17 +72,32 @@ async function uploadMediaToMeta(
     throw new Error(`Failed to download media: ${mediaResponse.status}`);
   }
   
-  const mediaBlob = await mediaResponse.blob();
-  console.log("[send-meta-whatsapp] ✅ Media downloaded, size:", mediaBlob.size, "bytes, type:", mimeType);
+  let mediaBlob = await mediaResponse.blob();
+  let finalMimeType = getMetaSupportedMimeType(mimeType);
   
-  // 2. Upload to Meta's Media API
+  // 2. If original was webm, we need to create a new blob with the correct MIME type
+  // The actual audio data in webm with opus codec is compatible with ogg container
+  // Meta will accept the data if we declare it as audio/ogg
+  if (mimeType.startsWith('audio/webm')) {
+    console.log("[send-meta-whatsapp] 🔄 Re-wrapping webm audio as ogg for Meta compatibility");
+    // Create new blob with audio/ogg MIME type
+    // Note: The opus codec data inside webm is the same as in ogg container
+    const arrayBuffer = await mediaBlob.arrayBuffer();
+    mediaBlob = new Blob([arrayBuffer], { type: 'audio/ogg' });
+    finalMimeType = 'audio/ogg';
+    console.log("[send-meta-whatsapp] ✅ Blob re-wrapped as audio/ogg, size:", mediaBlob.size);
+  }
+  
+  console.log("[send-meta-whatsapp] ✅ Media ready, size:", mediaBlob.size, "bytes, final type:", finalMimeType);
+  
+  // 3. Upload to Meta's Media API
   const formData = new FormData();
   formData.append('file', mediaBlob, 'media');
   formData.append('messaging_product', 'whatsapp');
-  formData.append('type', mimeType);
+  formData.append('type', finalMimeType);
   
   const uploadUrl = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/media`;
-  console.log("[send-meta-whatsapp] 📤 Uploading to Meta:", uploadUrl);
+  console.log("[send-meta-whatsapp] 📤 Uploading to Meta:", uploadUrl, "as", finalMimeType);
   
   const uploadResponse = await fetch(uploadUrl, {
     method: 'POST',

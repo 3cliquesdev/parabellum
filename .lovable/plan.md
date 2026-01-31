@@ -1,147 +1,183 @@
 
-# Plano: Corrigir Filtro "Minhas" que Não Mostra Conversa Ativa
+# Plano: Implementar SLA Dinâmico no Inbox (Enterprise)
 
-## Diagnóstico Completo
+## Diagnóstico Confirmado
 
-### Evidência no Banco
-A conversa existe e está correta:
-- **ID**: `eaa94b00-34d0-4c16-a09f-e9271a6937c7`
-- **Contato**: Ronildo Oliveira / fabiosou1542@gmail.com  
-- **Status**: `open`
-- **assigned_to**: `697a5d4e-9637-4b85-b7a0-bd880151648b` (você)
-- **last_sender_type**: `user` (por isso não aparece em "Não respondidas" - correto)
+### Problema Atual
+O campo `inbox_view.sla_status` é **estático** - calculado apenas no momento do INSERT/UPDATE da mensagem e **nunca é recalculado** com o passar do tempo.
 
-### Causa Raiz: Cache Dessincronizado
+### Impacto
+| Componente | Problema |
+|------------|----------|
+| Badge "SLA Excedido" | Sempre mostra 0 (lê `sla_status = 'critical'` estático) |
+| Lista "SLA Excedido" | Sempre vazia (filtra por `sla_status = 'critical'`) |
+| Conversas 44h+ sem resposta | Aparecem como "OK" no banco |
 
-O código atual usa **duas instâncias** do hook `useInboxView`:
+### Código Problemático
 
+**Edge Function `get-inbox-counts` (linhas 227-228):**
 ```typescript
-// Linha 106 - Com filtros (atualizado pelo realtime)
-const { data: inboxItems } = useInboxView(inboxViewFilters);
-
-// Linha 110 - Sem filtros (NÃO atualizado pelo realtime!)
-const { data: rawInboxItems } = useInboxView();
+// ❌ PROBLEMA: Usa campo estático que nunca muda
+const slaCritical = inbox.filter((i: any) => i.sla_status === "critical").length;
+const slaWarning = inbox.filter((i: any) => i.sla_status === "warning").length;
 ```
 
-O problema está na **linha 247**:
+**Hook `useInboxView` (linhas 149-152):**
 ```typescript
-const sourceInboxItems = rawInboxItems ?? inboxItems;
+// ❌ PROBLEMA: Filtra pelo campo estático
+if (filters.slaStatus) {
+  result = result.filter(item => item.sla_status === filters.slaStatus);
+}
 ```
 
-Quando `rawInboxItems` existe (mesmo stale), ele é usado em vez de `inboxItems`.
-
-O realtime atualiza APENAS o cache que inclui os filtros atuais (linha 308-309):
+**Inbox.tsx (linhas 334-336):**
 ```typescript
-queryClient.setQueryData<InboxViewItem[]>(
-  [...QUERY_KEY, user?.id, currentRole, currentDeptIds, currentFilters],
-  // ↑ Inclui filtros - só atualiza o cache com filtros!
-)
-```
-
-O `rawInboxItems` (filters = undefined) **NUNCA é atualizado pelo realtime**, ficando stale.
-
-### Fluxo do Bug
-
-```
-1. Conversa é atribuída ao usuário
-         ↓
-2. Realtime recebe o evento
-         ↓
-3. Atualiza cache de inboxItems (com filtros) ✅
-         ↓
-4. NÃO atualiza cache de rawInboxItems (sem filtros) ❌
-         ↓
-5. Filtro "mine" usa: rawInboxItems ?? inboxItems
-         ↓
-6. rawInboxItems existe (stale) → usa ele
-         ↓
-7. Conversa nova não está no rawInboxItems stale
-         ↓
-8. Lista "Minhas" não mostra a conversa!
+// ❌ PROBLEMA: Filtro SLA não faz nada - só retorna tudo
+case "sla":
+  return result.filter(c => c.status !== 'closed');
 ```
 
 ---
 
-## Solução
+## Solução: SLA Calculado Dinamicamente
 
-### Opção 1: Criar Hook Dedicado para "Minhas" (Recomendado)
-Similar ao que fizemos para "Não respondidas", criar um hook que consulta diretamente o banco:
+### Regras de SLA (Enterprise)
+```
+SLA Critical (≥4h): 
+  status = 'open' 
+  AND last_sender_type = 'contact' 
+  AND (now - last_message_at) >= 4 horas
 
-**Novo arquivo**: `src/hooks/useMyInboxItems.tsx`
+SLA Warning (1h-4h):
+  status = 'open'
+  AND last_sender_type = 'contact'
+  AND (now - last_message_at) >= 1 hora
+  AND (now - last_message_at) < 4 horas
+```
+
+---
+
+## Implementação em 4 Etapas
+
+### Etapa 1: Edge Function `get-inbox-counts` (Badge)
+
+**Arquivo:** `supabase/functions/get-inbox-counts/index.ts`
+
+Substituir cálculo estático por **SQL dinâmico** (eficiência enterprise):
 
 ```typescript
-export function useMyInboxItems() {
-  const { user } = useAuth();
+// DEPOIS: Queries SQL otimizadas (sem trazer dados desnecessários)
+const [slaCriticalRes, slaWarningRes] = await Promise.all([
+  // SLA Critical: ≥4h sem resposta do agente
+  supabaseAdmin
+    .from("inbox_view")
+    .select("conversation_id", { count: "exact", head: true })
+    .eq("status", "open")
+    .eq("last_sender_type", "contact")
+    .lt("last_message_at", new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()),
+  
+  // SLA Warning: 1h-4h sem resposta
+  supabaseAdmin
+    .from("inbox_view")
+    .select("conversation_id", { count: "exact", head: true })
+    .eq("status", "open")
+    .eq("last_sender_type", "contact")
+    .lt("last_message_at", new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString())
+    .gte("last_message_at", new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()),
+]);
 
+const slaCritical = slaCriticalRes.count ?? 0;
+const slaWarning = slaWarningRes.count ?? 0;
+```
+
+### Etapa 2: Criar Hook Dedicado `useSlaExceededItems`
+
+**Arquivo:** `src/hooks/useSlaExceededItems.tsx` (NOVO)
+
+Hook que consulta diretamente o banco com a mesma lógica do badge:
+
+```typescript
+export function useSlaExceededItems() {
   return useQuery({
-    queryKey: ["my-inbox-items", user?.id],
+    queryKey: ["sla-exceeded-items", user?.id],
     queryFn: async (): Promise<InboxViewItem[]> => {
-      if (!user?.id) return [];
-
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+      
       const { data, error } = await supabase
         .from("inbox_view")
         .select("*")
-        .eq("assigned_to", user.id)
-        .neq("status", "closed")
-        .order("updated_at", { ascending: true })
+        .eq("status", "open")
+        .eq("last_sender_type", "contact")
+        .lt("last_message_at", fourHoursAgo)
+        .order("last_message_at", { ascending: true })
         .limit(5000);
-
+      
       if (error) throw error;
       return data as InboxViewItem[];
     },
-    staleTime: 2000,
-    refetchOnWindowFocus: true,
+    staleTime: 5000,
+    refetchInterval: 60000,
     enabled: !!user?.id,
   });
 }
 ```
 
-**Inbox.tsx**: Usar esse hook no filtro "mine":
+### Etapa 3: Atualizar `useInboxView` - Filtro Dinâmico
+
+**Arquivo:** `src/hooks/useInboxView.tsx`
+
+Modificar a função `applyFilters` para calcular SLA dinamicamente:
+
 ```typescript
-if (filter === "mine") {
-  if (!myInboxItems || myInboxItems.length === 0) return [];
-  return myInboxItems.map(item => {
+// DEPOIS (linhas 149-152): Cálculo dinâmico
+if (filters.slaStatus) {
+  const now = Date.now();
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+  
+  result = result.filter(item => {
+    // SLA só aplica a mensagens de clientes em conversas abertas
+    if (item.status === 'closed') return false;
+    if (item.last_sender_type !== 'contact') return false;
+    
+    const lastMsg = new Date(item.last_message_at).getTime();
+    const elapsed = now - lastMsg;
+    
+    if (filters.slaStatus === 'critical') {
+      return elapsed >= FOUR_HOURS_MS;
+    }
+    if (filters.slaStatus === 'warning') {
+      return elapsed >= ONE_HOUR_MS && elapsed < FOUR_HOURS_MS;
+    }
+    return true;
+  });
+}
+```
+
+### Etapa 4: Atualizar `Inbox.tsx` - Usar Hook Dedicado
+
+**Arquivo:** `src/pages/Inbox.tsx`
+
+Integrar `useSlaExceededItems` no filtro "sla":
+
+```typescript
+// Importar
+import { useSlaExceededItems } from "@/hooks/useSlaExceededItems";
+
+// Dentro do componente
+const { data: slaExceededItems } = useSlaExceededItems();
+
+// No filteredConversations useMemo (logo após filter === "mine")
+if (filter === "sla") {
+  if (!slaExceededItems || slaExceededItems.length === 0) {
+    return [];
+  }
+  return slaExceededItems.map(item => {
     const fullConv = fullConversations.find(c => c.id === item.conversation_id);
     return fullConv || inboxItemToConversation(item);
   });
 }
 ```
-
-### Opção 2: Invalidar Todos os Caches no Realtime (Alternativa)
-Modificar o realtime para usar `setQueriesData` em vez de `setQueryData`:
-
-```typescript
-// Antes (linha 308)
-queryClient.setQueryData<InboxViewItem[]>(
-  [...QUERY_KEY, user?.id, currentRole, currentDeptIds, currentFilters],
-  ...
-)
-
-// Depois - atualiza TODOS os caches do inbox-view
-queryClient.setQueriesData<InboxViewItem[]>(
-  { queryKey: ["inbox-view"], exact: false },
-  (prev = []) => mergeInboxItems(prev, [row])
-);
-```
-
----
-
-## Plano de Implementação
-
-### Mudança 1: Criar hook `useMyInboxItems`
-**Novo arquivo**: `src/hooks/useMyInboxItems.tsx`
-- Consulta direta ao banco para conversas do usuário atual
-- Status != closed
-- Ordenação por updated_at ASC
-
-### Mudança 2: Usar hook no Inbox.tsx
-**Arquivo**: `src/pages/Inbox.tsx`
-- Importar `useMyInboxItems`
-- Substituir lógica do filtro "mine" (linhas 280-289)
-- Remover dependência de `rawInboxItems` para este filtro
-
-### Mudança 3: (Opcional) Remover `rawInboxItems`
-Se não for mais necessário após as mudanças, podemos remover a linha 110 para simplificar.
 
 ---
 
@@ -149,29 +185,83 @@ Se não for mais necessário após as mudanças, podemos remover a linha 110 par
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/hooks/useMyInboxItems.tsx` | **CRIAR** - Hook dedicado |
-| `src/pages/Inbox.tsx` | Usar novo hook no filtro "mine" |
+| `supabase/functions/get-inbox-counts/index.ts` | Calcular slaCritical/slaWarning via SQL dinâmico |
+| `src/hooks/useSlaExceededItems.tsx` | **CRIAR** - Hook dedicado para SLA excedido |
+| `src/hooks/useInboxView.tsx` | Filtro slaStatus calculado dinamicamente |
+| `src/pages/Inbox.tsx` | Usar novo hook no filtro "sla" |
+
+---
+
+## Fluxo Corrigido
+
+```
+┌─────────────────────────────────────────────────┐
+│           BADGE (get-inbox-counts)              │
+├─────────────────────────────────────────────────┤
+│ SELECT count(*) FROM inbox_view                 │
+│ WHERE status = 'open'                           │
+│   AND last_sender_type = 'contact'              │
+│   AND last_message_at < now() - interval '4h'   │
+│                                                 │
+│ Resultado: slaCritical = 67 ✅                  │
+└─────────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────────┐
+│         LISTAGEM (useSlaExceededItems)          │
+├─────────────────────────────────────────────────┤
+│ SELECT * FROM inbox_view                        │
+│ WHERE status = 'open'                           │
+│   AND last_sender_type = 'contact'              │
+│   AND last_message_at < now() - interval '4h'   │
+│ ORDER BY last_message_at ASC                    │
+│                                                 │
+│ Resultado: 67 conversas ✅                      │
+└─────────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────────┐
+│              CONSISTÊNCIA GARANTIDA             │
+├─────────────────────────────────────────────────┤
+│ Badge = 67                                      │
+│ Lista = 67 itens                                │
+│ ✅ MESMA QUERY = MESMA CONTAGEM                 │
+└─────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Validação Pós-Implementação
 
-1. Atribuir conversa ao usuário
-2. Ir para "Minhas" (`/inbox?filter=mine`)
-3. **Esperado**: Conversa aparece imediatamente
-4. **Antes do fix**: Conversa não aparecia (cache stale)
+1. Abrir Inbox
+2. Verificar badge "SLA Excedido" mostra número > 0 (ex: 67)
+3. Clicar em "SLA Excedido"
+4. **Esperado**: Lista com exatamente N conversas (igual ao badge)
+5. **Antes do fix**: Badge = 0, Lista = vazia
 
-Testes adicionais:
-- Badge de "Minhas" bate com a lista
-- Realtime funciona (nova conversa aparece sem refresh)
-- "Não respondidas" continua funcionando
-- Busca global continua funcionando
+### Testes Adicionais
+- Responder conversa com SLA crítico → sai da lista (imediatamente)
+- Nova mensagem de cliente + esperar 4h → entra na lista (dinâmico)
+- Badge e lista sempre iguais (consistência)
+- Campo `sla_status` do banco NÃO é mais usado para filtros
 
 ---
 
-## Conformidade com Regras
+## Conformidade com Regras do CRM
 
-- **Upgrade, não downgrade**: Melhora consistência sem quebrar outros filtros
-- **Zero regressão**: Outros filtros usam lógica separada
-- **Read-only**: Hook apenas faz SELECT, nunca UPDATE
-- **Fonte de verdade**: Consulta direta ao banco, não depende de cache stale
+| Regra | Conformidade |
+|-------|--------------|
+| **Upgrade, não downgrade** | ✅ SLA agora é preciso em tempo real |
+| **Zero regressão** | ✅ Outros filtros continuam funcionando |
+| **Consistência** | ✅ Badge e lista usam mesma lógica SQL |
+| **Read-only** | ✅ Apenas SELECT, nunca UPDATE |
+| **Enterprise** | ✅ COUNT via SQL, não em JS |
+
+---
+
+## Observação sobre Campo Estático
+
+O campo `inbox_view.sla_status` **continua existindo** por compatibilidade, mas **não será mais usado** para:
+- Badge do Inbox
+- Filtro "SLA Excedido"
+- Qualquer funcionalidade crítica de tempo
+
+A fonte de verdade passa a ser o cálculo dinâmico: `now() - last_message_at`.

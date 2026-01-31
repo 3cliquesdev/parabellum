@@ -39,6 +39,11 @@ export default function ProtectedRoute({ children, allowedRoles, requiredPermiss
 
   // Permission-based access control (new unified system)
   if (requiredPermission) {
+    // ✅ SEGURANÇA: Roles com acesso total NUNCA devem ser bloqueados
+    if (hasFullAccess(role)) {
+      return <>{children}</>;
+    }
+    
     // Espera permissões ficarem prontas (nunca nega enquanto carrega)
     if (!permReady || permLoading) {
       return <PageLoadingSkeleton />;

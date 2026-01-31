@@ -50,6 +50,9 @@ export function useRolePermissions() {
   // - false: negado (permissões carregadas e explicitamente não habilitado)
   // - undefined: ainda carregando / indeterminado (nunca negar aqui)
   const hasPermission = (key: string): boolean | undefined => {
+    // 🆕 Log de diagnóstico (remover após validação em produção)
+    console.log(`[hasPermission] key="${key}" role="${role}" fullAccess=${hasFullAccess(role)}`);
+    
     // Roles com acesso total sempre true
     if (hasFullAccess(role)) return true;
     

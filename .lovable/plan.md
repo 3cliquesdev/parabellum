@@ -1,221 +1,207 @@
 
 
-# Plano: Zero Delay Inbound — Hotfix Produção (AJUSTADO)
+# Plano: Octadesk-ification — Visual Enterprise Limpo
 
-## Ajustes Críticos Aplicados
-
-| # | Ajuste Solicitado | Status |
-|---|-------------------|--------|
-| 1 | Refs no TOPO do hook (não dentro de queryFn) | ✅ Confirmado |
-| 2 | Evitar JSON.stringify — usar comparação leve | ✅ Aplicado |
-| 3 | registerEvent apenas quando há gap real | ✅ Mantido |
+## Objetivo
+Replicar o padrão visual do Octadesk no CRM, mantendo a arquitetura separada por canal (WhatsApp/Instagram). Foco em limpeza visual, remoção de **todos os emojis** e simplificação da lista de conversas.
 
 ---
 
-## Arquivo: `src/hooks/useMessages.tsx`
+## Diagnóstico Atual vs Octadesk
 
-### 1. Novos Estados/Refs (NO TOPO DO HOOK, após linha 35)
-
-```typescript
-// Linha 35: lastMessageTimestampRef já existe
-
-// 🆕 HOTFIX: Rastrear visibilidade da aba
-const [isTabVisible, setIsTabVisible] = useState(true);
-
-// 🆕 Rastrear último evento Realtime (anti-mascaramento)
-const lastRealtimeEventRef = useRef<number>(Date.now());
-
-// 🆕 Rastrear tamanho anterior para detectar novas mensagens
-const previousLengthRef = useRef<number>(0);
-```
-
-**Por que no topo:** Se ficassem dentro do `queryFn`, seriam recriados a cada render, perdendo o valor anterior.
+| Elemento | Estado Atual | Estilo Octadesk |
+|----------|--------------|-----------------|
+| Lista de conversas | Muitos badges, emojis 🤖🧠👤📥, chips coloridos | Texto + ícone canal + tempo |
+| SLA | Emojis 🟡🟠🔶🔴 | Cor discreta sem emoji |
+| Badge AI Mode | 🤖 Autopilot, 🧠 Copilot, 👤 Manual | Texto simples: "Autopilot", "Copilot", "Manual" |
+| Badge Pool | "📥 Pool" | "Pool" ou ícone Users |
+| Badge Cliente | "⭐ Cliente" + gradiente excessivo | "Cliente" simples |
+| Header do chat | Emojis + múltiplos badges | Nome + canal + ações |
+| Alertas IA off | "⚠️ IA Global está DESLIGADA" | Sem emoji, texto neutro |
+| Modo teste | "🧪 Teste" | "Teste" |
+| Conversa encerrada | "✅ Esta conversa foi encerrada" | Sem emoji |
 
 ---
 
-### 2. Importar useState (linha 2)
+## Componentes a Alterar
+
+### 1. ConversationListItem.tsx (Prioridade Alta)
+
+**Mudanças:**
+
+| Local | Antes | Depois |
+|-------|-------|--------|
+| SLA emoji (L53-108) | `emoji: "🟡"`, `"🟠"`, `"🔶"`, `"🔴"` | `emoji: ""` (todos vazios) |
+| L268 | `{sla.emoji && \`${sla.emoji} \`}` | Remover emoji do display |
+| AI Mode Badge (L324-337) | `🤖`, `🧠`, `👤` | `Autopilot`, `Copilot`, `Manual` (texto) |
+| Pool Badge (L347-349) | `📥 Pool` | `Pool` (só texto) |
+| Cliente Badge (L291-298) | Gradiente excessivo + Star icon | Badge simples "Cliente" |
+| Warning Badge (L352-356) | `⚠️` | Remover ou usar ícone AlertTriangle |
+
+**Resultado esperado:** Lista limpa como Octadesk, apenas:
+- Ícone do canal (já existe via ChannelIcon)
+- Nome do contato
+- Preview da mensagem (1 linha)
+- Tempo discreto com cor (sem emoji)
+- Badge numérica de unread (já correto)
+- Badges essenciais: departamento (opcional), responsável
+
+---
+
+### 2. ChatWindow.tsx (Header + Alertas)
+
+**Mudanças:**
+
+| Local (linha) | Antes | Depois |
+|---------------|-------|--------|
+| L461 | `🧪 Teste` | `Teste` |
+| L589-590 | `⚠️ IA Global está DESLIGADA...` | `IA Global está DESLIGADA...` |
+| L608-609 | `✅ Esta conversa foi encerrada` | `Esta conversa foi encerrada` |
+| L648 | `⚠️ IA Global DESLIGADA` | `IA Global DESLIGADA` |
+
+---
+
+### 3. SentimentBadge.tsx (OK — já sem emojis)
+- Usa ícones Lucide (Angry, Meh, Smile) ✅
+- Nenhuma mudança necessária
+
+---
+
+### 4. Outros arquivos com emojis contextuais
+
+| Arquivo | Emoji | Ação |
+|---------|-------|------|
+| `ContactDetailsSidebar.tsx` L146 | `⚠️ Sessão não verificada` | Manter ícone AlertCircle, remover emoji |
+| `EarlyWarningWidget.tsx` L104 | `🟢🟡🔴` para saúde | Trocar por badges coloridos sem emoji |
+| `PublicQuote.tsx` L244 | `⚠️ Proposta Expirada` + `📅 Válida até` | Remover emojis |
+| `KnowledgeArticleDialog.tsx` L128, L141 | `⚠️ Conteúdo gerado por IA` | Manter AlertTriangle icon, remover emoji |
+| `TeamMemberProgressTable.tsx` L41 | `Atenção ⚠️` | `Atenção` (já tem ícone) |
+
+---
+
+## Resumo de Arquivos
+
+| Arquivo | Mudanças | Impacto |
+|---------|----------|---------|
+| `ConversationListItem.tsx` | Remover ~10 emojis, simplificar badges | Alto |
+| `ChatWindow.tsx` | Remover ~5 emojis de alertas/status | Médio |
+| `ContactDetailsSidebar.tsx` | Remover 1 emoji | Baixo |
+| `EarlyWarningWidget.tsx` | Trocar emojis de saúde por cores | Baixo |
+| `PublicQuote.tsx` | Remover 2 emojis | Baixo |
+| `KnowledgeArticleDialog.tsx` | Remover 2 emojis | Baixo |
+| `TeamMemberProgressTable.tsx` | Remover 1 emoji | Baixo |
+
+---
+
+## Código das Mudanças Principais
+
+### ConversationListItem.tsx — SLA sem emojis
 
 ```typescript
-// ANTES:
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useCallback } from "react";
+// ANTES (linhas 53-108):
+emoji: "🟡", emoji: "🟠", emoji: "🔶", emoji: "🔴"
 
 // DEPOIS:
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useCallback, useState } from "react";
+emoji: "" // Todos vazios - cor já comunica urgência
 ```
 
----
-
-### 3. useEffect para Visibilidade (após linha 36)
+### ConversationListItem.tsx — AI Mode Badge
 
 ```typescript
-// 🆕 HOTFIX: Detectar quando aba está visível
-useEffect(() => {
-  const handleVisibility = () => {
-    setIsTabVisible(document.visibilityState === 'visible');
-  };
-  document.addEventListener('visibilitychange', handleVisibility);
-  return () => document.removeEventListener('visibilitychange', handleVisibility);
-}, []);
-```
-
----
-
-### 4. Polling Adaptativo (linhas 89-91)
-
-```typescript
-// ANTES:
-refetchInterval: isEnterpriseV2 
-  ? (isHealthy ? false : isDegraded ? 10000 : 5000)
-  : 5000, // Legacy: polling fixo 5s
+// ANTES (linhas 324-337):
+{conversation.ai_mode === 'autopilot' && "🤖"}
+{conversation.ai_mode === 'copilot' && "🧠"}
+{conversation.ai_mode === 'disabled' && "👤"}
 
 // DEPOIS:
-// 🆕 HOTFIX PRODUÇÃO: Polling adaptativo
-// - Conversa ativa + aba visível: 3s (safety net)
-// - Aba em background: 10s (economia)
-// - Sem conversa: desativado
-refetchInterval: !conversationId 
-  ? false 
-  : isTabVisible 
-    ? 3000 
-    : 10000,
+{conversation.ai_mode === 'autopilot' && "Autopilot"}
+{conversation.ai_mode === 'copilot' && "Copilot"}
+{conversation.ai_mode === 'disabled' && "Manual"}
 ```
 
----
-
-### 5. Detecção de Inbound no queryFn (dentro do queryFn, após linha 75)
+### ConversationListItem.tsx — Pool Badge
 
 ```typescript
-// Linha 74-75 atual:
-if (data && data.length > 0) {
-  lastMessageTimestampRef.current = data[data.length - 1].created_at;
-}
-
-// ADICIONAR APÓS (ainda dentro do queryFn, usando as refs do TOPO):
-// 🆕 HOTFIX: Detectar novas mensagens inbound via polling
-if (data && data.length > previousLengthRef.current) {
-  const newCount = data.length - previousLengthRef.current;
-  const lastMessages = data.slice(-newCount);
-  
-  const hasNewInbound = lastMessages.some(m => m.sender_type === 'contact');
-  const realtimeGap = Date.now() - lastRealtimeEventRef.current > 5000;
-  
-  if (hasNewInbound && realtimeGap) {
-    console.log('[useMessages] 📥 Inbound detectado via polling (Realtime gap):', newCount);
-    registerEvent();
-  }
-}
-previousLengthRef.current = data?.length || 0;
-```
-
-**Nota:** As refs `previousLengthRef` e `lastRealtimeEventRef` estão no TOPO do hook, então mantêm seus valores entre renders. O `queryFn` apenas LEIA e ATUALIZA elas.
-
----
-
-### 6. Marcar Evento Realtime (linha 200)
-
-```typescript
-// ANTES:
-registerEvent();
+// ANTES (linha 348):
+📥 Pool
 
 // DEPOIS:
-registerEvent();
-lastRealtimeEventRef.current = Date.now(); // 🆕 Marcar evento Realtime
+Pool
 ```
 
----
-
-### 7. _mediaUpdatedAt Condicional — SEM JSON.stringify (linhas 311-320)
+### ConversationListItem.tsx — Cliente Badge simplificado
 
 ```typescript
-// ANTES:
-if (isMatch) {
-  const deliveryStatus = (newMessage.metadata as any)?.delivery_status;
-  
-  return { 
-    ...m, 
-    ...newMessage,
-    status: deliveryStatus || newMessage.status || m.status,
-  };
-}
+// ANTES (linhas 291-298): gradiente excessivo
+<Badge className="bg-gradient-to-r from-amber-100 to-yellow-100...">
+  <Star className="h-2.5 w-2.5 fill-amber-500..." />
+  Cliente
+</Badge>
 
-// DEPOIS:
-if (isMatch) {
-  const deliveryStatus = (newMessage.metadata as any)?.delivery_status;
-  
-  // 🆕 Detectar se campos de mídia mudaram (COMPARAÇÃO LEVE)
-  const mediaChanged = 
-    newMessage.attachment_url !== m.attachment_url ||
-    newMessage.attachment_type !== m.attachment_type ||
-    (newMessage.media_attachments?.length || 0) !== (m.media_attachments?.length || 0) ||
-    newMessage.media_attachments?.[0]?.storage_path !== m.media_attachments?.[0]?.storage_path ||
-    newMessage.media_attachments?.[0]?.status !== m.media_attachments?.[0]?.status;
-  
-  return { 
-    ...m, 
-    ...newMessage,
-    status: deliveryStatus || newMessage.status || m.status,
-    // 🆕 _mediaUpdatedAt APENAS quando mídia muda
-    ...(mediaChanged && { _mediaUpdatedAt: Date.now() }),
-  };
-}
+// DEPOIS: simples e neutro
+<Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+  Cliente
+</Badge>
 ```
 
-**Por que não JSON.stringify:**
-- `JSON.stringify` é O(n) onde n é tamanho do array
-- Comparação leve é O(1) — só checa length + campos chave do primeiro item
-- Em chats grandes com muitos attachments, isso evita delay
+### ConversationListItem.tsx — Warning Badge
+
+```typescript
+// ANTES (linha 354):
+⚠️
+
+// DEPOIS: apenas ícone AlertTriangle
+<AlertTriangle className="h-3 w-3" />
+```
+
+### ChatWindow.tsx — Alertas
+
+```typescript
+// ANTES (L589):
+'⚠️ IA Global está DESLIGADA...'
+
+// DEPOIS:
+'IA Global está DESLIGADA. Esta conversa está na fila IA mas não está sendo respondida. Clique em "Assumir" para atender.'
+```
 
 ---
 
-## Resumo de Mudanças
+## Seção Técnica
 
-| Local | Mudança | Risco |
-|-------|---------|-------|
-| Linha 2 | Adicionar `useState` ao import | Zero |
-| Após linha 35 | Adicionar 3 refs/states no TOPO | Zero |
-| Após linha 36 | useEffect visibilidade | Zero |
-| Linhas 89-91 | Polling adaptativo 3s/10s | Baixo |
-| Após linha 75 | Detecção de inbound no queryFn | Baixo |
-| Linha 200 | Marcar lastRealtimeEventRef | Zero |
-| Linhas 311-320 | mediaChanged com comparação leve | Baixo |
+### Padrões Octadesk a seguir:
+
+1. **Cores comunicam urgência** — emojis são redundantes
+2. **Ícones Lucide** — já existem, usar em vez de emojis
+3. **Texto neutro** — "Autopilot", não "🤖"
+4. **Badges minimalistas** — bordas finas, cores suaves
+5. **Hierarquia clara** — nome > preview > tempo
+
+### Não alterar:
+- Lógica de negócio
+- ChannelIcon (já correto)
+- SentimentBadge (já usa ícones)
+- Estrutura de dados
 
 ---
 
 ## Garantias de Não-Regressão
 
-- **Refs no TOPO:** `previousLengthRef` e `lastRealtimeEventRef` mantêm valores entre renders
-- **Sem JSON.stringify:** Comparação leve por length + campos chave
-- **Polling 3s:** Apenas conversa ativa + aba visível
-- **registerEvent via polling:** Apenas quando há gap > 5s do Realtime
-- **Dedup por ID:** Intacto
-- **Enterprise V2 flags:** Mantidas
-- **Realtime handlers:** Apenas adições
-- **Catch-up logic:** Intacto
+- **Zero alteração de lógica** — apenas visual
+- **Mantém todos os badges funcionais** — só remove emojis
+- **Cores de SLA intactas** — urgência comunicada por cor
+- **WhatsApp/Instagram separados** — arquitetura preservada
 
 ---
 
-## Critério de Aceite
+## Critério de Aceite Visual
 
-| Cenário | Esperado |
-|---------|----------|
-| Cliente envia texto (conversa aberta) | Aparece em < 3s |
-| Cliente envia áudio (conversa aberta) | Aparece em < 3s com placeholder |
-| Áudio termina de processar | UI atualiza automaticamente |
-| Aba em background | Polling 10s (não 3s) |
-| Realtime funcionando | Mensagem aparece instantaneamente |
-| Realtime falha silenciosamente | Polling 3s detecta |
-| Console | Zero erros |
-
----
-
-## Testes Pós-Implementação
-
-1. Abrir conversa no Inbox
-2. Enviar texto do WhatsApp cliente → deve aparecer instantaneamente
-3. Enviar áudio do WhatsApp cliente → deve aparecer em < 3s
-4. Minimizar aba e enviar mensagem → ao voltar, deve aparecer
-5. Verificar Console: polling 3s quando ativo, 10s quando background
-6. Verificar: não precisar trocar de conversa para ver mensagem
+| Elemento | Esperado |
+|----------|----------|
+| Lista de conversas | Zero emojis, texto limpo |
+| SLA | Cor + tempo (ex: "4h" em laranja) |
+| AI Mode | Badge texto: "Autopilot", "Copilot", "Manual" |
+| Pool | Badge texto: "Pool" |
+| Cliente | Badge simples: "Cliente" |
+| Alertas | Texto neutro, ícones Lucide |
+| Header do chat | Limpo, profissional |
 

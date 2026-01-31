@@ -172,6 +172,28 @@ export function SuperComposer({
     await upload(attachment.file);
   };
 
+  const handleStartAudioRecording = async () => {
+    // For WhatsApp, ensure FFmpeg is ready BEFORE recording to avoid long post-record delays.
+    if (whatsappProvider === 'meta' || whatsappInstanceId) {
+      toast({
+        title: 'Preparando áudio...',
+        description: 'Carregando conversor de áudio',
+      });
+
+      const ok = await preloadFFmpeg();
+      if (!ok) {
+        toast({
+          title: 'Falha ao preparar áudio',
+          description: 'Não consegui carregar o conversor de áudio. Tente novamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    setIsRecordingAudio(true);
+  };
+
   const handleAudioComplete = async (audioFile: File) => {
     setIsRecordingAudio(false);
 
@@ -637,7 +659,7 @@ export function SuperComposer({
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 shrink-0"
-                onClick={() => setIsRecordingAudio(true)}
+                onClick={handleStartAudioRecording}
                 disabled={isDisabled || isSending}
               >
                 <Mic className="h-5 w-5 text-muted-foreground" />

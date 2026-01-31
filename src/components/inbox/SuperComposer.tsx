@@ -14,7 +14,7 @@ import { useSendMessageInstant } from "@/hooks/useSendMessageInstant";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getFreshMediaUrl } from "@/hooks/useMediaUrls";
-import { needsTranscoding, transcodeToOgg } from "@/lib/audio/audioTranscoder";
+// FFmpeg WASM transcoding removed - backend handles conversion
 import {
   Send,
   StickyNote,
@@ -163,64 +163,22 @@ export function SuperComposer({
   const handleAudioComplete = async (audioFile: File) => {
     setIsRecordingAudio(false);
     
-    // Check if audio needs transcoding for WhatsApp Meta compatibility
-    let finalFile = audioFile;
+    // BYPASS FFmpeg WASM: O backend (send-meta-whatsapp) já faz conversão WebM → OGG
+    // Isso evita travamentos da transcodificação client-side em alguns navegadores
+    console.log('[SuperComposer] 📤 Sending audio directly (backend will convert):', {
+      type: audioFile.type,
+      size: `${Math.round(audioFile.size / 1024)}KB`,
+      name: audioFile.name,
+    });
     
-    if (needsTranscoding(audioFile.type)) {
-      console.log('[SuperComposer] 🔄 Audio needs transcoding:', audioFile.type);
-      
-      // Show toast immediately
-      toast({
-        title: "Convertendo áudio...",
-        description: "Preparando formato compatível com WhatsApp",
-      });
-      
-      try {
-        console.log('[SuperComposer] Starting FFmpeg WASM transcoding...');
-        const startTime = performance.now();
-        
-        const { blob, mimeType } = await transcodeToOgg(audioFile, audioFile.type);
-        
-        const duration = Math.round(performance.now() - startTime);
-        
-        // Check if transcoding actually happened (mimeType changed)
-        if (mimeType !== audioFile.type) {
-          finalFile = new File(
-            [blob], 
-            audioFile.name.replace(/\.(webm|wav|mp3)$/i, '.ogg'), 
-            { type: mimeType }
-          );
-          
-          console.log('[SuperComposer] ✅ Audio transcoded successfully:', {
-            originalType: audioFile.type,
-            newType: mimeType,
-            originalSize: `${Math.round(audioFile.size / 1024)}KB`,
-            newSize: `${Math.round(finalFile.size / 1024)}KB`,
-            duration: `${duration}ms`,
-          });
-          
-          toast({
-            title: "Áudio convertido!",
-            description: `Pronto para envio (${Math.round(finalFile.size / 1024)}KB)`,
-          });
-        } else {
-          console.log('[SuperComposer] ⚠️ Transcoding returned same type, using original');
-        }
-      } catch (error) {
-        console.error('[SuperComposer] ❌ Transcoding failed:', error);
-        toast({
-          title: "Aviso",
-          description: "Não foi possível converter o áudio. Tentando enviar original.",
-          variant: "default",
-        });
-        // Continue with original file if transcoding fails
-      }
-    } else {
-      console.log('[SuperComposer] ✅ Audio already compatible:', audioFile.type);
-    }
+    // Mostrar toast de progresso
+    toast({
+      title: "Enviando áudio...",
+      description: "Preparando para envio",
+    });
     
-    setPendingAttachments((prev) => [...prev, { file: finalFile }]);
-    await upload(finalFile);
+    setPendingAttachments((prev) => [...prev, { file: audioFile }]);
+    await upload(audioFile);
   };
 
   // Helper para detectar tipo de mídia (Evolution API)

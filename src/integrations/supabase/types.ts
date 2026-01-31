@@ -8761,6 +8761,7 @@ export type Database = {
         Args: { p_instance_id: string }
         Returns: undefined
       }
+      is_manager_or_admin: { Args: { _user_id: string }; Returns: boolean }
       match_knowledge_articles: {
         Args: {
           match_count?: number

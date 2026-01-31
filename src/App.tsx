@@ -243,7 +243,7 @@ const App = () => {
               <Route path="/settings/scoring" element={<ProtectedRoute requiredPermission="settings.view"><Layout><ScoringSettings /></Layout></ProtectedRoute>} />
               <Route path="/settings/ticket-statuses" element={<ProtectedRoute requiredPermission="settings.view"><Layout><TicketStatusSettings /></Layout></ProtectedRoute>} />
               <Route path="/admin-onboarding" element={<ProtectedRoute requiredPermission="settings.view"><AdminOnboarding /></ProtectedRoute>} />
-              <Route path="/super-admin" element={<ProtectedRoute allowedRoles={["admin"]}><Layout><SuperAdminPanel /></Layout></ProtectedRoute>} />
+              <Route path="/super-admin" element={<ProtectedRoute requiredPermission="super_admin.access"><Layout><SuperAdminPanel /></Layout></ProtectedRoute>} />
               
               {/* Projects / Kanban */}
               <Route path="/projects" element={<ProtectedRoute requiredPermission="projects.view"><Layout><ProjectsPage /></Layout></ProtectedRoute>} />

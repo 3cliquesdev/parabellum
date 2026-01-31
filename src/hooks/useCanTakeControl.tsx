@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-// hasFullInboxAccess importado mas agora usando lista local para consistência
+import { FULL_ACCESS_ROLES, hasFullAccess } from "@/config/roles";
 import { isDepartmentAllowedByName } from "@/utils/departmentMatch";
 
 // Mapeamento de roles para departamentos permitidos (por nome)
@@ -65,9 +65,9 @@ export function useCanTakeControl(conversation: ConversationTakeControlContext):
       }
       
       const userRole = roleData?.role || null;
-      // 🔒 Lista de roles com acesso total (gerentes e admins) - igual ao useTakeControl
-      const MANAGER_ROLES = ['admin', 'manager', 'general_manager', 'support_manager', 'cs_manager'];
-      const isManagerOrAdmin = userRole && MANAGER_ROLES.includes(userRole);
+      
+      // 🔒 Usar lista centralizada de roles com acesso total
+      const isManagerOrAdmin = hasFullAccess(userRole);
       
       console.log('[useCanTakeControl] Verificação de permissão:', { 
         userId: user.id, 

@@ -2,11 +2,13 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "./useUserRole";
+import { useAuth } from "./useAuth";
 import { toast } from "sonner";
 
 export function useRealtimePermissions() {
   const queryClient = useQueryClient();
   const { role } = useUserRole();
+  const { user } = useAuth();
   
   useEffect(() => {
     if (!role) return;
@@ -19,7 +21,13 @@ export function useRealtimePermissions() {
         table: 'role_permissions',
         filter: `role=eq.${role}`,
       }, () => {
+        // ✅ Invalidar TODAS as queries relacionadas
         queryClient.invalidateQueries({ queryKey: ['role-permissions', role] });
+        queryClient.invalidateQueries({ queryKey: ['role-permissions'] });
+        queryClient.invalidateQueries({ queryKey: ['user-role', user?.id] });
+        
+        // ✅ Force re-render via version bump
+        queryClient.setQueryData(["permissions-version"], (v: number | undefined) => (v || 0) + 1);
         
         toast.info("🔄 Suas permissões foram atualizadas!", {
           description: "A página será atualizada automaticamente.",
@@ -31,5 +39,5 @@ export function useRealtimePermissions() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [role, queryClient]);
+  }, [role, user?.id, queryClient]);
 }

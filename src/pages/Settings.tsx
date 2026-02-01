@@ -281,9 +281,9 @@ export default function Settings() {
               <SettingsCard
                 icon={Instagram}
                 iconBgColor="bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400"
-                title="Instagram API"
-                description="Credenciais Meta"
-                onClick={() => navigate('/settings/integrations-central')}
+                title="Instagram"
+                description="Conectar conta"
+                onClick={() => navigate('/settings/instagram')}
               />
             )}
             <SettingsCard

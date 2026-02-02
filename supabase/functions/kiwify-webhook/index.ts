@@ -379,6 +379,42 @@ async function initiatePlaybook(
   }
 }
 
+/**
+ * Dispara email baseado em trigger_type via send-triggered-email
+ * Falha silenciosamente se não houver template ativo
+ */
+async function sendTriggeredEmail(
+  supabase: any,
+  trigger_type: string,
+  contact_id: string | null,
+  contact_email: string,
+  variables: Record<string, string | number | null>
+): Promise<void> {
+  try {
+    console.log(`[sendTriggeredEmail] 📧 Triggering: ${trigger_type} for ${contact_email}`);
+    
+    const response = await supabase.functions.invoke('send-triggered-email', {
+      body: {
+        trigger_type,
+        contact_id,
+        contact_email,
+        variables
+      }
+    });
+
+    if (response.error) {
+      console.error(`[sendTriggeredEmail] ❌ Error:`, response.error);
+    } else if (response.data?.skipped) {
+      console.log(`[sendTriggeredEmail] ⏭️ Skipped: ${response.data.reason}`);
+    } else {
+      console.log(`[sendTriggeredEmail] ✅ Email sent: ${response.data?.email_id}`);
+    }
+  } catch (error) {
+    // Falha silenciosa - não bloquear o fluxo principal
+    console.error(`[sendTriggeredEmail] ❌ Failed (silent):`, error);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1493,6 +1529,17 @@ async function handlePaidOrder(
       }
     });
 
+  // 📧 DISPARO AUTOMÁTICO DE EMAIL: order_paid (primeiro compra)
+  await sendTriggeredEmail(supabase, 'order_paid', contact.id, Customer.email, {
+    CUSTOMER_FIRST_NAME: Customer.full_name?.split(' ')[0] || '',
+    CUSTOMER_FULL_NAME: Customer.full_name || '',
+    CUSTOMER_EMAIL: Customer.email,
+    PRODUCT_NAME: Product.product_name,
+    ORDER_VALUE: netValue,
+    ORDER_ID: order_id,
+    CUSTOMER_LTV: netValue,
+  });
+
   return {
     success: true,
     action: 'new_customer_onboarding',
@@ -1793,6 +1840,17 @@ async function handleUpsellOrder(
     );
   }
 
+  // 📧 DISPARO AUTOMÁTICO DE EMAIL: upsell_paid
+  await sendTriggeredEmail(supabase, 'upsell_paid', existingContact.id, Customer.email, {
+    CUSTOMER_FIRST_NAME: Customer.full_name?.split(' ')[0] || existingContact.first_name || '',
+    CUSTOMER_FULL_NAME: Customer.full_name || '',
+    CUSTOMER_EMAIL: Customer.email,
+    PRODUCT_NAME: Product.product_name,
+    ORDER_VALUE: netValue,
+    ORDER_ID: order_id,
+    CUSTOMER_LTV: newLtv,
+  });
+
   return {
     success: true,
     action: 'upsell_processed',
@@ -1905,6 +1963,16 @@ async function handleSubscriptionRenewal(
     });
 
   console.log('[kiwify-webhook] ✅ LTV updated:', newLtv);
+
+  // 📧 DISPARO AUTOMÁTICO DE EMAIL: subscription_renewed
+  await sendTriggeredEmail(supabase, 'subscription_renewed', contact.id, Customer.email, {
+    CUSTOMER_FIRST_NAME: contact.first_name || Customer.full_name?.split(' ')[0] || '',
+    CUSTOMER_FULL_NAME: `${contact.first_name} ${contact.last_name}`.trim() || Customer.full_name || '',
+    CUSTOMER_EMAIL: Customer.email,
+    PRODUCT_NAME: Product.product_name,
+    ORDER_VALUE: renewalValue,
+    CUSTOMER_LTV: newLtv,
+  });
 
   // ============================================
   // 🆕 CRIAR DEAL EM CS - RECORRÊNCIA
@@ -2194,6 +2262,19 @@ async function handleRecoveryOrder(
 
   console.log('[kiwify-webhook] 📞 Deal de recuperação criado:', deal?.id, 'Atribuído a:', salesRepId || 'Fila');
 
+  // 📧 DISPARO AUTOMÁTICO DE EMAIL: cart_abandoned ou payment_refused
+  const emailTrigger = order_status === 'cart_abandoned' ? 'cart_abandoned' : 'payment_refused';
+  await sendTriggeredEmail(supabase, emailTrigger, contact.id, Customer.email, {
+    CUSTOMER_FIRST_NAME: Customer.full_name?.split(' ')[0] || '',
+    CUSTOMER_FULL_NAME: Customer.full_name || '',
+    CUSTOMER_EMAIL: Customer.email,
+    PRODUCT_NAME: Product.product_name,
+    ORDER_VALUE: grossValue,
+    ORDER_ID: order_id,
+    RECOVERY_LINK: '', // TODO: Adicionar link de recuperação quando disponível
+    PAYMENT_REASON: order_status === 'refused' ? 'Cartão recusado' : 'Carrinho abandonado',
+  });
+
   return {
     success: true,
     action: 'recovery_deal_created',
@@ -2365,6 +2446,17 @@ async function handleOverduePayment(
 
   console.log('[kiwify-webhook] 📞 Overdue deal created:', deal?.id, 'Assigned to:', assigned_to || 'Queue');
 
+  // 📧 DISPARO AUTOMÁTICO DE EMAIL: subscription_late ou subscription_card_declined
+  const overdueTrigger = order_status === 'subscription_late' ? 'subscription_late' : 'subscription_card_declined';
+  await sendTriggeredEmail(supabase, overdueTrigger, contact.id, Customer.email, {
+    CUSTOMER_FIRST_NAME: Customer.full_name?.split(' ')[0] || '',
+    CUSTOMER_FULL_NAME: Customer.full_name || '',
+    CUSTOMER_EMAIL: Customer.email,
+    PRODUCT_NAME: Product.product_name,
+    SUBSCRIPTION_DAYS_LATE: 0, // TODO: Calcular dias em atraso se disponível
+    PAYMENT_REASON: statusMessage,
+  });
+
   return {
     success: true,
     action: 'overdue_deal_created',
@@ -2533,6 +2625,15 @@ async function handleChurnOrder(
         deal_id
       }
     });
+
+  // 📧 DISPARO AUTOMÁTICO DE EMAIL: refunded ou churned
+  const churnTrigger = order_status === 'refunded' ? 'refunded' : 'churned';
+  await sendTriggeredEmail(supabase, churnTrigger, contact.id, Customer.email, {
+    CUSTOMER_FIRST_NAME: Customer.full_name?.split(' ')[0] || '',
+    CUSTOMER_FULL_NAME: Customer.full_name || '',
+    CUSTOMER_EMAIL: Customer.email,
+    PRODUCT_NAME: Product.product_name,
+  });
 
   return {
     success: true,

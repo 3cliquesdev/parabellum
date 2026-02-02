@@ -32,7 +32,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCreateEmailTemplate } from "@/hooks/useCreateEmailTemplate";
 import { useUpdateEmailTemplate } from "@/hooks/useUpdateEmailTemplate";
 import type { Tables } from "@/integrations/supabase/types";
-import { Copy, Mail, Briefcase, User, Building2, Calendar } from "lucide-react";
+import { Copy, Mail, Briefcase, User, Building2, Calendar, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const AVAILABLE_VARIABLES = {
@@ -44,6 +44,15 @@ const AVAILABLE_VARIABLES = {
     { key: "[CUSTOMER_PHONE]", description: "Telefone do cliente" },
     { key: "[CUSTOMER_COMPANY]", description: "Empresa do cliente" },
     { key: "[CUSTOMER_STATUS]", description: "Status do cliente" },
+  ],
+  kiwify: [
+    { key: "[PRODUCT_NAME]", description: "Nome do produto Kiwify" },
+    { key: "[ORDER_VALUE]", description: "Valor do pedido (formatado)" },
+    { key: "[ORDER_ID]", description: "ID do pedido Kiwify" },
+    { key: "[CUSTOMER_LTV]", description: "LTV total do cliente" },
+    { key: "[RECOVERY_LINK]", description: "Link de recuperação" },
+    { key: "[PAYMENT_REASON]", description: "Motivo da recusa do pagamento" },
+    { key: "[SUBSCRIPTION_DAYS_LATE]", description: "Dias em atraso da assinatura" },
   ],
   deal: [
     { key: "[DEAL_TITLE]", description: "Título do negócio" },
@@ -251,10 +260,22 @@ export function EmailTemplateDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          {/* Gatilhos CRM */}
                           <SelectItem value="deal_won">Negócio Ganho</SelectItem>
                           <SelectItem value="deal_created">Negócio Criado</SelectItem>
                           <SelectItem value="deal_lost">Negócio Perdido</SelectItem>
                           <SelectItem value="contact_created">Contato Criado</SelectItem>
+                          
+                          {/* Gatilhos Kiwify */}
+                          <SelectItem value="order_paid">🛒 Compra Aprovada (Kiwify)</SelectItem>
+                          <SelectItem value="subscription_renewed">🔄 Assinatura Renovada</SelectItem>
+                          <SelectItem value="cart_abandoned">🛒 Carrinho Abandonado</SelectItem>
+                          <SelectItem value="payment_refused">❌ Cartão Recusado</SelectItem>
+                          <SelectItem value="subscription_card_declined">💳 Cartão Assinatura Recusado</SelectItem>
+                          <SelectItem value="subscription_late">⏰ Assinatura em Atraso</SelectItem>
+                          <SelectItem value="upsell_paid">💰 Upsell Aprovado</SelectItem>
+                          <SelectItem value="refunded">↩️ Reembolso Processado</SelectItem>
+                          <SelectItem value="churned">🚪 Churn/Cancelamento</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormDescription>
@@ -336,6 +357,36 @@ export function EmailTemplateDialog({
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-mono text-primary truncate">
+                            {variable.key}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {variable.description}
+                          </p>
+                        </div>
+                        <Copy className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Kiwify Variables */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <ShoppingCart className="h-4 w-4 text-orange-500" />
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase">
+                      Dados Kiwify
+                    </h4>
+                  </div>
+                  <div className="space-y-2">
+                    {AVAILABLE_VARIABLES.kiwify.map((variable) => (
+                      <button
+                        key={variable.key}
+                        type="button"
+                        onClick={() => copyToClipboard(variable.key)}
+                        className="w-full flex items-center justify-between p-2 rounded-md hover:bg-accent text-left group transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-mono text-orange-500 truncate">
                             {variable.key}
                           </p>
                           <p className="text-xs text-muted-foreground">

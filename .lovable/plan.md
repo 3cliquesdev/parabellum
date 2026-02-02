@@ -1,245 +1,300 @@
 
-# Plano: Correção do Filtro de Datas no Relatório de Conversas Comerciais
 
-## Resumo Executivo
+# Plano: Otimizacao de Performance da RPC get_commercial_conversations_report
 
-Corrigir os problemas de sincronização entre o label do DateRangePicker e o período real selecionado, além de adicionar tratamento de erro visível quando KPIs/Report falharem (evitando "0 silencioso").
+## Problema Identificado
+
+A mensagem de erro "canceling statement due to statement timeout" indica que a query SQL esta demorando mais de 60 segundos (timeout padrao do Supabase).
+
+### Analise Tecnica
+
+A RPC atual tem **11 CTEs (Common Table Expressions)** que sao materializadas ANTES do filtro principal:
+
+```text
+msg_counts           -> Escaneia TODA tabela messages (47k rows)
+first_agent_msg      -> Escaneia TODA tabela messages 
+first_customer_msg   -> Escaneia TODA tabela messages
+message_agent_participants -> Escaneia TODA tabela messages + JOIN profiles
+latest_conv_tag      -> Escaneia TODA tabela conversation_tags
+all_tags             -> Escaneia TODA tabela conversation_tags
+participants_agg     -> Materializa union de 2 CTEs
+first_assignment     -> Escaneia TODA tabela assignment_logs
+last_ticket          -> Escaneia TODA tabela tickets
+ratings              -> Escaneia TODA tabela conversation_ratings
+```
+
+**Problema**: Mesmo que o filtro final retorne apenas 50 conversas, as CTEs processam TODAS as linhas primeiro, depois fazem JOIN.
+
+### Volume de Dados
+
+| Tabela | Rows |
+|--------|------|
+| conversations | 2,586 |
+| messages | 47,596 |
+| conversation_tags | 985 |
+| assignment_logs | 570 |
+| tickets | 324 |
+
+---
+
+## Solucao: Reescrever RPC com LATERAL JOINs
+
+A tecnica de **LATERAL JOIN** permite que subqueries acessem colunas da query externa (correlacioned), fazendo a busca apenas para as conversas ja filtradas.
+
+### Estrutura Proposta
+
+```sql
+-- ANTES: CTE materializa TUDO
+WITH msg_counts AS (
+  SELECT conversation_id, COUNT(*) FROM messages GROUP BY conversation_id
+)
+SELECT ... FROM conversations c LEFT JOIN msg_counts mc ON mc.conversation_id = c.id
+
+-- DEPOIS: LATERAL JOIN - so busca para conversas filtradas
+SELECT ... 
+FROM conversations c
+LEFT JOIN LATERAL (
+  SELECT COUNT(*) AS interactions_count 
+  FROM messages m 
+  WHERE m.conversation_id = c.id
+) mc ON true
+```
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Modificação |
-|---------|-------------|
-| `src/components/DateRangePicker.tsx` | Sincronização automática do activePreset + comparação timezone-safe |
-| `src/hooks/useCommercialConversationsKPIs.tsx` | Adicionar logs de debug e não mascarar erro |
-| `src/hooks/useCommercialConversationsReport.tsx` | Adicionar logs de debug |
-| `src/components/reports/commercial/CommercialKPICards.tsx` | Mostrar erro visível na UI |
-| `src/components/reports/commercial/CommercialDetailedTable.tsx` | Mostrar erro visível na UI |
+| Arquivo | Acao |
+|---------|------|
+| Nova migration SQL | Recriar RPC com LATERAL JOINs otimizados |
 
 ---
 
-## Mudanças Detalhadas
+## Nova RPC Proposta
 
-### 1. DateRangePicker.tsx - Sincronização Automática
+```sql
+CREATE OR REPLACE FUNCTION public.get_commercial_conversations_report(
+  p_start TIMESTAMPTZ,
+  p_end TIMESTAMPTZ,
+  p_department_id UUID DEFAULT NULL,
+  p_agent_id UUID DEFAULT NULL,
+  p_status TEXT DEFAULT NULL,
+  p_channel TEXT DEFAULT NULL,
+  p_search TEXT DEFAULT NULL,
+  p_limit INT DEFAULT 50,
+  p_offset INT DEFAULT 0
+)
+RETURNS TABLE (...)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT
+    LEFT(c.id::TEXT, 8) AS short_id,
+    c.id AS conversation_id,
+    c.status::TEXT,
+    COALESCE(
+      NULLIF(TRIM(COALESCE(co.first_name,'') || ' ' || COALESCE(co.last_name,'')), ''),
+      co.phone,
+      'Sem nome'
+    ) AS contact_name,
+    co.email AS contact_email,
+    co.phone AS contact_phone,
+    org.name AS contact_organization,
+    c.created_at,
+    c.closed_at,
+    -- waiting_time_seconds (LATERAL)
+    wait_calc.waiting_time_seconds,
+    -- duration_seconds
+    CASE WHEN c.closed_at IS NOT NULL
+      THEN EXTRACT(EPOCH FROM (c.closed_at - c.created_at))::BIGINT
+      ELSE NULL
+    END AS duration_seconds,
+    p.full_name AS assigned_agent_name,
+    participants_calc.participants,
+    d.name AS department_name,
+    msg_count.interactions_count,
+    CASE WHEN c.channel::TEXT = 'whatsapp'
+      THEN 'WhatsApp (' || COALESCE(c.whatsapp_provider, 'unknown') || ')'
+      ELSE c.channel::TEXT
+    END AS origin,
+    rating_calc.csat_score,
+    rating_calc.csat_comment,
+    ticket_calc.ticket_id,
+    c.ai_mode::TEXT AS bot_flow,
+    tags_calc.tags_all,
+    tag_calc.last_conversation_tag,
+    first_msg.first_customer_message,
+    wait_after_assign.waiting_after_assignment_seconds,
+    COUNT(*) OVER() AS total_count
 
-**Problema**: O estado interno `activePreset` não se sincroniza quando o `value` muda externamente.
+  FROM conversations c
+  JOIN contacts co ON co.id = c.contact_id
+  LEFT JOIN organizations org ON org.id = co.organization_id
+  LEFT JOIN profiles p ON p.id = c.assigned_to
+  LEFT JOIN departments d ON d.id = c.department
 
-**Solucao**:
-- Implementar `sameDay()` para comparação timezone-safe (evita bugs de toDateString)
-- Implementar `detectPresetFromValue()` para identificar qual preset corresponde ao value atual
-- Usar `useEffect` para sincronizar activePreset quando value mudar
-- Atualizar `getDisplayLabel()` para mostrar datas formatadas quando nao bater com preset
+  -- LATERAL: Contagem de mensagens (so para esta conversa)
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(COUNT(*), 0)::BIGINT AS interactions_count
+    FROM messages m WHERE m.conversation_id = c.id
+  ) msg_count ON true
 
-```typescript
-// Função timezone-safe para comparar datas por dia
-const sameDay = (a: Date, b: Date) =>
-  a.getFullYear() === b.getFullYear() &&
-  a.getMonth() === b.getMonth() &&
-  a.getDate() === b.getDate();
+  -- LATERAL: Primeira mensagem do agente
+  LEFT JOIN LATERAL (
+    SELECT MIN(created_at) AS first_agent_message_at
+    FROM messages m
+    WHERE m.conversation_id = c.id 
+      AND m.sender_type::text IN ('agent', 'user')
+  ) fam ON true
 
-// Detecta automaticamente o preset baseado no value
-const detectPresetFromValue = useCallback((range: DateRange | undefined): PresetKey => {
-  if (!range?.from || !range?.to) return 'custom';
-  
-  for (const key of presetOrder) {
-    const presetRange = presets[key].getRange();
-    if (
-      sameDay(range.from, presetRange.from) &&
-      sameDay(range.to, presetRange.to)
-    ) {
-      return key;
-    }
-  }
-  return 'custom';
-}, []);
+  -- LATERAL: Calculo tempo espera
+  LEFT JOIN LATERAL (
+    SELECT 
+      CASE
+        WHEN fam.first_agent_message_at IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (fam.first_agent_message_at - c.created_at))::BIGINT
+        WHEN c.first_response_at IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (c.first_response_at - c.created_at))::BIGINT
+        ELSE NULL
+      END AS waiting_time_seconds
+  ) wait_calc ON true
 
-// Sincronizar quando value muda externamente
-useEffect(() => {
-  const detected = detectPresetFromValue(value);
-  if (detected !== activePreset) {
-    setActivePreset(detected);
-  }
-}, [value, detectPresetFromValue, activePreset]);
+  -- LATERAL: Primeira mensagem do cliente
+  LEFT JOIN LATERAL (
+    SELECT LEFT(content, 200) AS first_customer_message
+    FROM messages m
+    WHERE m.conversation_id = c.id AND m.sender_type::text = 'contact'
+    ORDER BY m.created_at ASC LIMIT 1
+  ) first_msg ON true
+
+  -- LATERAL: Ultima tag de conversation
+  LEFT JOIN LATERAL (
+    SELECT t.name AS last_conversation_tag
+    FROM conversation_tags ct
+    JOIN tags t ON t.id = ct.tag_id
+    WHERE ct.conversation_id = c.id AND t.category = 'conversation'
+    ORDER BY ct.created_at DESC LIMIT 1
+  ) tag_calc ON true
+
+  -- LATERAL: Todas as tags
+  LEFT JOIN LATERAL (
+    SELECT ARRAY_AGG(DISTINCT t.name ORDER BY t.name) AS tags_all
+    FROM conversation_tags ct
+    JOIN tags t ON t.id = ct.tag_id
+    WHERE ct.conversation_id = c.id
+  ) tags_calc ON true
+
+  -- LATERAL: Participantes
+  LEFT JOIN LATERAL (
+    SELECT STRING_AGG(DISTINCT full_name, ', ' ORDER BY full_name) AS participants
+    FROM (
+      SELECT p2.full_name
+      FROM messages m
+      JOIN profiles p2 ON p2.id = m.sender_id
+      WHERE m.conversation_id = c.id AND m.sender_type::text IN ('agent', 'user')
+      UNION
+      SELECT p3.full_name
+      FROM conversation_assignment_logs al
+      JOIN profiles p3 ON p3.id = al.assigned_to
+      WHERE al.conversation_id = c.id
+    ) u
+    WHERE full_name IS NOT NULL AND full_name <> ''
+  ) participants_calc ON true
+
+  -- LATERAL: Primeiro assignment
+  LEFT JOIN LATERAL (
+    SELECT MIN(created_at) AS first_assigned_at
+    FROM conversation_assignment_logs al
+    WHERE al.conversation_id = c.id
+  ) fa ON true
+
+  -- LATERAL: Tempo apos assignment
+  LEFT JOIN LATERAL (
+    SELECT 
+      CASE
+        WHEN fa.first_assigned_at IS NOT NULL AND fam.first_agent_message_at IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (fam.first_agent_message_at - fa.first_assigned_at))::BIGINT
+        WHEN fa.first_assigned_at IS NOT NULL AND c.first_response_at IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (c.first_response_at - fa.first_assigned_at))::BIGINT
+        ELSE NULL
+      END AS waiting_after_assignment_seconds
+  ) wait_after_assign ON true
+
+  -- LATERAL: Ultimo ticket
+  LEFT JOIN LATERAL (
+    SELECT t.id AS ticket_id
+    FROM tickets t
+    WHERE t.conversation_id = c.id
+    ORDER BY t.created_at DESC LIMIT 1
+  ) ticket_calc ON true
+
+  -- LATERAL: Rating
+  LEFT JOIN LATERAL (
+    SELECT r.rating AS csat_score, r.feedback_text AS csat_comment
+    FROM conversation_ratings r
+    WHERE r.conversation_id = c.id
+    LIMIT 1
+  ) rating_calc ON true
+
+  WHERE c.created_at >= p_start
+    AND c.created_at < p_end
+    AND (p_department_id IS NULL OR c.department = p_department_id)
+    AND (p_agent_id IS NULL OR c.assigned_to = p_agent_id)
+    AND (p_status IS NULL OR c.status::TEXT = p_status)
+    AND (p_channel IS NULL OR c.channel::TEXT = p_channel)
+    AND (
+      p_search IS NULL OR
+      co.first_name ILIKE '%' || p_search || '%' OR
+      co.last_name  ILIKE '%' || p_search || '%' OR
+      co.phone      ILIKE '%' || p_search || '%' OR
+      co.email      ILIKE '%' || p_search || '%'
+    )
+  ORDER BY c.created_at DESC
+  LIMIT p_limit OFFSET p_offset;
+$$;
 ```
 
 ---
 
-### 2. useCommercialConversationsKPIs.tsx - Logs e Erro Real
+## Por Que Isso Resolve?
 
-**Problema**: Erro da RPC é silenciado com `data?.[0] || defaultKPIs`, mascarando falhas.
+| Antes (CTEs) | Depois (LATERAL) |
+|--------------|------------------|
+| Escaneia 47k mensagens ANTES de filtrar | Busca apenas mensagens das 50 conversas filtradas |
+| 11 materializacoes em memoria | Subqueries correlacionadas, so executa quando necessario |
+| O(n * m) onde n=conversas, m=mensagens | O(filtradas * k) onde k=mensagens por conversa |
 
-**Solucao**:
-- Adicionar logs de debug com parametros enviados
-- Logar erro antes de throw
-- Manter throw error para que React Query capture o isError
+### Estimativa de Melhoria
 
-```typescript
-queryFn: async () => {
-  console.log('[KPIs] Calling with filters:', {
-    p_start: filters.startDate.toISOString(),
-    p_end: filters.endDate.toISOString(),
-    p_department_id: filters.departmentId,
-    p_agent_id: filters.agentId,
-    p_status: filters.status,
-    p_channel: filters.channel,
-  });
-  
-  const { data, error } = await supabase.rpc("get_commercial_conversations_kpis", {...});
+- **Antes**: ~47.000 rows em messages * 11 CTEs = ~500k operacoes
+- **Depois**: ~50 conversas * ~20 mensagens cada = ~1k operacoes
 
-  if (error) {
-    console.error('[KPIs] RPC Error:', error);
-    throw error;
-  }
-  
-  console.log('[KPIs] Result:', data);
-  return (data?.[0] || defaultKPIs) as KPIData;
-},
-```
+**Reducao esperada: 99%+ do tempo de execucao**
 
 ---
 
-### 3. useCommercialConversationsReport.tsx - Logs
+## Indices Adicionais Recomendados
 
-**Problema**: Falta visibilidade dos parametros enviados para debug.
+Alguns indices podem ajudar ainda mais:
 
-**Solucao**:
-- Adicionar logs de debug similares ao KPIs
+```sql
+-- Indice para conversation_ratings (LATERAL)
+CREATE INDEX IF NOT EXISTS idx_conversation_ratings_conv 
+ON conversation_ratings(conversation_id);
 
-```typescript
-queryFn: async () => {
-  console.log('[Report] Calling with filters:', {
-    p_start: filters.startDate.toISOString(),
-    p_end: filters.endDate.toISOString(),
-    p_department_id: filters.departmentId,
-    p_limit: filters.limit,
-    p_offset: filters.offset,
-  });
-  
-  const { data, error } = await supabase.rpc(...);
-
-  if (error) {
-    console.error('[Report] RPC Error:', error);
-    throw error;
-  }
-  
-  console.log('[Report] Result count:', data?.length);
-  return (data || []) as ReportRow[];
-},
+-- Indice para first_customer_msg (sender_type + order)
+CREATE INDEX IF NOT EXISTS idx_messages_conv_sender_contact
+ON messages(conversation_id, created_at ASC) 
+WHERE sender_type = 'contact';
 ```
-
----
-
-### 4. CommercialKPICards.tsx - Erro Visivel
-
-**Problema**: Quando query falha, mostra "0" silencioso.
-
-**Solucao**:
-- Adicionar prop `isError` e `error`
-- Mostrar mensagem de erro na UI
-
-```tsx
-interface CommercialKPICardsProps {
-  data: KPIData | undefined;
-  isLoading: boolean;
-  isError?: boolean;
-  error?: Error | null;
-}
-
-// No componente:
-if (isError) {
-  return (
-    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-      <p className="text-red-600 dark:text-red-400 text-sm font-medium">
-        Erro ao carregar KPIs. Por favor, tente novamente.
-      </p>
-      {error?.message && (
-        <p className="text-red-500 dark:text-red-500 text-xs mt-1">{error.message}</p>
-      )}
-    </div>
-  );
-}
-```
-
----
-
-### 5. CommercialDetailedTable.tsx - Erro Visivel
-
-**Problema**: Quando query falha, mostra "Nenhuma conversa encontrada".
-
-**Solucao**:
-- Adicionar props `isError` e `error`
-- Mostrar mensagem de erro diferenciada
-
-```tsx
-interface CommercialDetailedTableProps {
-  data: ReportRow[] | undefined;
-  isLoading: boolean;
-  isError?: boolean;
-  error?: Error | null;
-  // ... rest
-}
-
-// No componente, antes do check de data vazia:
-if (isError) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Conversas Detalhadas</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-red-600 dark:text-red-400 text-sm font-medium">
-            Erro ao carregar conversas. Por favor, tente novamente.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-```
-
----
-
-### 6. CommercialConversationsReport.tsx - Passar isError
-
-**Ajuste**: Passar isError/error para os componentes filhos.
-
-```tsx
-<CommercialKPICards 
-  data={kpisQuery.data} 
-  isLoading={kpisQuery.isLoading}
-  isError={kpisQuery.isError}
-  error={kpisQuery.error as Error | null}
-/>
-
-<CommercialDetailedTable
-  data={reportQuery.data}
-  isLoading={reportQuery.isLoading}
-  isError={reportQuery.isError}
-  error={reportQuery.error as Error | null}
-  // ... rest
-/>
-```
-
----
-
-## Consistencia do p_end Exclusivo
-
-**Status**: JA IMPLEMENTADO
-
-A pagina `CommercialConversationsReport.tsx` ja faz na linha 74:
-```typescript
-endDate: addDays(dateRange?.to || endOfMonth(new Date()), 1), // End exclusive
-```
-
-Isso garante que quando o usuario seleciona 01/01-31/01, o `p_end` enviado sera 01/02 00:00:00, compativel com o SQL `created_at < p_end`.
 
 ---
 
 ## Resultado Esperado
 
-1. **Label sincronizado**: Quando usuario seleciona "Mes Passado" ou qualquer preset, o label sempre reflete o periodo real
-2. **Erro visivel**: Se KPI ou Report falhar, usuario ve mensagem de erro (nao "0" silencioso)
-3. **Debug facilitado**: Logs no console mostram exatamente quais parametros estao sendo enviados
-4. **Timezone-safe**: Comparacao por dia evita bugs de horario/timezone
+1. **Query executa em menos de 1 segundo** (vs timeout atual)
+2. **Mesmo resultado** - dados identicos, apenas estrutura otimizada
+3. **Escalavel** - performance nao degrada com mais dados
+4. **Sem impacto no frontend** - mesma interface/tipos
+

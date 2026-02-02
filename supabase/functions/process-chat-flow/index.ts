@@ -552,6 +552,8 @@ serve(async (req) => {
         
         if (!selectedOption) {
           // ❌ ENTRADA INVÁLIDA → NÃO AVANÇA
+          // 🆕 Log estruturado para auditoria (Plano v2.3)
+          console.log('[process-chat-flow] invalidOption conv=' + conversationId + ' flow=' + activeState.flow_id + ' node=' + currentNode.id + ' msg="' + userMessage + '"');
           console.log('[process-chat-flow] ❌ Invalid option response:', userMessage, '| Options:', options.map((o: any) => o.label).join(', '));
           
           // Formatar opções para reenvio
@@ -564,12 +566,13 @@ serve(async (req) => {
           return new Response(
             JSON.stringify({
               useAI: false,
-              response: "❗ Não entendi sua resposta.\n\nPor favor, responda com o *número* ou *nome* de uma das opções:",
+              response: "Desculpe, não entendi sua resposta. 🙂\n\nPara que eu possa te ajudar, por favor responda com o *número* (1, 2, 3...) ou o *nome* de uma das opções abaixo:",
               options: formattedOptions,
               retry: true,
               flowId: activeState.flow_id,
               nodeId: currentNode.id, // Mantém no mesmo nó
               invalidOption: true,
+              preventAI: true, // 🆕 Flag crítica: impede IA de responder
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -913,6 +916,33 @@ serve(async (req) => {
     }
 
     if (!matchedFlow) {
+      // 🆕 PROTEÇÃO: Verificar se existe estado ativo ANTES de iniciar Master Flow
+      const { data: existingActiveFlowState } = await supabaseClient
+        .from('chat_flow_states')
+        .select('id, flow_id, current_node_id')
+        .eq('conversation_id', conversationId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (existingActiveFlowState) {
+        console.log('[process-chat-flow] ⚠️ Estado ativo encontrado - NÃO iniciar Master Flow');
+        console.log('[process-chat-flow] Existing state:', existingActiveFlowState.id, 'flow:', existingActiveFlowState.flow_id, 'node:', existingActiveFlowState.current_node_id);
+        
+        // Mensagem genérica de retry para evitar perda de estado
+        return new Response(
+          JSON.stringify({
+            useAI: false,
+            response: "Desculpe, não entendi sua resposta. 🙂\n\nPor favor, verifique as opções acima e responda novamente.",
+            retry: true,
+            preventAI: true,
+            flowId: existingActiveFlowState.flow_id,
+            nodeId: existingActiveFlowState.current_node_id,
+            invalidOption: true,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // 🆕 MASTER FLOW: Se não encontrou trigger, verificar se existe um fluxo mestre
       console.log('[process-chat-flow] No trigger matched - checking for Master Flow...');
       

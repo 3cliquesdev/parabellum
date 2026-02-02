@@ -1,292 +1,279 @@
 
-# Plano: Corrigir Preview V2 + Completar Tracking de Emails
+# Plano de Implementação: Integração Email Tracking → Playbook
 
-## Resumo das Correções
-
-### Parte 1: Preview V2 (4 correções)
-
-### Parte 2: Webhook Tracking (atualizar `email_sends`)
-
----
-
-## Parte 1: Correções no Preview V2
-
-### 1.1 PreviewPanel.tsx - Detectar Template Migrado
-
-**Arquivo:** `src/components/email-builder-v2/PreviewPanel.tsx`
-
-**Linha 55-58 (substituir):**
-
-```typescript
-const generatedHtml = useMemo(() => {
-  const safeBlocks = Array.isArray(blocks) ? blocks : [];
-
-  // Detectar template migrado (HTML completo em bloco único)
-  if (safeBlocks.length === 1 && safeBlocks[0]?.block_type === "html") {
-    const htmlContent =
-      safeBlocks[0]?.content?.html ||
-      safeBlocks[0]?.content?.value ||
-      "";
-
-    const s = htmlContent.trimStart().toLowerCase();
-    const isFullDocument = s.startsWith("<!doctype") || s.startsWith("<html");
-
-    if (isFullDocument) {
-      // Template migrado - renderizar direto
-      return replaceVariables(htmlContent, sampleData);
-    }
-  }
-
-  // Fluxo normal para templates V2 nativos
-  const rawHtml = generateEmailHTML(safeBlocks, { preheader, subject });
-  return replaceVariables(rawHtml, sampleData);
-}, [blocks, preheader, subject, sampleData]);
-```
+## Objetivo
+Corrigir integração Email Tracking → Playbook com 3 fixes:
+1. **Buraco A**: Correlação `playbook_execution_id` + `playbook_node_id` em `email_sends`
+2. **Buraco B**: Lock atômico do processador (claim com `FOR UPDATE SKIP LOCKED`)
+3. **Buraco C**: Conditions `email_opened/email_clicked` validarem **apenas o email do nó informado** (evitar falso-positivo)
 
 ---
 
-### 1.2 emailHtmlGenerator.ts - Fallback para Blocos Vazios (SEM EMOJI)
-
-**Arquivo:** `src/utils/emailHtmlGenerator.ts`
-
-**Inserir após linha 426 (dentro da função `generateEmailHTML`):**
-
-```typescript
-export function generateEmailHTML(
-  blocks: EmailBlock[],
-  options: GenerateOptions = {}
-): string {
-  const { branding, preheader, subject } = options;
-
-  // Fallback para preview vazio (sem emojis - padrão visual Octadesk)
-  if (!blocks || blocks.length === 0) {
-    return `
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Preview</title>
-</head>
-<body style="margin: 0; padding: 40px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-  <div style="text-align: center; color: #64748b; padding: 60px 20px;">
-    <h2 style="margin: 0 0 8px 0; color: #334155;">Nenhum bloco adicionado</h2>
-    <p style="margin: 0; font-size: 14px;">Arraste blocos da barra lateral para montar seu email.</p>
-  </div>
-</body>
-</html>
-    `.trim();
-  }
-
-  // ... resto do código existente
-```
-
----
-
-### 1.3 emailHtmlGenerator.ts - Safe Access para Styles em TODAS as Funções
-
-**Padrão a aplicar em cada função `generate*BlockHtml`:**
-
-```typescript
-// ANTES (linha 70):
-const padding = parsePadding(block.styles.padding);
-
-// DEPOIS:
-const styles = block.styles ?? {};
-const content = block.content ?? {};
-const padding = parsePadding(styles.padding);
-```
-
-**Funções a modificar (10 no total):**
-
-| Função | Linha | Campos a proteger |
-|--------|-------|-------------------|
-| `generateTextBlockHtml` | 69 | `styles.padding`, `styles.textAlign`, `styles.fontSize`, `styles.color`, `styles.backgroundColor` |
-| `generateImageBlockHtml` | 90 | `styles.padding`, `styles.textAlign`, `styles.borderRadius`, `styles.backgroundColor` |
-| `generateButtonBlockHtml` | 145 | `styles.padding`, `styles.textAlign`, `styles.backgroundColor`, `styles.color`, `styles.borderRadius`, `styles.fontSize`, `styles.fontWeight` |
-| `generateSpacerBlockHtml` | 192 | `content.height`, `styles.backgroundColor` |
-| `generateDividerBlockHtml` | 208 | `styles.padding`, `styles.color` |
-| `generateBannerBlockHtml` | 224 | `styles.padding`, `styles.backgroundColor`, `styles.color`, `styles.textAlign` |
-| `generateSignatureBlockHtml` | 251 | `styles.padding`, `styles.textAlign`, `styles.color`, `styles.backgroundColor` |
-| `generateSocialBlockHtml` | 282 | `styles.padding`, `styles.textAlign`, `styles.backgroundColor` |
-| `generateHtmlBlockHtml` | 350 | `styles.padding`, `styles.backgroundColor` |
-| `generateColumnsBlockHtml` | 366 | `styles.padding`, `styles.backgroundColor` |
-
----
-
-### 1.4 emailHtmlGenerator.ts - Normalizar buttonText (Linha 179)
-
-**Antes:**
-```typescript
-${block.content.buttonText || "Clique aqui"}
-```
-
-**Depois:**
-```typescript
-${content.buttonText || content.text || "Clique aqui"}
-```
-
----
-
-## Parte 2: Webhook - Atualizar `email_sends`
-
-### Situação Atual
-
-- Tabela `email_sends` **já possui** os campos: `opened_at`, `clicked_at`, `bounced_at`, `sent_at`
-- Tabela `email_sends` **já possui** campo `resend_email_id` (mas sem índice único)
-- Webhook `email-webhook` **só insere em `interactions`** - não atualiza `email_sends`
-
-### 2.1 Criar Índice Único (Migration)
-
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS email_sends_resend_email_id_uidx 
-  ON public.email_sends(resend_email_id) 
-  WHERE resend_email_id IS NOT NULL;
-```
-
----
-
-### 2.2 Atualizar Webhook `email-webhook/index.ts`
-
-**Modificações:**
-
-1. Processar **todos** os eventos relevantes (não só opened/clicked)
-2. Atualizar `email_sends` além de criar interações
-3. Fazer update idempotente (usar `MIN` para timestamps)
-
-**Arquivo:** `supabase/functions/email-webhook/index.ts`
-
-**Adicionar após a inserção de interação (linha 190):**
-
-```typescript
-// Atualizar email_sends para consulta rápida
-const updateField = eventType === 'email.opened' 
-  ? 'opened_at' 
-  : eventType === 'email.clicked'
-    ? 'clicked_at'
-    : eventType === 'email.bounced'
-      ? 'bounced_at'
-      : eventType === 'email.delivered'
-        ? 'delivered_at'
-        : null;
-
-if (updateField) {
-  // Usar COALESCE para manter o primeiro timestamp (idempotência)
-  const { error: updateError } = await supabase
-    .from('email_sends')
-    .update({ [updateField]: payload.created_at })
-    .eq('resend_email_id', emailId)
-    .is(updateField, null); // Só atualiza se ainda estiver NULL
-
-  if (updateError) {
-    console.warn('[email-webhook] Warning: Failed to update email_sends:', updateError);
-  } else {
-    console.log('[email-webhook] email_sends updated:', updateField);
-  }
-}
-```
-
-**Também modificar linha 114-124 para processar mais eventos:**
-
-```typescript
-// ANTES:
-if (eventType !== 'email.opened' && eventType !== 'email.clicked') {
-
-// DEPOIS:
-const TRACKED_EVENTS = ['email.opened', 'email.clicked', 'email.bounced', 'email.delivered'];
-if (!TRACKED_EVENTS.includes(eventType)) {
-```
-
----
-
-### 2.3 Atualizar `send-email/index.ts` - Salvar em `email_sends`
-
-**Adicionar após linha 252 (após `resendData`):**
-
-```typescript
-// Registrar em email_sends para tracking completo
-if (customer_id && !isTest) {
-  const { error: sendError } = await supabase
-    .from('email_sends')
-    .insert({
-      contact_id: customer_id,
-      resend_email_id: resendData.id,
-      subject,
-      recipient_email: to,
-      status: 'sent',
-      sent_at: new Date().toISOString(),
-      variables_used: { to_name: recipientName, branding: brandName }
-    });
-
-  if (sendError) {
-    console.warn('[send-email] Warning: Failed to insert email_sends:', sendError);
-  }
-}
-```
-
----
-
-## Resumo de Arquivos a Modificar
+## Arquivos a Modificar
 
 | Arquivo | Modificação |
 |---------|-------------|
-| `src/components/email-builder-v2/PreviewPanel.tsx` | Detectar e renderizar HTML migrado |
-| `src/utils/emailHtmlGenerator.ts` | Fallback vazio + safe access + buttonText |
-| `supabase/functions/email-webhook/index.ts` | Atualizar `email_sends` + mais eventos |
-| `supabase/functions/send-email/index.ts` | Inserir em `email_sends` ao enviar |
-| **Migration SQL** | Índice único em `resend_email_id` |
+| **Migration SQL** | Adicionar colunas + índices + RPC `claim_playbook_queue_items` (CTE) |
+| `supabase/functions/send-email/index.ts` | Interface + INSERT idempotente com fallback UPDATE |
+| `supabase/functions/process-playbook-queue/index.ts` | Lock atômico via RPC + passar `node_id` + exigir `email_node_id` nas conditions |
 
 ---
 
-## Fluxo Final de Tracking
-
-```text
-1. Envia email (send-email ou send-triggered-email)
-   → Grava em email_sends: resend_email_id, contact_id, sent_at
-   → Grava em email_tracking_events: event_type='sent'
-   → Grava em interactions: type='email_sent'
-
-2. Resend dispara webhook (delivered/opened/clicked/bounced)
-   → email-webhook recebe
-   → Atualiza email_sends: opened_at, clicked_at, etc.
-   → Grava em email_tracking_events
-   → Grava em interactions
-
-3. Consulta no onboarding/playbook:
-   SELECT opened_at, clicked_at FROM email_sends 
-   WHERE contact_id = :id ORDER BY sent_at DESC
-```
-
----
-
-## Consultas Úteis para Playbook/Onboarding
+## Etapa 1: Migration SQL
 
 ```sql
--- Cliente abriu o email?
-SELECT opened_at IS NOT NULL AS abriu
-FROM email_sends 
-WHERE contact_id = :contact_id 
-ORDER BY sent_at DESC LIMIT 1;
+-- 1. Adicionar colunas de correlação playbook
+ALTER TABLE public.email_sends
+  ADD COLUMN IF NOT EXISTS playbook_execution_id uuid,
+  ADD COLUMN IF NOT EXISTS playbook_node_id text;
 
--- Cliente clicou?
-SELECT clicked_at IS NOT NULL AS clicou
-FROM email_sends 
-WHERE contact_id = :contact_id 
-ORDER BY sent_at DESC LIMIT 1;
+-- 2. Índice para busca eficiente no condition  
+CREATE INDEX IF NOT EXISTS idx_email_sends_playbook_exec_node
+  ON public.email_sends(playbook_execution_id, playbook_node_id)
+  WHERE playbook_execution_id IS NOT NULL;
 
--- Histórico completo
-SELECT subject, sent_at, opened_at, clicked_at, bounced_at
-FROM email_sends 
-WHERE contact_id = :contact_id 
-ORDER BY sent_at DESC;
+-- 3. Índice único para resend_email_id (idempotência)
+CREATE UNIQUE INDEX IF NOT EXISTS email_sends_resend_email_id_uidx
+  ON public.email_sends(resend_email_id)
+  WHERE resend_email_id IS NOT NULL;
+
+-- 4. Índice para otimizar claim da fila
+CREATE INDEX IF NOT EXISTS idx_playbook_queue_pending_sched
+  ON public.playbook_execution_queue(status, scheduled_for)
+  WHERE status = 'pending';
+
+-- 5. Função para lock atômico via CTE
+CREATE OR REPLACE FUNCTION public.claim_playbook_queue_items(batch_size int DEFAULT 10)
+RETURNS SETOF public.playbook_execution_queue
+LANGUAGE sql
+AS $$
+  WITH picked AS (
+    SELECT id
+    FROM public.playbook_execution_queue
+    WHERE status = 'pending'
+      AND scheduled_for <= now()
+    ORDER BY scheduled_for, id
+    LIMIT batch_size
+    FOR UPDATE SKIP LOCKED
+  )
+  UPDATE public.playbook_execution_queue q
+  SET status = 'processing'
+  FROM picked
+  WHERE q.id = picked.id
+  RETURNING q.*;
+$$;
+
+-- 6. Restringir acesso à função apenas para service_role
+REVOKE ALL ON FUNCTION public.claim_playbook_queue_items(int) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_playbook_queue_items(int) TO service_role;
 ```
 
 ---
 
-## Testes Necessários
+## Etapa 2: Atualizar `send-email/index.ts`
 
-1. Abrir template V2 criado do zero - verificar preview
-2. Abrir template migrado do V1 - verificar preview (HTML completo)
-3. Criar template novo sem blocos - verificar mensagem placeholder
-4. Enviar email de teste e verificar se grava em `email_sends`
-5. Simular webhook `opened` e verificar se atualiza `opened_at`
+### Modificações:
+
+**2.1 Adicionar campos na interface (linhas 9-20):**
+- `playbook_node_id?: string;`
+- `template_id?: string;`
+
+**2.2 Extrair da request (linhas 39-50):**
+- Adicionar `playbook_node_id` e `template_id` no destructuring
+
+**2.3 Substituir INSERT por INSERT + fallback UPDATE (linhas 256-273):**
+
+```typescript
+const emailSendPayload = {
+  contact_id: customer_id,
+  resend_email_id: resendData.id,
+  subject,
+  recipient_email: to,
+  status: 'sent',
+  sent_at: new Date().toISOString(),
+  variables_used: { to_name: recipientName, branding: brandName },
+  playbook_execution_id: playbook_execution_id || null,
+  playbook_node_id: playbook_node_id || null,
+  template_id: request_template_id || null,
+};
+
+const { error: sendError } = await supabase.from('email_sends').insert(emailSendPayload);
+
+// AJUSTE 2: Se já existe (conflito 23505), atualizar só campos de correlação quando NULL
+if (sendError && sendError.code === '23505') {
+  console.log('[send-email] Record exists, updating correlation fields if needed');
+  await supabase
+    .from('email_sends')
+    .update({
+      playbook_execution_id: emailSendPayload.playbook_execution_id,
+      playbook_node_id: emailSendPayload.playbook_node_id,
+      template_id: emailSendPayload.template_id,
+    })
+    .eq('resend_email_id', emailSendPayload.resend_email_id)
+    .is('playbook_execution_id', null);
+} else if (sendError) {
+  console.warn('[send-email] Warning: Failed to insert email_sends:', sendError);
+} else {
+  console.log('[send-email] email_sends record created for tracking');
+}
+```
+
+---
+
+## Etapa 3: Atualizar `process-playbook-queue/index.ts`
+
+### Modificações:
+
+**3.1 Lock atômico via RPC (substituir linhas 47-66):**
+
+Substituir o SELECT manual por chamada ao RPC:
+```typescript
+const { data: queueItems, error: queueError } = await supabaseAdmin.rpc(
+  'claim_playbook_queue_items',
+  { batch_size: 10 }
+);
+```
+
+**3.2 REMOVER update de status para processing (linhas 77-81):**
+
+O RPC já marca como 'processing', então remover este bloco.
+
+**3.3 Passar `playbook_node_id` no email (linhas 340-349):**
+
+Adicionar ao body do invoke:
+```typescript
+playbook_node_id: item.node_id,
+template_id: emailData.template_id || null,
+```
+
+**3.4 Corrigir conditions `email_opened` e `email_clicked` (linhas 664-688):**
+
+- Exigir `email_node_id` (se não vier → false)
+- Adicionar filtro por `playbook_node_id`
+- Logar sinal fraco vs forte
+
+```typescript
+case 'email_opened': {
+  const emailNodeId = conditionData.email_node_id || 
+                      conditionData.condition_value?.emailNodeId;
+  
+  if (!emailNodeId) {
+    console.warn('[condition] email_opened sem email_node_id -> false (evita falso-positivo)');
+    conditionResult = false;
+    break;
+  }
+  
+  const { data: emailSends } = await supabase
+    .from('email_sends')
+    .select('opened_at')
+    .eq('playbook_execution_id', execution.id)
+    .eq('playbook_node_id', emailNodeId)
+    .not('opened_at', 'is', null)
+    .limit(1);
+  
+  conditionResult = (emailSends?.length || 0) > 0;
+  console.log(`⚠️ email_opened é sinal FRACO. Node: ${emailNodeId}, Result: ${conditionResult}`);
+  break;
+}
+
+case 'email_clicked': {
+  const emailNodeId = conditionData.email_node_id || 
+                      conditionData.condition_value?.emailNodeId;
+  
+  if (!emailNodeId) {
+    console.warn('[condition] email_clicked sem email_node_id -> false (evita falso-positivo)');
+    conditionResult = false;
+    break;
+  }
+  
+  const { data: emailSends } = await supabase
+    .from('email_sends')
+    .select('clicked_at')
+    .eq('playbook_execution_id', execution.id)
+    .eq('playbook_node_id', emailNodeId)
+    .not('clicked_at', 'is', null)
+    .limit(1);
+  
+  conditionResult = (emailSends?.length || 0) > 0;
+  console.log(`✅ email_clicked é sinal FORTE. Node: ${emailNodeId}, Result: ${conditionResult}`);
+  break;
+}
+```
+
+---
+
+## Fluxo Final Corrigido
+
+```text
+1. Envia email (send-email)
+   → INSERT em email_sends: resend_email_id, contact_id, playbook_execution_id, playbook_node_id
+   → Se conflito 23505: UPDATE só campos de correlação quando NULL (idempotente)
+
+2. Resend dispara webhook (delivered/opened/clicked)
+   → email-webhook recebe
+   → Atualiza email_sends: opened_at, clicked_at (já implementado)
+
+3. Condition no playbook verifica:
+   → email_clicked SEM email_node_id → false (evita falso-positivo)
+   → email_clicked COM email_node_id → busca específica por execução + nó
+   → Lock atômico previne processamento duplicado
+```
+
+---
+
+## Critérios de Aceite
+
+1. `email_sends` passa a gravar `playbook_execution_id` + `playbook_node_id` quando email é enviado por playbook
+2. `claim_playbook_queue_items()` evita duplicidade mesmo com CRON rodando em paralelo
+3. Condition `email_clicked` só retorna true quando **o email do nó específico** foi clicado
+4. Retry do `send-email` não duplica `email_sends` (idempotência por `resend_email_id`)
+5. Conditions consultam com `supabaseAdmin` (já é o caso - não quebra por RLS)
+
+---
+
+## Testes Recomendados
+
+1. **Lock atômico:** Disparar processador 2x simultaneamente → verificar que cada item é processado 1x
+2. **Correlação:** Disparar playbook com nó email → verificar se `email_sends` grava `playbook_node_id`
+3. **Idempotência:** Retry do send-email → não duplica registro
+4. **Condition sem node_id:** Condition `email_clicked` sem `email_node_id` → deve retornar false
+5. **Condition com node_id:** Simular webhook clicked → condition deve retornar true apenas para o nó correto
+
+---
+
+## Seção Técnica
+
+### Consultas de Teste Após Implementação
+
+```sql
+-- Verificar se emails do playbook estão salvando correlação
+SELECT id, subject, playbook_execution_id, playbook_node_id, sent_at, opened_at, clicked_at
+FROM email_sends
+WHERE playbook_execution_id IS NOT NULL
+ORDER BY sent_at DESC
+LIMIT 10;
+
+-- Email específico do nó X foi clicado?
+SELECT clicked_at IS NOT NULL AS clicou
+FROM email_sends 
+WHERE playbook_execution_id = :execution_id
+  AND playbook_node_id = :node_id;
+
+-- Testar função de lock atômico
+SELECT * FROM claim_playbook_queue_items(5);
+```
+
+### Configuração no Editor de Playbook
+
+Para o nó Condition verificar um email específico:
+
+```json
+{
+  "node_type": "condition",
+  "data": {
+    "condition_type": "email_clicked",
+    "email_node_id": "email-1700000000000",
+    "label": "Clicou no email de boas-vindas?"
+  }
+}
+```

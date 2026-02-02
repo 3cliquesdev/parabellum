@@ -66,6 +66,7 @@ export const universalMenuGroups: MenuGroup[] = [
       { title: "Inbox", href: "/inbox", icon: MessageCircle, permission: "inbox.access" },
       { title: "Instagram", href: "/instagram", icon: Instagram, permission: "inbox.access" },
       { title: "Fila de Tickets", href: "/support", icon: Ticket, permission: "tickets.view" },
+      { title: "Dashboard Suporte", href: "/support-dashboard", icon: BarChart3, permission: "analytics.view" },
       { title: "Base de Conhecimento", href: "/knowledge", icon: Book, permission: "inbox.view_knowledge" },
     ]
   },

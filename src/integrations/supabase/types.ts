@@ -8804,6 +8804,86 @@ export type Database = {
           was_reopened: boolean
         }[]
       }
+      get_sla_compliance_v2: {
+        Args: {
+          p_agent_id?: string
+          p_channel?: string
+          p_department_id?: string
+          p_end: string
+          p_start: string
+          p_status?: string
+        }
+        Returns: {
+          compliance_rate: number
+          on_time: number
+          overdue: number
+          pending: number
+          total: number
+        }[]
+      }
+      get_support_drilldown_v2: {
+        Args: {
+          p_agent_id?: string
+          p_channel?: string
+          p_department_id?: string
+          p_end: string
+          p_limit?: number
+          p_metric?: string
+          p_offset?: number
+          p_search?: string
+          p_sort_by?: string
+          p_sort_dir?: string
+          p_start: string
+          p_status?: string
+        }
+        Returns: {
+          agent_name: string
+          channel: string
+          created_at: string
+          customer_name: string
+          department_name: string
+          due_date: string
+          first_response_at: string
+          frt_minutes: number
+          id: string
+          mttr_minutes: number
+          resolved_at: string
+          sla_status: string
+          status: string
+          ticket_number: string
+          total_count: number
+        }[]
+      }
+      get_support_metrics_v2: {
+        Args: {
+          p_agent_id?: string
+          p_channel?: string
+          p_department_id?: string
+          p_end: string
+          p_start: string
+          p_status?: string
+        }
+        Returns: {
+          frt_avg_minutes: number
+          frt_count: number
+          mttr_avg_minutes: number
+          mttr_count: number
+        }[]
+      }
+      get_volume_vs_resolution_v2: {
+        Args: {
+          p_agent_id?: string
+          p_channel?: string
+          p_department_id?: string
+          p_end: string
+          p_start: string
+        }
+        Returns: {
+          date_bucket: string
+          opened: number
+          resolved: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -8860,6 +8940,8 @@ export type Database = {
           title: string
         }[]
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       transfer_conversation_secure: {
         Args: {
           p_conversation_id: string

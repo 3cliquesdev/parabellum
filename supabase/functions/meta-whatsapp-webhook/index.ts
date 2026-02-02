@@ -528,6 +528,12 @@ serve(async (req) => {
                 transfer?: boolean;
                 transferType?: string;
                 departmentId?: string;
+                // 🆕 Novas flags para proteção de retry/invalidOption
+                retry?: boolean;
+                invalidOption?: boolean;
+                preventAI?: boolean;
+                flowId?: string;
+                nodeId?: string;
               } = {};
 
               try {
@@ -632,7 +638,14 @@ serve(async (req) => {
               }
 
               // CASO 2: Fluxo retornou resposta estática (Message/AskOptions/etc)
+              // 🆕 INCLUI proteção para retry de opção inválida
               if (!flowData.useAI && flowData.response) {
+                // 🆕 Log de auditoria para retry de opção inválida
+                if (flowData.retry && flowData.invalidOption) {
+                  console.log("[meta-whatsapp-webhook] 🔄 RETRY opção inválida - preventAI:", flowData.preventAI);
+                  console.log("[meta-whatsapp-webhook] 📋 Enviando APENAS resposta estática do fluxo");
+                }
+                
                 // 🆕 Formatar opções junto com a mensagem se existirem
                 const formattedMessage = flowData.response + formatOptionsAsText(flowData.options);
                 
@@ -685,6 +698,12 @@ serve(async (req) => {
                   }
                 }
                 
+                continue;
+              }
+
+              // CASO 2.5: 🆕 preventAI=true sem response → Proteção adicional
+              if (flowData.preventAI === true) {
+                console.log("[meta-whatsapp-webhook] 🛡️ preventAI ativo sem response - bloqueando IA");
                 continue;
               }
 

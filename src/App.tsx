@@ -118,6 +118,7 @@ const ChatFlows = lazy(() => import("./pages/ChatFlows"));
 const ChatFlowEditorPage = lazy(() => import("./pages/ChatFlowEditorPage"));
 const WhatsAppMetaSettings = lazy(() => import("./pages/WhatsAppMetaSettings"));
 const SupportDashboard = lazy(() => import("./pages/SupportDashboard"));
+const CommercialConversationsReport = lazy(() => import("./pages/CommercialConversationsReport"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -204,6 +205,7 @@ const App = () => {
               <Route path="/reports/sales-distribution" element={<ProtectedRoute requiredPermission="reports.lead_distribution"><Layout><SalesRepDistribution /></Layout></ProtectedRoute>} />
               <Route path="/reports/quality" element={<ProtectedRoute requiredPermission="analytics.view"><AgentQualityDashboard /></ProtectedRoute>} />
               <Route path="/reports/impact" element={<ProtectedRoute requiredPermission="analytics.view"><CopilotImpactDashboard /></ProtectedRoute>} />
+              <Route path="/reports/commercial-conversations" element={<ProtectedRoute requiredPermission="analytics.view"><Layout><CommercialConversationsReport /></Layout></ProtectedRoute>} />
               <Route path="/goals" element={<ProtectedRoute requiredPermission="goals.view_own"><Layout><Goals /></Layout></ProtectedRoute>} />
               <Route path="/goals-management" element={<ProtectedRoute requiredPermission="goals.set"><Layout><GoalsManagement /></Layout></ProtectedRoute>} />
               <Route path="/internal-requests" element={<ProtectedRoute requiredPermission="tickets.view"><Layout><InternalRequests /></Layout></ProtectedRoute>} />

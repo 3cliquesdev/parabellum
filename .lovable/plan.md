@@ -1,171 +1,237 @@
 
+# Plano: Sistema de Emails Transacionais com Triggers Kiwify
 
-# Plano Atualizado: Limpeza do Pipeline Comercial (Vendas - Nacional)
+## Visao Geral
 
-## Objetivo
-
-Separar o pipeline "Vendas - Nacional" para conter APENAS deals que o time comercial realmente trabalha:
-- Recuperacoes / Winbacks
-- Carrinhos abandonados / Cartoes recusados
-- Formularios (leads que precisam de atendimento)
-- Qualquer deal com vendedor atribuido
-
-Deals automaticos (organicos via checkout direto, afiliados, recorrencias) serao movidos para os pipelines de Customer Success.
+Implementar um sistema completo de disparo automatico de emails baseado em eventos Kiwify, dando **autonomia total** para ligar/desligar templates por trigger sem precisar de desenvolvedor.
 
 ---
 
-## Criterios de Classificacao ATUALIZADOS
+## Arquitetura Atual
 
-### Ficam no Comercial (para o time fechar)
+### O que ja existe:
+- **Tabela `email_templates`** com campo `trigger_type` e `is_active`
+- **Edge Function `send-email`** que envia via Resend com branding
+- **Edge Function `get-email-template`** que busca template por trigger
+- **Triggers existentes**: `deal_won`, `deal_lost`, `deal_created`, `contact_created`, `playbook_step`, `manual`
 
-| Criterio | Logica |
-|----------|--------|
-| Tem vendedor | `assigned_to IS NOT NULL` |
-| Recuperacao/Winback | titulo LIKE `%recupera%`, `%winback%` |
-| Carrinho/Cartao | titulo LIKE `%carrinho%`, `%cartao%`, `%recusado%` |
-| Formulario | `lead_source IN ('formulario', 'form', 'chat_widget', 'webchat')` |
+### O que falta:
+- Triggers especificos para eventos Kiwify
+- Integracao no webhook para disparar emails automaticamente
+- UI para gerenciar triggers (ligar/desligar)
 
-### Vai para CS - Recorrencia
+---
+
+## Novos Triggers a Implementar
+
+| Trigger Type | Evento Kiwify | Descricao | Variaveis Disponiveis |
+|--------------|---------------|-----------|----------------------|
+| `order_paid` | `paid` / `order_approved` | Primeira compra aprovada | cliente, produto, valor, order_id |
+| `subscription_renewed` | `subscription_renewed` | Renovacao de assinatura | cliente, produto, valor, ltv |
+| `cart_abandoned` | `cart_abandoned` | Carrinho abandonado | cliente, produto, valor, link_recuperacao |
+| `payment_refused` | `refused` / `payment_refused` | Cartao recusado | cliente, produto, valor, motivo |
+| `subscription_card_declined` | `subscription_card_declined` | Cartao da assinatura recusado | cliente, produto, dias_atraso |
+| `subscription_late` | `subscription_late` | Assinatura em atraso | cliente, produto, dias_atraso |
+| `upsell_paid` | paid (cliente existente) | Upsell aprovado | cliente, produto, valor, ltv_novo |
+| `refunded` | `refunded` | Reembolso processado | cliente, produto, valor |
+| `churned` | `chargedback` / `subscription_canceled` | Churn/Cancelamento | cliente, produto, motivo |
+
+---
+
+## Implementacao Tecnica
+
+### Etapa 1: Criar Edge Function `send-triggered-email`
+
+Nova funcao dedicada para disparar emails baseados em trigger_type:
 
 ```text
-lead_source IN ('kiwify_recorrencia', 'kiwify_renovacao')
+supabase/functions/send-triggered-email/index.ts
+
+Entrada:
+{
+  trigger_type: string,          // Ex: "order_paid"
+  contact_id: string,            // ID do contato
+  variables: {                   // Variaveis dinamicas
+    customer_name: string,
+    product_name: string,
+    order_value: number,
+    order_id: string,
+    ...
+  }
+}
+
+Logica:
+1. Buscar template ativo com trigger_type correspondente
+2. Se nao encontrar template ativo, retornar silenciosamente (sem erro)
+3. Substituir variaveis no subject e html_body
+4. Chamar send-email com o conteudo processado
 ```
 
-### Vai para CS - Novos Clientes
+### Etapa 2: Integrar no Webhook Kiwify
+
+Modificar `kiwify-webhook/index.ts` para chamar `send-triggered-email` em cada evento:
 
 ```text
-Tudo que sobrar:
-- assigned_to IS NULL
-- NAO e recuperacao/winback/carrinho
-- NAO e formulario
-- NAO e recorrencia
-(vendas organicas/afiliados via checkout automatico)
+Eventos e triggers:
+
+case 'paid' / 'order_approved':
+  - Se novo cliente: trigger = 'order_paid'
+  - Se cliente existente: trigger = 'upsell_paid'
+
+case 'subscription_renewed':
+  - trigger = 'subscription_renewed'
+
+case 'cart_abandoned':
+  - trigger = 'cart_abandoned'
+
+case 'refused' / 'payment_refused':
+  - trigger = 'payment_refused'
+
+case 'subscription_card_declined':
+  - trigger = 'subscription_card_declined'
+
+case 'subscription_late':
+  - trigger = 'subscription_late'
+
+case 'refunded':
+  - trigger = 'refunded'
+
+case 'chargedback' / 'subscription_canceled':
+  - trigger = 'churned'
 ```
 
----
+### Etapa 3: Atualizar UI de Templates
 
-## Numeros Estimados da Migracao
-
-| Destino | Quantidade Estimada | Conteudo |
-|---------|---------------------|----------|
-| MANTER em Vendas - Nacional | ~2.500 | Recuperacoes + Winbacks + Formularios + Com vendedor |
-| MOVER para CS - Novos Clientes | ~5.000 | Vendas organicas/afiliados automaticas |
-| MOVER para CS - Recorrencia | ~1.647 | Renovacoes/recorrencias automaticas |
-
----
-
-## Implementacao SQL
-
-### Etapa 1: Criar Stage "Entrada" no CS - Recorrencia
-
-```sql
-INSERT INTO stages (id, name, position, pipeline_id, probability)
-VALUES (
-  gen_random_uuid(),
-  'Entrada',
-  0,
-  '468a3d8c-fffc-44a5-a7b8-f788906dd492',
-  0
-);
-```
-
-### Etapa 2: Migrar RECORRENCIAS para CS - Recorrencia
-
-```sql
-UPDATE deals
-SET 
-  pipeline_id = '468a3d8c-fffc-44a5-a7b8-f788906dd492',
-  stage_id = CASE 
-    WHEN status = 'won' THEN '7e495f70-8435-4fcd-bf4d-3ea4d41b74bb'
-    ELSE (SELECT id FROM stages WHERE pipeline_id = '468a3d8c-fffc-44a5-a7b8-f788906dd492' AND name = 'Entrada')
-  END,
-  updated_at = now()
-WHERE pipeline_id = 'a272c23a-bcd8-411c-bbc1-706c2aa95055'
-  AND lower(lead_source) IN ('kiwify_recorrencia', 'kiwify_renovacao');
-```
-
-### Etapa 3: Migrar ORGANICOS/AFILIADOS para CS - Novos Clientes
-
-```sql
-UPDATE deals
-SET 
-  pipeline_id = 'a7599c3b-2d55-4879-b5eb-303bc8266ea2',
-  stage_id = '6d6b6eb3-5679-43d5-93b1-d22376232c41',
-  updated_at = now()
-WHERE pipeline_id = 'a272c23a-bcd8-411c-bbc1-706c2aa95055'
-  AND assigned_to IS NULL
-  -- NAO e recuperacao/winback/carrinho
-  AND NOT (
-    lower(coalesce(title,'')) LIKE '%recupera%' 
-    OR lower(coalesce(title,'')) LIKE '%winback%' 
-    OR lower(coalesce(title,'')) LIKE '%carrinho%'
-    OR lower(coalesce(title,'')) LIKE '%cartao%'
-    OR lower(coalesce(title,'')) LIKE '%recusado%'
-  )
-  -- NAO e formulario/webchat
-  AND lower(coalesce(lead_source,'')) NOT IN (
-    'formulario', 'form', 'chat_widget', 'webchat'
-  )
-  -- NAO e recorrencia (ja migrado na etapa 2)
-  AND lower(coalesce(lead_source,'')) NOT IN (
-    'kiwify_recorrencia', 'kiwify_renovacao'
-  );
-```
-
----
-
-## Resultado Final Esperado
-
-### Vendas - Nacional (apos limpeza)
-
-| Tipo de Deal | Descricao |
-|--------------|-----------|
-| Recuperacoes | Titulo com "recupera", "winback" |
-| Carrinhos | Titulo com "carrinho", "cartao", "recusado" |
-| Formularios | lead_source = formulario, form, chat_widget, webchat |
-| Com vendedor | assigned_to preenchido |
-
-### CS - Novos Clientes
-
-| Conteudo |
-|----------|
-| Vendas organicas (checkout direto sem vendedor) |
-| Vendas de afiliados (automaticas) |
-| Stage: Onboarding |
-
-### CS - Recorrencia
-
-| Conteudo |
-|----------|
-| Renovacoes automaticas |
-| Recorrencias Kiwify |
-
----
-
-## Validacao Pos-Migracao
-
-```sql
-SELECT 
-  p.name as pipeline,
-  COUNT(*) as total,
-  COUNT(*) FILTER (WHERE d.status = 'open') as abertos,
-  COUNT(*) FILTER (WHERE d.status = 'won') as ganhos
-FROM deals d
-JOIN pipelines p ON p.id = d.pipeline_id
-WHERE p.name IN ('Vendas - Nacional', 'CS - Novos Clientes', 'CS - Recorrencia')
-GROUP BY p.name
-ORDER BY p.name;
-```
-
----
-
-## Ordem de Execucao
+Modificar `EmailTemplateDialog.tsx` para incluir novos triggers:
 
 ```text
-1. Criar stage "Entrada" no CS - Recorrencia
-2. Migrar recorrencias (~1.647 deals)
-3. Migrar organicos/afiliados (~5.000 deals)
-4. Validar contagens
-5. Confirmar resultado
+Adicionar ao SelectContent de trigger_type:
+
+// === EVENTOS KIWIFY ===
+<SelectItem value="order_paid">Compra Aprovada (Kiwify)</SelectItem>
+<SelectItem value="subscription_renewed">Assinatura Renovada</SelectItem>
+<SelectItem value="cart_abandoned">Carrinho Abandonado</SelectItem>
+<SelectItem value="payment_refused">Cartao Recusado</SelectItem>
+<SelectItem value="subscription_card_declined">Cartao Assinatura Recusado</SelectItem>
+<SelectItem value="subscription_late">Assinatura em Atraso</SelectItem>
+<SelectItem value="upsell_paid">Upsell Aprovado</SelectItem>
+<SelectItem value="refunded">Reembolso Processado</SelectItem>
+<SelectItem value="churned">Churn/Cancelamento</SelectItem>
 ```
 
+### Etapa 4: Adicionar Variaveis Especificas
+
+Expandir `AVAILABLE_VARIABLES` no dialog:
+
+```text
+Novas variaveis para templates Kiwify:
+
+kiwify: [
+  { key: "[PRODUCT_NAME]", description: "Nome do produto" },
+  { key: "[ORDER_VALUE]", description: "Valor do pedido" },
+  { key: "[ORDER_ID]", description: "ID do pedido Kiwify" },
+  { key: "[CUSTOMER_LTV]", description: "LTV total do cliente" },
+  { key: "[RECOVERY_LINK]", description: "Link de recuperacao" },
+  { key: "[PAYMENT_REASON]", description: "Motivo da recusa" },
+  { key: "[SUBSCRIPTION_DAYS_LATE]", description: "Dias em atraso" },
+]
+```
+
+---
+
+## Fluxo de Autonomia
+
+### Como o usuario ativa/desativa:
+
+```text
+1. Acessar: Configuracoes → Templates de Email
+2. Criar novo template OU editar existente
+3. Selecionar Trigger: Ex: "Carrinho Abandonado"
+4. Switch "Template Ativo": ON/OFF
+5. Salvar
+
+Pronto! O sistema automaticamente:
+- Se ON: Dispara email quando evento ocorre
+- Se OFF: Nao dispara (silencioso)
+```
+
+### Regras de Negocio:
+
+- Apenas 1 template ativo por trigger_type (evitar duplicidade)
+- Se template inativo, evento passa sem enviar email
+- Logs registrados em `email_tracking_events` para auditoria
+
+---
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Acao | Descricao |
+|---------|------|-----------|
+| `supabase/functions/send-triggered-email/index.ts` | CRIAR | Nova edge function |
+| `supabase/functions/kiwify-webhook/index.ts` | MODIFICAR | Integrar disparo de emails |
+| `src/components/EmailTemplateDialog.tsx` | MODIFICAR | Adicionar novos triggers e variaveis |
+| `src/pages/EmailTemplates.tsx` | MODIFICAR | Atualizar labels de triggers |
+
+---
+
+## Variaveis por Trigger
+
+| Trigger | Variaveis Obrigatorias |
+|---------|------------------------|
+| `order_paid` | CUSTOMER_*, PRODUCT_NAME, ORDER_VALUE, ORDER_ID |
+| `subscription_renewed` | CUSTOMER_*, PRODUCT_NAME, ORDER_VALUE, CUSTOMER_LTV |
+| `cart_abandoned` | CUSTOMER_*, PRODUCT_NAME, ORDER_VALUE, RECOVERY_LINK |
+| `payment_refused` | CUSTOMER_*, PRODUCT_NAME, ORDER_VALUE, PAYMENT_REASON |
+| `subscription_card_declined` | CUSTOMER_*, PRODUCT_NAME, SUBSCRIPTION_DAYS_LATE |
+| `subscription_late` | CUSTOMER_*, PRODUCT_NAME, SUBSCRIPTION_DAYS_LATE |
+| `upsell_paid` | CUSTOMER_*, PRODUCT_NAME, ORDER_VALUE, CUSTOMER_LTV |
+| `refunded` | CUSTOMER_*, PRODUCT_NAME, ORDER_VALUE |
+| `churned` | CUSTOMER_*, PRODUCT_NAME |
+
+---
+
+## Exemplo de Template Pre-Criado
+
+### Carrinho Abandonado
+
+```text
+Nome: Recuperacao - Carrinho Abandonado
+Trigger: cart_abandoned
+Assunto: [CUSTOMER_FIRST_NAME], voce esqueceu algo! 🛒
+
+Corpo:
+<h2>Ola [CUSTOMER_FIRST_NAME]!</h2>
+<p>Notamos que voce nao finalizou sua compra de <strong>[PRODUCT_NAME]</strong>.</p>
+<p>O valor de <strong>R$ [ORDER_VALUE]</strong> ainda esta disponivel!</p>
+<p style="margin: 24px 0;">
+  <a href="[RECOVERY_LINK]" style="background-color: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">
+    Finalizar Compra
+  </a>
+</p>
+```
+
+---
+
+## Resumo da Autonomia
+
+| Acao | Quem Faz | Como |
+|------|----------|------|
+| Criar template | Usuario | Interface Templates de Email |
+| Ativar/Desativar | Usuario | Switch na edicao do template |
+| Mudar conteudo | Usuario | Editor de templates |
+| Adicionar variaveis | Usuario | Painel lateral de variaveis |
+| Ver historico | Usuario | Email Tracking Events |
+
+**Zero dependencia de desenvolvedor para operacao diaria.**
+
+---
+
+## Ordem de Implementacao
+
+```text
+1. Criar edge function send-triggered-email
+2. Modificar webhook Kiwify para chamar a funcao
+3. Atualizar UI com novos triggers e variaveis
+4. Criar templates padrao (opcionais) para cada trigger
+5. Testar fluxo completo
+```

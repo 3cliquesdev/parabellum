@@ -253,6 +253,25 @@ serve(async (req) => {
 
     // Só registrar tracking e interaction para emails reais (com customer_id)
     if (customer_id && !isTest) {
+      // Registrar em email_sends para tracking completo
+      const { error: sendError } = await supabase
+        .from('email_sends')
+        .insert({
+          contact_id: customer_id,
+          resend_email_id: resendData.id,
+          subject,
+          recipient_email: to,
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          variables_used: { to_name: recipientName, branding: brandName }
+        });
+
+      if (sendError) {
+        console.warn('[send-email] Warning: Failed to insert email_sends:', sendError);
+      } else {
+        console.log('[send-email] email_sends record created for tracking');
+      }
+
       // Insert tracking event
       const { error: trackingError } = await supabase
         .from('email_tracking_events')

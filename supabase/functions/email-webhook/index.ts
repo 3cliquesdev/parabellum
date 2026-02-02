@@ -111,8 +111,9 @@ Deno.serve(async (req) => {
 
     console.log('[email-webhook] Event received:', eventType, payload);
 
-    // Processar apenas eventos email.opened e email.clicked
-    if (eventType !== 'email.opened' && eventType !== 'email.clicked') {
+    // Processar eventos de tracking relevantes
+    const TRACKED_EVENTS = ['email.opened', 'email.clicked', 'email.bounced', 'email.delivered'];
+    if (!TRACKED_EVENTS.includes(eventType)) {
       console.log('[email-webhook] Ignoring event type:', eventType);
       return new Response(
         JSON.stringify({ message: 'Event ignored' }),
@@ -158,9 +159,9 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    let interactionType: 'email_open' | 'email_click';
+    let interactionType: 'email_open' | 'email_click' | 'email_bounce' | 'email_delivered';
     let content: string;
-    let metadata: any;
+    let metadata: Record<string, unknown>;
 
     if (eventType === 'email.opened') {
       interactionType = 'email_open';
@@ -169,13 +170,27 @@ Deno.serve(async (req) => {
         email_id: emailId,
         opened_at: payload.created_at,
       };
-    } else {
+    } else if (eventType === 'email.clicked') {
       interactionType = 'email_click';
       content = `Link clicado: ${payload.data.click?.link || 'unknown'}`;
       metadata = {
         email_id: emailId,
         clicked_url: payload.data.click?.link,
         clicked_at: payload.created_at,
+      };
+    } else if (eventType === 'email.bounced') {
+      interactionType = 'email_bounce';
+      content = 'Email retornou (bounce)';
+      metadata = {
+        email_id: emailId,
+        bounced_at: payload.created_at,
+      };
+    } else {
+      interactionType = 'email_delivered';
+      content = 'Email entregue com sucesso';
+      metadata = {
+        email_id: emailId,
+        delivered_at: payload.created_at,
       };
     }
 
@@ -195,6 +210,32 @@ Deno.serve(async (req) => {
     }
 
     console.log('[email-webhook] Interaction registered successfully:', interactionType);
+
+    // Atualizar email_sends para consulta rápida (idempotente)
+    const updateField = eventType === 'email.opened' 
+      ? 'opened_at' 
+      : eventType === 'email.clicked'
+        ? 'clicked_at'
+        : eventType === 'email.bounced'
+          ? 'bounced_at'
+          : eventType === 'email.delivered'
+            ? 'delivered_at'
+            : null;
+
+    if (updateField) {
+      // Só atualiza se campo ainda estiver NULL (manter primeiro timestamp)
+      const { error: updateError } = await supabase
+        .from('email_sends')
+        .update({ [updateField]: payload.created_at })
+        .eq('resend_email_id', emailId)
+        .is(updateField, null);
+
+      if (updateError) {
+        console.warn('[email-webhook] Warning: Failed to update email_sends:', updateError);
+      } else {
+        console.log('[email-webhook] email_sends updated:', updateField);
+      }
+    }
 
     return new Response(
       JSON.stringify({ 

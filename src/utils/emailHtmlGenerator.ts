@@ -67,17 +67,19 @@ function resolveColor(color?: string): string {
  * Generates HTML for a text block
  */
 function generateTextBlockHtml(block: EmailBlock): string {
-  const padding = parsePadding(block.styles.padding);
-  const textAlign = block.styles.textAlign || "left";
-  const fontSize = block.styles.fontSize || "16px";
-  const color = resolveColor(block.styles.color) || "#1e293b";
-  const backgroundColor = resolveColor(block.styles.backgroundColor) || "#ffffff";
+  const styles = block.styles ?? {};
+  const content = block.content ?? {};
+  const padding = parsePadding(styles.padding);
+  const textAlign = styles.textAlign || "left";
+  const fontSize = styles.fontSize || "16px";
+  const color = resolveColor(styles.color) || "#1e293b";
+  const backgroundColor = resolveColor(styles.backgroundColor) || "#ffffff";
 
   return `
     <tr>
       <td style="padding: ${padding.top} ${padding.right} ${padding.bottom} ${padding.left}; background-color: ${backgroundColor};">
         <div style="font-size: ${fontSize}; color: ${color}; text-align: ${textAlign}; line-height: 1.6;">
-          ${block.content.html || block.content.text || ""}
+          ${content.html || content.text || ""}
         </div>
       </td>
     </tr>
@@ -88,21 +90,23 @@ function generateTextBlockHtml(block: EmailBlock): string {
  * Generates HTML for an image block
  */
 function generateImageBlockHtml(block: EmailBlock): string {
-  const padding = parsePadding(block.styles.padding);
-  const textAlign = block.styles.textAlign || "center";
-  const borderRadius = block.styles.borderRadius || "0";
-  const backgroundColor = resolveColor(block.styles.backgroundColor) || "transparent";
+  const styles = block.styles ?? {};
+  const content = block.content ?? {};
+  const padding = parsePadding(styles.padding);
+  const textAlign = styles.textAlign || "center";
+  const borderRadius = styles.borderRadius || "0";
+  const backgroundColor = resolveColor(styles.backgroundColor) || "transparent";
 
   const imgHtml = `
     <img 
-      src="${block.content.src || ""}" 
-      alt="${block.content.alt || "Email image"}" 
+      src="${content.src || ""}" 
+      alt="${content.alt || "Email image"}" 
       style="max-width: 100%; height: auto; display: block; margin: 0 auto; border-radius: ${borderRadius};"
     />
   `;
 
-  const linkedImg = block.content.url
-    ? `<a href="${block.content.url}" target="_blank" style="text-decoration: none;">${imgHtml}</a>`
+  const linkedImg = content.url
+    ? `<a href="${content.url}" target="_blank" style="text-decoration: none;">${imgHtml}</a>`
     : imgHtml;
 
   return `
@@ -117,25 +121,25 @@ function generateImageBlockHtml(block: EmailBlock): string {
 /**
  * Generates the href for a button based on action type
  */
-function generateButtonHref(block: EmailBlock): string {
-  const action = block.content.buttonAction || 'link';
+function generateButtonHref(content: BlockContent): string {
+  const action = content.buttonAction || 'link';
   
   switch (action) {
     case 'download':
-      return block.content.fileUrl || block.content.url || "#";
+      return content.fileUrl || content.url || "#";
     case 'email': {
-      const email = block.content.email || "";
-      const subject = block.content.emailSubject;
+      const email = content.email || "";
+      const subject = content.emailSubject;
       return subject 
         ? `mailto:${email}?subject=${encodeURIComponent(subject)}`
         : `mailto:${email}`;
     }
     case 'phone':
-      const phone = (block.content.phone || "").replace(/\s/g, "");
+      const phone = (content.phone || "").replace(/\s/g, "");
       return `tel:${phone}`;
     case 'link':
     default:
-      return block.content.url || "#";
+      return content.url || "#";
   }
 }
 
@@ -143,18 +147,21 @@ function generateButtonHref(block: EmailBlock): string {
  * Generates HTML for a button block
  */
 function generateButtonBlockHtml(block: EmailBlock): string {
-  const padding = parsePadding(block.styles.padding);
-  const textAlign = block.styles.textAlign || "center";
-  const backgroundColor = resolveColor(block.styles.backgroundColor) || "#2563eb";
-  const color = resolveColor(block.styles.color) || "#ffffff";
-  const borderRadius = block.styles.borderRadius || "6px";
-  const fontSize = block.styles.fontSize || "14px";
-  const fontWeight = block.styles.fontWeight || "500";
+  const styles = block.styles ?? {};
+  const content = block.content ?? {};
+  const padding = parsePadding(styles.padding);
+  const textAlign = styles.textAlign || "center";
+  const backgroundColor = resolveColor(styles.backgroundColor) || "#2563eb";
+  const color = resolveColor(styles.color) || "#ffffff";
+  const borderRadius = styles.borderRadius || "6px";
+  const fontSize = styles.fontSize || "14px";
+  const fontWeight = styles.fontWeight || "500";
 
-  const href = generateButtonHref(block);
-  const action = block.content.buttonAction || 'link';
+  const href = generateButtonHref(content);
+  const action = content.buttonAction || 'link';
   const downloadAttr = action === 'download' ? 'download' : '';
   const targetAttr = action === 'link' ? 'target="_blank"' : '';
+  const buttonLabel = content.buttonText || content.text || "Clique aqui";
 
   return `
     <tr>
@@ -176,7 +183,7 @@ function generateButtonBlockHtml(block: EmailBlock): string {
                   border-radius: ${borderRadius};
                 "
               >
-                ${block.content.buttonText || "Clique aqui"}
+                ${buttonLabel}
               </a>
             </td>
           </tr>
@@ -190,8 +197,10 @@ function generateButtonBlockHtml(block: EmailBlock): string {
  * Generates HTML for a spacer block
  */
 function generateSpacerBlockHtml(block: EmailBlock): string {
-  const height = block.content.height || 40;
-  const backgroundColor = resolveColor(block.styles.backgroundColor) || "transparent";
+  const styles = block.styles ?? {};
+  const content = block.content ?? {};
+  const height = content.height || 40;
+  const backgroundColor = resolveColor(styles.backgroundColor) || "transparent";
 
   return `
     <tr>
@@ -206,8 +215,9 @@ function generateSpacerBlockHtml(block: EmailBlock): string {
  * Generates HTML for a divider block
  */
 function generateDividerBlockHtml(block: EmailBlock): string {
-  const padding = parsePadding(block.styles.padding || "16px 0");
-  const color = resolveColor(block.styles.color) || "#e2e8f0";
+  const styles = block.styles ?? {};
+  const padding = parsePadding(styles.padding || "16px 0");
+  const color = resolveColor(styles.color) || "#e2e8f0";
 
   return `
     <tr>
@@ -222,11 +232,13 @@ function generateDividerBlockHtml(block: EmailBlock): string {
  * Generates HTML for a banner block
  */
 function generateBannerBlockHtml(block: EmailBlock): string {
-  const padding = parsePadding(block.styles.padding || "32px");
-  const backgroundColor = resolveColor(block.styles.backgroundColor) || "#1e293b";
-  const color = resolveColor(block.styles.color) || "#ffffff";
-  const textAlign = block.styles.textAlign || "center";
-  const backgroundImage = block.content.src ? `url('${block.content.src}')` : "none";
+  const styles = block.styles ?? {};
+  const content = block.content ?? {};
+  const padding = parsePadding(styles.padding || "32px");
+  const backgroundColor = resolveColor(styles.backgroundColor) || "#1e293b";
+  const color = resolveColor(styles.color) || "#ffffff";
+  const textAlign = styles.textAlign || "center";
+  const backgroundImage = content.src ? `url('${content.src}')` : "none";
 
   return `
     <tr>
@@ -239,7 +251,7 @@ function generateBannerBlockHtml(block: EmailBlock): string {
         color: ${color};
         text-align: ${textAlign};
       ">
-        ${block.content.html || ""}
+        ${content.html || ""}
       </td>
     </tr>
   `;
@@ -249,13 +261,15 @@ function generateBannerBlockHtml(block: EmailBlock): string {
  * Generates HTML for a signature block
  */
 function generateSignatureBlockHtml(block: EmailBlock): string {
-  const padding = parsePadding(block.styles.padding || "20px");
-  const textAlign = block.styles.textAlign || "left";
-  const color = resolveColor(block.styles.color) || "#1e293b";
-  const backgroundColor = resolveColor(block.styles.backgroundColor) || "transparent";
+  const styles = block.styles ?? {};
+  const content = block.content ?? {};
+  const padding = parsePadding(styles.padding || "20px");
+  const textAlign = styles.textAlign || "left";
+  const color = resolveColor(styles.color) || "#1e293b";
+  const backgroundColor = resolveColor(styles.backgroundColor) || "transparent";
 
-  const avatarHtml = block.content.src
-    ? `<img src="${block.content.src}" alt="${block.content.name || 'Avatar'}" width="64" height="64" style="border-radius: 50%; margin-right: 16px;" />`
+  const avatarHtml = content.src
+    ? `<img src="${content.src}" alt="${content.name || 'Avatar'}" width="64" height="64" style="border-radius: 50%; margin-right: 16px;" />`
     : "";
 
   return `
@@ -265,9 +279,9 @@ function generateSignatureBlockHtml(block: EmailBlock): string {
           <tr>
             ${avatarHtml ? `<td valign="top">${avatarHtml}</td>` : ""}
             <td valign="top" style="text-align: ${textAlign};">
-              <p style="margin: 0 0 4px 0; font-weight: 600; color: ${color};">${block.content.name || "Nome"}</p>
-              <p style="margin: 0 0 4px 0; font-size: 14px; color: #64748b;">${block.content.role || "Cargo"}</p>
-              ${block.content.email ? `<a href="mailto:${block.content.email}" style="font-size: 14px; color: #2563eb;">${block.content.email}</a>` : ""}
+              <p style="margin: 0 0 4px 0; font-weight: 600; color: ${color};">${content.name || "Nome"}</p>
+              <p style="margin: 0 0 4px 0; font-size: 14px; color: #64748b;">${content.role || "Cargo"}</p>
+              ${content.email ? `<a href="mailto:${content.email}" style="font-size: 14px; color: #2563eb;">${content.email}</a>` : ""}
             </td>
           </tr>
         </table>
@@ -280,10 +294,12 @@ function generateSignatureBlockHtml(block: EmailBlock): string {
  * Generates HTML for a social block
  */
 function generateSocialBlockHtml(block: EmailBlock): string {
-  const padding = parsePadding(block.styles.padding || "20px");
-  const textAlign = block.styles.textAlign || "center";
-  const backgroundColor = resolveColor(block.styles.backgroundColor) || "transparent";
-  const links = block.content.links || [];
+  const styles = block.styles ?? {};
+  const content = block.content ?? {};
+  const padding = parsePadding(styles.padding || "20px");
+  const textAlign = styles.textAlign || "center";
+  const backgroundColor = resolveColor(styles.backgroundColor) || "transparent";
+  const links = content.links || [];
 
   const SOCIAL_COLORS: Record<string, string> = {
     facebook: "#1877F2",
@@ -300,12 +316,12 @@ function generateSocialBlockHtml(block: EmailBlock): string {
     instagram: "IG",
     linkedin: "IN",
     youtube: "YT",
-    website: "🌐",
+    website: "W",
   };
 
   const socialLinks = links
     .map(
-      (link) => `
+      (link: { url?: string; platform: string }) => `
       <td style="padding: 0 8px;">
         <a 
           href="${link.url || "#"}" 
@@ -324,7 +340,7 @@ function generateSocialBlockHtml(block: EmailBlock): string {
             font-weight: 600;
           "
         >
-          ${SOCIAL_LABELS[link.platform] || "🔗"}
+          ${SOCIAL_LABELS[link.platform] || "L"}
         </a>
       </td>
     `
@@ -348,13 +364,15 @@ function generateSocialBlockHtml(block: EmailBlock): string {
  * Generates HTML for an HTML block
  */
 function generateHtmlBlockHtml(block: EmailBlock): string {
-  const padding = parsePadding(block.styles.padding);
-  const backgroundColor = resolveColor(block.styles.backgroundColor) || "#ffffff";
+  const styles = block.styles ?? {};
+  const content = block.content ?? {};
+  const padding = parsePadding(styles.padding);
+  const backgroundColor = resolveColor(styles.backgroundColor) || "#ffffff";
 
   return `
     <tr>
       <td style="padding: ${padding.top} ${padding.right} ${padding.bottom} ${padding.left}; background-color: ${backgroundColor};">
-        ${block.content.html || ""}
+        ${content.html || ""}
       </td>
     </tr>
   `;
@@ -364,8 +382,9 @@ function generateHtmlBlockHtml(block: EmailBlock): string {
  * Generates HTML for a columns block (simplified - 2 columns)
  */
 function generateColumnsBlockHtml(block: EmailBlock): string {
-  const padding = parsePadding(block.styles.padding);
-  const backgroundColor = resolveColor(block.styles.backgroundColor) || "transparent";
+  const styles = block.styles ?? {};
+  const padding = parsePadding(styles.padding);
+  const backgroundColor = resolveColor(styles.backgroundColor) || "transparent";
 
   // TODO: Implement nested column blocks if needed
   return `
@@ -424,6 +443,27 @@ export function generateEmailHTML(
   options: GenerateOptions = {}
 ): string {
   const { branding, preheader, subject } = options;
+
+  // Fallback para preview vazio (sem emojis - padrão visual Octadesk)
+  if (!blocks || blocks.length === 0) {
+    return `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preview</title>
+</head>
+<body style="margin: 0; padding: 40px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <div style="text-align: center; color: #64748b; padding: 60px 20px;">
+    <h2 style="margin: 0 0 8px 0; color: #334155;">Nenhum bloco adicionado</h2>
+    <p style="margin: 0; font-size: 14px;">Arraste blocos da barra lateral para montar seu email.</p>
+  </div>
+</body>
+</html>
+    `.trim();
+  }
+
   const primaryColor = branding?.primary_color || "#2563eb";
   const headerColor = branding?.header_color || "#1e293b";
 

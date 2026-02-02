@@ -53,7 +53,24 @@ export function PreviewPanel({
 
   // Generate HTML with variable substitution
   const generatedHtml = useMemo(() => {
-    const rawHtml = generateEmailHTML(blocks, { preheader, subject });
+    const safeBlocks = Array.isArray(blocks) ? blocks : [];
+
+    // Detectar template migrado (HTML completo em bloco único)
+    if (safeBlocks.length === 1 && safeBlocks[0]?.block_type === "html") {
+      const blockContent = safeBlocks[0]?.content as Record<string, unknown>;
+      const htmlContent = (blockContent?.html as string) || (blockContent?.value as string) || "";
+
+      const s = htmlContent.trimStart().toLowerCase();
+      const isFullDocument = s.startsWith("<!doctype") || s.startsWith("<html");
+
+      if (isFullDocument) {
+        // Template migrado - renderizar direto (sem encapsular novamente)
+        return replaceVariables(htmlContent, sampleData);
+      }
+    }
+
+    // Fluxo normal para templates V2 nativos
+    const rawHtml = generateEmailHTML(safeBlocks, { preheader, subject });
     return replaceVariables(rawHtml, sampleData);
   }, [blocks, preheader, subject, sampleData]);
 

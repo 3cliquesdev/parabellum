@@ -102,11 +102,22 @@ export default function EmailTemplates() {
 
   const getTriggerLabel = (trigger: string | null) => {
     const labels: Record<string, string> = {
+      // CRM triggers
       deal_created: "Negócio Criado",
       deal_won: "Negócio Ganho",
       deal_lost: "Negócio Perdido",
       contact_created: "Contato Criado",
       contact_inactive: "Contato Inativo",
+      // Kiwify triggers
+      order_paid: "🛒 Compra Aprovada",
+      subscription_renewed: "🔄 Assinatura Renovada",
+      cart_abandoned: "🛒 Carrinho Abandonado",
+      payment_refused: "❌ Cartão Recusado",
+      subscription_card_declined: "💳 Cartão Assinatura Recusado",
+      subscription_late: "⏰ Assinatura em Atraso",
+      upsell_paid: "💰 Upsell Aprovado",
+      refunded: "↩️ Reembolso",
+      churned: "🚪 Churn/Cancelamento",
     };
     return trigger ? labels[trigger] || trigger : "—";
   };

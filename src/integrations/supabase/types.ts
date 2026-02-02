@@ -2993,6 +2993,8 @@ export type Database = {
           id: string
           language_code: string | null
           opened_at: string | null
+          playbook_execution_id: string | null
+          playbook_node_id: string | null
           recipient_email: string
           resend_email_id: string | null
           sent_at: string | null
@@ -3012,6 +3014,8 @@ export type Database = {
           id?: string
           language_code?: string | null
           opened_at?: string | null
+          playbook_execution_id?: string | null
+          playbook_node_id?: string | null
           recipient_email: string
           resend_email_id?: string | null
           sent_at?: string | null
@@ -3031,6 +3035,8 @@ export type Database = {
           id?: string
           language_code?: string | null
           opened_at?: string | null
+          playbook_execution_id?: string | null
+          playbook_node_id?: string | null
           recipient_email?: string
           resend_email_id?: string | null
           sent_at?: string | null
@@ -8616,6 +8622,30 @@ export type Database = {
       check_submission_limit: {
         Args: { p_email: string; p_form_id: string }
         Returns: Json
+      }
+      claim_playbook_queue_items: {
+        Args: { batch_size?: number }
+        Returns: {
+          created_at: string | null
+          executed_at: string | null
+          execution_id: string
+          id: string
+          last_error: string | null
+          max_retries: number
+          next_retry_at: string | null
+          node_data: Json
+          node_id: string
+          node_type: string
+          retry_count: number
+          scheduled_for: string
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "playbook_execution_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       cleanup_expired_insights_cache: { Args: never; Returns: number }
       distribute_client_to_consultant: {

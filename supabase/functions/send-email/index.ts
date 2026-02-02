@@ -13,6 +13,8 @@ interface SendEmailRequest {
   html: string;
   customer_id?: string;
   playbook_execution_id?: string;
+  playbook_node_id?: string;  // ID do nó que enviou o email (para correlação)
+  template_id?: string;        // ID do template usado (para tracking)
   is_customer_email?: boolean; // Default: true - usa branding de cliente
   branding_id?: string; // Opcional: branding específico
   isTest?: boolean; // Flag para emails de teste (não requer customer_id)
@@ -43,6 +45,8 @@ serve(async (req) => {
       html, 
       customer_id, 
       playbook_execution_id,
+      playbook_node_id,
+      template_id: request_template_id,
       is_customer_email = true,
       branding_id,
       isTest = false,
@@ -253,20 +257,37 @@ serve(async (req) => {
 
     // Só registrar tracking e interaction para emails reais (com customer_id)
     if (customer_id && !isTest) {
-      // Registrar em email_sends para tracking completo
+      // Registrar em email_sends para tracking completo (idempotente)
+      const emailSendPayload = {
+        contact_id: customer_id,
+        resend_email_id: resendData.id,
+        subject,
+        recipient_email: to,
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        variables_used: { to_name: recipientName, branding: brandName },
+        playbook_execution_id: playbook_execution_id || null,
+        playbook_node_id: playbook_node_id || null,
+        template_id: request_template_id || null,
+      };
+
       const { error: sendError } = await supabase
         .from('email_sends')
-        .insert({
-          contact_id: customer_id,
-          resend_email_id: resendData.id,
-          subject,
-          recipient_email: to,
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-          variables_used: { to_name: recipientName, branding: brandName }
-        });
+        .insert(emailSendPayload);
 
-      if (sendError) {
+      // Se já existe (conflito 23505), atualizar só campos de correlação quando NULL
+      if (sendError && sendError.code === '23505') {
+        console.log('[send-email] Record exists, updating correlation fields if needed');
+        await supabase
+          .from('email_sends')
+          .update({
+            playbook_execution_id: emailSendPayload.playbook_execution_id,
+            playbook_node_id: emailSendPayload.playbook_node_id,
+            template_id: emailSendPayload.template_id,
+          })
+          .eq('resend_email_id', emailSendPayload.resend_email_id)
+          .is('playbook_execution_id', null);
+      } else if (sendError) {
         console.warn('[send-email] Warning: Failed to insert email_sends:', sendError);
       } else {
         console.log('[send-email] email_sends record created for tracking');

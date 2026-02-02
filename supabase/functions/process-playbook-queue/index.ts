@@ -43,17 +43,14 @@ Deno.serve(async (req) => {
 
     console.log('Starting playbook queue processing...');
 
-    // Fetch pending queue items
-    const { data: queueItems, error: queueError } = await supabaseAdmin
-      .from('playbook_execution_queue')
-      .select('*')
-      .eq('status', 'pending')
-      .lte('scheduled_for', new Date().toISOString())
-      .order('scheduled_for', { ascending: true })
-      .limit(10);
+    // Lock atômico via RPC com FOR UPDATE SKIP LOCKED (evita race condition)
+    const { data: queueItems, error: queueError } = await supabaseAdmin.rpc(
+      'claim_playbook_queue_items',
+      { batch_size: 10 }
+    );
 
     if (queueError) {
-      console.error('Failed to fetch queue items:', queueError);
+      console.error('Failed to claim queue items:', queueError);
       throw queueError;
     }
 
@@ -65,6 +62,8 @@ Deno.serve(async (req) => {
       );
     }
 
+    console.log(`Claimed ${queueItems.length} queue items for processing (atomic lock)`);
+
     console.log(`Found ${queueItems.length} queue items to process`);
 
     let processedCount = 0;
@@ -74,11 +73,8 @@ Deno.serve(async (req) => {
       try {
         console.log(`Processing queue item: id=${item.id}, type=${item.node_type}, execution=${item.execution_id}`);
 
-        // Mark as processing
-        await supabaseAdmin
-          .from('playbook_execution_queue')
-          .update({ status: 'processing' })
-          .eq('id', item.id);
+        // O RPC claim_playbook_queue_items já marcou como 'processing' atomicamente
+        // Não precisa de update separado aqui
 
         // Fetch execution record
         const { data: execution, error: execError } = await supabaseAdmin
@@ -336,7 +332,7 @@ async function executeEmailNode(supabase: any, item: QueueItem, contact: any, ex
   
   console.log(`Sending email to: ${contact.email} (${toName}), subject: ${subject}`);
   
-  // 3. Chamar send-email com todos os campos obrigatórios
+  // 3. Chamar send-email com todos os campos obrigatórios + correlação de nó
   const { data, error } = await supabase.functions.invoke('send-email', {
     body: {
       to: contact.email,
@@ -345,6 +341,8 @@ async function executeEmailNode(supabase: any, item: QueueItem, contact: any, ex
       html: htmlContent,
       customer_id: contact.id,
       playbook_execution_id: execution.id,
+      playbook_node_id: item.node_id,              // Correlação do nó que enviou
+      template_id: emailData.template_id || null,  // Template usado
     },
   });
 
@@ -662,29 +660,51 @@ async function executeConditionNode(supabase: any, item: QueueItem, flow: Playbo
     }
 
     case 'email_opened': {
-      // Check if contact opened specific email
-      const { data: emailSends } = await supabase
+      // Buscar qual nó de email verificar
+      const emailNodeId = conditionData.email_node_id || 
+                          conditionData.condition_value?.emailNodeId;
+      
+      // Exigir email_node_id para evitar falso-positivo
+      if (!emailNodeId) {
+        console.warn('[condition] email_opened sem email_node_id -> false (evita falso-positivo)');
+        conditionResult = false;
+        break;
+      }
+      
+      const { data: emailOpened } = await supabase
         .from('email_sends')
         .select('opened_at')
-        .eq('contact_id', execution.contact_id)
         .eq('playbook_execution_id', execution.id)
+        .eq('playbook_node_id', emailNodeId)
         .not('opened_at', 'is', null)
         .limit(1);
       
-      conditionResult = (emailSends?.length || 0) > 0;
+      conditionResult = (emailOpened?.length || 0) > 0;
+      console.log(`⚠️ email_opened é sinal FRACO (pixel bloqueável). Node: ${emailNodeId}, Result: ${conditionResult}`);
       break;
     }
 
     case 'email_clicked': {
-      const { data: emailSends } = await supabase
+      const emailNodeId = conditionData.email_node_id || 
+                          conditionData.condition_value?.emailNodeId;
+      
+      // Exigir email_node_id para evitar falso-positivo
+      if (!emailNodeId) {
+        console.warn('[condition] email_clicked sem email_node_id -> false (evita falso-positivo)');
+        conditionResult = false;
+        break;
+      }
+      
+      const { data: emailClicked } = await supabase
         .from('email_sends')
         .select('clicked_at')
-        .eq('contact_id', execution.contact_id)
         .eq('playbook_execution_id', execution.id)
+        .eq('playbook_node_id', emailNodeId)
         .not('clicked_at', 'is', null)
         .limit(1);
       
-      conditionResult = (emailSends?.length || 0) > 0;
+      conditionResult = (emailClicked?.length || 0) > 0;
+      console.log(`✅ email_clicked é sinal FORTE. Node: ${emailNodeId}, Result: ${conditionResult}`);
       break;
     }
 

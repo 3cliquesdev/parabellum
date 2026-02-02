@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FileSpreadsheet, TrendingUp, Users, MessageSquare, DollarSign, Target, Clock, BarChart3, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import ReportFilterPanel from "@/components/ReportFilterPanel";
 import { AnalyticsReportPanel } from "@/components/reports/AnalyticsReportPanel";
 
 export default function Reports() {
+  const navigate = useNavigate();
   const [selectedReport, setSelectedReport] = useState<any>(null);
 
   const reportCategories = [
@@ -57,6 +59,13 @@ export default function Reports() {
           name: 'Pesquisa CSAT',
           description: 'Avaliações de satisfação dos clientes',
           icon: MessageSquare,
+        },
+        {
+          id: 'commercial_conversations',
+          name: 'Conversas Comerciais',
+          description: 'Análise de conversas por categoria e departamento com export',
+          icon: MessageSquare,
+          route: '/reports/commercial-conversations',
         },
       ],
     },
@@ -190,7 +199,13 @@ export default function Reports() {
                 <ReportCard
                   key={report.id}
                   report={report}
-                  onClick={() => setSelectedReport(report)}
+                  onClick={() => {
+                    if ((report as any).route) {
+                      navigate((report as any).route);
+                    } else {
+                      setSelectedReport(report);
+                    }
+                  }}
                 />
               ))}
             </div>

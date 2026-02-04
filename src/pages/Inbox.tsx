@@ -273,9 +273,10 @@ export default function Inbox() {
       }).filter(Boolean);
     }
     
-    // Se há busca ativa mas searchResults ainda não carregou, retornar vazio
+    // Se há busca ativa mas searchResults ainda não carregou, retornar null
+    // para sinalizar que devemos exibir loading (não array vazio)
     if (hasActiveSearch && !searchResults) {
-      return [];
+      return null; // Sinaliza loading
     }
     
     // 🔒 FILTRO ESPECIAL: not_responded - usar hook dedicado (fonte de verdade absoluta)
@@ -606,9 +607,10 @@ export default function Inbox() {
         
         <div className="flex-1 overflow-y-auto">
           <ConversationList
-            conversations={filteredConversations}
+            conversations={filteredConversations ?? []}
             activeConversationId={activeConversation?.id || null}
             onSelectConversation={handleSelectConversation}
+            isLoading={searchLoading || (filters.search?.trim().length >= 2 && filteredConversations === null)}
           />
         </div>
       </div>
@@ -695,7 +697,7 @@ export default function Inbox() {
             conversations={orderedConversations}
             activeConversationId={activeConversation?.id || null}
             onSelectConversation={handleSelectConversation}
-            isLoading={inboxLoading || convLoading}
+            isLoading={inboxLoading || convLoading || searchLoading || (filters.search?.trim().length >= 2 && filteredConversations === null)}
             selectionMode={selectionMode}
             selectedIds={selectedIds}
             onToggleSelect={handleToggleSelect}

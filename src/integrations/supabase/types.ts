@@ -9096,12 +9096,25 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      take_control_secure: {
+        Args: { p_conversation_id: string }
+        Returns: Json
+      }
       transfer_conversation_secure: {
         Args: {
           p_conversation_id: string
           p_to_department_id: string
           p_to_user_id: string
           p_transfer_note?: string
+        }
+        Returns: Json
+      }
+      transfer_ticket_secure: {
+        Args: {
+          p_assigned_to?: string
+          p_department_id: string
+          p_internal_note?: string
+          p_ticket_id: string
         }
         Returns: Json
       }

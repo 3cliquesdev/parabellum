@@ -10,6 +10,10 @@ interface TransferData {
   assigned_to?: string | null;
 }
 
+/**
+ * Hook para transferir tickets entre departamentos/agentes
+ * Usa RPC SECURITY DEFINER para bypassar RLS com validação
+ */
 export function useTicketTransfer() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -17,72 +21,39 @@ export function useTicketTransfer() {
 
   return useMutation({
     mutationFn: async ({ ticket_id, department_id, internal_note, assigned_to }: TransferData) => {
-      // Buscar dados atuais do ticket
-      const { data: currentTicket } = await supabase
-        .from("tickets")
-        .select("department_id, assigned_to, departments(name)")
-        .eq("id", ticket_id)
-        .single();
-      
-      const previousDepartment = (currentTicket?.departments as any)?.name || "Desconhecido";
-      const previousAssignedTo = currentTicket?.assigned_to;
+      console.log('[useTicketTransfer] Transferindo ticket via RPC:', { ticket_id, department_id, assigned_to });
 
-      // Verificar se é um "retorno" - se o assigned_to foi responsável antes
-      let isReturning = false;
-      if (assigned_to) {
-        const { data: previousEvents } = await supabase
-          .from("ticket_events")
-          .select("metadata")
-          .eq("ticket_id", ticket_id)
-          .eq("event_type", "transferred")
-          .order("created_at", { ascending: false });
-        
-        isReturning = previousEvents?.some(event => {
-          const meta = event.metadata as any;
-          return meta?.previous_assigned_to === assigned_to;
-        }) || false;
-      }
-
-      // Definir status baseado se é retorno ou não
-      const newStatus = isReturning ? 'returned' : 'in_progress';
-
-      // Buscar nome do assignee se fornecido
-      let assigneeName: string | null = null;
-      if (assigned_to) {
-        const { data: assignee } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", assigned_to)
-          .single();
-        assigneeName = assignee?.full_name || null;
-      }
-
-      const { data, error } = await supabase
-        .from("tickets")
-        .update({
-          department_id,
-          status: newStatus as any, // Dynamic status from ticket_statuses table
-          assigned_to: assigned_to ?? null,
-        })
-        .eq("id", ticket_id)
-        .select(`
-          *,
-          department:departments(name)
-        `)
-        .single();
-
-      if (error) throw error;
-
-      // Criar comentário interno de transferência
-      const assignmentNote = assigneeName ? ` (atribuído para ${assigneeName})` : '';
-      await supabase
-        .from("ticket_comments")
-        .insert({
-          ticket_id,
-          content: `📤 Ticket transferido para ${data.department?.name}${assignmentNote}\n\n${internal_note}`,
-          is_internal: true,
-          created_by: user?.id,
+      // Chamar RPC SECURITY DEFINER - bypassa RLS com validação
+      const { data: result, error } = await supabase
+        .rpc('transfer_ticket_secure', {
+          p_ticket_id: ticket_id,
+          p_department_id: department_id,
+          p_assigned_to: assigned_to ?? null,
+          p_internal_note: internal_note || null
         });
+
+      if (error) {
+        console.error('[useTicketTransfer] RPC error:', error);
+        throw error;
+      }
+
+      // Cast result para tipo esperado
+      const transferResult = result as { 
+        success: boolean; 
+        error?: string; 
+        ticket_id?: string; 
+        department_id?: string; 
+        department_name?: string;
+        assigned_to?: string;
+        assignee_name?: string;
+      } | null;
+
+      if (!transferResult?.success) {
+        console.error('[useTicketTransfer] Transfer failed:', transferResult?.error);
+        throw new Error(transferResult?.error || 'Erro ao transferir ticket');
+      }
+
+      console.log('[useTicketTransfer] ✅ Ticket transferido com sucesso:', transferResult);
 
       // Notificar stakeholders via edge function
       try {
@@ -91,13 +62,12 @@ export function useTicketTransfer() {
             ticket_id,
             event_type: 'transferred',
             actor_id: user?.id,
-            old_value: previousDepartment,
+            old_value: null,
             new_value: department_id,
             metadata: {
-              from_department: previousDepartment,
-              to_department: data.department?.name,
-              previous_assigned_to: previousAssignedTo,
-              is_return: isReturning,
+              to_department: transferResult.department_name,
+              assigned_to: transferResult.assigned_to,
+              assignee_name: transferResult.assignee_name,
               internal_note,
             },
           },
@@ -107,7 +77,10 @@ export function useTicketTransfer() {
         console.error('[useTicketTransfer] Failed to notify stakeholders:', notifyError);
       }
 
-      return data;
+      return {
+        id: ticket_id,
+        department: { name: transferResult.department_name }
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
@@ -115,7 +88,7 @@ export function useTicketTransfer() {
       
       toast({
         title: "✅ Ticket Transferido",
-        description: `Enviado para ${data.department?.name}`,
+        description: `Enviado para ${data.department?.name || 'novo departamento'}`,
       });
     },
     onError: (error: Error) => {

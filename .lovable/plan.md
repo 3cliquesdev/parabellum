@@ -1,128 +1,142 @@
 
-# Plano: Correção COMPLETA das Policies de inbox_view
+# Plano: Corrigir Visibilidade Admin no inbox_view
 
-## Diagnóstico Confirmado
+## Problema Identificado
 
-A migration anterior **NÃO removeu** as 8 policies antigas de `inbox_view` que usam `has_role()`:
+A política RLS `optimized_inbox_select` em `public.inbox_view` usa uma subquery `EXISTS` para verificar roles em `public.user_roles`. Essa subquery está bloqueada pela própria RLS da tabela `user_roles` quando executada dentro de outra policy (recursão de RLS).
 
-| Policy existente | Status |
-|-----------------|--------|
-| `optimized_inbox_select` | ✅ Criada (correta) |
-| `cs_manager_view_inbox` | ❌ NÃO removida |
-| `financial_agent_view_inbox` | ❌ NÃO removida |
-| `financial_manager_view_inbox` | ❌ NÃO removida |
-| `general_manager_view_inbox` | ❌ NÃO removida |
-| `sales_rep_view_sales_inbox` | ❌ NÃO removida |
-| `support_agent_view_assigned_inbox` | ❌ NÃO removida |
-| `support_manager_view_inbox` | ❌ NÃO removida |
-| `user_view_department_inbox` | ❌ NÃO removida |
+**Resultado:** O admin vê o contador (156 via Edge Function que usa service role), mas a query da lista via API autenticada retorna `[]` porque a verificação de role falha silenciosamente.
 
-## Impacto
-
-1. **Performance**: 9 policies sendo avaliadas com OR (has_role executado múltiplas vezes)
-2. **Visibilidade**: Pode haver conflitos entre a nova policy e as antigas
-3. **Admin sem acesso**: O Postgres pode estar atingindo timeout antes de completar a avaliação
-
-## Solução
-
-### Fase 1: SQL Migration - Limpeza COMPLETA de inbox_view
+## Causa Raiz Técnica
 
 ```sql
--- Remover TODAS as policies SELECT antigas de inbox_view
-DROP POLICY IF EXISTS cs_manager_view_inbox ON public.inbox_view;
-DROP POLICY IF EXISTS financial_agent_view_inbox ON public.inbox_view;
-DROP POLICY IF EXISTS financial_manager_view_inbox ON public.inbox_view;
-DROP POLICY IF EXISTS general_manager_view_inbox ON public.inbox_view;
-DROP POLICY IF EXISTS sales_rep_view_sales_inbox ON public.inbox_view;
-DROP POLICY IF EXISTS support_agent_view_assigned_inbox ON public.inbox_view;
-DROP POLICY IF EXISTS support_manager_view_inbox ON public.inbox_view;
-DROP POLICY IF EXISTS user_view_department_inbox ON public.inbox_view;
-
--- A policy optimized_inbox_select JÁ EXISTE e é a correta
--- Verificar se precisa adicionar regras para agentes verem 
--- conversas não atribuídas do seu departamento
+-- Dentro de optimized_inbox_select:
+EXISTS (
+  SELECT 1 FROM public.user_roles ur  -- RLS bloqueia essa subquery!
+  WHERE ur.user_id = auth.uid()
+    AND ur.role IN ('admin',...)
+)
 ```
 
-### Fase 2: Verificar se optimized_inbox_select cobre todos os casos
+O Postgres não permite que uma policy RLS acesse outra tabela que também tem RLS ativa, a menos que use SECURITY DEFINER.
 
-A policy atual permite:
-- Managers (admin, manager, etc.): acesso TOTAL ✅
-- Qualquer usuário: ver conversas assigned_to = auth.uid() ✅
+## Solução: Usar Função SECURITY DEFINER
 
-**FALTANDO**:
-- Sales_rep ver conversas unassigned do departamento Comercial
-- Support_agent ver conversas unassigned do departamento Suporte
-- Financial_agent ver conversas unassigned do departamento Financeiro
+### Fase 1: Verificar função existente
 
-Se isso for necessário, a policy precisa ser expandida.
+A função `has_role()` já existe e é SECURITY DEFINER:
 
-### Fase 3: Recriar optimized_inbox_select com cobertura completa
+```sql
+CREATE FUNCTION public.has_role(_user_id uuid, _role app_role)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+```
+
+**Porém**, essa função verifica UM role por vez. Precisamos de uma nova função que verifique MÚLTIPLOS roles de uma vez (mais eficiente).
+
+### Fase 2: Criar função otimizada
+
+```sql
+CREATE OR REPLACE FUNCTION public.has_any_role(_user_id uuid, _roles app_role[])
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role = ANY(_roles)
+  )
+$$;
+```
+
+### Fase 3: Reescrever policy de inbox_view
 
 ```sql
 DROP POLICY IF EXISTS optimized_inbox_select ON public.inbox_view;
+
 CREATE POLICY optimized_inbox_select
 ON public.inbox_view
 FOR SELECT
 TO authenticated
 USING (
-  -- Managers: acesso total
-  EXISTS (
-    SELECT 1 FROM public.user_roles ur
-    WHERE ur.user_id = auth.uid()
-      AND ur.role IN (
-        'admin','manager','general_manager',
-        'support_manager','cs_manager','financial_manager'
-      )
+  -- Managers: acesso total (via SECURITY DEFINER)
+  public.has_any_role(
+    auth.uid(), 
+    ARRAY['admin','manager','general_manager','support_manager','cs_manager','financial_manager']::app_role[]
   )
   OR
-  -- Assigned to me: sempre vejo minhas conversas
+  -- Assigned to me
   (assigned_to = auth.uid())
   OR
-  -- Agentes: ver conversas do mesmo departamento (atribuídas ou não)
+  -- Agentes: mesmo departamento ou pool global
   (
-    EXISTS (
-      SELECT 1 FROM public.user_roles ur
-      WHERE ur.user_id = auth.uid()
-        AND ur.role IN ('sales_rep','support_agent','financial_agent','consultant')
+    public.has_any_role(
+      auth.uid(),
+      ARRAY['sales_rep','support_agent','financial_agent','consultant']::app_role[]
     )
     AND (
-      -- Meu departamento
-      department = (SELECT department FROM profiles WHERE id = auth.uid())
-      OR
-      -- Ou unassigned sem departamento (pool geral)
-      (assigned_to IS NULL AND department IS NULL)
+      department = (SELECT department FROM public.profiles WHERE id = auth.uid())
+      OR (assigned_to IS NULL AND department IS NULL)
     )
   )
 );
 ```
 
-## Resultado Esperado
+## Impacto
 
 | Métrica | Antes | Depois |
 |---------|-------|--------|
-| Policies SELECT em inbox_view | 9 | 1 |
-| has_role() calls | O(n) por query | 0 |
-| Visibilidade Admin | ❌ Inconsistente | ✅ Total |
-| Performance | Timeout | <500ms |
+| Admin vê conversas | Não | Sim |
+| Subquery em user_roles | Bloqueada por RLS | Bypassa via SECURITY DEFINER |
+| Compatibilidade | Quebrada | Restaurada |
+
+## Checklist de Validação
+
+```sql
+-- 1. Confirmar que admin vê conversas
+SELECT count(*) FROM inbox_view; -- Deve retornar >0
+
+-- 2. Confirmar função criada
+SELECT has_any_role(
+  '697a5d4e-9637-4b85-b7a0-bd880151648b'::uuid,
+  ARRAY['admin']::app_role[]
+); -- Deve retornar true
+```
 
 ## Rollback (se necessário)
 
 ```sql
--- Recriar policies antigas se algo der errado
-CREATE POLICY cs_manager_view_inbox ON public.inbox_view
+-- Recriar policy com EXISTS (comportamento anterior)
+DROP POLICY IF EXISTS optimized_inbox_select ON public.inbox_view;
+CREATE POLICY optimized_inbox_select ON public.inbox_view
 FOR SELECT TO authenticated
-USING (has_role(auth.uid(), 'cs_manager'::app_role));
--- ... outras
+USING (
+  EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = auth.uid() AND ur.role = ANY(ARRAY['admin'::app_role,...]))
+  OR assigned_to = auth.uid()
+  ...
+);
 ```
 
 ## Seção Técnica
 
-### Por que o Admin não vê conversas
+### Por que EXISTS falha dentro de policy?
 
-Com 9 policies avaliadas em OR, e várias usando `has_role()` que faz subquery para cada linha:
-1. Postgres tenta avaliar todas as 9 condições
-2. Para cada linha (3216 na view), executa has_role() 8 vezes
-3. Total: ~25.000 chamadas de função por query
-4. Resultado: timeout antes de retornar dados
+Quando uma policy RLS contém uma subquery para outra tabela com RLS, o Postgres entra em um estado de "RLS recursion block" para evitar loops infinitos. A subquery silenciosamente retorna zero linhas.
 
-A nova policy `optimized_inbox_select` seria suficiente sozinha, mas as antigas continuam sendo avaliadas em paralelo.
+### Por que SECURITY DEFINER resolve?
+
+Funções com SECURITY DEFINER executam com as permissões do owner (geralmente `postgres`), que bypassa RLS. Isso permite que a verificação de roles funcione independentemente do contexto RLS da query externa.
+
+### Por que has_any_role em vez de has_role?
+
+A função `has_role` verifica um role por vez. Para verificar múltiplos roles, precisaríamos chamá-la várias vezes com OR:
+
+```sql
+has_role(uid, 'admin') OR has_role(uid, 'manager') OR ...
+```
+
+Isso é ineficiente. A nova `has_any_role` aceita um array e faz UMA query.

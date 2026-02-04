@@ -9,6 +9,10 @@ interface BulkTransferParams {
   internalNote?: string;
 }
 
+/**
+ * Hook para transferir múltiplos tickets de uma vez
+ * Usa RPC SECURITY DEFINER para bypassar RLS com validação
+ */
 export function useBulkTransferTickets() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -19,45 +23,63 @@ export function useBulkTransferTickets() {
         throw new Error("Nenhum ticket selecionado");
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      console.log('[useBulkTransferTickets] Transferindo', ticketIds.length, 'tickets via RPC');
 
-      // Determine status based on assignment
-      const newStatus = assignedTo && assignedTo !== "none" ? "in_progress" : "open";
       const finalAssignedTo = assignedTo === "none" ? null : (assignedTo || null);
+      
+      // Transferir cada ticket via RPC (garante validação individual)
+      const results = await Promise.allSettled(
+        ticketIds.map(async (ticketId) => {
+          const { data: result, error } = await supabase
+            .rpc('transfer_ticket_secure', {
+              p_ticket_id: ticketId,
+              p_department_id: departmentId,
+              p_assigned_to: finalAssignedTo,
+              p_internal_note: internalNote || null
+            });
 
-      // Update tickets department and optionally assign
-      const { error: updateError } = await supabase
-        .from("tickets")
-        .update({
-          department_id: departmentId,
-          assigned_to: finalAssignedTo,
-          status: newStatus,
+          if (error) {
+            console.error(`[useBulkTransferTickets] Erro no ticket ${ticketId}:`, error);
+            throw error;
+          }
+
+          const transferResult = result as { success: boolean; error?: string } | null;
+          
+          if (!transferResult?.success) {
+            throw new Error(transferResult?.error || 'Erro ao transferir');
+          }
+
+          return ticketId;
         })
-        .in("id", ticketIds);
+      );
 
-      if (updateError) throw updateError;
+      // Contar sucessos e falhas
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
 
-      // Add internal comments if note provided
-      if (internalNote) {
-        const comments = ticketIds.map((ticketId) => ({
-          ticket_id: ticketId,
-          content: internalNote,
-          is_internal: true,
-          author_id: user.id,
-        }));
-
-        await supabase.from("ticket_comments").insert(comments);
+      if (failed > 0 && successful === 0) {
+        throw new Error('Nenhum ticket foi transferido. Verifique suas permissões.');
       }
 
-      return ticketIds.length;
+      console.log(`[useBulkTransferTickets] ✅ ${successful} transferidos, ${failed} falharam`);
+
+      return { successful, failed, total: ticketIds.length };
     },
-    onSuccess: (count) => {
+    onSuccess: ({ successful, failed }) => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
-      toast({
-        title: "Tickets transferidos",
-        description: `${count} ticket${count > 1 ? "s" : ""} transferido${count > 1 ? "s" : ""} com sucesso.`,
-      });
+      
+      if (failed > 0) {
+        toast({
+          title: "Transferência parcial",
+          description: `${successful} ticket${successful > 1 ? "s" : ""} transferido${successful > 1 ? "s" : ""}, ${failed} falharam.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Tickets transferidos",
+          description: `${successful} ticket${successful > 1 ? "s" : ""} transferido${successful > 1 ? "s" : ""} com sucesso.`,
+        });
+      }
     },
     onError: (error) => {
       toast({

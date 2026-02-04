@@ -343,7 +343,15 @@ export default function Inbox() {
         if (role === 'admin' || role === 'manager' || role === 'support_manager' || role === 'cs_manager') {
           return result.filter(c => c.ai_mode !== 'autopilot' && c.status !== 'closed');
         }
-        return result.filter(c => 
+        // ✅ UPGRADE (sem regressão):
+        // Quando o usuário está em uma visão de Departamento (/inbox?dept=...),
+        // ele deve conseguir colaborar e ver o time inteiro daquele dept.
+        // Mantém o comportamento antigo (somente minhas) quando NÃO há dept selecionado.
+        if (departmentFilter) {
+          return result.filter(c => c.ai_mode !== 'autopilot' && c.status !== 'closed');
+        }
+
+        return result.filter(c =>
           c.ai_mode !== 'autopilot' &&
           c.assigned_to === user?.id &&
           c.status !== 'closed'

@@ -1,108 +1,125 @@
 
-# Plano: Corrigir Busca de Clientes para Criar Tickets
 
-## Problema Identificado
+# Diagnóstico: Lentidão do Time Comercial (sales_rep)
 
-A busca de clientes no modal "Criar Novo Ticket" está falhando com **timeout** (erro 57014). 
+## Resumo do Problema
 
-**Causa raiz:**
-- A query de busca está fazendo ILIKE em 4 campos (first_name, last_name, email, phone) sem índice otimizado para email
-- A tabela `contacts` tem **14.817 registros**
-- A execução leva ~673ms apenas para email ILIKE, multiplicando quando combinada com outros campos
-- A política RLS para `consultant` adiciona overhead de verificação
-- O timeout padrão do Supabase (8s) é ultrapassado
+O time comercial está enfrentando lentidão intermitente em diversas áreas do sistema (Inbox, Dashboard, Deals, Instagram). A usuária `fernanda.giglio@3cliques.net` foi identificada como exemplo.
+
+## Diagnóstico Detalhado
+
+### 1. Status do Usuário
+
+| Campo | Valor |
+|-------|-------|
+| Email | fernanda.giglio@3cliques.net |
+| Role | `sales_rep` ✅ |
+| Status | Online, não bloqueada ✅ |
+| Permissões | `inbox.access`, `deals.view`, `dashboard.view`, `contacts.view` todas habilitadas ✅ |
+
+**Conclusão: O perfil está corretamente configurado. O problema NÃO é de permissão.**
+
+### 2. Causa Raiz: Timeouts no Banco de Dados
+
+Os logs do Postgres mostram **dezenas de erros "canceling statement due to statement timeout"** nos últimos minutos. Isso significa que queries estão demorando mais que o limite permitido (geralmente 8-15 segundos) e sendo canceladas.
+
+### 3. Fatores Contribuintes
+
+| Fator | Impacto |
+|-------|---------|
+| **18.110 deals** na tabela | Queries pesadas com JOINs |
+| **RLS com `has_role()`** | Chamada à função para CADA row verificada |
+| **Query no hook `useDeals`** | SELECT com 3 JOINs (contacts, organizations, profiles) + limite 1000 |
+| **Múltiplos hooks simultâneos** | Dashboard carrega vários hooks de deals ao mesmo tempo |
+
+### 4. Fluxo do Problema
+
+```text
+Usuário (sales_rep) abre Dashboard/Deals
+         ↓
+    useDeals() dispara query
+         ↓
+    RLS verifica has_role() para 18.110 rows
+         ↓
+    has_role() faz subquery em user_roles (para cada row)
+         ↓
+    Query ultrapassa timeout → TIMEOUT ERROR
+         ↓
+    Frontend recebe erro ou dados vazios
+         ↓
+    Usuário vê "Reconectando..." / tela lenta
+```
 
 ## Solução Proposta
 
-Criar uma **Edge Function** `search-contacts-for-ticket` que:
-1. Usa `SERVICE_ROLE_KEY` para bypassar RLS (é segura pois apenas retorna dados mínimos)
-2. Faz busca otimizada usando os índices trigram existentes
-3. Prioriza busca por email exato primeiro (mais rápido)
-4. Limita resultados a 20 registros
-5. Retorna apenas campos necessários (id, nome, email)
+### Fase 1: Otimização Imediata da RLS (SQL)
 
-## Arquitetura
+Substituir a política atual que usa `has_role()` por uma versão otimizada com subquery única:
 
-```text
-+-------------------+     +------------------------+     +------------+
-|  CreateTicket     | --> | search-contacts-       | --> |  contacts  |
-|  Dialog           |     | for-ticket (Edge)      |     |  (table)   |
-+-------------------+     +------------------------+     +------------+
-        |                         |                           |
-        |  searchTerm             |  SERVICE_ROLE             |
-        |------------------------>|  (bypasses RLS)           |
-        |                         |-------------------------->|
-        |                         |                           |
-        |  contacts[]             |  optimized query          |
-        |<------------------------|  with LIMIT 20            |
-        |                         |<--------------------------|
-```
+```sql
+-- DROP política atual
+DROP POLICY IF EXISTS role_based_select_deals ON public.deals;
 
-## Mudanças Técnicas
-
-### 1. Nova Edge Function: `search-contacts-for-ticket`
-
-| Aspecto | Detalhe |
-|---------|---------|
-| Endpoint | `/functions/v1/search-contacts-for-ticket` |
-| Método | POST |
-| Autenticação | JWT obrigatório (qualquer usuário autenticado) |
-| Input | `{ searchTerm: string }` |
-| Output | `{ contacts: [{ id, first_name, last_name, email }] }` |
-
-**Lógica de busca otimizada:**
-1. Se `searchTerm` contém `@` → busca prioritária por email
-2. Senão → busca por nome usando índices trigram
-3. LIMIT 20 para garantir resposta rápida
-
-### 2. Novo Hook: `useSearchContactsForTicket`
-
-Substituirá o uso de `useContacts` no `CreateTicketDialog.tsx`:
-- Chama a Edge Function via `supabase.functions.invoke`
-- Debounce de 300ms mantido
-- Tratamento de erros robusto
-
-### 3. Atualizar `CreateTicketDialog.tsx`
-
-Substituir:
-```typescript
-const { data: contacts = [] } = useContacts(
-  debouncedSearch.length >= 2 ? { searchQuery: debouncedSearch } : undefined
+-- CREATE nova política otimizada
+CREATE POLICY "optimized_select_deals" ON public.deals
+FOR SELECT TO authenticated
+USING (
+  -- Admins/Managers: acesso total (verificado UMA vez)
+  EXISTS (
+    SELECT 1 FROM user_roles 
+    WHERE user_id = auth.uid() 
+    AND role IN ('admin','manager','general_manager')
+  )
+  OR
+  -- Sales_rep/User: apenas seus deals
+  (
+    assigned_to = auth.uid() 
+    AND EXISTS (
+      SELECT 1 FROM user_roles 
+      WHERE user_id = auth.uid() 
+      AND role IN ('sales_rep','user')
+    )
+  )
 );
 ```
 
-Por:
-```typescript
-const { data: contacts = [] } = useSearchContactsForTicket(debouncedSearch);
+### Fase 2: Otimização do Hook useDeals
+
+1. **Paginação**: Reduzir limite de 1000 para 50 com scroll infinito
+2. **Lazy loading de JOINs**: Carregar contacts/organizations apenas quando necessário
+3. **Cache mais agressivo**: Aumentar `staleTime` para 30s
+
+### Fase 3: Índice Composto para RLS
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_user_roles_uid_role 
+ON user_roles(user_id, role);
 ```
 
 ## Arquivos a Modificar
 
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/search-contacts-for-ticket/index.ts` | Criar |
-| `supabase/config.toml` | Adicionar função |
-| `src/hooks/useSearchContactsForTicket.tsx` | Criar |
-| `src/components/support/CreateTicketDialog.tsx` | Atualizar import e uso |
+| Arquivo | Alteração |
+|---------|-----------|
+| (migração SQL) | Recriar política RLS otimizada |
+| `src/hooks/useDeals.tsx` | Reduzir limite, adicionar paginação |
+| (migração SQL) | Adicionar índice em user_roles |
 
-## Benefícios
+## Resultado Esperado
 
 | Antes | Depois |
 |-------|--------|
-| Timeout após ~8s | Resposta em ~200ms |
-| Usuários não conseguem buscar | Busca funciona para todos |
-| Query pesada com RLS | Bypass seguro com dados mínimos |
+| Timeout após ~8s | Query em <500ms |
+| Lentidão intermitente | Performance consistente |
+| "Reconectando..." frequente | Conexão estável |
 
-## Segurança
+## Seção Técnica
 
-- Edge Function requer JWT válido (usuário autenticado)
-- Retorna apenas dados públicos de contato (id, nome, email)
-- Não expõe dados sensíveis (telefone, documentos, etc.)
-- Logging para auditoria
+O problema principal é a **avaliação repetida de `has_role()`** para cada uma das 18.110 rows da tabela deals. A função `has_role()` é `SECURITY DEFINER` e executa uma subquery em `user_roles` para cada verificação.
 
-## Testes Necessários
+Com a nova política usando `EXISTS`, o Postgres pode:
+1. Avaliar a condição de role UMA única vez no início
+2. Usar o resultado em um filtro INDEX SCAN em vez de função-por-row
+3. Aproveitar o índice `idx_deals_assigned_status` para filtrar por `assigned_to`
 
-1. Buscar cliente por email exato: `juh.naiara@gmail.com`
-2. Buscar cliente por nome parcial: `Julia`
-3. Buscar cliente inexistente
-4. Verificar resposta rápida (<500ms)
+A mudança de `has_role(auth.uid(), 'sales_rep') AND assigned_to = auth.uid()` para `assigned_to = auth.uid() AND EXISTS(...)` inverte a ordem de avaliação, permitindo que o índice seja usado primeiro.
+

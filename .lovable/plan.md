@@ -1,116 +1,120 @@
 
+## Plano: Permitir Visibilidade de Conversas do Departamento para Agentes
 
-## Diagnóstico: Problemas identificados no Inbox para Miguel Fedes
+### Diagnóstico Confirmado
 
-Analisei o projeto atual e sigo as regras da base de conhecimento.
-
-### Resumo Executivo
-
-Identifiquei **dois problemas distintos** que estão interconectados:
+Identifiquei **dois problemas distintos** que estão causando o comportamento incorreto:
 
 ---
 
-### Problema 1: Mensagens aparecem e desaparecem
+### Problema 1: Filtro de departamento usa nome hardcoded
 
-**Causa raiz:** A política RLS para INSERT na tabela `messages` exige que a conversa esteja atribuída ao usuário que envia a mensagem.
+O hook `useDepartmentsByRole.tsx` filtra departamentos por **nome exato**:
 
-**O que acontece:**
-1. Miguel visualiza a conversa `59b8dcbc-e21b-48ba-bb56-ff5a2b3d25f0`
-2. Esta conversa está atribuída a **Ronildo Oliveira**, não ao Miguel
-3. Miguel tenta enviar uma mensagem
-4. O hook `sendInstant` adiciona a mensagem ao cache (ela **aparece** instantaneamente)
-5. Em background, o INSERT no banco **falha** com erro RLS: `"new row violates row-level security policy for table 'messages'"`
-6. O hook detecta a falha e marca a mensagem como `failed` ou remove do cache (ela **desaparece**)
-
-**Evidência nos logs:**
-```
-ERROR: new row violates row-level security policy for table "messages"
+```javascript
+// ATUAL (problemático)
+case "support_agent":
+  return departments.filter((d) =>
+    ["Suporte", "Support", "Atendimento"].some(
+      (name) => d.name.toLowerCase() === name.toLowerCase()
+    )
+  );
 ```
 
-**Política atual de INSERT em messages:**
-```sql
-CREATE POLICY role_based_insert_messages ON messages
-FOR INSERT WITH CHECK (
-  has_role(auth.uid(), 'admin') 
-  OR has_role(auth.uid(), 'manager') 
-  OR EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = messages.conversation_id 
-    AND c.assigned_to = auth.uid()  -- ❌ Problema: exige atribuição
-  )
-)
-```
+**Resultado:** Miguel está no departamento "Suporte Sistema", mas o código só reconhece o departamento chamado "Suporte" (nome exato). Isso faz com que o código trate Miguel como se ele não tivesse departamento válido.
 
 ---
 
-### Problema 2: Tags não funcionam em alguns casos
+### Problema 2: Agentes não veem conversas de colegas
 
-**Causa raiz:** O mesmo cenário - Miguel tenta adicionar tags em conversas que não estão atribuídas a ele.
+Mesmo que o departamento fosse reconhecido corretamente, a query em `useInboxView.tsx` só permite:
+- Conversas atribuídas ao usuário (`assigned_to = userId`)
+- Conversas **não atribuídas** do departamento (`assigned_to IS NULL`)
 
-A política de tags em si está OK (`authenticated_can_manage_conversation_tags` permite qualquer autenticado), mas o **problema de visibilidade** é que Miguel pode VER conversas do mesmo departamento mas não pode INTERAGIR com elas (enviar mensagens ou possivelmente tags em alguns edge cases).
+**Mas NÃO permite ver conversas atribuídas a colegas** do mesmo departamento (como as 29 conversas da Mabile).
 
 ---
 
-### Por que Miguel consegue VER a conversa?
+### Dados Atuais
 
-O filtro de inbox (`useInboxView.tsx`) permite que agentes vejam:
-- Conversas atribuídas a eles
-- Conversas não atribuídas do mesmo departamento
-- **Conversas atribuídas a colegas do mesmo departamento** (para visibilidade)
-
-Porém, a política RLS de INSERT em `messages` não foi atualizada para acompanhar essa visibilidade.
+| Métrica | Valor |
+|---------|-------|
+| Departamento do Miguel | Suporte Sistema (fd4fcc90-22e4-4127-ae23-9c9ecb6654b4) |
+| Conversas totais abertas | 33 |
+| Atribuídas ao Miguel | 4 |
+| Atribuídas à Mabile | 29 |
+| Não atribuídas | 0 |
+| Miguel consegue ver | Apenas 3-4 (suas próprias) |
 
 ---
 
 ## Solução Proposta
 
-### Fase 1: Atualizar política RLS para INSERT em messages
+### Mudança 1: Usar departamento do PERFIL ao invés de filtro por nome
 
-Permitir que agentes do mesmo departamento possam enviar mensagens em conversas do departamento, mesmo que atribuídas a outro agente. Isso é útil para:
-- Colaboração entre agentes
-- Assumir conversas de colegas ausentes
-- Notas internas entre equipe
+Em vez de filtrar departamentos por nomes hardcoded, o sistema deve usar o departamento configurado no perfil do usuário.
 
-**Nova política:**
-```sql
-CREATE POLICY role_based_insert_messages ON messages
-FOR INSERT WITH CHECK (
-  has_role(auth.uid(), 'admin') 
-  OR has_role(auth.uid(), 'manager')
-  OR has_role(auth.uid(), 'support_manager')
-  OR has_role(auth.uid(), 'cs_manager')
-  OR EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = messages.conversation_id 
-    AND (
-      c.assigned_to = auth.uid()                    -- Atribuída ao usuário
-      OR c.assigned_to IS NULL                       -- Não atribuída (pool)
-      OR c.department = (                            -- Mesmo departamento
-        SELECT department FROM profiles WHERE id = auth.uid()
-      )
-    )
-  )
-)
+**Arquivo:** `src/hooks/useDepartmentsByRole.tsx`
+
+```javascript
+// NOVO: Buscar departamento do próprio perfil do usuário
+case "support_agent":
+case "sales_rep":
+case "financial_agent":
+  // Retornar departamento do perfil do usuário (a ser passado como parâmetro)
+  // Se não tiver, fallback para lista vazia (só vê o que está atribuído a ele)
+  return userDepartmentId ? [userDepartmentId] : [];
+```
+
+**Alternativa mais simples:** Usar `startsWith` ou `includes` ao invés de comparação exata:
+
+```javascript
+case "support_agent":
+  return departments.filter((d) =>
+    d.name.toLowerCase().startsWith("suporte") ||
+    d.name.toLowerCase().includes("support")
+  );
 ```
 
 ---
 
-### Fase 2: Melhorar feedback visual de falhas
+### Mudança 2: Adicionar visibilidade de conversas de colegas
 
-Atualmente, quando uma mensagem falha por RLS, ela simplesmente "desaparece". Vou garantir que:
-1. A mensagem permaneça visível com status `failed`
-2. Um toast de erro apareça explicando o problema
-3. O usuário receba orientação sobre como resolver (ex: "Assuma a conversa primeiro")
+**Arquivo:** `src/hooks/useInboxView.tsx` (linhas 67-86)
+
+```javascript
+// ATUAL (restritivo)
+query = query.or(
+  `assigned_to.eq.${userId},and(assigned_to.is.null,department.in.(${departmentIds.join(",")}))`
+);
+
+// NOVO (permite ver colegas)
+query = query.or(
+  `assigned_to.eq.${userId},department.in.(${departmentIds.join(",")})`
+);
+```
+
+Essa mudança permite que agentes vejam **todas** as conversas do departamento, mesmo as atribuídas a colegas.
 
 ---
 
-### Detalhes Técnicos da Implementação
+### Mudança 3: Atualizar edge function get-inbox-counts
 
-| Componente | Mudança |
-|------------|---------|
-| **Migration SQL** | Atualizar política `role_based_insert_messages` para incluir check de departamento |
-| **useSendMessageInstant.tsx** | Melhorar mensagem de erro quando falha por RLS, mantendo mensagem no cache como `failed` |
-| **SuperComposer.tsx** | Adicionar check proativo se usuário pode enviar antes de tentar |
+**Arquivo:** `supabase/functions/get-inbox-counts/index.ts`
+
+A função `applyVisibility` precisa da mesma lógica:
+- Usar departamento do perfil do usuário
+- Incluir conversas atribuídas a colegas do mesmo departamento
+
+---
+
+### Arquivos a Modificar
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/hooks/useDepartmentsByRole.tsx` | Mudar para usar perfil do usuário ou filtro mais flexível |
+| `src/hooks/useInboxView.tsx` | Permitir ver conversas de colegas do mesmo departamento |
+| `supabase/functions/get-inbox-counts/index.ts` | Mesma lógica de visibilidade |
 
 ---
 
@@ -118,27 +122,18 @@ Atualmente, quando uma mensagem falha por RLS, ela simplesmente "desaparece". Vo
 
 | Impacto | Mitigação |
 |---------|-----------|
-| Agentes podem enviar em conversas de colegas do departamento | ✅ Isso é desejado para colaboração |
-| Não afeta conversas de outros departamentos | ✅ Mantém isolamento entre departamentos |
-| Retrocompatível com comportamento atual | ✅ Apenas EXPANDE permissões, não remove |
+| Agentes verão mais conversas (do departamento inteiro) | Isso é o comportamento esperado |
+| Contagem na sidebar vai bater com lista de conversas | Resolvido pela consistência |
+| Retrocompatível | Sim, apenas EXPANDE visibilidade |
 
 ---
 
 ### Rollback
 
-Se necessário reverter:
-```sql
--- Basta restaurar a política anterior
-DROP POLICY role_based_insert_messages ON messages;
-CREATE POLICY role_based_insert_messages ON messages
-FOR INSERT WITH CHECK (
-  has_role(auth.uid(), 'admin') 
-  OR has_role(auth.uid(), 'manager') 
-  OR EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = messages.conversation_id 
-    AND c.assigned_to = auth.uid()
-  )
-);
-```
+Se necessário reverter, basta restaurar os filtros originais (`assigned_to.eq.${userId}` + `assigned_to.is.null`).
 
+---
+
+### Recomendação
+
+Sugiro a **abordagem mais robusta**: usar o departamento do perfil do usuário como fonte única da verdade, em vez de filtros por nome. Isso evita problemas futuros quando departamentos forem renomeados ou novos forem criados.

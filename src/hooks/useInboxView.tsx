@@ -60,8 +60,8 @@ async function fetchInboxData(options: FetchOptions = {}): Promise<InboxViewItem
   let query = supabase
     .from("inbox_view")
     .select("*")
-    .order("updated_at", { ascending: true }) // PRIORIDADE: Conversas mais antigas primeiro (aguardando há mais tempo)
-    .limit(5000); // Alinhado com useInboxCounts para consistência nos totais
+    .order("updated_at", { ascending: true })
+    .limit(500); // REDUZIDO de 5000 para 500 para aliviar carga no banco durante timeouts
 
   // Aplicar filtros de role no nível do banco
   if (role && userId && !hasFullInboxAccess(role)) {
@@ -299,11 +299,11 @@ export function useInboxView(filters?: InboxFilters) {
       // Aplicar filtros client-side
       return applyFilters(result, filters);
     },
-    staleTime: 1000, // Reduzido de 5000ms para 1000ms para maior responsividade
-    refetchOnWindowFocus: true,
+    staleTime: 30000, // 30s - reduzir carga no banco durante período de stress
+    refetchOnWindowFocus: false, // Desabilitar temporariamente para reduzir carga
     refetchOnMount: true,
-    refetchInterval: 60000, // Polling backup: 60s - realtime já cobre atualizações instantâneas
-    refetchIntervalInBackground: true, // Continuar polling mesmo em background
+    refetchInterval: 120000, // Polling backup: 2min - realtime já cobre atualizações
+    refetchIntervalInBackground: false, // Não buscar em background para aliviar banco
     enabled: !!user && !roleLoading && !deptLoading,
   });
 

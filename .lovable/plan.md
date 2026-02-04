@@ -1,6 +1,19 @@
 
 # Plano de Emergência: Restaurar Visibilidade do Inbox
 
+## Status Atual: PARCIALMENTE CONCLUÍDO ⚠️
+
+### O que foi feito ✅
+1. **Índice user_roles otimizado** - `idx_user_roles_uid_role` criado
+2. **RLS inbox_view otimizada** - Política `optimized_admin_manager_inbox` aplicada com EXISTS
+3. **Edge Function corrigida** - Import alterado para `https://esm.sh/` e deploy realizado
+4. **Frontend aliviado** - Limite reduzido de 5000 para 500, staleTime aumentado para 30s
+
+### Pendente ⏳
+1. **RLS conversations** - Bloqueada por deadlock contínuo (processo 1995008 segurando lock)
+   - O Realtime está mantendo lock na tabela conversations
+   - Tentativa será feita automaticamente quando o banco aliviar
+
 ## Diagnóstico Confirmado
 
 ### Dados existem - NÃO foram perdidos
@@ -28,63 +41,47 @@ Os logs do Postgres mostram **centenas de erros "statement timeout"** por minuto
 ### Por que afeta o Admin?
 Mesmo que `admin` seja a primeira condição na política `admin_manager_full_access_inbox_view`, o Postgres ainda precisa avaliar `has_role()` uma vez para confirmar. Quando o banco está sobrecarregado (muitos usuários simultaneamente), até essa única verificação pode sofrer timeout.
 
-## Solução: Otimização das Políticas RLS
+## Solução Aplicada
 
-### Fase 1: Otimizar RLS de inbox_view (Crítico)
-Substituir políticas que usam `has_role()` por `EXISTS` com subquery única:
-
+### Fase 1: Otimizar RLS de inbox_view ✅ CONCLUÍDO
 ```sql
--- Remover política atual
 DROP POLICY IF EXISTS "admin_manager_full_access_inbox_view" ON public.inbox_view;
 
--- Criar política otimizada
 CREATE POLICY "optimized_admin_manager_inbox" ON public.inbox_view
 FOR ALL TO authenticated
 USING (
   EXISTS (
     SELECT 1 FROM public.user_roles 
     WHERE user_id = auth.uid() 
-    AND role IN ('admin', 'manager')
+    AND role IN ('admin', 'manager', 'general_manager', 'support_manager', 'cs_manager', 'financial_manager')
   )
 );
 ```
 
-### Fase 2: Otimizar RLS de conversations (Crítico)
-Mesma estratégia para a tabela conversations:
-
+### Fase 2: Otimizar RLS de conversations ⏳ PENDENTE (deadlock)
 ```sql
--- Remover política atual
 DROP POLICY IF EXISTS "admin_manager_full_access_conversations" ON public.conversations;
 
--- Criar política otimizada
 CREATE POLICY "optimized_admin_manager_conv" ON public.conversations
 FOR ALL TO authenticated
 USING (
   EXISTS (
     SELECT 1 FROM public.user_roles 
     WHERE user_id = auth.uid() 
-    AND role IN ('admin', 'manager')
+    AND role IN ('admin', 'manager', 'general_manager', 'support_manager', 'cs_manager', 'financial_manager')
   )
 );
 ```
 
-### Fase 3: Corrigir Edge Function get-inbox-counts
-Atualizar import para evitar BOOT_ERROR:
+### Fase 3: Edge Function get-inbox-counts ✅ CONCLUÍDO
+- Import corrigido de `npm:` para `https://esm.sh/`
+- Usando `Deno.serve` nativo
 
-```typescript
-// Mudar de:
-import { createClient } from "npm:@supabase/supabase-js@2";
-
-// Para:
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-```
-
-## Arquivos a Modificar
-
-| Tipo | Descrição |
-|------|-----------|
-| Migração SQL | Substituir políticas RLS de inbox_view e conversations |
-| Edge Function | Corrigir import em get-inbox-counts |
+### Fase 4: Frontend aliviado ✅ CONCLUÍDO
+- Limite de inbox reduzido de 5000 para 500
+- staleTime aumentado para 30s
+- Polling reduzido para 2 minutos
+- refetchOnWindowFocus desabilitado temporariamente
 
 ## Resultado Esperado
 
@@ -95,29 +92,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 | "Reconectando..." | Conexão estável |
 | Afeta todos os roles | Todos os roles funcionando |
 
-## Por que isso resolve?
+## Próximos Passos
 
-A diferença entre `has_role(auth.uid(), 'admin')` e `EXISTS (SELECT 1 FROM user_roles WHERE ...)` é sutil mas crítica:
-
-1. **has_role()**: Postgres chama a função para cada row porque ela é declarada como retornando valor que pode depender da row
-2. **EXISTS com subquery**: Postgres otimiza para executar UMA vez no início da query e usar o resultado booleano como filtro constante
-
-Isso reduz de ~3.200 chamadas para **1 chamada** por query.
-
-## Impacto em Outros Roles
-
-Esta mudança beneficia TODOS os usuários:
-- Admin/Manager: Query instantânea
-- Sales_rep: Menos contenção no banco
-- Support_agent: Menos timeouts
-- Consultant: Acesso mais rápido
-
-## Rollback
-
-Se algo der errado, podemos recriar as políticas originais com:
-
-```sql
-CREATE POLICY "admin_manager_full_access_inbox_view" ON public.inbox_view
-FOR ALL TO authenticated
-USING (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role));
-```
+1. Aguardar estabilização do banco (menos deadlocks)
+2. Aplicar migração de conversations
+3. Restaurar limites originais gradualmente

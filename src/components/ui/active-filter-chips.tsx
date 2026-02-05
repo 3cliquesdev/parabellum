@@ -58,9 +58,14 @@ export function generateDealFilterChips(
     valueMax?: number;
     createdDateRange?: { from?: Date; to?: Date };
     expectedCloseDateRange?: { from?: Date; to?: Date };
+    updatedDateRange?: { from?: Date; to?: Date };
     activityStatus?: string;
     leadSource: string[];
     assignedTo?: string[];
+    status?: string[];
+    stageIds?: string[];
+    probabilityMin?: number;
+    probabilityMax?: number;
   },
   salesReps?: { id: string; full_name: string }[]
 ): FilterChip[] {
@@ -86,9 +91,16 @@ export function generateDealFilterChips(
 
   if (filters.expectedCloseDateRange?.from) {
     const label = filters.expectedCloseDateRange.to 
-      ? `Fechamento: ${formatDate(filters.expectedCloseDateRange.from)} - ${formatDate(filters.expectedCloseDateRange.to)}`
-      : `Fechamento desde: ${formatDate(filters.expectedCloseDateRange.from)}`;
+      ? `Prev. Fechamento: ${formatDate(filters.expectedCloseDateRange.from)} - ${formatDate(filters.expectedCloseDateRange.to)}`
+      : `Prev. Fechamento desde: ${formatDate(filters.expectedCloseDateRange.from)}`;
     chips.push({ key: "expectedCloseDateRange", label });
+  }
+
+  if (filters.updatedDateRange?.from) {
+    const label = filters.updatedDateRange.to 
+      ? `Atualizado: ${formatDate(filters.updatedDateRange.from)} - ${formatDate(filters.updatedDateRange.to)}`
+      : `Atualizado desde: ${formatDate(filters.updatedDateRange.from)}`;
+    chips.push({ key: "updatedDateRange", label });
   }
 
   if (filters.activityStatus) {
@@ -98,6 +110,29 @@ export function generateDealFilterChips(
       on_track: "Em dia",
     };
     chips.push({ key: "activityStatus", label: `Status: ${statusLabels[filters.activityStatus] || filters.activityStatus}` });
+  }
+
+  // Status (Aberto/Ganho/Perdido)
+  if (filters.status && filters.status.length > 0) {
+    const statusLabels: Record<string, string> = {
+      open: "Aberto",
+      won: "Ganho",
+      lost: "Perdido"
+    };
+    const labels = filters.status.map(s => statusLabels[s] || s).join(", ");
+    chips.push({ key: "status", label: `Status: ${labels}` });
+  }
+
+  // Probabilidade
+  if (filters.probabilityMin !== undefined || filters.probabilityMax !== undefined) {
+    const min = filters.probabilityMin ?? 0;
+    const max = filters.probabilityMax ?? 100;
+    chips.push({ key: "probability", label: `Probabilidade: ${min}% - ${max}%` });
+  }
+
+  // Etapas do pipeline
+  if (filters.stageIds && filters.stageIds.length > 0) {
+    chips.push({ key: "stageIds", label: `${filters.stageIds.length} etapa(s) selecionada(s)` });
   }
 
   filters.leadSource.forEach((source) => {

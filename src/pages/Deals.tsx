@@ -147,17 +147,39 @@ export default function Deals() {
         ...dealFilters,
         assignedTo: (dealFilters.assignedTo || []).filter(r => r !== repId),
       });
-    } else if (key === "value" || key === "valueMin") {
+    } else if (key === "value") {
+      setDealFilters({ ...dealFilters, valueMin: undefined, valueMax: undefined });
+    } else if (key === "valueMin") {
       setDealFilters({ ...dealFilters, valueMin: undefined });
     } else if (key === "valueMax") {
       setDealFilters({ ...dealFilters, valueMax: undefined });
+    } else if (key === "status") {
+      setDealFilters({ ...dealFilters, status: [] });
+    } else if (key === "stageIds") {
+      setDealFilters({ ...dealFilters, stageIds: [] });
+    } else if (key === "probability") {
+      setDealFilters({ ...dealFilters, probabilityMin: undefined, probabilityMax: undefined });
     } else {
       setDealFilters({ ...dealFilters, [key]: undefined });
     }
   };
 
   const clearAllFilters = () => {
-    setDealFilters({ search: "", leadSource: [], assignedTo: [] });
+    setDealFilters({
+      search: "",
+      leadSource: [],
+      assignedTo: [],
+      status: [],
+      stageIds: [],
+      sortBy: "created_at_desc",
+      createdDateRange: undefined,
+      expectedCloseDateRange: undefined,
+      updatedDateRange: undefined,
+      valueMin: undefined,
+      valueMax: undefined,
+      probabilityMin: undefined,
+      probabilityMax: undefined,
+    });
   };
 
   // Bulk selection handlers

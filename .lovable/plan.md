@@ -1,153 +1,175 @@
 
-# Plano: Corrigir Erro "updated_at column does not exist" em take_control_secure
+
+# Plano: Corrigir Sistema de Filtros do Time Comercial
 
 ## Diagnóstico
 
-### Problema Reportado
-Admin Pamela recebe o erro: **"column 'updated_at' of relation 'conversations' does not exist"** ao clicar em "Assumir" conversa.
+### Problema Principal
+O usuário aplicou filtro "Previsão de Fechamento: 01/01/2026 - 31/01/2026" e o pipeline mostra **0 negócios**. Isso ocorre porque:
 
-### Causa Raiz
-A RPC `take_control_secure` contém uma linha incorreta:
+- **ZERO deals** na base de dados têm a coluna `expected_close_date` preenchida
+- O banco possui **18.376 deals totais**, mas todos têm `expected_close_date = NULL`
+- Portanto, qualquer filtro nessa coluna retorna 0 resultados
 
-```sql
-UPDATE conversations
-SET 
-  ai_mode = 'copilot',
-  assigned_to = v_caller_id,
-  updated_at = now()  -- ❌ ESTA COLUNA NÃO EXISTE!
-WHERE id = p_conversation_id;
-```
+### Problemas Secundários Identificados
 
-### Evidência
-- Tabela `conversations` **não possui** coluna `updated_at`
-- Tabela `conversations` usa `last_message_at` para rastrear atividade
-- Tabela `inbox_view` (separada) possui `updated_at` e é atualizada por triggers
+| Problema | Impacto |
+|----------|---------|
+| Função `clearAllFilters()` incompleta | Não limpa campos de data, status, etapas, probabilidade |
+| Função `generateDealFilterChips()` incompleta | Não exibe chips para `updatedDateRange`, `status`, `stageIds`, `probability` |
+| Label confuso "Fechamento" | Usuários podem confundir com data real de fechamento (`closed_at`) |
 
 ---
 
 ## Solução
 
-Criar migration SQL para recriar a função `take_control_secure` **removendo** a referência à coluna inexistente.
+### 1. Corrigir `clearAllFilters()` em `Deals.tsx`
 
-### Código Corrigido
+**Arquivo:** `src/pages/Deals.tsx` (linha 159-161)
 
-```sql
-CREATE OR REPLACE FUNCTION public.take_control_secure(p_conversation_id UUID)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_caller_id UUID := auth.uid();
-  v_conversation RECORD;
-  v_profile RECORD;
-  v_is_authorized BOOLEAN := false;
-BEGIN
-  -- 1. Buscar conversa
-  SELECT c.*, d.name as dept_name
-  INTO v_conversation
-  FROM conversations c
-  LEFT JOIN departments d ON d.id = c.department
-  WHERE c.id = p_conversation_id;
+**Antes:**
+```typescript
+const clearAllFilters = () => {
+  setDealFilters({ search: "", leadSource: [], assignedTo: [] });
+};
+```
 
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Conversa não encontrada');
-  END IF;
+**Depois:**
+```typescript
+const clearAllFilters = () => {
+  setDealFilters({
+    search: "",
+    leadSource: [],
+    assignedTo: [],
+    status: [],
+    stageIds: [],
+    sortBy: "created_at_desc",
+    createdDateRange: undefined,
+    expectedCloseDateRange: undefined,
+    updatedDateRange: undefined,
+    valueMin: undefined,
+    valueMax: undefined,
+    probabilityMin: undefined,
+    probabilityMax: undefined,
+  });
+};
+```
 
-  -- 2. Buscar perfil do usuário
-  SELECT id, full_name, availability_status
-  INTO v_profile
-  FROM profiles
-  WHERE id = v_caller_id;
+### 2. Completar `generateDealFilterChips()` em `active-filter-chips.tsx`
 
-  -- 3. Verificar se é manager/admin (não precisa estar online)
-  IF has_role(v_caller_id, 'admin'::app_role) 
-     OR has_role(v_caller_id, 'manager'::app_role)
-     OR has_role(v_caller_id, 'general_manager'::app_role)
-     OR has_role(v_caller_id, 'cs_manager'::app_role)
-     OR has_role(v_caller_id, 'support_manager'::app_role)
-     OR has_role(v_caller_id, 'financial_manager'::app_role)
-  THEN
-    v_is_authorized := true;
-  ELSE
-    -- Agentes precisam estar online
-    IF v_profile.availability_status != 'online' THEN
-      RETURN jsonb_build_object('success', false, 'error', 'Altere seu status para Online');
-    END IF;
-    
-    -- Conversa não atribuída pode ser assumida por qualquer agente
-    IF v_conversation.assigned_to IS NULL THEN
-      v_is_authorized := true;
-    -- Conversa atribuída ao próprio usuário
-    ELSIF v_conversation.assigned_to = v_caller_id THEN
-      v_is_authorized := true;
-    END IF;
-  END IF;
+**Arquivo:** `src/components/ui/active-filter-chips.tsx`
 
-  IF NOT v_is_authorized THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Sem permissão');
-  END IF;
+Adicionar chips faltantes para:
+- `updatedDateRange` (Última Atualização)
+- `status` (Status: Aberto/Ganho/Perdido)
+- `stageIds` (Etapas do Pipeline)
+- `probabilityMin/Max` (Probabilidade)
 
-  -- 4. Executar takeover (SEM updated_at)
-  UPDATE conversations
-  SET 
-    ai_mode = 'copilot',
-    assigned_to = v_caller_id
-  WHERE id = p_conversation_id;
+**Código a adicionar após linha 91:**
+```typescript
+// Última atualização
+if (filters.updatedDateRange?.from) {
+  const label = filters.updatedDateRange.to 
+    ? `Atualizado: ${formatDate(filters.updatedDateRange.from)} - ${formatDate(filters.updatedDateRange.to)}`
+    : `Atualizado desde: ${formatDate(filters.updatedDateRange.from)}`;
+  chips.push({ key: "updatedDateRange", label });
+}
 
-  -- 5. Inserir mensagem de sistema
-  INSERT INTO messages (conversation_id, content, sender_type, sender_id, is_ai_generated)
-  VALUES (
-    p_conversation_id,
-    format('O atendente **%s** entrou na conversa.', COALESCE(v_profile.full_name, 'Suporte')),
-    'system',
-    v_caller_id,
-    false
-  );
+// Status
+if (filters.status && filters.status.length > 0) {
+  const statusLabels: Record<string, string> = {
+    open: "Aberto",
+    won: "Ganho",
+    lost: "Perdido"
+  };
+  const labels = filters.status.map(s => statusLabels[s] || s).join(", ");
+  chips.push({ key: "status", label: `Status: ${labels}` });
+}
 
-  RETURN jsonb_build_object(
-    'success', true,
-    'conversation_id', p_conversation_id,
-    'assigned_to', v_caller_id,
-    'ai_mode', 'copilot'
-  );
-END;
-$$;
+// Probabilidade
+if (filters.probabilityMin !== undefined || filters.probabilityMax !== undefined) {
+  const min = filters.probabilityMin ?? 0;
+  const max = filters.probabilityMax ?? 100;
+  chips.push({ key: "probability", label: `Probabilidade: ${min}% - ${max}%` });
+}
+
+// Etapas (se implementado)
+if (filters.stageIds && filters.stageIds.length > 0) {
+  chips.push({ key: "stageIds", label: `${filters.stageIds.length} etapa(s) selecionada(s)` });
+}
+```
+
+### 3. Atualizar interface do `generateDealFilterChips`
+
+A interface de entrada precisa ser expandida para incluir os novos campos.
+
+### 4. Corrigir `handleRemoveFilterChip` para arrays
+
+**Arquivo:** `src/pages/Deals.tsx`
+
+Adicionar tratamento para campos de array como `status` e `stageIds`:
+
+```typescript
+} else if (key === "status") {
+  setDealFilters({ ...dealFilters, status: [] });
+} else if (key === "stageIds") {
+  setDealFilters({ ...dealFilters, stageIds: [] });
+} else if (key === "probability") {
+  setDealFilters({ ...dealFilters, probabilityMin: undefined, probabilityMax: undefined });
+} else {
+  setDealFilters({ ...dealFilters, [key]: undefined });
+}
+```
+
+### 5. (Opcional) Melhorar label do chip de "Fechamento"
+
+Mudar de "Fechamento" para "Prev. Fechamento" para evitar confusão com `closed_at`:
+
+```typescript
+// Em generateDealFilterChips
+if (filters.expectedCloseDateRange?.from) {
+  const label = filters.expectedCloseDateRange.to 
+    ? `Prev. Fechamento: ${formatDate(filters.expectedCloseDateRange.from)} - ${formatDate(filters.expectedCloseDateRange.to)}`
+    : `Prev. Fechamento desde: ${formatDate(filters.expectedCloseDateRange.from)}`;
+  chips.push({ key: "expectedCloseDateRange", label });
+}
 ```
 
 ---
 
 ## Arquivos a Modificar
 
-### 1. Nova Migration SQL (via Supabase migration tool)
-
-A função será recriada com `CREATE OR REPLACE FUNCTION`, mantendo todas as permissões.
-
----
-
-## Impacto
-
-| Antes | Depois |
-|-------|--------|
-| Erro ao assumir qualquer conversa | Assumir funciona normalmente |
-| Admin/Manager bloqueado | Pode assumir sem restrições |
-| Agentes bloqueados | Podem assumir se online |
+| Arquivo | Mudança |
+|---------|---------|
+| `src/pages/Deals.tsx` | `clearAllFilters()` completo + `handleRemoveFilterChip()` para arrays |
+| `src/components/ui/active-filter-chips.tsx` | `generateDealFilterChips()` com todos os chips + interface expandida |
 
 ---
 
 ## Seção Técnica
 
-### Por que não adicionar updated_at na tabela conversations?
+### Por que `expected_close_date` está vazio?
 
-1. **Padrão existente:** O sistema usa `last_message_at` para rastrear atividade
-2. **Triggers funcionando:** `inbox_view` já sincroniza via triggers e tem seu próprio `updated_at`
-3. **Menor risco:** Alterar estrutura de tabela pode quebrar outras queries
+- A coluna existe e é do tipo `DATE` (nullable)
+- **Nenhum deal** teve previsão de fechamento cadastrada
+- Isso é um problema de dados, não de código
+- Sugestão: preencher automaticamente com `created_at + 30 dias` para deals novos
+
+### Impacto
+
+| Antes | Depois |
+|-------|--------|
+| Limpar filtros não limpa datas | Todos os filtros são limpos corretamente |
+| Chips não mostram todos os filtros ativos | Todos os filtros têm visualização |
+| Filtro "Fechamento" confuso | Label "Prev. Fechamento" mais claro |
+| Ao remover chip de status/etapas, comportamento incorreto | Arrays são limpos corretamente |
 
 ### Validação Pós-Deploy
 
-1. Login como admin (Pamela)
-2. Ir para Inbox
-3. Selecionar conversa em "Não atribuídas" ou "Fila IA"
-4. Clicar em "Assumir"
-5. Verificar: ai_mode muda para copilot, composer habilitado, sem erro
+1. Abrir página de Deals
+2. Aplicar filtro "Previsão de Fechamento" → verificar que chip aparece
+3. Aplicar filtro "Data de Criação: Janeiro 2026" → verificar que deals aparecem
+4. Clicar em "Limpar Tudo" → verificar que TODOS os filtros são removidos
+5. Clicar no X de cada chip → verificar que remove corretamente
+6. Aplicar filtro de Status (Aberto/Ganho/Perdido) → verificar que chip aparece
+

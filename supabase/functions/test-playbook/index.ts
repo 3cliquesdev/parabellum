@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
           last_name: '(Teste)',
           email: tester_email.toLowerCase(),
           source: 'playbook_test',
-          status: 'new',
+          status: 'lead',
         })
         .select()
         .single();

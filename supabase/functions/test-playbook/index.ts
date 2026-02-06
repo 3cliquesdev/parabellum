@@ -85,22 +85,19 @@ Deno.serve(async (req) => {
     const normalizedRecipientEmail = recipient_email.toLowerCase().trim();
     const userEmail = user.email?.toLowerCase().trim();
 
-    // 5. Check user role for permission
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
+    // 5. Check user role for permission (query user_roles table, not profiles)
+    const { data: userRoleData, error: roleError } = await supabaseAdmin
+      .from('user_roles')
       .select('role')
-      .eq('id', user.id)
-      .single();
+      .eq('user_id', user.id)
+      .maybeSingle(); // User may not have a role assigned
 
-    if (profileError) {
-      console.error('[test-playbook] Failed to fetch profile:', profileError);
-      return new Response(
-        JSON.stringify({ error: 'Erro ao verificar permissões' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (roleError) {
+      console.error('[test-playbook] Failed to fetch user role:', roleError);
+      // Don't block - just treat as non-manager
     }
 
-    const isManager = MANAGER_ROLES.includes(profile?.role || '');
+    const isManager = MANAGER_ROLES.includes(userRoleData?.role || '');
 
     // 6. Permission check: non-managers can only send to their own email
     // ENV FLAG: PLAYBOOK_TEST_ALLOW_ANY_RECIPIENT=true allows any user to send to any email

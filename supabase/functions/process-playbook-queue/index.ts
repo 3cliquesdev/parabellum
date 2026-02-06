@@ -23,6 +23,52 @@ interface PlaybookExecution {
   current_node_id: string;
   nodes_executed: any[];
   errors: any[];
+  metadata?: {
+    is_test_mode?: boolean;
+    speed_multiplier?: number;
+    test_recipient_email?: string;
+    test_recipient_name?: string;
+    test_run_id?: string;
+    test_run_started_by?: string;
+    started_at?: string;
+  };
+}
+
+// ============ HELPER: Update playbook_test_runs status when execution finishes ============
+async function updateTestRunStatus(supabase: any, execution: PlaybookExecution, status: 'done' | 'failed') {
+  if (execution.metadata?.is_test_mode) {
+    const { error } = await supabase
+      .from('playbook_test_runs')
+      .update({ 
+        status: status,
+        updated_at: new Date().toISOString() 
+      })
+      .eq('execution_id', execution.id);
+    
+    if (error) {
+      console.error(`[updateTestRunStatus] Failed to update test_run for execution ${execution.id}:`, error);
+    } else {
+      console.log(`[updateTestRunStatus] 🧪 Test run status updated to '${status}' for execution ${execution.id}`);
+    }
+  }
+}
+function getEmailTarget(
+  execution: PlaybookExecution, 
+  item: QueueItem, 
+  contact: any, 
+  fallbackName: string
+): { isTestMode: boolean; speedMultiplier: number; to: string; to_name: string } {
+  const isTestMode = execution.metadata?.is_test_mode === true || item.node_data?._test_mode === true;
+  const speedMultiplier = item.node_data?._speed_multiplier ?? execution.metadata?.speed_multiplier ?? 1;
+  
+  const to = isTestMode 
+    ? (execution.metadata?.test_recipient_email || contact.email) 
+    : contact.email;
+  const to_name = isTestMode 
+    ? (execution.metadata?.test_recipient_name || fallbackName) 
+    : fallbackName;
+  
+  return { isTestMode, speedMultiplier, to, to_name };
 }
 
 interface PlaybookFlow {
@@ -232,13 +278,13 @@ Deno.serve(async (req) => {
             .eq('id', item.id);
 
           // Update execution with error
-          const { data: execution } = await supabaseAdmin
+          const { data: failedExecution } = await supabaseAdmin
             .from('playbook_executions')
-            .select('errors')
+            .select('errors, metadata')
             .eq('id', item.execution_id)
             .single();
 
-          const errors = [...(execution?.errors || [])];
+          const errors = [...(failedExecution?.errors || [])];
           errors.push({
             node_id: item.node_id,
             node_type: item.node_type,
@@ -253,6 +299,19 @@ Deno.serve(async (req) => {
               errors,
             })
             .eq('id', item.execution_id);
+          
+          // 🧪 Update test_run status if test mode
+          if (failedExecution?.metadata?.is_test_mode) {
+            await supabaseAdmin
+              .from('playbook_test_runs')
+              .update({ 
+                status: 'failed',
+                updated_at: new Date().toISOString() 
+              })
+              .eq('execution_id', item.execution_id);
+            
+            console.log(`[test-mode] 🧪 Test run marked as failed for execution ${item.execution_id}`);
+          }
         }
       }
     }
@@ -322,23 +381,42 @@ async function executeEmailNode(supabase: any, item: QueueItem, contact: any, ex
     htmlContent = emailData.body || emailData.message || '<p>Mensagem do seu playbook</p>';
   }
   
-  // Validar que temos email do contato
+  // Validar que temos email do contato (for non-test mode)
   if (!contact.email) {
     console.error('Contact has no email address');
     return { success: false, error: 'Contato sem email cadastrado' };
   }
   
-  const toName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Cliente';
+  const fallbackName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Cliente';
   
-  console.log(`Sending email to: ${contact.email} (${toName}), subject: ${subject}`);
+  // 🧪 Test mode: override destinatário using helper
+  const { isTestMode, speedMultiplier, to, to_name } = getEmailTarget(execution, item, contact, fallbackName);
+  
+  // 🧪 Test mode: prefix subject (avoid duplicating [TESTE])
+  const finalSubject = isTestMode
+    ? (subject.startsWith('[TESTE]') ? subject : `[TESTE] ${subject}`)
+    : subject;
+  
+  // 🧪 Test mode: add visual banner
+  const testBanner = isTestMode
+    ? `<div style="padding:12px 16px;background:#fef3c7;border:2px dashed #d97706;margin-bottom:16px;font-size:13px;color:#92400e;border-radius:8px;">
+        <strong>🧪 EMAIL DE TESTE DO PLAYBOOK</strong><br/>
+        <span style="font-size:12px;">Destinatário original: ${contact.email}</span><br/>
+        <span style="font-size:12px;">Speed multiplier: ${speedMultiplier}x</span>
+      </div>`
+    : '';
+  
+  const finalHtml = isTestMode ? `${testBanner}${htmlContent}` : htmlContent;
+  
+  console.log(`${isTestMode ? '🧪 TEST MODE: ' : ''}Sending email to: ${to} (${to_name}), subject: ${finalSubject}`);
   
   // 3. Chamar send-email com todos os campos obrigatórios + correlação de nó
   const { data, error } = await supabase.functions.invoke('send-email', {
     body: {
-      to: contact.email,
-      to_name: toName,
-      subject: subject,
-      html: htmlContent,
+      to: to,
+      to_name: to_name,
+      subject: finalSubject,
+      html: finalHtml,
       customer_id: contact.id,
       playbook_execution_id: execution.id,
       playbook_node_id: item.node_id,              // Correlação do nó que enviou
@@ -410,6 +488,10 @@ async function executeDelayNode(supabase: any, item: QueueItem, flow: PlaybookFl
       .from('playbook_executions')
       .update({ status: 'completed', completed_at: new Date().toISOString() })
       .eq('id', execution.id);
+    
+    // 🧪 Update test_run status
+    await updateTestRunStatus(supabase, execution, 'done');
+    
     
     console.log(`Playbook execution completed: ${execution.id}`);
   }
@@ -583,14 +665,32 @@ async function executeFormNode(supabase: any, item: QueueItem, contact: any, exe
   
   console.log(`Generated form link: ${publicFormUrl}`);
 
+  // 🧪 Test mode: override destinatário using helper
+  const fallbackName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Cliente';
+  const { isTestMode, speedMultiplier, to, to_name } = getEmailTarget(execution, item, contact, fallbackName);
+
   // Send email/notification to customer with form link
-  if (contact.email) {
+  if (contact.email || isTestMode) {
+    const emailSubject = formData.email_subject || 'Por favor, preencha o formulário';
+    const finalSubject = isTestMode
+      ? (emailSubject.startsWith('[TESTE]') ? emailSubject : `[TESTE] ${emailSubject}`)
+      : emailSubject;
+    
+    const testBanner = isTestMode
+      ? `<div style="padding:12px 16px;background:#fef3c7;border:2px dashed #d97706;margin-bottom:16px;font-size:13px;color:#92400e;border-radius:8px;">
+          <strong>🧪 EMAIL DE TESTE (FORMULÁRIO)</strong><br/>
+          <span style="font-size:12px;">Destinatário original: ${contact.email}</span><br/>
+          <span style="font-size:12px;">Speed: ${speedMultiplier}x</span>
+        </div>`
+      : '';
+    
     const { error: emailError } = await supabase.functions.invoke('send-email', {
       body: {
-        to: contact.email,
-        to_name: `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Cliente',
-        subject: formData.email_subject || 'Por favor, preencha o formulário',
+        to: to,
+        to_name: to_name,
+        subject: finalSubject,
         html: `
+          ${testBanner}
           <p>Olá ${contact.first_name || 'Cliente'},</p>
           <p>Precisamos que você preencha o formulário abaixo para continuar:</p>
           <p><a href="${publicFormUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:white;text-decoration:none;border-radius:8px;">Preencher Formulário</a></p>
@@ -603,6 +703,8 @@ async function executeFormNode(supabase: any, item: QueueItem, contact: any, exe
 
     if (emailError) {
       console.error('Failed to send form email:', emailError);
+    } else {
+      console.log(`${isTestMode ? '🧪 TEST MODE: ' : ''}Form email sent to: ${to}`);
     }
   }
 
@@ -618,16 +720,29 @@ async function executeFormNode(supabase: any, item: QueueItem, contact: any, exe
 
     // Schedule timeout if configured
     if (formData.timeout_days && formData.timeout_days > 0) {
-      const timeoutDate = new Date(Date.now() + formData.timeout_days * 24 * 60 * 60 * 1000);
+      let timeoutMs = formData.timeout_days * 24 * 60 * 60 * 1000;
       
-      // Create a timeout check queue item
+      // 🧪 Test mode: accelerate timeout
+      if (isTestMode && speedMultiplier > 1) {
+        const originalMs = timeoutMs;
+        timeoutMs = Math.max(5000, Math.floor(timeoutMs / speedMultiplier)); // Minimum 5 seconds
+        console.log(`[executeFormNode] 🧪 TEST MODE: Timeout accelerated from ${originalMs}ms to ${timeoutMs}ms`);
+      }
+      
+      const timeoutDate = new Date(Date.now() + timeoutMs);
+      
+      // Create a timeout check queue item with propagated flags
       await supabase
         .from('playbook_execution_queue')
         .insert({
           execution_id: execution.id,
           node_id: `${item.node_id}_timeout`,
           node_type: 'form_timeout',
-          node_data: { original_node_id: item.node_id },
+          node_data: { 
+            original_node_id: item.node_id,
+            _test_mode: item.node_data?._test_mode || false,
+            _speed_multiplier: item.node_data?._speed_multiplier || 1,
+          },
           scheduled_for: timeoutDate.toISOString(),
           status: 'pending',
           retry_count: 0,
@@ -788,6 +903,9 @@ async function executeConditionNode(supabase: any, item: QueueItem, flow: Playbo
       .update({ status: 'completed', completed_at: new Date().toISOString() })
       .eq('id', execution.id);
     
+    // 🧪 Update test_run status
+    await updateTestRunStatus(supabase, execution, 'done');
+    
     console.log(`No next node for path ${pathResult}, execution completed: ${execution.id}`);
     return { success: true, condition_result: conditionResult, path: pathResult };
   }
@@ -875,6 +993,9 @@ async function executeSwitchNode(supabase: any, item: QueueItem, flow: PlaybookF
       .from('playbook_executions')
       .update({ status: 'completed', completed_at: new Date().toISOString() })
       .eq('id', execution.id);
+    
+    // 🧪 Update test_run status
+    await updateTestRunStatus(supabase, execution, 'done');
     
     console.log(`No next node for case ${selectedCase}, execution completed: ${execution.id}`);
     return { success: true, selected_case: selectedCase, message: 'No path for this case' };
@@ -983,6 +1104,9 @@ async function queueNextNode(supabase: any, currentItem: QueueItem, flow: Playbo
       .from('playbook_executions')
       .update({ status: 'completed', completed_at: new Date().toISOString() })
       .eq('id', execution.id);
+    
+    // 🧪 Update test_run status
+    await updateTestRunStatus(supabase, execution, 'done');
     
     console.log(`Playbook execution completed: ${execution.id}`);
     return;

@@ -209,6 +209,7 @@ export default function OnboardingBuilder() {
                     resetForm();
                   }}
                   isSaving={isSaving}
+                  playbookId={editingPlaybook?.id}
                 />
               </Suspense>
             </TabsContent>
@@ -242,6 +243,7 @@ export default function OnboardingBuilder() {
                 resetForm();
               }}
               isSaving={isSaving}
+              playbookId={editingPlaybook?.id}
             />
           </Suspense>
         )}

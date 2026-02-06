@@ -4,16 +4,17 @@ import { toast } from "sonner";
 import { Node, Edge } from "reactflow";
 
 interface TestPlaybookData {
-  playbook_id?: string;
+  playbook_id: string; // Required - must be saved first
   flow_definition: { nodes: Node[]; edges: Edge[] };
-  tester_email: string;
-  tester_name?: string;
+  recipient_email: string;
+  recipient_name?: string;
   speed_multiplier?: number;
 }
 
 interface TestPlaybookResponse {
   success: boolean;
   execution_id: string;
+  test_run_id: string | null;
   test_contact_id: string;
   speed_multiplier: number;
   message: string;
@@ -44,7 +45,7 @@ export function useTestPlaybook() {
       queryClient.invalidateQueries({ queryKey: ["playbook-test-runs"] });
       
       toast.success("🧪 Teste Iniciado!", {
-        description: `Emails serão enviados para ${variables.tester_email}. Delays acelerados ${variables.speed_multiplier || 10}x.`,
+        description: `Emails serão enviados para ${variables.recipient_email}. Delays acelerados ${variables.speed_multiplier || 10}x.`,
         duration: 6000,
       });
     },

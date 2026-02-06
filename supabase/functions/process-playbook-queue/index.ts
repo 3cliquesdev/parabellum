@@ -481,16 +481,31 @@ async function executeEmailNode(supabase: any, item: QueueItem, contact: any, ex
     ? (subject.startsWith('[TESTE]') ? subject : `[TESTE] ${subject}`)
     : subject;
   
-  // 🧪 Test mode: add visual banner
-  const testBanner = isTestMode
-    ? `<div style="padding:12px 16px;background:#fef3c7;border:2px dashed #d97706;margin-bottom:16px;font-size:13px;color:#92400e;border-radius:8px;">
+  // 🧪 Test mode: inject visual banner INSIDE the body tag (to preserve email structure)
+  let finalHtml = htmlContent;
+  if (isTestMode) {
+    const testBanner = `<div style="padding:12px 16px;background:#fef3c7;border:2px dashed #d97706;margin-bottom:16px;font-size:13px;color:#92400e;border-radius:8px;font-family:Arial,sans-serif;">
         <strong>🧪 EMAIL DE TESTE DO PLAYBOOK</strong><br/>
         <span style="font-size:12px;">Destinatário original: ${contact.email}</span><br/>
         <span style="font-size:12px;">Speed multiplier: ${speedMultiplier}x</span>
-      </div>`
-    : '';
-  
-  const finalHtml = isTestMode ? `${testBanner}${htmlContent}` : htmlContent;
+      </div>`;
+    
+    // Insert banner after <body> tag to preserve HTML structure
+    if (finalHtml.toLowerCase().includes('<body')) {
+      // Find the closing > of the body tag (handles body with attributes)
+      const bodyMatch = finalHtml.match(/<body[^>]*>/i);
+      if (bodyMatch) {
+        const insertPosition = finalHtml.indexOf(bodyMatch[0]) + bodyMatch[0].length;
+        finalHtml = finalHtml.slice(0, insertPosition) + testBanner + finalHtml.slice(insertPosition);
+      } else {
+        // Fallback: prepend banner
+        finalHtml = testBanner + finalHtml;
+      }
+    } else {
+      // No body tag found, prepend banner
+      finalHtml = testBanner + finalHtml;
+    }
+  }
   
   console.log(`${isTestMode ? '🧪 TEST MODE: ' : ''}Sending email to: ${to} (${to_name}), subject: ${finalSubject}`);
   

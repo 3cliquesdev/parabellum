@@ -1,340 +1,252 @@
 
+# Plano Enterprise FINAL: Cliente Opcional na Criação de Ticket (4 Ajustes Críticos)
 
-# Plano Enterprise AJUSTADO: Ticket com Evidência Opcional + Tags na Criação
+## Resumo Executivo
 
-## Ajustes Incorporados (6 pontos do usuário)
+Tornar `customer_id` opcional de ponta a ponta (DB → Hook → UI) com **4 garantias de produção** para evitar breaking changes e crashes.
 
-| # | Ponto Levantado | Solução |
-|---|-----------------|---------|
-| 1 | Retorno do hook não pode quebrar `PublicTicketForm.tsx` | Manter retorno como `ticket`, anexar flag `__tagsWarning` se necessário |
-| 2 | `useTags()` sem filtro traz tudo | Manter sem filtro - **tags são universais** (podem ser usadas em tickets, conversas, contatos) |
-| 3 | Verificar SDK para upsert | Supabase-js v2 suporta `upsert({ onConflict })` |
-| 4 | Invalidar mesmas queryKeys | Usar `["ticket-tags", ticket.id]` e `["tickets"]` (confirmado no código) |
-| 5 | Verificar constraint de attachments no backend | Campo `attachments` é `jsonb DEFAULT '[]'` - nullable, sem constraint |
-| 6 | UX: fechar popover ao selecionar + reset estados | Incluído no código |
+### Escopo Crítico
+1. **Migration simples** (sem risco de FK)
+2. **Hook resiliente** (não enviar customer_id vazio)
+3. **UI com reset de estado**
+4. **CRÍTICO: Fallbacks em todas queries/componentes** (ticket.customer pode ser NULL)
 
 ---
 
-## Verificações Técnicas Realizadas
+## Análise de Impacto
 
-**UNIQUE INDEX confirmado no banco:**
+### Pontos que **PODEM QUEBRAR** se customer_id virar NULL
+
+| Camada | Arquivo | Risco | Status |
+|--------|---------|-------|--------|
+| **Queries** | `useTickets.tsx` (linhas 35-50) | Acessa `ticket.customer.*` sem check | ⚠️ CRÍTICO |
+| **Details** | `useTicketById.tsx` (linha 14) | Faz `.select(customer:contacts(...))` | ⚠️ CRÍTICO |
+| **UI - Listagem** | `TicketsList.tsx` (linhas 128-129) | `ticket.customer?.first_name` (já tem fallback ✅) | ✅ OK |
+| **UI - Card** | `TicketCard.tsx` (linhas 131-133) | `ticket.contacts` (já tem fallback ✅) | ✅ OK |
+| **UI - Detalhes** | `TicketDetails.tsx` (linha 382-387) | Usa `ticket.created_by_user` (OK) | ✅ OK |
+| **UI - Info Card** | `CustomerInfoCard.tsx` | Renderiza dados do customer | ⚠️ CRÍTICO |
+| **Search** | `useTickets.tsx` (linhas 266-268) | Acessa `ticket.customer.*` sem check | ⚠️ CRÍTICO |
+| **Comments** | `useTicketComments.tsx` (linhas 55-57) | Usa `ticket.customer` sem check | ⚠️ CRÍTICO |
+
+### Queries que Precisam de Ajuste
 ```
-ticket_tags_ticket_id_tag_id_key ON (ticket_id, tag_id)
+useTickets.tsx (linhas 35-50): SELECT *...customer:contacts(...)
+→ Sem mudança necessária (query está OK) - só mudar UI que consome
+
+useTicketById.tsx (linha 14): SELECT *...customer:contacts(...)
+→ Sem mudança (query está OK) - renderização precisa de fallback
 ```
-Não precisa migration - upsert vai funcionar.
-
-**Uso do hook `useCreateTicket`:**
-- `CreateTicketDialog.tsx` - usa `.mutateAsync()` mas não usa retorno
-- `PublicTicketForm.tsx` - usa `ticketResult.id` (linha 72) - **CRÍTICO: manter retorno compatível**
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/support/CreateTicketDialog.tsx` | Remover obrigatoriedade evidência, adicionar multi-select tags |
-| `src/hooks/useCreateTicket.tsx` | Aceitar `tag_ids[]`, inserir com upsert, manter retorno compatível |
 
 ---
 
 ## Implementação Detalhada
 
-### 1. useCreateTicket.tsx
+### 1. Migration no Banco (Simples)
 
-**Interface atualizada:**
+```sql
+ALTER TABLE tickets 
+ALTER COLUMN customer_id DROP NOT NULL;
+```
+
+**Por quê funciona:**
+- FK constraint aceita NULL (PostgreSQL padrão)
+- Nenhuma tabela depende de customer_id ser NOT NULL
+- Impacto: ZERO em dados existentes
+
+---
+
+### 2. Atualizar Hook `useCreateTicket.tsx`
+
+**Interface:**
 ```typescript
 interface CreateTicketData {
-  subject: string;
-  description: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  category?: string;
-  customer_id: string;
-  assigned_to?: string;
-  conversation_id?: string;
-  attachments?: any[];
-  department_id?: string;
-  tag_ids?: string[]; // NOVO - opcional
+  // ... campos existentes
+  customer_id?: string; // MUDANÇA: agora opcional
+  tag_ids?: string[];
 }
 ```
 
-**mutationFn - retorno compatível (sem breaking change):**
+**mutationFn:**
 ```typescript
-mutationFn: async (ticketData: CreateTicketData) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  // Separar tag_ids do payload
-  const { tag_ids, ...ticketPayload } = ticketData;
-  
-  // 1. Criar ticket
-  const { data: ticket, error } = await supabase
-    .from("tickets")
-    .insert({
-      ...ticketPayload,
-      created_by: user?.id,
-    } as any)
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  // 2. Inserir tags (com upsert para idempotência)
-  let tagsWarning = false;
-  if (tag_ids && tag_ids.length > 0 && ticket) {
-    const tagInserts = tag_ids.map(tag_id => ({
-      ticket_id: ticket.id,
-      tag_id,
-    }));
-    
-    const { error: tagsError } = await supabase
-      .from("ticket_tags")
-      .upsert(tagInserts, { 
-        onConflict: "ticket_id,tag_id",
-        ignoreDuplicates: true 
-      });
-    
-    if (tagsError) {
-      console.error("[useCreateTicket] Tags error:", tagsError);
-      tagsWarning = true;
-    }
-  }
-
-  // PONTO 1: Manter retorno compatível - anexar flag opcional
-  if (tagsWarning) {
-    (ticket as any).__tagsWarning = true;
-  }
-  
-  return ticket; // Retorna ticket direto (compatível com PublicTicketForm)
-},
-```
-
-**onSuccess - detectar warning sem quebrar:**
-```typescript
-onSuccess: (ticket: any) => {
-  queryClient.invalidateQueries({ queryKey: ["tickets"] });
-  
-  // Invalidar tags do ticket específico (se existir)
-  if (ticket?.id) {
-    queryClient.invalidateQueries({ queryKey: ["ticket-tags", ticket.id] });
-  }
-  
-  // Detectar flag de warning
-  const tagsWarning = !!ticket?.__tagsWarning;
-  
-  if (tagsWarning) {
-    toast({
-      title: "Ticket criado",
-      description: "Ticket criado com sucesso, mas houve um problema ao salvar as tags.",
-    });
-  } else {
-    toast({
-      title: "Ticket criado com sucesso",
-    });
-  }
-},
+// Linha ~48: Passar customer_id apenas se existir
+const { data: ticket, error } = await supabase
+  .from("tickets")
+  .insert({
+    ...ticketPayload,
+    customer_id: ticketPayload.customer_id || undefined, // CRÍTICO: NULL ao invés de vazio
+    created_by: user?.id,
+  } as any)
+  .select()
+  .single();
 ```
 
 ---
 
-### 2. CreateTicketDialog.tsx
+### 3. Atualizar UI `CreateTicketDialog.tsx`
 
-**A) Novos imports (adicionar):**
+**A) Remover validação de customerId:**
 ```typescript
-import { useTags } from "@/hooks/useTags";
-import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tag } from "lucide-react";
-```
-
-**B) Novos estados (após linha 78):**
-```typescript
-// Tags
-const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-const [tagSearch, setTagSearch] = useState("");
-const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
-const { data: allTags = [] } = useTags(); // Tags universais (PONTO 2: sem filtro)
-```
-
-**C) Remover lógica de obrigatoriedade (linhas 149-151):**
-```typescript
-// REMOVER estas linhas:
-// const isWithdrawal = category === 'saque' || category === 'saque_carteira';
-// const requiresEvidence = !isWithdrawal;
-```
-
-**D) Atualizar validação canSubmit (linha 187):**
-```typescript
-// ANTES:
-// const canSubmit = customerId && subject.trim() && (isWithdrawal || uploadedAttachment) && !createTicket.isPending;
+// LINHA 163 (antes):
+if (!subject.trim() || !customerId) return;
 
 // DEPOIS:
-const canSubmit = customerId && subject.trim() && !createTicket.isPending;
+if (!subject.trim()) return;
 ```
 
-**E) Atualizar handleSubmit (linhas 153-183):**
+**B) Atualizar canSubmit:**
 ```typescript
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!subject.trim() || !customerId) return;
-  
-  // REMOVIDO: if (requiresEvidence && !uploadedAttachment) return;
+// LINHA 196 (antes):
+const canSubmit = customerId && subject.trim() && !createTicket.isPending;
 
-  await createTicket.mutateAsync({
-    subject: subject.trim(),
-    description: description.trim(),
-    priority,
-    category,
-    customer_id: customerId,
-    department_id: departmentId || undefined,
-    assigned_to: assignedTo || undefined,
-    attachments: uploadedAttachment ? [uploadedAttachment] : [], // Opcional
-    tag_ids: selectedTagIds, // NOVO
-  });
-
-  // Reset form completo (PONTO 6: incluir tags)
-  setSubject("");
-  setDescription("");
-  setPriority("medium");
-  setCategory("outro");
-  setCustomerId("");
-  setDepartmentId("");
-  setAssignedTo("");
-  setCustomerSearch("");
-  setAttachmentFile(null);
-  setAttachmentPreview(null);
-  setUploadedAttachment(null);
-  setSelectedTagIds([]);  // NOVO
-  setTagSearch("");       // NOVO
-  onOpenChange(false);
-};
+// DEPOIS:
+const canSubmit = subject.trim() && !createTicket.isPending;
 ```
 
-**F) Atualizar label de evidência (linhas 283-290):**
+**C) Atualizar label (linha 214):**
 ```tsx
-<Label className="flex items-center gap-1">
-  Evidência (Print/Foto)
-  <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+// ANTES:
+<Label htmlFor="customer">Cliente *</Label>
+
+// DEPOIS:
+<Label htmlFor="customer">
+  Cliente
+  <span className="text-xs text-muted-foreground font-normal ml-1">(opcional)</span>
 </Label>
 ```
 
-**G) Adicionar seção Tags (após linha 462, antes de Department):**
-```tsx
-{/* Tags */}
-<div className="space-y-2">
-  <Label className="flex items-center gap-1">
-    <Tag className="h-3.5 w-3.5" />
-    Tags
-    <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
-  </Label>
-  
-  {/* Badges das tags selecionadas */}
-  {selectedTagIds.length > 0 && (
-    <div className="flex flex-wrap gap-1.5 mb-2">
-      {selectedTagIds.map(tagId => {
-        const tag = allTags.find(t => t.id === tagId);
-        if (!tag) return null;
-        return (
-          <Badge 
-            key={tagId} 
-            variant="secondary"
-            className="text-xs pr-1"
-            style={{
-              backgroundColor: tag.color ? `${tag.color}20` : undefined,
-              borderColor: tag.color || undefined,
-              color: tag.color || undefined,
-            }}
-          >
-            {tag.name}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-              onClick={() => setSelectedTagIds(prev => prev.filter(id => id !== tagId))}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </Badge>
-        );
-      })}
-    </div>
-  )}
-  
-  {/* Popover para adicionar tags */}
-  <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
-    <PopoverTrigger asChild>
-      <Button 
-        type="button" 
-        variant="outline" 
-        size="sm" 
-        className="w-full justify-start text-muted-foreground"
-      >
-        <Plus className="h-4 w-4 mr-2" />
-        Adicionar tag...
-      </Button>
-    </PopoverTrigger>
-    <PopoverContent className="w-64 p-2" align="start">
-      <Input
-        placeholder="Buscar tag..."
-        value={tagSearch}
-        onChange={(e) => setTagSearch(e.target.value)}
-        className="h-8 mb-2"
-      />
-      <ScrollArea className="max-h-48">
-        <div className="space-y-1">
-          {allTags
-            .filter(tag => 
-              !selectedTagIds.includes(tag.id) &&
-              tag.name.toLowerCase().includes(tagSearch.toLowerCase())
-            )
-            .slice(0, 10)
-            .map(tag => (
-              <Button
-                key={tag.id}
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start h-8 px-2"
-                onClick={() => {
-                  setSelectedTagIds(prev => [...prev, tag.id]);
-                  setTagSearch("");
-                  setTagPopoverOpen(false); // PONTO 6: fechar ao selecionar
-                }}
-              >
-                <span
-                  className="w-3 h-3 rounded-full mr-2 shrink-0"
-                  style={{ backgroundColor: tag.color || "#6B7280" }}
-                />
-                <span className="truncate">{tag.name}</span>
-              </Button>
-            ))}
-          {allTags.filter(tag => 
-            !selectedTagIds.includes(tag.id) &&
-            tag.name.toLowerCase().includes(tagSearch.toLowerCase())
-          ).length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-2">
-              {allTags.length === 0 ? "Nenhuma tag cadastrada" : "Nenhuma tag encontrada"}
-            </p>
-          )}
-        </div>
-      </ScrollArea>
-    </PopoverContent>
-  </Popover>
-</div>
+**D) Passar `undefined` no submit (linha 170):**
+```typescript
+await createTicket.mutateAsync({
+  // ... outros campos
+  customer_id: customerId || undefined, // NOVO: undefined ao invés de vazio
+  tag_ids: selectedTagIds,
+});
+```
+
+**E) Resetar states ao fechar (adicionar no final de handleSubmit):**
+```typescript
+setCustomerId("");
+setCustomerSearch("");
 ```
 
 ---
 
-## Checklist Enterprise (6 Pontos)
+### 4. CRÍTICO: Fallbacks em Componentes/Hooks que Acessam `ticket.customer`
 
-| # | Requisito | Status |
-|---|-----------|--------|
-| 1 | Retorno compatível (`ticket` direto, não `{ ticket, warning }`) | Implementado com `__tagsWarning` flag |
-| 2 | Tags universais (sem filtro por categoria) | `useTags()` sem parâmetro |
-| 3 | Upsert com SDK correto | Supabase-js v2 suporta |
-| 4 | QueryKeys alinhadas | `["ticket-tags", ticket.id]` + `["tickets"]` |
-| 5 | Backend não exige attachments | Confirmado: `jsonb DEFAULT '[]'` |
-| 6 | UX: fechar popover + reset estados | Incluído no código |
+Este é o **ponto mais importante**. Se não fizermos, quando `customer_id = NULL`, a UI vai quebrar.
+
+#### A) `src/hooks/useTicketComments.tsx` (Linhas 55-57)
+
+**ANTES:**
+```typescript
+const customerName = ticket?.customer
+  ? `${ticket.customer.first_name || ''} ${ticket.customer.last_name || ''}`.trim() || 'Cliente'
+  : 'Cliente';
+```
+
+**DEPOIS:** (já tem fallback ✅)
+```typescript
+// Manter como está - já funciona com NULL
+```
+
+#### B) `src/components/TicketDetails.tsx` (Renderização)
+
+**Componente CustomerInfoCard é chamado em linha ~540 aprox:**
+```typescript
+// ANTES (assumindo renderização incondicional):
+{ticket.customer && <CustomerInfoCard customer={ticket.customer} />}
+
+// DEPOIS (garantir condicional):
+{ticket.customer ? (
+  <CustomerInfoCard customer={ticket.customer} />
+) : (
+  <Card>
+    <CardHeader>
+      <CardTitle>Cliente</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <p className="text-muted-foreground">Sem cliente vinculado</p>
+    </CardContent>
+  </Card>
+)}
+```
+
+#### C) `src/components/support/CreateTicketDialog.tsx` (Seleção de Cliente)
+
+**Ao selecionar/pesquisar cliente (já previne NULL):**
+```typescript
+// Quando campo está vazio, isso já funciona:
+customer_id || undefined  // ✅
+```
+
+#### D) `src/hooks/useTickets.tsx` (Busca - CRÍTICO)
+
+**Linhas 266-268: Acesso a customer sem check**
+
+**ANTES:**
+```typescript
+const customerFirstName = (ticket.customer?.first_name || '').toLowerCase();
+const customerLastName = (ticket.customer?.last_name || '').toLowerCase();
+const customerEmail = (ticket.customer?.email || '').toLowerCase();
+```
+
+**DEPOIS:** (já tem safe navigation ✅)
+```typescript
+// Manter como está - `?.` já previne erro se customer for NULL
+// Se customer for NULL, a busca por nome/email simplesmente não matchará
+```
+
+#### E) `src/components/TicketsList.tsx` (Listagem)
+
+**Linhas 128-129: Já tem fallback**
+```typescript
+{ticket.customer?.first_name || 'Cliente'} {ticket.customer?.last_name || ''}
+```
+✅ Já está seguro
+
+#### F) `src/components/support/TicketCard.tsx` (Card na lista)
+
+**Linhas 131-133: Já tem fallback**
+```typescript
+{ticket.contacts
+  ? `${ticket.contacts.first_name} ${ticket.contacts.last_name}`
+  : "Sem contato"}
+```
+✅ Já está seguro (usa `contacts` ao invés de `customer`, mas é a mesma coisa)
+
+---
+
+## Resumo: O que Precisa ser Feito
+
+### Migration (1 comando SQL)
+```sql
+ALTER TABLE tickets ALTER COLUMN customer_id DROP NOT NULL;
+```
+
+### Código (3 arquivos)
+
+| Arquivo | Mudanças | Crítico |
+|---------|----------|---------|
+| `src/hooks/useCreateTicket.tsx` | `customer_id?: string`, validação removida | ✅ Sim |
+| `src/components/support/CreateTicketDialog.tsx` | Remover validação, atualizar label, reset states | ✅ Sim |
+| `src/components/TicketDetails.tsx` | Fallback para CustomerInfoCard | ✅ Sim |
+
+### Verificação (Não precisa mudança)
+- `useTickets.tsx` → já usa `?.` (safe navigation) ✅
+- `TicketsList.tsx` → já tem fallback ✅
+- `TicketCard.tsx` → já tem fallback ✅
+- `useTicketComments.tsx` → já tem fallback ✅
+
+---
+
+## Checklist de Garantias Críticas
+
+| # | Garantia | Implementação |
+|---|----------|---------------|
+| 1 | Migration sem FK issues | `ALTER COLUMN ... DROP NOT NULL` |
+| 2 | Hook não envia empty string | `customer_id: ticketPayload.customer_id \|\| undefined` |
+| 3 | UI reseta estado | `setCustomerId("")` + `setCustomerSearch("")` após submit |
+| 4 | Todas queries/componentes lidam com NULL | Fallbacks `?.` + condicionais em TicketDetails |
 
 ---
 
@@ -342,11 +254,18 @@ const handleSubmit = async (e: React.FormEvent) => {
 
 | # | Teste | Esperado |
 |---|-------|----------|
-| 1 | Criar ticket SEM evidência | Funciona - ticket criado |
-| 2 | Criar ticket COM evidência | Funciona - anexo salvo |
-| 3 | Criar ticket SEM tags | Funciona - ticket sem tags |
-| 4 | Criar ticket COM 2+ tags | Tags aparecem no ticket |
-| 5 | Clicar 2x rápido no submit | Sem duplicação (upsert) |
-| 6 | Fechar modal e reabrir | Estado limpo |
-| 7 | `PublicTicketForm` ainda funciona | `ticketResult.id` acessível |
+| 1 | Criar ticket SEM cliente | Funciona - `customer_id = NULL` |
+| 2 | Criar ticket COM cliente | Funciona - `customer_id = uuid` |
+| 3 | Listar tickets sem cliente | Exibe "Cliente" ao invés de null |
+| 4 | Ver detalhes de ticket sem cliente | Exibe "Sem cliente vinculado" em CustomerInfoCard |
+| 5 | Buscar por nome/email em ticket sem cliente | Busca funciona, não matcheia (normal) |
+| 6 | Abrir/fechar modal criar | Estados limpos (selectedTagIds, customerId, customerSearch) |
+| 7 | Público criar ticket sem cliente | Funciona (si aplica) |
+| 8 | Comentar em ticket sem cliente | Exibe "Cliente" no metadata |
+
+---
+
+## Nota Técnica Final
+
+O **ponto crítico** é que `ticket.customer` **NÃO pode ser obrigatório em nenhum lugar**. A maioria dos componentes já está protegida com `?.` ou fallback, mas TicketDetails pode quebrar se tentar renderizar CustomerInfoCard sem check.
 

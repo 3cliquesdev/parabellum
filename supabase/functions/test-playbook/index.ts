@@ -199,7 +199,7 @@ Deno.serve(async (req) => {
       console.log(`[test-playbook] Created new test contact: ${testContact.id}`);
     }
 
-    // 10. Create playbook execution with test mode metadata
+    // 10. Create playbook execution with test mode context (use execution_context, not metadata)
     const { data: execution, error: execError } = await supabaseAdmin
       .from('playbook_executions')
       .insert({
@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
         current_node_id: flow_definition.nodes[0]?.id,
         nodes_executed: [],
         errors: [],
-        metadata: {
+        execution_context: {
           is_test_mode: true,
           speed_multiplier: speed_multiplier,
           test_recipient_email: normalizedRecipientEmail,
@@ -256,12 +256,12 @@ Deno.serve(async (req) => {
       console.error('[test-playbook] Failed to create test run record:', testRunError);
       // Non-fatal, continue - but log it
     } else {
-      // Update execution metadata with test_run_id for easier debugging
+      // Update execution context with test_run_id for easier debugging
       await supabaseAdmin
         .from('playbook_executions')
         .update({
-          metadata: {
-            ...execution.metadata,
+          execution_context: {
+            ...execution.execution_context,
             test_run_id: testRun.id,
           },
         })

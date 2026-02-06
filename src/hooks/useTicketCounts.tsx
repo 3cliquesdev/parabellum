@@ -119,8 +119,8 @@ export function useTicketCounts() {
           counts.my_open++;
         }
 
-        // Tickets que o usuário criou (para acompanhamento)
-        if (ticket.created_by === user.id && !isArchived) {
+        // Tickets que o usuário criou (para acompanhamento) - inclui arquivados
+        if (ticket.created_by === user.id) {
           counts.created_by_me++;
         }
 

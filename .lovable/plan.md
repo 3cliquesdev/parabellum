@@ -1,68 +1,97 @@
 
-# Correção: Edge Function test-playbook - Tabela de Roles Errada
+# Correção: Variáveis de E-mail Não Substituídas
 
 ## Problema Identificado
 
-**Erro nos logs:**
-```
-"column profiles.role does not exist"
-```
+**Sintoma:** O e-mail chegou com `{{primeiro_nome}}` não substituído (visível na imagem).
 
-**Causa raiz:**
-A edge function `test-playbook/index.ts` (linhas 89-93) está consultando `profiles.role`, mas o esquema do banco usa uma tabela separada `user_roles` para armazenar os papéis dos usuários.
+**Causa raiz:** Há um **desalinhamento** entre as variáveis oferecidas no editor de e-mail e as que são substituídas no backend.
 
-**Código atual (ERRADO):**
+### No Frontend (EmailBuilderV2 - mergeTags):
+- `{{nome}}`
+- `{{email}}`
+- `{{telefone}}`
+- `{{empresa}}`
+- `{{primeiro_nome}}` ← Oferecido
+- `{{sobrenome}}` ← Oferecido
+- `{{data}}`
+- `{{ticket_numero}}`
+- `{{assunto}}`
+
+### No Backend (process-playbook-queue linhas 440-447):
 ```typescript
-const { data: profile, error: profileError } = await supabaseAdmin
-  .from('profiles')
-  .select('role')
-  .eq('id', user.id)   // ← também errado: deveria ser user_id
-  .single();
+htmlContent = (template.html_body || '')
+  .replace(/\{\{first_name\}\}/gi, contact.first_name || 'Cliente')  // ✅ Inglês
+  .replace(/\{\{last_name\}\}/gi, contact.last_name || '')           // ✅ Inglês
+  .replace(/\{\{nome\}\}/gi, contact.first_name || 'Cliente')        // ✅ Português
+  .replace(/\{\{email\}\}/gi, contact.email || '')
+  .replace(/\{\{phone\}\}/gi, contact.phone || '')
+  .replace(/\{\{document\}\}/gi, contact.document || '')
+  .replace(/\{\{company\}\}/gi, contact.company || '');
 ```
 
-**Estrutura real do banco:**
-- Tabela `profiles`: NÃO tem coluna `role`
-- Tabela `user_roles`: Contém `user_id`, `role` (tipo USER-DEFINED)
+**Variáveis FALTANDO no backend:**
+- `{{primeiro_nome}}` ← NÃO substituída!
+- `{{sobrenome}}` ← NÃO substituída!
+- `{{telefone}}` ← NÃO substituída (só `{{phone}}`)
+- `{{empresa}}` ← NÃO substituída (só `{{company}}`)
+- `{{data}}` ← NÃO substituída
+
+## Isso É Esperado Para Teste?
+
+**NÃO.** O e-mail de teste deveria substituir as variáveis normalmente. O problema é que a variável `{{primeiro_nome}}` simplesmente não está na lista de substituições do backend.
 
 ## Solução
 
-### Arquivo: `supabase/functions/test-playbook/index.ts`
+### Arquivo: `supabase/functions/process-playbook-queue/index.ts`
 
-**Linhas 88-103** - Substituir consulta a `profiles` por consulta a `user_roles`:
+**Localização:** Linhas 440-447 (função `executeEmailNode`)
+
+**Adicionar todas as variáveis em português** que o editor oferece:
 
 ```typescript
-// 5. Check user role for permission
-const { data: userRoleData, error: roleError } = await supabaseAdmin
-  .from('user_roles')
-  .select('role')
-  .eq('user_id', user.id)  // ← user_id, não id
-  .maybeSingle();          // ← maybeSingle() pois usuário pode não ter role
+// 2. Substituir variáveis no template
+const today = new Date().toLocaleDateString('pt-BR');
+htmlContent = (template.html_body || '')
+  // Variáveis em inglês (backward compatibility)
+  .replace(/\{\{first_name\}\}/gi, contact.first_name || 'Cliente')
+  .replace(/\{\{last_name\}\}/gi, contact.last_name || '')
+  .replace(/\{\{phone\}\}/gi, contact.phone || '')
+  .replace(/\{\{document\}\}/gi, contact.document || '')
+  .replace(/\{\{company\}\}/gi, contact.company || '')
+  // Variáveis em português (alinhadas com EmailBuilderV2)
+  .replace(/\{\{nome\}\}/gi, contact.first_name || 'Cliente')
+  .replace(/\{\{primeiro_nome\}\}/gi, contact.first_name || 'Cliente')  // ← NOVA
+  .replace(/\{\{sobrenome\}\}/gi, contact.last_name || '')               // ← NOVA
+  .replace(/\{\{email\}\}/gi, contact.email || '')
+  .replace(/\{\{telefone\}\}/gi, contact.phone || '')                    // ← NOVA
+  .replace(/\{\{empresa\}\}/gi, contact.company || '')                   // ← NOVA
+  .replace(/\{\{data\}\}/gi, today);                                     // ← NOVA
 
-if (roleError) {
-  console.error('[test-playbook] Failed to fetch user role:', roleError);
-  // Don't block - just treat as non-manager
-}
-
-const isManager = MANAGER_ROLES.includes(userRoleData?.role || '');
+// Também substituir no subject
+subject = subject
+  .replace(/\{\{primeiro_nome\}\}/gi, contact.first_name || 'Cliente')
+  .replace(/\{\{nome\}\}/gi, contact.first_name || 'Cliente')
+  .replace(/\{\{email\}\}/gi, contact.email || '');
 ```
 
-**Mudanças específicas:**
-1. Trocar `profiles` → `user_roles`
-2. Trocar `.eq('id', user.id)` → `.eq('user_id', user.id)`
-3. Trocar `.single()` → `.maybeSingle()` (usuário pode não ter role atribuído)
-4. Não bloquear com erro 500 se falhar busca de role - apenas tratar como não-gerente
+## Arquivo a Modificar
+
+| Arquivo | Ação | Detalhes |
+|---------|------|----------|
+| `supabase/functions/process-playbook-queue/index.ts` | **ATUALIZAR** | Adicionar variáveis `{{primeiro_nome}}`, `{{sobrenome}}`, `{{telefone}}`, `{{empresa}}`, `{{data}}` na função `executeEmailNode` |
 
 ## Impacto
 
 | Aspecto | Avaliação |
 |---------|-----------|
-| Regressão | Nenhuma - apenas corrige query errada |
-| Funcionalidade | Restaura feature "Testar para Mim" |
-| Segurança | Mantém lógica de permissão correta |
+| Regressão | Nenhuma - adiciona variáveis novas sem remover existentes |
+| Funcionalidade | E-mails de playbook (teste e produção) terão variáveis substituídas corretamente |
+| Alinhamento | Frontend e backend usarão o mesmo conjunto de variáveis |
 
 ## Testes Após Correção
 
-1. Clicar "🧪 Testar para Mim" com email do próprio usuário → Deve funcionar
-2. Manager testar para outro email → Deve funcionar
-3. Usuário comum testar para outro email → Deve receber erro 403
-4. Verificar logs sem erro "column profiles.role does not exist"
+1. Criar template com `{{primeiro_nome}}` no corpo
+2. Executar "🧪 Testar para Mim"
+3. E-mail recebido deve ter o nome substituído (ex: "Olá, João!")
+4. Testar também `{{sobrenome}}`, `{{telefone}}`, `{{empresa}}`, `{{data}}`

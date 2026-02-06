@@ -5819,41 +5819,62 @@ export type Database = {
       playbook_test_runs: {
         Row: {
           created_at: string
+          current_node_id: string | null
+          error_message: string | null
+          executed_nodes: number
           execution_id: string
           flow_snapshot: Json
           id: string
+          last_event_at: string | null
+          last_node_type: string | null
+          next_scheduled_for: string | null
           playbook_id: string | null
           speed_multiplier: number
           started_by: string
           status: string
           tester_email: string
           tester_name: string | null
+          total_nodes: number
           updated_at: string
         }
         Insert: {
           created_at?: string
+          current_node_id?: string | null
+          error_message?: string | null
+          executed_nodes?: number
           execution_id: string
           flow_snapshot: Json
           id?: string
+          last_event_at?: string | null
+          last_node_type?: string | null
+          next_scheduled_for?: string | null
           playbook_id?: string | null
           speed_multiplier?: number
           started_by: string
           status?: string
           tester_email: string
           tester_name?: string | null
+          total_nodes?: number
           updated_at?: string
         }
         Update: {
           created_at?: string
+          current_node_id?: string | null
+          error_message?: string | null
+          executed_nodes?: number
           execution_id?: string
           flow_snapshot?: Json
           id?: string
+          last_event_at?: string | null
+          last_node_type?: string | null
+          next_scheduled_for?: string | null
           playbook_id?: string | null
           speed_multiplier?: number
           started_by?: string
           status?: string
           tester_email?: string
           tester_name?: string | null
+          total_nodes?: number
           updated_at?: string
         }
         Relationships: [

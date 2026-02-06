@@ -103,7 +103,10 @@ Deno.serve(async (req) => {
     const isManager = MANAGER_ROLES.includes(profile?.role || '');
 
     // 6. Permission check: non-managers can only send to their own email
-    if (!isManager && userEmail !== normalizedRecipientEmail) {
+    // ENV FLAG: PLAYBOOK_TEST_ALLOW_ANY_RECIPIENT=true allows any user to send to any email
+    const allowAnyRecipient = Deno.env.get('PLAYBOOK_TEST_ALLOW_ANY_RECIPIENT') === 'true';
+    
+    if (!allowAnyRecipient && !isManager && userEmail !== normalizedRecipientEmail) {
       console.log(`[test-playbook] Permission denied: ${userEmail} tried to send to ${normalizedRecipientEmail}`);
       return new Response(
         JSON.stringify({ 
@@ -228,7 +231,10 @@ Deno.serve(async (req) => {
 
     console.log(`[test-playbook] Created execution: ${execution.id}`);
 
-    // 11. Register in playbook_test_runs for audit
+    // 11. Calculate total_nodes for progress tracking
+    const totalNodes = flow_definition.nodes.length;
+    
+    // 12. Register in playbook_test_runs for audit with progress tracking
     const { data: testRun, error: testRunError } = await supabaseAdmin
       .from('playbook_test_runs')
       .insert({
@@ -240,6 +246,11 @@ Deno.serve(async (req) => {
         speed_multiplier: speed_multiplier,
         status: 'running',
         flow_snapshot: flow_definition,
+        // Progress tracking fields
+        total_nodes: totalNodes,
+        executed_nodes: 0,
+        current_node_id: flow_definition.nodes[0]?.id || null,
+        last_event_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -262,7 +273,7 @@ Deno.serve(async (req) => {
       console.log(`[test-playbook] Created test run: ${testRun.id}`);
     }
 
-    // 12. Queue first node with test mode flags
+    // 13. Queue first node with test mode flags
     const firstNode = flow_definition.nodes[0];
     const { error: queueError } = await supabaseAdmin
       .from('playbook_execution_queue')
@@ -288,7 +299,7 @@ Deno.serve(async (req) => {
 
     console.log(`[test-playbook] Queued first node: ${firstNode.id} (type: ${firstNode.type})`);
 
-    // 13. Trigger queue processing immediately
+    // 14. Trigger queue processing immediately
     try {
       await supabaseAdmin.functions.invoke('process-playbook-queue', {
         body: { manual_trigger: true },

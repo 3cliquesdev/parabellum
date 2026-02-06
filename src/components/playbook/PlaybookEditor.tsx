@@ -47,10 +47,12 @@ import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useForms } from "@/hooks/useForms";
 import { useScoringRanges } from "@/hooks/useScoringConfig";
 import { useTestPlaybook } from "@/hooks/useTestPlaybook";
+import { useTestPlaybookProgress } from "@/hooks/useTestPlaybookProgress";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { hasFullAccess } from "@/config/roles";
 import { Flame, Thermometer, Snowflake } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 export const nodeTypes = {
   email: EmailNode,
   delay: DelayNode,
@@ -91,6 +93,18 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving, playbook
   const { user } = useAuth();
   const { role } = useUserRole();
   const [testEmail, setTestEmail] = useState<string>("");
+  const [activeTestExecutionId, setActiveTestExecutionId] = useState<string | null>(null);
+  
+  // Test progress tracking
+  const { 
+    progress: testProgress, 
+    isRunning: testIsRunning, 
+    isCompleted: testIsCompleted, 
+    isFailed: testIsFailed, 
+    percentComplete: testPercentComplete,
+    nextScheduledFormatted,
+    lastEventFormatted,
+  } = useTestPlaybookProgress(activeTestExecutionId);
   
   // Manager roles that can send tests to any email
   const isManager = hasFullAccess(role);
@@ -312,30 +326,83 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving, playbook
                   return;
                 }
                 const emailToUse = (testEmail.trim() || user.email).toLowerCase();
-                testPlaybook.mutate({
-                  playbook_id: playbookId,
-                  flow_definition: { nodes, edges },
-                  recipient_email: emailToUse,
-                  recipient_name: user.user_metadata?.full_name || emailToUse.split('@')[0],
-                  speed_multiplier: 10,
-                });
+                testPlaybook.mutate(
+                  {
+                    playbook_id: playbookId,
+                    flow_definition: { nodes, edges },
+                    recipient_email: emailToUse,
+                    recipient_name: user.user_metadata?.full_name || emailToUse.split('@')[0],
+                    speed_multiplier: 10,
+                  },
+                  {
+                    onSuccess: (result) => {
+                      setActiveTestExecutionId(result.execution_id);
+                    },
+                  }
+                );
               }}
               variant="outline"
               className="w-full gap-2 bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400"
-              disabled={testPlaybook.isPending || nodes.length === 0 || !playbookId}
+              disabled={testPlaybook.isPending || nodes.length === 0 || !playbookId || testIsRunning}
               title={!playbookId ? "Salve o playbook primeiro para testar" : ""}
             >
               <FlaskConical className="h-4 w-4" />
-              {testPlaybook.isPending ? "Testando..." : "🧪 Testar para Mim"}
+              {testPlaybook.isPending ? "Iniciando..." : testIsRunning ? "Teste em andamento..." : "🧪 Testar para Mim"}
             </Button>
             
+            {/* Test Progress Card */}
+            {activeTestExecutionId && testProgress && (
+              <Card className="p-3 space-y-2 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {testIsRunning && "🧪 Teste em andamento..."}
+                    {testIsCompleted && "✅ Teste concluído!"}
+                    {testIsFailed && "❌ Teste falhou"}
+                  </span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setActiveTestExecutionId(null)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+                
+                <Progress value={testPercentComplete} className="h-2" />
+                
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{testProgress.executed_nodes}/{testProgress.total_nodes} nós</span>
+                  <span>{testPercentComplete}%</span>
+                </div>
+                
+                {testProgress.last_node_type && (
+                  <p className="text-xs">
+                    Último: <code className="bg-muted px-1 rounded text-xs">{testProgress.last_node_type}</code>
+                  </p>
+                )}
+                
+                {nextScheduledFormatted && testIsRunning && (
+                  <p className="text-xs text-muted-foreground">
+                    ⏱️ Próximo nó: {nextScheduledFormatted}
+                  </p>
+                )}
+                
+                {testProgress.error_message && (
+                  <p className="text-xs text-destructive">
+                    {testProgress.error_message}
+                  </p>
+                )}
+              </Card>
+            )}
+            
             {/* Info text */}
-            {!playbookId && (
+            {!playbookId && !activeTestExecutionId && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
                 💡 Salve o playbook primeiro para habilitar o teste
               </p>
             )}
-            {playbookId && !isManager && (
+            {playbookId && !isManager && !activeTestExecutionId && (
               <p className="text-xs text-muted-foreground">
                 Emails serão enviados para: {user?.email}
               </p>

@@ -35,14 +35,20 @@ interface PlaybookExecution {
 }
 
 // ============ HELPER: Update playbook_test_runs status when execution finishes ============
-async function updateTestRunStatus(supabase: any, execution: PlaybookExecution, status: 'done' | 'failed') {
+async function updateTestRunStatus(supabase: any, execution: PlaybookExecution, status: 'done' | 'failed', errorMessage?: string) {
   if (execution.metadata?.is_test_mode) {
+    const updateData: any = { 
+      status: status,
+      updated_at: new Date().toISOString() 
+    };
+    
+    if (errorMessage) {
+      updateData.error_message = errorMessage;
+    }
+    
     const { error } = await supabase
       .from('playbook_test_runs')
-      .update({ 
-        status: status,
-        updated_at: new Date().toISOString() 
-      })
+      .update(updateData)
       .eq('execution_id', execution.id);
     
     if (error) {
@@ -50,6 +56,66 @@ async function updateTestRunStatus(supabase: any, execution: PlaybookExecution, 
     } else {
       console.log(`[updateTestRunStatus] 🧪 Test run status updated to '${status}' for execution ${execution.id}`);
     }
+  }
+}
+
+// ============ HELPER: Update playbook_test_runs progress after each node ============
+async function updateTestRunProgress(
+  supabase: any, 
+  execution: PlaybookExecution, 
+  item: QueueItem
+) {
+  if (!execution.metadata?.is_test_mode) return;
+  
+  try {
+    // Fetch current state from DB (avoids drift/race conditions)
+    const { data: currentRun, error: fetchError } = await supabase
+      .from('playbook_test_runs')
+      .select('executed_nodes, total_nodes')
+      .eq('execution_id', execution.id)
+      .single();
+    
+    if (fetchError || !currentRun) {
+      console.error(`[updateTestRunProgress] Failed to fetch current run:`, fetchError);
+      return;
+    }
+    
+    // Calculate next executed count (clamped to total_nodes)
+    const nextExecuted = Math.min(
+      currentRun.total_nodes ?? 0,
+      (currentRun.executed_nodes ?? 0) + 1
+    );
+    
+    // Find next scheduled item for progress display
+    const { data: nextScheduledItems } = await supabase
+      .from('playbook_execution_queue')
+      .select('scheduled_for')
+      .eq('execution_id', execution.id)
+      .eq('status', 'pending')
+      .order('scheduled_for', { ascending: true })
+      .limit(1);
+    
+    const updateData = {
+      executed_nodes: nextExecuted,
+      current_node_id: item.node_id,
+      last_node_type: item.node_type,
+      last_event_at: new Date().toISOString(),
+      next_scheduled_for: nextScheduledItems?.[0]?.scheduled_for || null,
+      updated_at: new Date().toISOString(),
+    };
+    
+    const { error: updateError } = await supabase
+      .from('playbook_test_runs')
+      .update(updateData)
+      .eq('execution_id', execution.id);
+    
+    if (updateError) {
+      console.error(`[updateTestRunProgress] Failed to update progress:`, updateError);
+    } else {
+      console.log(`[updateTestRunProgress] 🧪 Progress: ${nextExecuted}/${currentRun.total_nodes} (node: ${item.node_type})`);
+    }
+  } catch (err) {
+    console.error(`[updateTestRunProgress] Unexpected error:`, err);
   }
 }
 function getEmailTarget(
@@ -232,6 +298,9 @@ Deno.serve(async (req) => {
           })
           .eq('id', item.id);
 
+        // 🧪 UPDATE TEST RUN PROGRESS (if in test mode)
+        await updateTestRunProgress(supabaseAdmin, execution as PlaybookExecution, item);
+
         // Queue next node if not a delay, form, condition, or switch (they queue internally)
         if (item.node_type !== 'delay' && item.node_type !== 'form' && item.node_type !== 'condition' && item.node_type !== 'switch') {
           await queueNextNode(supabaseAdmin, item, flow, execution as PlaybookExecution);
@@ -300,17 +369,18 @@ Deno.serve(async (req) => {
             })
             .eq('id', item.execution_id);
           
-          // 🧪 Update test_run status if test mode
+          // 🧪 Update test_run status if test mode (with error message)
           if (failedExecution?.metadata?.is_test_mode) {
             await supabaseAdmin
               .from('playbook_test_runs')
               .update({ 
                 status: 'failed',
+                error_message: errorMessage,
                 updated_at: new Date().toISOString() 
               })
               .eq('execution_id', item.execution_id);
             
-            console.log(`[test-mode] 🧪 Test run marked as failed for execution ${item.execution_id}`);
+            console.log(`[test-mode] 🧪 Test run marked as failed for execution ${item.execution_id}: ${errorMessage}`);
           }
         }
       }

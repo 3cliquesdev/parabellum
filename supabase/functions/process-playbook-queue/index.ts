@@ -23,7 +23,7 @@ interface PlaybookExecution {
   current_node_id: string;
   nodes_executed: any[];
   errors: any[];
-  metadata?: {
+  execution_context?: {
     is_test_mode?: boolean;
     speed_multiplier?: number;
     test_recipient_email?: string;
@@ -36,7 +36,7 @@ interface PlaybookExecution {
 
 // ============ HELPER: Update playbook_test_runs status when execution finishes ============
 async function updateTestRunStatus(supabase: any, execution: PlaybookExecution, status: 'done' | 'failed', errorMessage?: string) {
-  if (execution.metadata?.is_test_mode) {
+  if (execution.execution_context?.is_test_mode) {
     const updateData: any = { 
       status: status,
       updated_at: new Date().toISOString() 
@@ -65,7 +65,7 @@ async function updateTestRunProgress(
   execution: PlaybookExecution, 
   item: QueueItem
 ) {
-  if (!execution.metadata?.is_test_mode) return;
+  if (!execution.execution_context?.is_test_mode) return;
   
   try {
     // Fetch current state from DB (avoids drift/race conditions)
@@ -124,14 +124,14 @@ function getEmailTarget(
   contact: any, 
   fallbackName: string
 ): { isTestMode: boolean; speedMultiplier: number; to: string; to_name: string } {
-  const isTestMode = execution.metadata?.is_test_mode === true || item.node_data?._test_mode === true;
-  const speedMultiplier = item.node_data?._speed_multiplier ?? execution.metadata?.speed_multiplier ?? 1;
+  const isTestMode = execution.execution_context?.is_test_mode === true || item.node_data?._test_mode === true;
+  const speedMultiplier = item.node_data?._speed_multiplier ?? execution.execution_context?.speed_multiplier ?? 1;
   
   const to = isTestMode 
-    ? (execution.metadata?.test_recipient_email || contact.email) 
+    ? (execution.execution_context?.test_recipient_email || contact.email) 
     : contact.email;
   const to_name = isTestMode 
-    ? (execution.metadata?.test_recipient_name || fallbackName) 
+    ? (execution.execution_context?.test_recipient_name || fallbackName) 
     : fallbackName;
   
   return { isTestMode, speedMultiplier, to, to_name };
@@ -370,7 +370,7 @@ Deno.serve(async (req) => {
             .eq('id', item.execution_id);
           
           // 🧪 Update test_run status if test mode (with error message)
-          if (failedExecution?.metadata?.is_test_mode) {
+          if (failedExecution?.execution_context?.is_test_mode) {
             await supabaseAdmin
               .from('playbook_test_runs')
               .update({ 

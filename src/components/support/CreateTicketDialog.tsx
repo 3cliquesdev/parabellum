@@ -6,6 +6,7 @@ import { useTicketCategories, useCreateTicketCategory } from "@/hooks/useTicketC
 import { useUsers } from "@/hooks/useUsers";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useTicketAttachmentUpload } from "@/hooks/useTicketAttachmentUpload";
+import { useTags } from "@/hooks/useTags";
 import { useDropzone } from "react-dropzone";
 import {
   Dialog,
@@ -26,7 +27,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Search, Plus, Upload, X, Image as ImageIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Loader2, Search, Plus, Upload, X, Image as ImageIcon, Tag } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 
@@ -72,10 +75,16 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
   const [newCategoryName, setNewCategoryName] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>("");
   
-  // Estado para anexo obrigatório
+  // Estado para anexo (agora opcional)
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [uploadedAttachment, setUploadedAttachment] = useState<{ url: string; type: string; name: string } | null>(null);
+
+  // Tags
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagSearch, setTagSearch] = useState("");
+  const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
+  const { data: allTags = [] } = useTags();
 
   // Debounce search to avoid query on every keystroke
   const debouncedSearch = useDebouncedValue(customerSearch, 300);
@@ -146,15 +155,12 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
     setShowNewCategory(false);
   };
 
-  // Saque não exige evidência
-  const isWithdrawal = category === 'saque' || category === 'saque_carteira';
-  const requiresEvidence = !isWithdrawal;
+  // Evidência agora é sempre opcional
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!subject.trim() || !customerId) return;
-    if (requiresEvidence && !uploadedAttachment) return;
 
     await createTicket.mutateAsync({
       subject: subject.trim(),
@@ -164,7 +170,8 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
       customer_id: customerId,
       department_id: departmentId || undefined,
       assigned_to: assignedTo || undefined,
-      attachments: [uploadedAttachment],
+      attachments: uploadedAttachment ? [uploadedAttachment] : [],
+      tag_ids: selectedTagIds,
     });
 
     // Reset form
@@ -179,12 +186,14 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
     setAttachmentFile(null);
     setAttachmentPreview(null);
     setUploadedAttachment(null);
+    setSelectedTagIds([]);
+    setTagSearch("");
     onOpenChange(false);
   };
 
   const activeDepartments = departments?.filter((d) => d.is_active) || [];
 
-  const canSubmit = customerId && subject.trim() && (isWithdrawal || uploadedAttachment) && !createTicket.isPending;
+  const canSubmit = customerId && subject.trim() && !createTicket.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
@@ -281,12 +290,8 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
           {/* Anexo - Evidência (opcional para saques) */}
           <div className="space-y-2">
             <Label className="flex items-center gap-1">
-              Evidência (Print/Foto) {requiresEvidence && '*'}
-              {requiresEvidence ? (
-                <span className="text-xs text-destructive font-normal">(obrigatório)</span>
-              ) : (
-                <span className="text-xs text-muted-foreground font-normal">(opcional para saques)</span>
-              )}
+              Evidência (Print/Foto)
+              <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
             </Label>
             
             {!attachmentFile ? (
@@ -459,6 +464,109 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
                 </Select>
               )}
             </div>
+          </div>
+
+          {/* Tags */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1">
+              <Tag className="h-3.5 w-3.5" />
+              Tags
+              <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+            </Label>
+            
+            {/* Badges das tags selecionadas */}
+            {selectedTagIds.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {selectedTagIds.map(tagId => {
+                  const tag = allTags.find(t => t.id === tagId);
+                  if (!tag) return null;
+                  return (
+                    <Badge 
+                      key={tagId} 
+                      variant="secondary"
+                      className="text-xs pr-1"
+                      style={{
+                        backgroundColor: tag.color ? `${tag.color}20` : undefined,
+                        borderColor: tag.color || undefined,
+                        color: tag.color || undefined,
+                      }}
+                    >
+                      {tag.name}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                        onClick={() => setSelectedTagIds(prev => prev.filter(id => id !== tagId))}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* Popover para adicionar tags */}
+            <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full justify-start text-muted-foreground"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar tag...
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-2" align="start">
+                <Input
+                  placeholder="Buscar tag..."
+                  value={tagSearch}
+                  onChange={(e) => setTagSearch(e.target.value)}
+                  className="h-8 mb-2"
+                />
+                <ScrollArea className="max-h-48">
+                  <div className="space-y-1">
+                    {allTags
+                      .filter(tag => 
+                        !selectedTagIds.includes(tag.id) &&
+                        tag.name.toLowerCase().includes(tagSearch.toLowerCase())
+                      )
+                      .slice(0, 10)
+                      .map(tag => (
+                        <Button
+                          key={tag.id}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start h-8 px-2"
+                          onClick={() => {
+                            setSelectedTagIds(prev => [...prev, tag.id]);
+                            setTagSearch("");
+                            setTagPopoverOpen(false);
+                          }}
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full mr-2 shrink-0"
+                            style={{ backgroundColor: tag.color || "hsl(var(--muted-foreground))" }}
+                          />
+                          <span className="truncate">{tag.name}</span>
+                        </Button>
+                      ))}
+                    {allTags.filter(tag => 
+                      !selectedTagIds.includes(tag.id) &&
+                      tag.name.toLowerCase().includes(tagSearch.toLowerCase())
+                    ).length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-2">
+                        {allTags.length === 0 ? "Nenhuma tag cadastrada" : "Nenhuma tag encontrada"}
+                      </p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Department & Assign Row */}

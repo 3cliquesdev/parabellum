@@ -199,7 +199,7 @@ export default function Support() {
       case 'created_by_me':
         return { 
           assignedFilter: 'created_by_me' as const,
-          advancedFilters: { ...baseFilters, status: baseFilters.status.length > 0 ? baseFilters.status : activeStatusNames }
+          advancedFilters: { ...baseFilters } // Não forçar filtro de status - mostra todos (ativos + arquivados)
         };
       case 'unassigned':
         return { assignedFilter: 'unassigned' as const, advancedFilters: baseFilters };

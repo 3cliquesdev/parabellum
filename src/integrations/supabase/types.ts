@@ -5816,6 +5816,63 @@ export type Database = {
           },
         ]
       }
+      playbook_test_runs: {
+        Row: {
+          created_at: string
+          execution_id: string
+          flow_snapshot: Json
+          id: string
+          playbook_id: string | null
+          speed_multiplier: number
+          started_by: string
+          status: string
+          tester_email: string
+          tester_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          execution_id: string
+          flow_snapshot: Json
+          id?: string
+          playbook_id?: string | null
+          speed_multiplier?: number
+          started_by: string
+          status?: string
+          tester_email: string
+          tester_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          execution_id?: string
+          flow_snapshot?: Json
+          id?: string
+          playbook_id?: string | null
+          speed_multiplier?: number
+          started_by?: string
+          status?: string
+          tester_email?: string
+          tester_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playbook_test_runs_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "playbook_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playbook_test_runs_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_playbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_board_mappings: {
         Row: {
           auto_assign_user_id: string | null

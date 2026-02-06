@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mail, Clock, CheckSquare, Phone, Save, X, GitBranch, UserCheck, Eye, HelpCircle, Plus, Trash2, Play, FileText, Shuffle, AlertCircle, AlertTriangle } from "lucide-react";
+import { Mail, Clock, CheckSquare, Phone, Save, X, GitBranch, UserCheck, Eye, HelpCircle, Plus, Trash2, Play, FileText, Shuffle, AlertCircle, AlertTriangle, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -46,6 +46,8 @@ import { PlaybookSimulator } from "./PlaybookSimulator";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useForms } from "@/hooks/useForms";
 import { useScoringRanges } from "@/hooks/useScoringConfig";
+import { useTestPlaybook } from "@/hooks/useTestPlaybook";
+import { useAuth } from "@/hooks/useAuth";
 import { Flame, Thermometer, Snowflake } from "lucide-react";
 export const nodeTypes = {
   email: EmailNode,
@@ -82,6 +84,8 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
   const { data: emailTemplates } = useEmailTemplates();
   const { data: forms } = useForms();
   const { data: scoringRanges = [] } = useScoringRanges();
+  const testPlaybook = useTestPlaybook();
+  const { user } = useAuth();
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge({
@@ -268,6 +272,29 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
           >
             <Play className="h-4 w-4" />
             ▶️ Simular Fluxo
+          </Button>
+
+          {/* Test Playbook Button - Real execution with accelerated delays */}
+          <Button
+            onClick={() => {
+              if (!user?.email) {
+                toast.error("Você precisa estar logado para testar");
+                return;
+              }
+              testPlaybook.mutate({
+                playbook_id: undefined, // Can be added if saving first
+                flow_definition: { nodes, edges },
+                tester_email: user.email,
+                tester_name: user.user_metadata?.full_name || user.email.split('@')[0],
+                speed_multiplier: 10,
+              });
+            }}
+            variant="outline"
+            className="w-full gap-2 bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400"
+            disabled={testPlaybook.isPending || nodes.length === 0}
+          >
+            <FlaskConical className="h-4 w-4" />
+            {testPlaybook.isPending ? "Testando..." : "🧪 Testar para Mim"}
           </Button>
 
           <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">

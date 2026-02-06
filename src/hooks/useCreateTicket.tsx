@@ -6,12 +6,13 @@ interface CreateTicketData {
   subject: string;
   description: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  category?: string; // Agora é dinâmico
+  category?: string;
   customer_id: string;
   assigned_to?: string;
   conversation_id?: string;
   attachments?: any[];
   department_id?: string;
+  tag_ids?: string[]; // NOVO - opcional
 }
 
 export function useCreateTicket() {
@@ -20,27 +21,72 @@ export function useCreateTicket() {
 
   return useMutation({
     mutationFn: async (ticketData: CreateTicketData) => {
-      // Buscar usuário atual para definir created_by
       const { data: { user } } = await supabase.auth.getUser();
       
-      // Cast para permitir categorias dinâmicas do banco
-      const { data, error } = await supabase
+      // Separar tag_ids do payload
+      const { tag_ids, ...ticketPayload } = ticketData;
+      
+      // 1. Criar ticket
+      const { data: ticket, error } = await supabase
         .from("tickets")
         .insert({
-          ...ticketData,
+          ...ticketPayload,
           created_by: user?.id,
         } as any)
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+
+      // 2. Inserir tags (com upsert para idempotência)
+      let tagsWarning = false;
+      if (tag_ids && tag_ids.length > 0 && ticket) {
+        const tagInserts = tag_ids.map(tag_id => ({
+          ticket_id: ticket.id,
+          tag_id,
+        }));
+        
+        const { error: tagsError } = await supabase
+          .from("ticket_tags")
+          .upsert(tagInserts, { 
+            onConflict: "ticket_id,tag_id",
+            ignoreDuplicates: true 
+          });
+        
+        if (tagsError) {
+          console.error("[useCreateTicket] Tags error:", tagsError);
+          tagsWarning = true;
+        }
+      }
+
+      // Manter retorno compatível - anexar flag opcional
+      if (tagsWarning) {
+        (ticket as any).__tagsWarning = true;
+      }
+      
+      return ticket;
     },
-    onSuccess: () => {
+    onSuccess: (ticket: any) => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
-      toast({
-        title: "Ticket criado com sucesso",
-      });
+      
+      // Invalidar tags do ticket específico
+      if (ticket?.id) {
+        queryClient.invalidateQueries({ queryKey: ["ticket-tags", ticket.id] });
+      }
+      
+      // Detectar flag de warning
+      const tagsWarning = !!ticket?.__tagsWarning;
+      
+      if (tagsWarning) {
+        toast({
+          title: "Ticket criado",
+          description: "Ticket criado com sucesso, mas houve um problema ao salvar as tags.",
+        });
+      } else {
+        toast({
+          title: "Ticket criado com sucesso",
+        });
+      }
     },
     onError: (error: Error) => {
       console.error('Ticket creation error:', error);

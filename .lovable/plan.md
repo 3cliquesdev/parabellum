@@ -1,308 +1,196 @@
 
-# Plano Ajustado: Suporte a Minutes/Hours/Days no Nó Delay com Shared Logic
+# Plano Implementação: "Testar para Mim" com Tabela playbook_test_runs
 
-## Arquitetura Proposta
+## Contexto
+Usuário quer executar playboos em ambiente real (com emails reais, delays acelerados) antes de ativar para clientes. Forneceu SQL da tabela `playbook_test_runs` e quer seguir com implementação.
 
-Centralizar lógica de delay em arquivo compartilhado (`supabase/functions/_shared/delay.ts`) para evitar duplicação entre frontend e edge functions. Adicionar normalização robusta com fallbacks para backward compatibility.
+## Arquivos a Criar/Modificar
 
-## 1. Criar Arquivo Compartilhado: `supabase/functions/_shared/delay.ts`
+### 1. **Tabela `playbook_test_runs`** (Migration SQL)
 
-Arquivo novo com 3 funções principais:
+Será criada com:
+- Campos: id, playbook_id, execution_id, started_by, tester_email, tester_name, speed_multiplier, status, flow_snapshot, created_at, updated_at
+- Índices em: started_by, execution_id
+- Relações: FK referências playbook_executions (ON DELETE CASCADE)
 
+### 2. **Edge Function: `test-playbook/index.ts`** (NOVO)
+
+Responsabilidade: Iniciar teste real
+- Recebe: playbook_id (opcional), flow_definition, tester_email, tester_name, speed_multiplier
+- Cria contato de teste com email do usuário (ou reutiliza se existir)
+- Cria execution com `metadata.is_test_mode = true` e speed_multiplier
+- Registra em playbook_test_runs
+- Enfileira primeiro nó com flags `_test_mode=true` e `_speed_multiplier=10`
+- Retorna: execution_id, test_contact_id, mensagem
+
+Fluxo:
+```
+[POST /test-playbook] → {playbook_id?, flow_definition, tester_email, speed_multiplier}
+  ↓
+  Validar auth + flow_definition
+  ↓
+  Criar/reutilizar contato com email do user
+  ↓
+  Criar playbook_execution com is_test_mode=true
+  ↓
+  Inserir em playbook_test_runs (auditoria)
+  ↓
+  Enfileirar primeiro nó com _test_mode=true
+  ↓
+  Retorn success + execution_id
+```
+
+### 3. **Hook: `useTestPlaybook.tsx`** (NOVO)
+
+Responsabilidade: Chamar edge function do frontend
+- Mutation simples que chama `supabase.functions.invoke('test-playbook', {body})`
+- On success: invalida queries, mostra toast
+- On error: mostra erro
+- Retorna: {mutate, isPending, isError}
+
+### 4. **Edge Function: `process-playbook-queue/index.ts`** (MODIFICAÇÕES)
+
+Três mudanças críticas:
+
+#### A) No `executeDelayNode` (linhas 358-403)
+**ANTES:**
 ```typescript
-/**
- * Converte delay (type + value) para segundos
- * @param delayType - 'minutes' | 'hours' | 'days'
- * @param delayValue - número inteiro positivo
- * @returns segundos (número)
- */
-export function convertDelayToSeconds(delayType: string, delayValue: number): number {
-  switch (delayType?.toLowerCase()) {
-    case 'minutes':
-      return delayValue * 60;
-    case 'hours':
-      return delayValue * 3600;
-    case 'days':
-      return delayValue * 86400;
-    default:
-      return 86400; // fallback: 1 day
-  }
+const seconds = convertDelayToSeconds(normalized.delay_type, normalized.delay_value);
+const nextExecutionTime = new Date(Date.now() + seconds * 1000);
+```
+
+**DEPOIS:**
+```typescript
+let seconds = convertDelayToSeconds(normalized.delay_type, normalized.delay_value);
+
+// 🧪 Modo teste: acelerar delay
+const speedMultiplier = item.node_data?._speed_multiplier || 1;
+const isTestMode = item.node_data?._test_mode === true;
+
+if (isTestMode && speedMultiplier > 1) {
+  const originalSeconds = seconds;
+  seconds = Math.max(5, Math.floor(seconds / speedMultiplier));
+  console.log(`[executeDelayNode] TEST MODE: Delay acelerado de ${originalSeconds}s para ${seconds}s (${speedMultiplier}x)`);
 }
 
-/**
- * Formata delay para exibição em UI
- * @returns string pluralizada (ex: "Aguardar 5 minutos")
- */
-export function formatDelayDisplay(delayType: string, delayValue: number): string {
-  const type = delayType?.toLowerCase() || 'days';
-  const value = Math.max(1, Math.floor(delayValue));
-  
-  switch (type) {
-    case 'minutes':
-      return `Aguardar ${value} ${value === 1 ? 'minuto' : 'minutos'}`;
-    case 'hours':
-      return `Aguardar ${value} ${value === 1 ? 'hora' : 'horas'}`;
-    case 'days':
-      return `Aguardar ${value} ${value === 1 ? 'dia' : 'dias'}`;
-    default:
-      return 'Aguardar';
-  }
-}
-
-/**
- * Normaliza dados de delay com fallback para backward compatibility
- * - Se não houver delay_type/delay_value e houver duration_days -> converte
- * - Clamp: min=1, max=365 dias (1 ano)
- * - Sempre retorna duration_days = (total_seconds / 86400) para compatibilidade
- */
-export function normalizeDelayData(nodeData: any): {
-  delay_type: 'minutes' | 'hours' | 'days';
-  delay_value: number;
-  duration_days: number;
-} {
-  // Prioridade: delay_type/value > duration_days > defaults
-  let delayType = nodeData?.delay_type || 'days';
-  let delayValue = nodeData?.delay_value ?? (nodeData?.duration_days || 1);
-  
-  // Validar tipo
-  if (!['minutes', 'hours', 'days'].includes(delayType)) {
-    delayType = 'days';
-  }
-  
-  // Clamp value: min 1, max 365 dias
-  const maxSeconds = 365 * 86400;
-  const seconds = convertDelayToSeconds(delayType, delayValue);
-  
-  if (seconds > maxSeconds) {
-    console.warn('[normalizeDelayData] Clamped delay to max (1 year)');
-    delayValue = 365; // fallback para 365 dias
-    delayType = 'days';
-  } else if (seconds < 1) {
-    delayValue = 1;
-  }
-  
-  // Sempre calcular duration_days em float (para compatibilidade)
-  const finalSeconds = convertDelayToSeconds(delayType, delayValue);
-  const durationDays = finalSeconds / 86400;
-  
-  return {
-    delay_type: delayType as 'minutes' | 'hours' | 'days',
-    delay_value: Math.floor(delayValue),
-    duration_days: durationDays,
-  };
-}
+const nextExecutionTime = new Date(Date.now() + seconds * 1000);
 ```
 
-## 2. Atualizar Types em Frontend
-
-**Arquivo: `src/components/playbook/DelayNode.tsx`**
-
+#### B) No `executeDelayNode` - propagação de flags (linhas 377-388)
+**ANTES:**
 ```typescript
-interface DelayNodeData {
-  label: string;
-  delay_type?: 'minutes' | 'hours' | 'days';
-  delay_value?: number;
-  duration_days?: number; // legacy fallback
-}
+await supabase
+  .from('playbook_execution_queue')
+  .insert({
+    execution_id: execution.id,
+    node_id: nextNode.id,
+    node_type: nextNode.type,
+    node_data: nextNode.data,
+    scheduled_for: nextExecutionTime.toISOString(),
+    status: 'pending',
+    retry_count: 0,
+    max_retries: 3,
+  });
 ```
 
-## 3. PlaybookEditor.tsx - Criação de Nó Delay
-
-**Linha ~111:** Atualizar data inicial
-
+**DEPOIS:**
 ```typescript
-...(type === "delay" && { 
-  delay_type: 'days',
-  delay_value: 1,
-  duration_days: 1  // manter legacy
-})
+await supabase
+  .from('playbook_execution_queue')
+  .insert({
+    execution_id: execution.id,
+    node_id: nextNode.id,
+    node_type: nextNode.type,
+    node_data: {
+      ...nextNode.data,
+      _test_mode: item.node_data?._test_mode || false,
+      _speed_multiplier: item.node_data?._speed_multiplier || 1,
+    },
+    scheduled_for: nextExecutionTime.toISOString(),
+    status: 'pending',
+    retry_count: 0,
+    max_retries: 3,
+  });
 ```
 
-## 4. PlaybookEditor.tsx - Painel de Propriedades
+#### C) Em TODOS os `playbook_execution_queue.insert({...node_data: nextNode.data})` (linhas 381-388, 791-798, 942-949, 979-986)
 
-**Linhas ~364-372:** Substituir input único por Select + Input
-
+Todos os 4 inserts precisam do mesmo override:
 ```typescript
-{selectedNode.type === "delay" && (
-  <div className="space-y-4">
-    <div>
-      <Label htmlFor="delay-type">Unidade de Tempo</Label>
-      <Select 
-        value={selectedNode.data.delay_type || 'days'}
-        onValueChange={(value) => {
-          // Ao mudar tipo, atualizar também duration_days
-          const normalized = normalizeDelayData({
-            delay_type: value,
-            delay_value: selectedNode.data.delay_value || 1,
-          });
-          updateNodeData('delay_type', value);
-          updateNodeData('delay_value', normalized.delay_value);
-          updateNodeData('duration_days', normalized.duration_days);
-        }}
-      >
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="minutes">Minutos</SelectItem>
-          <SelectItem value="hours">Horas</SelectItem>
-          <SelectItem value="days">Dias</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-    
-    <div>
-      <Label htmlFor="delay-value">Quantidade</Label>
-      <Input
-        id="delay-value"
-        type="number"
-        min="1"
-        max="365"
-        value={selectedNode.data.delay_value || 1}
-        onChange={(e) => {
-          const value = parseInt(e.target.value) || 1;
-          const normalized = normalizeDelayData({
-            delay_type: selectedNode.data.delay_type || 'days',
-            delay_value: value,
-          });
-          updateNodeData('delay_value', value);
-          updateNodeData('duration_days', normalized.duration_days);
-        }}
-      />
-    </div>
-  </div>
-)}
-```
-
-## 5. DelayNode.tsx - Subtitle Dinâmica
-
-Importar `formatDelayDisplay` e usar normalizeDelayData:
-
-```typescript
-import { formatDelayDisplay, normalizeDelayData } from "@/lib/utils";
-
-export const DelayNode = memo(({ data, selected }: NodeProps<DelayNodeData>) => {
-  const normalized = normalizeDelayData(data);
-  const subtitle = formatDelayDisplay(normalized.delay_type, normalized.delay_value);
-
-  return (
-    <WorkflowNodeWrapper
-      type="delay"
-      icon={Clock}
-      title={data.label}
-      subtitle={subtitle}
-      selected={selected}
-    />
-  );
-});
-```
-
-## 6. SimulatorStepRenderer.tsx - Linha ~114-134
-
-Usar funções compartilhadas:
-
-```typescript
-if (node.type === "delay") {
-  const normalized = normalizeDelayData(node.data);
-  const seconds = convertDelayToSeconds(normalized.delay_type, normalized.delay_value);
-  const displayText = formatDelayDisplay(normalized.delay_type, normalized.delay_value);
-  
-  return (
-    <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30 p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <Clock className="h-8 w-8 text-amber-600" />
-        <div>
-          <h3 className="font-semibold text-lg">⏳ {displayText}...</h3>
-          <p className="text-sm text-muted-foreground">
-            ({seconds} segundos - Em produção, o próximo passo executaria após este período.)
-          </p>
-        </div>
-      </div>
-
-      <Button onClick={() => onComplete()} className="gap-2 bg-amber-600 hover:bg-amber-700">
-        <FastForward className="h-4 w-4" />
-        ⏩ Avançar Tempo (Pular)
-      </Button>
-    </Card>
-  );
+node_data: {
+  ...nextNode.data,
+  _test_mode: item.node_data?._test_mode || false,
+  _speed_multiplier: item.node_data?._speed_multiplier || 1,
 }
 ```
 
-## 7. Edge Function: `process-playbook-queue/index.ts` - Linhas ~359-398
+**Justificativa:** Garantir que flags de teste se propagam por toda a execução, mesmo em nós de email, form, condition, switch.
 
-Usar arquivo compartilhado para calcular delay:
+### 5. **PlaybookEditor.tsx** (MODIFICAÇÕES)
 
+#### A) Adicionar import
 ```typescript
-async function handleDelayNode(
-  item: QueueItem,
-  execution: PlaybookExecution,
-  supabaseAdmin: any
-): Promise<{ success: boolean; delay_days?: number }> {
-  console.log(`Executing delay node: ${item.node_id}`);
-  
-  // Import e usar delay.ts
-  const { convertDelayToSeconds, normalizeDelayData } = await import('../_shared/delay.ts');
-  
-  const normalized = normalizeDelayData(item.node_data);
-  const seconds = convertDelayToSeconds(normalized.delay_type, normalized.delay_value);
-  const nextExecutionTime = new Date(Date.now() + seconds * 1000);
-
-  console.log(`Delay: ${normalized.delay_value}${normalized.delay_type}, next execution: ${nextExecutionTime.toISOString()}`);
-
-  // Resto da lógica igual (queue next node com scheduled_for atualizado)
-  // ...
-  
-  return { success: true, delay_days: normalized.duration_days };
-}
+import { useTestPlaybook } from "@/hooks/useTestPlaybook";
+import { useAuth } from "@/hooks/useAuth"; // ou similar
 ```
 
-## 8. Importações Necessárias
-
-**Em arquivos frontend que usarem helpers:**
-
+#### B) Adicionar botão na toolbar (junto com Simular e Salvar)
+Adicionar algo como:
 ```typescript
-import { formatDelayDisplay, convertDelayToSeconds, normalizeDelayData } from "@/lib/utils";
-```
+const testPlaybook = useTestPlaybook();
+const { user } = useAuth();
 
-**Em edge functions:**
-
-```typescript
-// Importar do arquivo _shared
-import { convertDelayToSeconds, normalizeDelayData, formatDelayDisplay } from '../_shared/delay.ts';
+<Button
+  variant="outline"
+  onClick={() => {
+    if (!user?.email) {
+      toast.error("Você precisa estar logado para testar");
+      return;
+    }
+    testPlaybook.mutate({
+      playbook_id: playbookId, // se já foi salvo
+      flow_definition: { nodes, edges },
+      tester_email: user.email,
+      tester_name: user.user_metadata?.full_name || user.email.split('@')[0],
+      speed_multiplier: 10,
+    });
+  }}
+  disabled={testPlaybook.isPending || nodes.length === 0}
+  className="gap-2"
+>
+  <FlaskConical className="h-4 w-4" />
+  {testPlaybook.isPending ? "Testando..." : "🧪 Testar para Mim"}
+</Button>
 ```
 
 ## Sequência de Implementação
 
-1. ✅ Criar `supabase/functions/_shared/delay.ts`
-2. ✅ Adicionar helpers em `src/lib/utils.ts` (espelhando _shared para frontend usar)
-3. ✅ Atualizar interface `DelayNodeData` em `src/components/playbook/DelayNode.tsx`
-4. ✅ Atualizar `PlaybookEditor.tsx` - inicialização (linha 111)
-5. ✅ Atualizar `PlaybookEditor.tsx` - painel propriedades (linhas 364-372)
-6. ✅ Atualizar `DelayNode.tsx` - renderização
-7. ✅ Atualizar `SimulatorStepRenderer.tsx` - exibição
-8. ✅ Atualizar `process-playbook-queue/index.ts` - handler delay
+1. ✅ Executar SQL para criar `playbook_test_runs` (via migration tool)
+2. ✅ Criar `supabase/functions/test-playbook/index.ts`
+3. ✅ Criar `src/hooks/useTestPlaybook.tsx`
+4. ✅ Atualizar `process-playbook-queue/index.ts`:
+   - Modificar `executeDelayNode` para aceitar/aplicar aceleração
+   - Atualizar TODOS os 4 inserts na fila para propagar `_test_mode` e `_speed_multiplier`
+5. ✅ Atualizar `PlaybookEditor.tsx` para adicionar botão "Testar para Mim"
 
 ## Garantias Enterprise
 
 | # | Garantia | Implementação |
 |---|----------|---------------|
-| 1 | Backward Compatibility | `normalizeDelayData` converte antigos `duration_days` automaticamente |
-| 2 | Single Source of Truth | Lógica centralizada em `_shared/delay.ts` |
-| 3 | Clamp Seguro | Min 1, Max 365 dias (1 ano) |
-| 4 | Display Pluralizado | `formatDelayDisplay` trata singular/plural correto |
-| 5 | Persistência Correta | `duration_days` sempre preenchido para compatibilidade |
-| 6 | Sem Regressão | Playbooks antigos com só `duration_days` funcionam igual |
+| 1 | Sem poluição de dados | Contatos tagueados com `test_mode` |
+| 2 | Emails reais enviados | Sistema de email funciona normalmente |
+| 3 | Delays acelerados | Flag `_speed_multiplier` divide tempo |
+| 4 | Propagação de flags | Cada nó subsequente herda `_test_mode` |
+| 5 | Auditoria completa | Registra em `playbook_test_runs` |
+| 6 | Sem regressão | Modo não-teste não afetado |
 
-## Testes Obrigatórios (antes de aprovar)
+## Testes Obrigatórios (após implementação)
 
 | # | Cenário | Validação |
 |---|---------|-----------|
-| 1 | Criar delay 5 minutos | Exibe "Aguardar 5 minutos", scheduled_for = now + 300s |
-| 2 | Criar delay 2 horas | Exibe "Aguardar 2 horas", scheduled_for = now + 7200s |
-| 3 | Criar delay 3 dias | Exibe "Aguardar 3 dias", scheduled_for = now + 259200s |
-| 4 | Alterar de minutos → horas | Salva corretamente, UI atualiza |
-| 5 | Playbook antigo com `duration_days: 1` (sem delay_type) | Carrega OK, exibe "Aguardar 1 dia" |
-| 6 | Simulator mostra todos os tipos | Exibe com segundos totais corretos |
-| 7 | Executar playbook com delay minuto | Edge function persiste scheduled_for corretamente |
-| 8 | Clamp max 365 dias | Valores > 1 ano são truncados para 365 dias |
-
+| 1 | Clicar "Testar para Mim" sem salvar | Funciona com flow_definition atual |
+| 2 | Email de teste chega | Recebido no email do usuário logado |
+| 3 | Delay 1 hora → 6 minutos | 10x aceleração funciona |
+| 4 | Delay 5 minutos → 30s | Aceleração clamped a mínimo 5s |
+| 5 | Email → Form → OK | Formulário link funciona no teste |
+| 6 | Verificar playbook_test_runs | Registro de teste aparece |

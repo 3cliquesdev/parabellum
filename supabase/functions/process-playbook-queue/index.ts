@@ -363,7 +363,18 @@ async function executeDelayNode(supabase: any, item: QueueItem, flow: PlaybookFl
   
   // Normalize delay data with backward compatibility
   const normalized = normalizeDelayData(item.node_data);
-  const seconds = convertDelayToSeconds(normalized.delay_type, normalized.delay_value);
+  let seconds = convertDelayToSeconds(normalized.delay_type, normalized.delay_value);
+
+  // 🧪 Test Mode: Accelerate delays
+  const speedMultiplier = item.node_data?._speed_multiplier || 1;
+  const isTestMode = item.node_data?._test_mode === true;
+
+  if (isTestMode && speedMultiplier > 1) {
+    const originalSeconds = seconds;
+    seconds = Math.max(5, Math.floor(seconds / speedMultiplier)); // Minimum 5 seconds
+    console.log(`[executeDelayNode] 🧪 TEST MODE: Delay accelerated from ${originalSeconds}s to ${seconds}s (${speedMultiplier}x)`);
+  }
+
   const nextExecutionTime = new Date(Date.now() + seconds * 1000);
 
   console.log(`Delay: ${normalized.delay_value} ${normalized.delay_type} (${seconds}s), next execution: ${nextExecutionTime.toISOString()}`);
@@ -380,7 +391,11 @@ async function executeDelayNode(supabase: any, item: QueueItem, flow: PlaybookFl
           execution_id: execution.id,
           node_id: nextNode.id,
           node_type: nextNode.type,
-          node_data: nextNode.data,
+          node_data: {
+            ...nextNode.data,
+            _test_mode: item.node_data?._test_mode || false,
+            _speed_multiplier: item.node_data?._speed_multiplier || 1,
+          },
           scheduled_for: nextExecutionTime.toISOString(),
           status: 'pending',
           retry_count: 0,
@@ -790,7 +805,11 @@ async function executeConditionNode(supabase: any, item: QueueItem, flow: Playbo
       execution_id: execution.id,
       node_id: nextNode.id,
       node_type: nextNode.type,
-      node_data: nextNode.data,
+      node_data: {
+        ...nextNode.data,
+        _test_mode: item.node_data?._test_mode || false,
+        _speed_multiplier: item.node_data?._speed_multiplier || 1,
+      },
       scheduled_for: new Date().toISOString(),
       status: 'pending',
       retry_count: 0,
@@ -941,7 +960,11 @@ async function executeSwitchNode(supabase: any, item: QueueItem, flow: PlaybookF
       execution_id: execution.id,
       node_id: nextNode.id,
       node_type: nextNode.type,
-      node_data: nextNode.data,
+      node_data: {
+        ...nextNode.data,
+        _test_mode: item.node_data?._test_mode || false,
+        _speed_multiplier: item.node_data?._speed_multiplier || 1,
+      },
       scheduled_for: new Date().toISOString(),
       status: 'pending',
       retry_count: 0,
@@ -978,7 +1001,11 @@ async function queueNextNode(supabase: any, currentItem: QueueItem, flow: Playbo
       execution_id: execution.id,
       node_id: nextNode.id,
       node_type: nextNode.type,
-      node_data: nextNode.data,
+      node_data: {
+        ...nextNode.data,
+        _test_mode: currentItem.node_data?._test_mode || false,
+        _speed_multiplier: currentItem.node_data?._speed_multiplier || 1,
+      },
       scheduled_for: new Date().toISOString(),
       status: 'pending',
       retry_count: 0,

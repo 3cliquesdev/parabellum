@@ -48,6 +48,8 @@ import { useForms } from "@/hooks/useForms";
 import { useScoringRanges } from "@/hooks/useScoringConfig";
 import { useTestPlaybook } from "@/hooks/useTestPlaybook";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
+import { hasFullAccess } from "@/config/roles";
 import { Flame, Thermometer, Snowflake } from "lucide-react";
 export const nodeTypes = {
   email: EmailNode,
@@ -69,9 +71,10 @@ interface PlaybookEditorProps {
   onSave: (flow: { nodes: Node[]; edges: Edge[] }) => void;
   onCancel: () => void;
   isSaving?: boolean;
+  playbookId?: string; // Required for testing - playbook must be saved first
 }
 
-function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: PlaybookEditorProps) {
+function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving, playbookId }: PlaybookEditorProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialFlow?.nodes || []);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialFlow?.edges || []);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -86,6 +89,11 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
   const { data: scoringRanges = [] } = useScoringRanges();
   const testPlaybook = useTestPlaybook();
   const { user } = useAuth();
+  const { role } = useUserRole();
+  const [testEmail, setTestEmail] = useState<string>("");
+  
+  // Manager roles that can send tests to any email
+  const isManager = hasFullAccess(role);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge({
@@ -274,28 +282,65 @@ function PlaybookEditorInner({ initialFlow, onSave, onCancel, isSaving }: Playbo
             ▶️ Simular Fluxo
           </Button>
 
-          {/* Test Playbook Button - Real execution with accelerated delays */}
-          <Button
-            onClick={() => {
-              if (!user?.email) {
-                toast.error("Você precisa estar logado para testar");
-                return;
-              }
-              testPlaybook.mutate({
-                playbook_id: undefined, // Can be added if saving first
-                flow_definition: { nodes, edges },
-                tester_email: user.email,
-                tester_name: user.user_metadata?.full_name || user.email.split('@')[0],
-                speed_multiplier: 10,
-              });
-            }}
-            variant="outline"
-            className="w-full gap-2 bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400"
-            disabled={testPlaybook.isPending || nodes.length === 0}
-          >
-            <FlaskConical className="h-4 w-4" />
-            {testPlaybook.isPending ? "Testando..." : "🧪 Testar para Mim"}
-          </Button>
+          {/* Test Playbook Section - Real execution with accelerated delays */}
+          <div className="space-y-2">
+            {/* Email input for managers */}
+            {isManager && playbookId && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Enviar teste para:</Label>
+                <Input
+                  type="email"
+                  placeholder={user?.email || "email@exemplo.com"}
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  className="h-8 text-sm mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Como gerente, você pode testar para qualquer email
+                </p>
+              </div>
+            )}
+            
+            <Button
+              onClick={() => {
+                if (!user?.email) {
+                  toast.error("Você precisa estar logado para testar");
+                  return;
+                }
+                if (!playbookId) {
+                  toast.error("Salve o playbook antes de testar");
+                  return;
+                }
+                const emailToUse = (testEmail.trim() || user.email).toLowerCase();
+                testPlaybook.mutate({
+                  playbook_id: playbookId,
+                  flow_definition: { nodes, edges },
+                  recipient_email: emailToUse,
+                  recipient_name: user.user_metadata?.full_name || emailToUse.split('@')[0],
+                  speed_multiplier: 10,
+                });
+              }}
+              variant="outline"
+              className="w-full gap-2 bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400"
+              disabled={testPlaybook.isPending || nodes.length === 0 || !playbookId}
+              title={!playbookId ? "Salve o playbook primeiro para testar" : ""}
+            >
+              <FlaskConical className="h-4 w-4" />
+              {testPlaybook.isPending ? "Testando..." : "🧪 Testar para Mim"}
+            </Button>
+            
+            {/* Info text */}
+            {!playbookId && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                💡 Salve o playbook primeiro para habilitar o teste
+              </p>
+            )}
+            {playbookId && !isManager && (
+              <p className="text-xs text-muted-foreground">
+                Emails serão enviados para: {user?.email}
+              </p>
+            )}
+          </div>
 
           <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
             🧱 Blocos

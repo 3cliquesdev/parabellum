@@ -5,14 +5,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Manager roles that can send tests to any email
+const MANAGER_ROLES = ['admin', 'manager', 'general_manager', 'support_manager', 'cs_manager', 'financial_manager'];
+
 interface TestPlaybookRequest {
-  playbook_id?: string;
+  playbook_id: string; // Required - must be saved first
   flow_definition: {
     nodes: Array<{ id: string; type: string; data: any; position?: any }>;
     edges: Array<{ id?: string; source: string; target: string; sourceHandle?: string }>;
   };
-  tester_email: string;
-  tester_name?: string;
+  recipient_email: string;
+  recipient_name?: string;
   speed_multiplier?: number;
 }
 
@@ -22,18 +25,19 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-    );
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    // Client for user auth only
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: req.headers.get('Authorization')! } }
+    });
 
-    // Validate auth
+    // Admin client for all operations (bypasses RLS)
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // 1. Validate auth
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) {
       console.error('[test-playbook] Auth error:', authError);
@@ -47,14 +51,22 @@ Deno.serve(async (req) => {
     const { 
       playbook_id, 
       flow_definition, 
-      tester_email, 
-      tester_name,
+      recipient_email, 
+      recipient_name,
       speed_multiplier = 10 
     } = body;
 
-    console.log(`[test-playbook] Starting test for ${tester_email} by user ${user.id}`);
+    console.log(`[test-playbook] Starting test for ${recipient_email} by user ${user.id}`);
 
-    // Validate flow_definition
+    // 2. Validate playbook_id is provided (must be saved first)
+    if (!playbook_id) {
+      return new Response(
+        JSON.stringify({ error: 'playbook_id é obrigatório. Salve o playbook antes de testar.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 3. Validate flow_definition
     if (!flow_definition || !flow_definition.nodes || flow_definition.nodes.length === 0) {
       return new Response(
         JSON.stringify({ error: 'flow_definition com nodes é obrigatório' }),
@@ -62,20 +74,103 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!tester_email) {
+    // 4. Validate recipient_email
+    if (!recipient_email) {
       return new Response(
-        JSON.stringify({ error: 'tester_email é obrigatório' }),
+        JSON.stringify({ error: 'recipient_email é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 1. Find or create test contact with tester's email
+    const normalizedRecipientEmail = recipient_email.toLowerCase().trim();
+    const userEmail = user.email?.toLowerCase().trim();
+
+    // 5. Check user role for permission
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) {
+      console.error('[test-playbook] Failed to fetch profile:', profileError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao verificar permissões' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const isManager = MANAGER_ROLES.includes(profile?.role || '');
+
+    // 6. Permission check: non-managers can only send to their own email
+    if (!isManager && userEmail !== normalizedRecipientEmail) {
+      console.log(`[test-playbook] Permission denied: ${userEmail} tried to send to ${normalizedRecipientEmail}`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Permissão negada: você só pode enviar testes para seu próprio email. Gerentes podem enviar para qualquer destinatário.' 
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 7. Rate limit check - 5/hour and 20/day per user
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { count: hourlyCount, error: hourlyError } = await supabaseAdmin
+      .from('playbook_test_runs')
+      .select('*', { count: 'exact', head: true })
+      .eq('started_by', user.id)
+      .gte('created_at', oneHourAgo);
+
+    if (hourlyError) {
+      console.error('[test-playbook] Rate limit check failed:', hourlyError);
+    } else if ((hourlyCount || 0) >= 5) {
+      console.log(`[test-playbook] Rate limit exceeded: ${hourlyCount} tests in last hour`);
+      return new Response(
+        JSON.stringify({ error: 'Rate limit: máximo 5 testes por hora. Aguarde alguns minutos.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { count: dailyCount, error: dailyError } = await supabaseAdmin
+      .from('playbook_test_runs')
+      .select('*', { count: 'exact', head: true })
+      .eq('started_by', user.id)
+      .gte('created_at', oneDayAgo);
+
+    if (dailyError) {
+      console.error('[test-playbook] Daily rate limit check failed:', dailyError);
+    } else if ((dailyCount || 0) >= 20) {
+      console.log(`[test-playbook] Daily rate limit exceeded: ${dailyCount} tests in last 24h`);
+      return new Response(
+        JSON.stringify({ error: 'Rate limit: máximo 20 testes por dia. Tente novamente amanhã.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 8. Validate playbook exists
+    const { data: playbook, error: playbookError } = await supabaseAdmin
+      .from('onboarding_playbooks')
+      .select('id, name')
+      .eq('id', playbook_id)
+      .single();
+
+    if (playbookError || !playbook) {
+      console.error(`[test-playbook] Playbook not found: ${playbook_id}`);
+      return new Response(
+        JSON.stringify({ error: 'Playbook não encontrado. Salve antes de testar.' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 9. Find or create test contact with recipient's email
     let testContact: any;
     
     const { data: existingContact } = await supabaseAdmin
       .from('contacts')
       .select('id, first_name, last_name, email')
-      .eq('email', tester_email.toLowerCase())
+      .eq('email', normalizedRecipientEmail)
       .maybeSingle();
 
     if (existingContact) {
@@ -83,13 +178,13 @@ Deno.serve(async (req) => {
       console.log(`[test-playbook] Reusing existing contact: ${testContact.id}`);
     } else {
       // Create new contact for testing
-      const firstName = tester_name || tester_email.split('@')[0];
+      const firstName = recipient_name || normalizedRecipientEmail.split('@')[0];
       const { data: newContact, error: contactError } = await supabaseAdmin
         .from('contacts')
         .insert({
           first_name: firstName,
           last_name: '(Teste)',
-          email: tester_email.toLowerCase(),
+          email: normalizedRecipientEmail,
           source: 'playbook_test',
           status: 'lead',
         })
@@ -104,26 +199,11 @@ Deno.serve(async (req) => {
       console.log(`[test-playbook] Created new test contact: ${testContact.id}`);
     }
 
-    // 2. Determine playbook_id to use (if provided, validate it exists)
-    let validPlaybookId = playbook_id || null;
-    if (playbook_id) {
-      const { data: playbook } = await supabaseAdmin
-        .from('onboarding_playbooks')
-        .select('id')
-        .eq('id', playbook_id)
-        .maybeSingle();
-      
-      if (!playbook) {
-        console.warn(`[test-playbook] Playbook ${playbook_id} not found, proceeding without`);
-        validPlaybookId = null;
-      }
-    }
-
-    // 3. Create playbook execution with test mode metadata
+    // 10. Create playbook execution with test mode metadata
     const { data: execution, error: execError } = await supabaseAdmin
       .from('playbook_executions')
       .insert({
-        playbook_id: validPlaybookId,
+        playbook_id: playbook_id,
         contact_id: testContact.id,
         status: 'running',
         current_node_id: flow_definition.nodes[0]?.id,
@@ -131,9 +211,10 @@ Deno.serve(async (req) => {
         errors: [],
         metadata: {
           is_test_mode: true,
-          tester_user_id: user.id,
-          tester_email: tester_email,
           speed_multiplier: speed_multiplier,
+          test_recipient_email: normalizedRecipientEmail,
+          test_recipient_name: recipient_name || null,
+          test_run_started_by: user.id,
           started_at: new Date().toISOString(),
         },
       })
@@ -147,26 +228,41 @@ Deno.serve(async (req) => {
 
     console.log(`[test-playbook] Created execution: ${execution.id}`);
 
-    // 4. Register in playbook_test_runs for audit
-    const { error: testRunError } = await supabaseAdmin
+    // 11. Register in playbook_test_runs for audit
+    const { data: testRun, error: testRunError } = await supabaseAdmin
       .from('playbook_test_runs')
       .insert({
-        playbook_id: validPlaybookId,
+        playbook_id: playbook_id,
         execution_id: execution.id,
         started_by: user.id,
-        tester_email: tester_email,
-        tester_name: tester_name || null,
+        tester_email: normalizedRecipientEmail, // DB column name
+        tester_name: recipient_name || null,
         speed_multiplier: speed_multiplier,
         status: 'running',
         flow_snapshot: flow_definition,
-      });
+      })
+      .select()
+      .single();
 
     if (testRunError) {
       console.error('[test-playbook] Failed to create test run record:', testRunError);
-      // Non-fatal, continue
+      // Non-fatal, continue - but log it
+    } else {
+      // Update execution metadata with test_run_id for easier debugging
+      await supabaseAdmin
+        .from('playbook_executions')
+        .update({
+          metadata: {
+            ...execution.metadata,
+            test_run_id: testRun.id,
+          },
+        })
+        .eq('id', execution.id);
+      
+      console.log(`[test-playbook] Created test run: ${testRun.id}`);
     }
 
-    // 5. Queue first node with test mode flags
+    // 12. Queue first node with test mode flags
     const firstNode = flow_definition.nodes[0];
     const { error: queueError } = await supabaseAdmin
       .from('playbook_execution_queue')
@@ -192,7 +288,7 @@ Deno.serve(async (req) => {
 
     console.log(`[test-playbook] Queued first node: ${firstNode.id} (type: ${firstNode.type})`);
 
-    // 6. Trigger queue processing immediately
+    // 13. Trigger queue processing immediately
     try {
       await supabaseAdmin.functions.invoke('process-playbook-queue', {
         body: { manual_trigger: true },
@@ -207,9 +303,10 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         execution_id: execution.id,
+        test_run_id: testRun?.id || null,
         test_contact_id: testContact.id,
         speed_multiplier: speed_multiplier,
-        message: `🧪 Teste iniciado! Emails serão enviados para ${tester_email}. Delays acelerados ${speed_multiplier}x.`,
+        message: `🧪 Teste iniciado! Emails serão enviados para ${normalizedRecipientEmail}. Delays acelerados ${speed_multiplier}x.`,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

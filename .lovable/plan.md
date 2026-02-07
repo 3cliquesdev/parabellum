@@ -1,53 +1,107 @@
 
-# Correção: Usar URL Publicada no Link do Formulário do Playbook
+# Plano: Correção de Condições Email_Opened/Email_Clicked com Email Node ID
 
-## Problema Identificado
+## Resumo Executivo
 
-O backend está usando a **URL incorreta** para gerar links de formulários em playbooks:
+O usuário forneceu **dois patches precisos** para corrigir as condições "Email Aberto" e "Email Clicado" que atualmente não funcionam porque:
 
-**Código Atual (linha 764):**
-```typescript
-const publicFormUrl = `${Deno.env.get('PUBLIC_SITE_URL') || 'https://lovable.app'}/public-form/${formId}?...`;
+1. **Frontend**: O editor usa um `Input` genérico para `condition_value` em vez de um dropdown que permite selecionar o nó de email anterior
+2. **Backend**: O email do formulário não envia `playbook_node_id`, tornando impossível rastrear qual email acionou a condição
+
+## Alterações Necessárias
+
+### PATCH 1: PlaybookEditor.tsx (Frontend)
+
+**Localização**: Linhas 920-931 (bloco "Standard condition value")
+
+**Mudanças**:
+
+1. **Adicionar helper function** `getUpstreamEmailNodes` (no topo do componente ou antes do export)
+   - Percorre o grafo de edges para encontrar todos os nós de email anteriores
+   - Retorna lista ordenada por posição vertical (ordem visual do fluxo)
+
+2. **Substituir bloco condition_value** (linhas 920-931)
+   - Detectar se condition_type é `email_opened` ou `email_clicked`
+   - Se for: renderizar `<select>` dropdown com nós de email disponíveis, salvando em `email_node_id`
+   - Se não for: manter `<Input>` para `condition_value` (comportamento atual)
+   - Mostrar mensagens de ajuda quando:
+     - Não há emails anteriores: "Nenhum email antes deste condition"
+     - Dropdown vazio: "Selecione um email — sem email_node_id o backend retorna FALSE"
+
+**Impacto**:
+- Zero regressão: Condições não-email continuam funcionando igual
+- Novas condições email_opened/email_clicked agora funcionam
+- UX melhorada com lista de emails anteriores e validação
+
+---
+
+### PATCH 2: process-playbook-queue/index.ts (Backend)
+
+**Localização**: Função `executeFormNode`, na chamada `supabase.functions.invoke('send-email')` (linhas 788-803)
+
+**Mudança**:
+- Adicionar `playbook_node_id: item.node_id` ao payload do `send-email`
+- Isso garante que o email do formulário tenha rastreabilidade para condições futuras
+
+**Impacto**:
+- Zero regressão: Emails continuam sendo enviados normalmente
+- Formulários agora aparecem na tabela `email_sends` com seu `playbook_node_id`
+- Condições "Email Aberto" no formulário agora conseguem identificar qual email foi aberto
+
+---
+
+## Sequência de Implementação
+
+```
+┌─────────────────────────────────────────────┐
+│ 1. PlaybookEditor.tsx                       │
+│    └─ Adicionar helper getUpstreamEmailNodes│
+│    └─ Substituir bloco condition_value      │
+│       (permite seleção de email_node_id)    │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│ 2. process-playbook-queue/index.ts          │
+│    └─ Adicionar playbook_node_id: item.node_id
+│       ao invoke('send-email') do form       │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│ 3. Deploy automático                        │
+│    └─ Edge Function redeploy (backend)      │
+│    └─ Frontend rebuild                      │
+└─────────────────────────────────────────────┘
 ```
 
-**Problemas:**
-1. Usa secret `PUBLIC_SITE_URL` que **não existe** → fallback para `https://lovable.app` (errado)
-2. Rota incorreta: `/public-form/` deveria ser `/f/`
-3. Não usa `FRONTEND_URL` que já está configurado como secret
+## Teste Esperado
 
-## Solução
+**Fluxo de teste**:
+1. Criar playbook: `Email → Condition(email_opened) → Ação`
+2. No editor, verificar que dropdown de emails aparece na condição
+3. Selecionar o nó de email na lista
+4. Executar "🧪 Testar para Mim"
+5. Abrir o email de teste
+6. Verificar no backend:
+   - `email_sends.playbook_node_id` = ID do nó email selecionado
+   - `email_sends.opened_at` IS NOT NULL
+   - Condição retorna `Result: true` (log)
+7. Ação posterior ao condition executa com sucesso
 
-Usar o secret `FRONTEND_URL` (que já existe e contém `https://nexxoai.lovable.app`) e corrigir a rota:
+---
 
-**Arquivo:** `supabase/functions/process-playbook-queue/index.ts` (linha 764)
+## Benefícios & Zero Downtimes
 
-**Mudança:**
-```typescript
-// Antes:
-const publicFormUrl = `${Deno.env.get('PUBLIC_SITE_URL') || 'https://lovable.app'}/public-form/${formId}?execution_id=${execution.id}&contact_id=${contact.id}`;
+| Aspecto | Status |
+|---------|--------|
+| Regressão | Nenhuma - funcionalidades existentes preservadas |
+| Email tracking | Já funciona (Resend webhooks) → agora com node_id |
+| Backward compatibility | Condições antigas continuam funcionando |
+| UX | Dropdown guia o usuário (evita erros) |
+| Documentação interna | Mensagens de ajuda no editor explicam requisitos |
 
-// Depois:
-const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://nexxoai.lovable.app';
-const publicFormUrl = `${frontendUrl}/f/${formId}?execution_id=${execution.id}&contact_id=${contact.id}`;
-```
+---
 
-## Resultado
+## Nota de Design (Opcional)
 
-| Item | Antes | Depois |
-|------|-------|--------|
-| URL gerada | `https://lovable.app/public-form/abc123?...` | `https://nexxoai.lovable.app/f/abc123?...` |
-| Secret usado | `PUBLIC_SITE_URL` (não existe) | `FRONTEND_URL` (existente) |
-| Rota | `/public-form/` | `/f/` |
+O usuário mencionou uma **versão enterprise opcional**: auto-selecionar o último email upstream quando o user muda `condition_type` para `email_opened/clicked`. Isso evita deixar o dropdown vazio. Pode ser implementado como segunda fase se desejado (não bloqueia funcionalidade base).
 
-## Impacto
-
-- ✅ **Zero regressão**: corrige funcionalidade quebrada
-- ✅ **Alinhamento**: usa mesmo padrão de URLs publicadas do sistema
-- ✅ **Confiabilidade**: sempre usa `FRONTEND_URL` configurado
-
-## Teste Esperado Após Correção
-
-1. Executar "🧪 Testar para Mim" em playbook com nó de formulário
-2. Email recebido com link do tipo: `https://nexxoai.lovable.app/f/{formId}?execution_id=...`
-3. Clicar no link deve abrir o formulário na página correta
-4. Formulário deve funcionar e salvar as respostas

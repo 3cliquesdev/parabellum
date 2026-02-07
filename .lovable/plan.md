@@ -1,69 +1,53 @@
 
-# Correção: Email do Playbook Duplicando Header/Footer
+# Correção: Usar URL Publicada no Link do Formulário do Playbook
 
 ## Problema Identificado
 
-O email chegou com **header e footer duplicados** porque:
+O backend está usando a **URL incorreta** para gerar links de formulários em playbooks:
 
-1. O template é salvo no banco com **seu próprio layout HTML completo** (header "SEUARMAZÉMDROP", footer, etc.)
-2. Quando o `process-playbook-queue` envia esse template para `send-email`, **não passa `useRawHtml: true`**
-3. O `send-email` então aplica **OUTRO** wrapper de branding, resultando em:
-   - Header do branding do sistema
-   - Conteúdo do template (que já tem SEU header e footer)
-   - Footer do branding do sistema
+**Código Atual (linha 764):**
+```typescript
+const publicFormUrl = `${Deno.env.get('PUBLIC_SITE_URL') || 'https://lovable.app'}/public-form/${formId}?...`;
+```
+
+**Problemas:**
+1. Usa secret `PUBLIC_SITE_URL` que **não existe** → fallback para `https://lovable.app` (errado)
+2. Rota incorreta: `/public-form/` deveria ser `/f/`
+3. Não usa `FRONTEND_URL` que já está configurado como secret
 
 ## Solução
 
-Modificar o `process-playbook-queue` para passar `useRawHtml: true` quando estiver enviando um template personalizado. Isso fará com que o `send-email` use o HTML exatamente como está, sem adicionar wrapper extra.
+Usar o secret `FRONTEND_URL` (que já existe e contém `https://nexxoai.lovable.app`) e corrigir a rota:
 
-### Arquivo a Modificar
-
-`supabase/functions/process-playbook-queue/index.ts`
-
-**Localização:** Função `executeEmailNode`, na chamada do `send-email` (linhas 513-524)
+**Arquivo:** `supabase/functions/process-playbook-queue/index.ts` (linha 764)
 
 **Mudança:**
-- Adicionar `useRawHtml: !!emailData.template_id` ao payload
-- Quando há `template_id`, o template já tem layout próprio → usar raw HTML
-- Quando não há `template_id` (fallback body/message), manter branding padrão
+```typescript
+// Antes:
+const publicFormUrl = `${Deno.env.get('PUBLIC_SITE_URL') || 'https://lovable.app'}/public-form/${formId}?execution_id=${execution.id}&contact_id=${contact.id}`;
 
-```text
-Antes (linhas 513-524):
-const { data, error } = await supabase.functions.invoke('send-email', {
-  body: {
-    to: to,
-    to_name: to_name,
-    subject: finalSubject,
-    html: finalHtml,
-    customer_id: contact.id,
-    ...
-  },
-});
-
-Depois:
-const { data, error } = await supabase.functions.invoke('send-email', {
-  body: {
-    to: to,
-    to_name: to_name,
-    subject: finalSubject,
-    html: finalHtml,
-    customer_id: contact.id,
-    useRawHtml: !!emailData.template_id,  // Template personalizado = usar HTML como está
-    ...
-  },
-});
+// Depois:
+const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://nexxoai.lovable.app';
+const publicFormUrl = `${frontendUrl}/f/${formId}?execution_id=${execution.id}&contact_id=${contact.id}`;
 ```
+
+## Resultado
+
+| Item | Antes | Depois |
+|------|-------|--------|
+| URL gerada | `https://lovable.app/public-form/abc123?...` | `https://nexxoai.lovable.app/f/abc123?...` |
+| Secret usado | `PUBLIC_SITE_URL` (não existe) | `FRONTEND_URL` (existente) |
+| Rota | `/public-form/` | `/f/` |
 
 ## Impacto
 
-| Aspecto | Avaliação |
-|---------|-----------|
-| Regressão | Nenhuma - templates personalizados renderizarão corretamente |
-| Funcionalidade | Emails de playbook com template respeitam o layout do template |
-| Fallback | Emails sem template continuam recebendo branding padrão |
+- ✅ **Zero regressão**: corrige funcionalidade quebrada
+- ✅ **Alinhamento**: usa mesmo padrão de URLs publicadas do sistema
+- ✅ **Confiabilidade**: sempre usa `FRONTEND_URL` configurado
 
 ## Teste Esperado Após Correção
 
-1. Email de teste deve chegar com layout limpo (só o template)
-2. Banner de teste aparece dentro do template
-3. Sem duplicação de header/footer
+1. Executar "🧪 Testar para Mim" em playbook com nó de formulário
+2. Email recebido com link do tipo: `https://nexxoai.lovable.app/f/{formId}?execution_id=...`
+3. Clicar no link deve abrir o formulário na página correta
+4. Formulário deve funcionar e salvar as respostas

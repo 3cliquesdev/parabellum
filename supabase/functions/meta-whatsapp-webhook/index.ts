@@ -87,12 +87,51 @@ async function verifyMetaSignature(
   signature: string | null,
   appSecret: string | null
 ): Promise<boolean> {
-  // ⚠️ HMAC validation temporarily disabled for debugging
-  // TODO: Re-enable once correct App Secret is configured
-  console.log("[meta-whatsapp-webhook] ⚠️ HMAC validation DISABLED (temporary)");
-  console.log("[meta-whatsapp-webhook] Signature present:", !!signature);
-  console.log("[meta-whatsapp-webhook] App Secret present:", !!appSecret);
-  return true;
+  // Validate that we have the required inputs
+  if (!appSecret) {
+    console.error("[meta-whatsapp-webhook] ❌ WHATSAPP_APP_SECRET not configured");
+    return false;
+  }
+
+  if (!signature || !signature.startsWith("sha256=")) {
+    console.error("[meta-whatsapp-webhook] ❌ Missing or invalid x-hub-signature-256 header");
+    return false;
+  }
+
+  try {
+    const signatureHash = signature.replace("sha256=", "");
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(appSecret);
+    const messageData = encoder.encode(body);
+
+    // Import key for HMAC-SHA256
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+
+    // Sign the message body
+    const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
+    const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    const isValid = expectedSignature === signatureHash;
+    
+    if (!isValid) {
+      console.error("[meta-whatsapp-webhook] ❌ HMAC signature mismatch");
+    } else {
+      console.log("[meta-whatsapp-webhook] ✅ HMAC signature verified");
+    }
+
+    return isValid;
+  } catch (error) {
+    console.error("[meta-whatsapp-webhook] ❌ Signature verification error:", error);
+    return false;
+  }
 }
 
 serve(async (req) => {

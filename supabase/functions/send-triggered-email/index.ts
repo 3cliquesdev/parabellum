@@ -164,10 +164,10 @@ serve(async (req) => {
     }
 
     // Valores de fallback
-    const fromName = sender?.from_name || branding?.name || "Seu Armazém Drop";
-    const fromEmail = sender?.from_email || "contato@parabellum.work";
+    const fromName = sender?.from_name || branding?.name || "3Cliques";
+    const fromEmail = sender?.from_email || "contato@mail.3cliques.net";
     const headerColor = branding?.header_color || "#1e3a5f";
-    const brandName = branding?.name || "Seu Armazém Drop";
+    const brandName = branding?.name || "3Cliques";
     const footerText = branding?.footer_text || `${brandName} - Equipe de Suporte`;
     const logoUrl = branding?.logo_url;
 

@@ -106,7 +106,7 @@ serve(async (req) => {
       }
     }
     // Valores de fallback caso não encontre branding
-    const brandName = branding?.name || 'Seu Armazém Drop';
+    const brandName = branding?.name || '3Cliques';
     const headerColor = branding?.header_color || '#1e3a5f';
     const primaryColor = branding?.primary_color || '#2c5282';
     const footerText = branding?.footer_text || `${brandName} - Equipe de Suporte`;
@@ -213,7 +213,7 @@ serve(async (req) => {
     };
 
     // Buscar sender configurado
-    let senderEmail = 'contato@parabellum.work';
+    let senderEmail = 'contato@mail.3cliques.net';
     let senderName = sanitizeName(brandName); // Sanitizar nome do sender
 
     const { data: senderConfig } = await supabase

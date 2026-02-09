@@ -199,7 +199,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Seu Armazém Drop Comercial <comercial@parabellum.work>',
+        from: '3Cliques Comercial <contato@mail.3cliques.net>',
         to: [contact.email],
         subject: `Proposta Comercial #${quote.quote_number} - ${contact.company || contact.first_name}`,
         html: emailHtml,

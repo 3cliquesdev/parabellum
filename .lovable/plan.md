@@ -1,62 +1,56 @@
 
-# Persistir consultant_id no Contato Durante Transferencia do Fluxo
 
-## Problema Raiz
+# Trava de Protecao v1.0 — Routing de Cliente Retornante + Persistencia de Consultor
 
-Quando o fluxo transfere uma conversa para um consultor (via email lookup ou collectedData), o webhook salva o `assigned_to` na **conversa** mas **nunca persiste o `consultant_id` na tabela `contacts`**. Na proxima vez que o cliente manda mensagem:
+## Objetivo
 
-1. Webhook busca `contacts.consultant_id` → NULL
-2. `hasConsultant = false`
-3. Cria conversa em `autopilot` ao inves de `copilot`
-4. Fluxo recomeça do zero ("Seja bem-vindo...")
+Criar marcadores de protecao ("travas") nos dois blocos criticos do webhook para que qualquer desenvolvedor (humano ou IA) saiba que essas secoes **nao podem ser alteradas** sem aprovacao explicita.
 
-Dados do Ronildo confirmam: contact tem `consultant_id: NULL`, conversa anterior tinha `assigned_to: dc6d6f88...` (consultor correto).
+## O que sera feito
 
-## Correcao
+### 1. Bloco de comentario de protecao nos 2 trechos criticos
 
-### Arquivo: `supabase/functions/meta-whatsapp-webhook/index.ts`
+Adicionar um header de protecao padronizado antes de cada bloco, com:
+- Identificador da trava e versao
+- Descricao do comportamento protegido
+- Regra de que alteracoes precisam de aprovacao
+- Data de criacao
 
-**Unico ponto de mudanca** — Apos linha 828, quando `consultantId` e encontrado e atribuido a conversa, tambem salvar no contato:
+### 2. Trechos protegidos
 
-```typescript
-if (consultantId) {
-  updateData.assigned_to = consultantId;
-  updateData.ai_mode = 'copilot';
-  console.log("[meta-whatsapp-webhook] 👤 Atribuindo ao consultor:", consultantId);
+**Trava ROUTING-LOCK v1.0** (linhas ~471-498)
+- Busca `consultant_id` no contato
+- Se existe, cria conversa em `copilot` com `assigned_to` = consultor
+- Se nao existe, cria em `autopilot` (fluxo normal)
 
-  // NOVO: Persistir consultant_id no contato para routing futuro
-  const { error: contactUpdateError } = await supabase
-    .from('contacts')
-    .update({ consultant_id: consultantId })
-    .eq('id', contact.id);
+**Trava TRANSFER-PERSIST-LOCK v1.0** (linhas ~765-853)
+- Busca consultor por contato, email coletado, ou regex nas mensagens
+- Atribui `assigned_to` e `ai_mode = copilot`
+- Persiste `consultant_id` no contato para routing futuro
+- Executa transferencia de departamento
 
-  if (contactUpdateError) {
-    console.error("[meta-whatsapp-webhook] ❌ Erro ao salvar consultant_id no contato:", contactUpdateError);
-  } else {
-    console.log("[meta-whatsapp-webhook] ✅ consultant_id salvo no contato:", contact.id, "→", consultantId);
-  }
-}
+### 3. Formato do comentario de trava
+
+```text
+// ═══════════════════════════════════════════════════════════════
+// 🔒 TRAVA [NOME] v1.0 — [DATA]
+// PROTEGIDO: [descricao do comportamento]
+// ⚠️  NAO ALTERAR sem aprovacao explicita do responsavel.
+// Qualquer mudanca deve: (1) ser justificada, (2) testada, (3) versionada.
+// ═══════════════════════════════════════════════════════════════
 ```
 
-## Fix imediato para Ronildo (SQL)
+## Secao Tecnica
 
-Tambem corrigir o contato do Ronildo que ja esta com consultant_id NULL mas deveria ter o consultor `dc6d6f88-19f0-46c5-a618-d2023ec76b7d`:
+### Arquivo modificado
+- `supabase/functions/meta-whatsapp-webhook/index.ts`
 
-```sql
-UPDATE contacts 
-SET consultant_id = 'dc6d6f88-19f0-46c5-a618-d2023ec76b7d'
-WHERE id = '6089a243-be4b-49e2-9345-344c44c6f04a';
-```
+### Mudancas
+- Adicionar bloco de comentario antes da linha ~471 (routing de cliente retornante)
+- Adicionar bloco de comentario antes da linha ~765 (transferencia com persistencia)
+- Zero mudanca de logica — apenas comentarios de protecao
 
-## Resultado
-
-| Cenario | Antes | Depois |
-|---------|-------|--------|
-| 1o contato (fluxo transfere) | Consultor so no assigned_to da conversa | Consultor tambem salvo no contato |
-| 2o contato (retorno) | consultant_id NULL → autopilot → fluxo do zero | consultant_id preenchido → copilot → direto pro consultor |
-
-## Impacto
-
-- Zero risco de regressao: so adiciona um UPDATE no contato quando consultor ja foi identificado
-- Nao altera nenhum outro fluxo (distribuicao geral, kill switch, CSAT)
-- Edge function `meta-whatsapp-webhook` precisa deploy apos mudanca
+### Impacto
+- Nenhum impacto funcional (somente comentarios)
+- Nenhuma regressao possivel
+- Serve como documentacao viva e alerta para futuras edicoes

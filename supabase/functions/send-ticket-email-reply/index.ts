@@ -75,11 +75,11 @@ serve(async (req) => {
     console.log("[send-ticket-email-reply] Sending email to:", customer.email);
 
     // Get branding and sender from get-email-template function
-    let fromName = "Seu Armazém Drop Suporte";
-    let fromEmail = "suporte@parabellum.work";
+    let fromName = "3Cliques Suporte";
+    let fromEmail = "contato@mail.3cliques.net";
     let headerColor = "#1e3a5f";
-    let brandName = "Seu Armazém Drop";
-    let footerText = "Seu Armazém Drop - Equipe de Suporte";
+    let brandName = "3Cliques";
+    let footerText = "3Cliques - Equipe de Suporte";
 
     try {
       // Try to get configured branding

@@ -236,8 +236,8 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Buscar sender configurado do banco de dados
-    let senderEmail = 'contato@seuarmazemdrop.parabellum.work';
-    let senderName = 'Seu Armazem Drop';
+    let senderEmail = 'contato@mail.3cliques.net';
+    let senderName = '3Cliques';
 
     const { data: senderConfig } = await supabase
       .from('system_configurations')
@@ -257,7 +257,7 @@ serve(async (req) => {
       .eq('is_default_customer', true)
       .single();
 
-    const brandName = brandingData?.name || 'Seu Armazém Drop';
+    const brandName = brandingData?.name || '3Cliques';
     const logoUrl = brandingData?.logo_url || 'https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-seuarmazemdrop.png';
     senderName = sanitizeName(brandName);
 

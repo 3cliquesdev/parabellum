@@ -49,27 +49,27 @@ serve(async (req) => {
 
     // Define branding based on type
     const branding = type === 'customer' ? {
-      name: 'Seu Armazém Drop',
-      from: 'Seu Armazém Drop <contato@seuarmazemdrop.parabellum.work>',
-      subject: 'Código de Verificação - Seu Armazém Drop',
+      name: '3Cliques',
+      from: '3Cliques <contato@mail.3cliques.net>',
+      subject: 'Código de Verificação - 3Cliques',
       logo: 'https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo_seu_armazem-drop.png',
       greeting: 'Olá!',
-      systemName: 'Seu Armazém Drop',
+      systemName: '3Cliques',
       primaryColor: '#f97316',
       headerColor: '#1e293b',
-      description: 'Recebemos uma solicitação de verificação no Seu Armazém Drop.',
-      footer: 'Equipe Seu Armazém Drop'
+      description: 'Recebemos uma solicitação de verificação no 3Cliques.',
+      footer: 'Equipe 3Cliques'
     } : {
-      name: 'Parabellum Security',
-      from: 'Parabellum Security <sistema@seuarmazemdrop.parabellum.work>',
-      subject: 'Código de Verificação - Acesso ao Sistema Parabellum',
+      name: '3Cliques',
+      from: '3Cliques <contato@mail.3cliques.net>',
+      subject: 'Código de Verificação - Acesso ao Sistema 3Cliques',
       logo: 'https://zaeozfdjhrmblfaxsyuu.supabase.co/storage/v1/object/public/avatars/logo-parabellum-email.png?v=2',
       greeting: 'Prezado(a) Colaborador(a),',
-      systemName: 'Parabellum / 3 Cliques',
+      systemName: '3Cliques',
       primaryColor: '#2563eb',
       headerColor: '#1e3a5f',
-      description: 'Recebemos uma solicitação de acesso à sua conta no sistema Parabellum / 3 Cliques.',
-      footer: 'Atenciosamente,<br><strong style="color: #1e293b;">Equipe Parabellum Security</strong>'
+      description: 'Recebemos uma solicitação de acesso à sua conta no sistema 3Cliques.',
+      footer: 'Atenciosamente,<br><strong style="color: #1e293b;">Equipe 3Cliques</strong>'
     };
 
     // Rate limit: máximo 10 códigos por email por hora (aumentado para desenvolvimento)

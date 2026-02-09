@@ -46,7 +46,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Erro ao buscar configuração de email");
     }
 
-    const fromEmail = config?.value || "Test <noreply@parabellum.work>";
+    const fromEmail = config?.value || "3Cliques <contato@mail.3cliques.net>";
     console.log("[test-email-send] Using sender:", fromEmail);
 
     // Initialize Resend

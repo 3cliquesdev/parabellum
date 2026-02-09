@@ -395,7 +395,7 @@ serve(async (req) => {
 
     try {
       const emailPayload: any = {
-        from: 'PARABELLUM Security <sistema@parabellum.work>',
+        from: '3Cliques <contato@mail.3cliques.net>',
         to: [email],
         subject: 'Acesso Concedido - Termo de Responsabilidade',
         html: emailHtml,

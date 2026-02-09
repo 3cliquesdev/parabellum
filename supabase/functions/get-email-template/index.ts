@@ -134,13 +134,13 @@ serve(async (req) => {
     }
 
     // Fallback sender values
-    const fromName = sender?.from_name || (is_customer_email ? "Seu Armazém Drop" : "PARABELLUM | 3Cliques");
-    const fromEmail = sender?.from_email || "contato@parabellum.work";
+    const fromName = sender?.from_name || "3Cliques";
+    const fromEmail = sender?.from_email || "contato@mail.3cliques.net";
 
     // 4. Build HTML
     const headerColor = branding?.header_color || "#1e3a5f";
     const primaryColor = branding?.primary_color || "#2563eb";
-    const brandName = branding?.name || (is_customer_email ? "Seu Armazém Drop" : "PARABELLUM | 3Cliques");
+    const brandName = branding?.name || "3Cliques";
     const footerText = branding?.footer_text || `${brandName} - Equipe de Suporte`;
     const logoUrl = branding?.logo_url;
 

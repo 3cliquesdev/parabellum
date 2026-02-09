@@ -261,7 +261,7 @@ serve(async (req) => {
     `;
 
     const { data: emailData, error: emailError } = await resend.emails.send({
-      from: 'PARABELLUM Security <contato@seuarmazemdrop.parabellum.work>',
+      from: '3Cliques <contato@mail.3cliques.net>',
       to: [email!],
       subject: 'Acesso Concedido - Termo de Responsabilidade',
       html: emailHtml,

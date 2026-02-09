@@ -476,18 +476,17 @@ async function executeEmailNode(supabase: any, item: QueueItem, contact: any, ex
   // 🧪 Test mode: override destinatário using helper
   const { isTestMode, speedMultiplier, to, to_name } = getEmailTarget(execution, item, contact, fallbackName);
   
-  // 🧪 Test mode: prefix subject (avoid duplicating [TESTE])
+  // 🧪 Test mode: prefix subject (avoid duplicating (Teste))
   const finalSubject = isTestMode
-    ? (subject.startsWith('[TESTE]') ? subject : `[TESTE] ${subject}`)
+    ? (subject.startsWith('(Teste)') ? subject : `(Teste) ${subject}`)
     : subject;
   
   // 🧪 Test mode: inject visual banner INSIDE the body tag (to preserve email structure)
   let finalHtml = htmlContent;
   if (isTestMode) {
-    const testBanner = `<div style="padding:12px 16px;background:#fef3c7;border:2px dashed #d97706;margin-bottom:16px;font-size:13px;color:#92400e;border-radius:8px;font-family:Arial,sans-serif;">
-        <strong>🧪 EMAIL DE TESTE DO PLAYBOOK</strong><br/>
-        <span style="font-size:12px;">Destinatário original: ${contact.email}</span><br/>
-        <span style="font-size:12px;">Speed multiplier: ${speedMultiplier}x</span>
+    const testBanner = `<div style="padding:10px 14px;background:#f0f9ff;border-left:4px solid #3b82f6;margin-bottom:14px;font-size:13px;color:#1e40af;border-radius:4px;font-family:Arial,sans-serif;">
+        <strong>Teste do Playbook</strong> &mdash;
+        <span style="font-size:12px;">Destinatario original: ${contact.email} | Speed: ${speedMultiplier}x</span>
       </div>`;
     
     // Insert banner after <body> tag to preserve HTML structure

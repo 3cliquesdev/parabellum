@@ -107,7 +107,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Seu Armazém Drop Relatórios <sistema@parabellum.work>',
+            from: '3Cliques Relatorios <contato@mail.3cliques.net>',
             to: [report.email],
             subject: `${report.report_name} - ${formatDate(now)}`,
             html: `

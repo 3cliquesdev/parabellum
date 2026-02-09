@@ -1,117 +1,62 @@
 
+# Persistir consultant_id no Contato Durante Transferencia do Fluxo
 
-# Corrigir Loading Real e hasActiveSearch com Debounce
+## Problema Raiz
 
-## Problema 1: Loading sempre false nos filtros dedicados
+Quando o fluxo transfere uma conversa para um consultor (via email lookup ou collectedData), o webhook salva o `assigned_to` na **conversa** mas **nunca persiste o `consultant_id` na tabela `contacts`**. Na proxima vez que o cliente manda mensagem:
 
-Na linha 284-288, o `activeLoading` retorna `false` para mine/not_responded/sla porque so o `data` foi desestruturado dos hooks, sem o `isLoading`. Isso faz o usuario ver lista vazia por alguns frames durante o fetch.
+1. Webhook busca `contacts.consultant_id` → NULL
+2. `hasConsultant = false`
+3. Cria conversa em `autopilot` ao inves de `copilot`
+4. Fluxo recomeça do zero ("Seja bem-vindo...")
 
-## Problema 2: hasActiveSearch sem debounce
+Dados do Ronildo confirmam: contact tem `consultant_id: NULL`, conversa anterior tinha `assigned_to: dc6d6f88...` (consultor correto).
 
-Na linha 238, `hasActiveSearch` usa `filters.search` (valor imediato), mas o `useInboxSearch` usa `debouncedSearch` internamente. Isso cria um mismatch de ~300ms onde a UI entra em modo busca mas `searchResults` ainda e `undefined`, mostrando lista vazia.
+## Correcao
 
-## Correcoes
+### Arquivo: `supabase/functions/meta-whatsapp-webhook/index.ts`
 
-### 1. `src/pages/Inbox.tsx` (linhas 119-121) — Guardar objeto completo dos hooks
+**Unico ponto de mudanca** — Apos linha 828, quando `consultantId` e encontrado e atribuido a conversa, tambem salvar no contato:
 
-Antes:
 ```typescript
-const { data: myNotRespondedItems } = useMyNotRespondedInboxItems(...)
-const { data: myInboxItems } = useMyInboxItems(...)
-const { data: slaExceededItems } = useSlaExceededItems(...)
+if (consultantId) {
+  updateData.assigned_to = consultantId;
+  updateData.ai_mode = 'copilot';
+  console.log("[meta-whatsapp-webhook] 👤 Atribuindo ao consultor:", consultantId);
+
+  // NOVO: Persistir consultant_id no contato para routing futuro
+  const { error: contactUpdateError } = await supabase
+    .from('contacts')
+    .update({ consultant_id: consultantId })
+    .eq('id', contact.id);
+
+  if (contactUpdateError) {
+    console.error("[meta-whatsapp-webhook] ❌ Erro ao salvar consultant_id no contato:", contactUpdateError);
+  } else {
+    console.log("[meta-whatsapp-webhook] ✅ consultant_id salvo no contato:", contact.id, "→", consultantId);
+  }
+}
 ```
 
-Depois:
-```typescript
-const myNotRespondedQuery = useMyNotRespondedInboxItems(...)
-const myInboxQuery = useMyInboxItems(...)
-const slaQuery = useSlaExceededItems(...)
-```
+## Fix imediato para Ronildo (SQL)
 
-### 2. `src/pages/Inbox.tsx` (linha 124) — Importar useDebouncedValue e criar hasActiveSearch correto
+Tambem corrigir o contato do Ronildo que ja esta com consultant_id NULL mas deveria ter o consultor `dc6d6f88-19f0-46c5-a618-d2023ec76b7d`:
 
-Adicionar import de `useDebouncedValue` e derivar `hasActiveSearch` do valor debounced:
-
-```typescript
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-// ...
-const debouncedSearch = useDebouncedValue(filters.search || "", 300);
-```
-
-### 3. `src/pages/Inbox.tsx` (linha 238) — hasActiveSearch usa debounce
-
-Antes:
-```typescript
-const hasActiveSearch = !!(filters.search && filters.search.trim().length >= 2);
-```
-
-Depois:
-```typescript
-const hasActiveSearch = debouncedSearch.trim().length >= 2;
-```
-
-### 4. `src/pages/Inbox.tsx` (linhas 240-247) — activeItems usa queries completas
-
-Antes:
-```typescript
-if (isNotResponded) return myNotRespondedItems ?? [];
-if (isMine) return myInboxItems ?? [];
-if (isSla) return slaExceededItems ?? [];
-```
-
-Depois:
-```typescript
-if (isNotResponded) return myNotRespondedQuery.data ?? [];
-if (isMine) return myInboxQuery.data ?? [];
-if (isSla) return slaQuery.data ?? [];
-```
-
-### 5. `src/pages/Inbox.tsx` (linhas 284-290) — activeLoading com isLoading real
-
-Antes:
-```typescript
-const activeLoading = hasActiveSearch ? searchLoading :
-  isMine ? false :
-  isNotResponded ? false :
-  isSla ? false :
-  inboxLoading;
-
-const isPageLoading = activeLoading || searchLoading;
-```
-
-Depois:
-```typescript
-const activeLoading = hasActiveSearch ? searchLoading :
-  isNotResponded ? myNotRespondedQuery.isLoading :
-  isMine ? myInboxQuery.isLoading :
-  isSla ? slaQuery.isLoading :
-  inboxLoading;
-
-const isPageLoading = activeLoading;
-```
-
-### 6. (Bonus) Adicionar `general_manager` no human_queue (linha 262)
-
-Antes:
-```typescript
-if (role === 'admin' || role === 'manager' || role === 'support_manager' || role === 'cs_manager') {
-```
-
-Depois:
-```typescript
-if (role === 'admin' || role === 'manager' || role === 'support_manager' || role === 'cs_manager' || role === 'general_manager') {
+```sql
+UPDATE contacts 
+SET consultant_id = 'dc6d6f88-19f0-46c5-a618-d2023ec76b7d'
+WHERE id = '6089a243-be4b-49e2-9345-344c44c6f04a';
 ```
 
 ## Resultado
 
-| Fix | Antes | Depois |
-|-----|-------|--------|
-| Loading nos filtros | Sempre false (lista vazia por frames) | isLoading real do hook ativo |
-| hasActiveSearch | Imediato (mismatch de 300ms) | Sincronizado com debounce do hook |
-| isPageLoading | Redundante (activeLoading OR searchLoading) | Limpo (so activeLoading) |
-| human_queue ACL | Faltava general_manager | Incluido |
+| Cenario | Antes | Depois |
+|---------|-------|--------|
+| 1o contato (fluxo transfere) | Consultor so no assigned_to da conversa | Consultor tambem salvo no contato |
+| 2o contato (retorno) | consultant_id NULL → autopilot → fluxo do zero | consultant_id preenchido → copilot → direto pro consultor |
 
-## Arquivos modificados
+## Impacto
 
-1. `src/pages/Inbox.tsx` — 6 pontos de ajuste (import, hooks, hasActiveSearch, activeItems, activeLoading, human_queue ACL)
-
+- Zero risco de regressao: so adiciona um UPDATE no contato quando consultor ja foi identificado
+- Nao altera nenhum outro fluxo (distribuicao geral, kill switch, CSAT)
+- Edge function `meta-whatsapp-webhook` precisa deploy apos mudanca

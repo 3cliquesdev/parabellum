@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useInboxView, useInboxCounts, type InboxFilters as InboxViewFiltersType, type InboxCounts } from "@/hooks/useInboxView";
 import { useMyNotRespondedInboxItems } from "@/hooks/useMyNotRespondedInboxItems";
@@ -116,9 +117,9 @@ export default function Inbox() {
   const isNotResponded = filter === "not_responded";
   const isSla = filter === "sla";
 
-  const { data: myNotRespondedItems } = useMyNotRespondedInboxItems({ enabled: isNotResponded, refetchInterval: 60_000 });
-  const { data: myInboxItems } = useMyInboxItems({ enabled: isMine, refetchInterval: 60_000 });
-  const { data: slaExceededItems } = useSlaExceededItems({ enabled: isSla, refetchInterval: 60_000 });
+  const myNotRespondedQuery = useMyNotRespondedInboxItems({ enabled: isNotResponded, refetchInterval: 60_000 });
+  const myInboxQuery = useMyInboxItems({ enabled: isMine, refetchInterval: 60_000 });
+  const slaQuery = useSlaExceededItems({ enabled: isSla, refetchInterval: 60_000 });
   
   // 🔍 Hook dedicado para BUSCA - query direta ao banco sem limite artificial
   const { data: searchResults, isLoading: searchLoading } = useInboxSearch(filters.search || "");
@@ -235,16 +236,17 @@ export default function Inbox() {
   }, []);
 
   // ✅ FONTE ÚNICA por filtro — activeItems SEMPRE retorna array (nunca null)
-  const hasActiveSearch = !!(filters.search && filters.search.trim().length >= 2);
+  const debouncedSearch = useDebouncedValue(filters.search || "", 300);
+  const hasActiveSearch = debouncedSearch.trim().length >= 2;
 
   const activeItems = useMemo(() => {
     if (hasActiveSearch) return searchResults ?? [];
-    if (isNotResponded) return myNotRespondedItems ?? [];
-    if (isMine) return myInboxItems ?? [];
-    if (isSla) return slaExceededItems ?? [];
+    if (isNotResponded) return myNotRespondedQuery.data ?? [];
+    if (isMine) return myInboxQuery.data ?? [];
+    if (isSla) return slaQuery.data ?? [];
     return inboxItems ?? [];
-  }, [hasActiveSearch, searchResults, isNotResponded, myNotRespondedItems,
-      isMine, myInboxItems, isSla, slaExceededItems, inboxItems]);
+  }, [hasActiveSearch, searchResults, isNotResponded, myNotRespondedQuery.data,
+      isMine, myInboxQuery.data, isSla, slaQuery.data, inboxItems]);
 
   const filteredConversations = useMemo(() => {
     let result = activeItems.map(inboxItemToConversation);
@@ -259,7 +261,7 @@ export default function Inbox() {
       case "ai_queue":
         return result.filter(c => c.ai_mode === 'autopilot' && c.status !== 'closed');
       case "human_queue":
-        if (role === 'admin' || role === 'manager' || role === 'support_manager' || role === 'cs_manager') {
+        if (role === 'admin' || role === 'manager' || role === 'support_manager' || role === 'cs_manager' || role === 'general_manager') {
           return result.filter(c => c.ai_mode !== 'autopilot' && c.status !== 'closed');
         }
         if (departmentFilter) {
@@ -280,14 +282,14 @@ export default function Inbox() {
     }
   }, [activeItems, inboxItemToConversation, departmentFilter, filter, role, user?.id]);
 
-  // ✅ Loading do activeQuery ativo
+  // ✅ Loading do activeQuery ativo (isLoading real de cada hook)
   const activeLoading = hasActiveSearch ? searchLoading :
-    isMine ? false :
-    isNotResponded ? false :
-    isSla ? false :
+    isNotResponded ? myNotRespondedQuery.isLoading :
+    isMine ? myInboxQuery.isLoading :
+    isSla ? slaQuery.isLoading :
     inboxLoading;
 
-  const isPageLoading = activeLoading || searchLoading;
+  const isPageLoading = activeLoading;
 
   // Ordenação e filtragem por tempo de espera
   const orderedConversations = useMemo(() => {

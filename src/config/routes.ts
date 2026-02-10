@@ -130,7 +130,7 @@ export const universalMenuGroups: MenuGroup[] = [
       { title: "Consultores", href: "/consultants", icon: Users, permission: "cadastros.view_consultants" },
       { title: "Tags", href: "/settings/tags", icon: Tags, permission: "cadastros.view_tags" },
       { title: "Produtos", href: "/settings/products", icon: Package, permission: "cadastros.view_products" },
-      { title: "Departamentos", href: "/settings/departments", icon: Building2, permission: "cadastros.view_departments" },
+      { title: "Depart. & Operações", href: "/settings/departments", icon: Building2, permission: "cadastros.view_departments" },
     ]
   },
   {

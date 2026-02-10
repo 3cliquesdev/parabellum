@@ -1,51 +1,90 @@
 
-# Auto-preencher Prioridade ao selecionar Categoria no Formulario
+
+# Configuracao de Campos Obrigatorios no Formulario de Ticket
 
 ## Resumo
 
-Quando o admin seleciona uma **Categoria Padrao** nas Configuracoes de Ticket do formulario, a **Prioridade Padrao** sera preenchida automaticamente com a prioridade definida nessa categoria (tabela `ticket_categories`). O admin ainda pode alterar manualmente depois.
+Adicionar uma secao de configuracao na pagina "Depart. e Operacoes" que permite ao admin definir quais campos do formulario de criacao de ticket sao **obrigatorios** ou **opcionais**. Isso usa a tabela `system_configurations` ja existente (key/value).
 
-## Problema atual
+## Campos configuraveis
 
-- As categorias no `TicketFieldMapping` sao **hardcoded** (`financeiro`, `tecnico`, `bug`, `outro`) e nao vem do banco
-- Nao ha vinculo entre a categoria selecionada e sua prioridade cadastrada
-- No `CategoryDialog` (criacao manual de ticket), isso ja funciona porque o admin define a prioridade junto
+| Campo | Key no banco | Padrao atual |
+|---|---|---|
+| Departamento Responsavel | `ticket_field_department_required` | false (opcional) |
+| Operacao | `ticket_field_operation_required` | true (obrigatorio) |
+| Origem do Ticket | `ticket_field_origin_required` | true (obrigatorio) |
+| Categoria | `ticket_field_category_required` | false (opcional) |
+| Cliente | `ticket_field_customer_required` | false (opcional) |
+| Responsavel (Atribuir a) | `ticket_field_assigned_to_required` | false (opcional) |
 
 ## O que muda
 
-### 1. Buscar categorias do banco (em vez de hardcoded)
+### 1. Seed das configuracoes no banco
 
-**Arquivo:** `src/components/forms/TicketFieldMapping.tsx`
+Inserir registros na tabela `system_configurations` com os valores padrao, usando `ON CONFLICT DO NOTHING` para nao sobrescrever se ja existir.
 
-- Importar `useTicketCategories` de `src/hooks/useTicketCategories.tsx`
-- Remover o array `CATEGORY_OPTIONS` hardcoded
-- Usar as categorias reais do banco no Select de "Categoria Padrao"
+```sql
+INSERT INTO system_configurations (key, value, description, category)
+VALUES
+  ('ticket_field_department_required', 'false', 'Departamento responsavel obrigatorio na criacao de ticket', 'tickets'),
+  ('ticket_field_operation_required', 'true', 'Operacao obrigatoria na criacao de ticket', 'tickets'),
+  ('ticket_field_origin_required', 'true', 'Origem obrigatoria na criacao de ticket', 'tickets'),
+  ('ticket_field_category_required', 'false', 'Categoria obrigatoria na criacao de ticket', 'tickets'),
+  ('ticket_field_customer_required', 'false', 'Cliente obrigatorio na criacao de ticket', 'tickets'),
+  ('ticket_field_assigned_to_required', 'false', 'Responsavel obrigatorio na criacao de ticket', 'tickets')
+ON CONFLICT (key) DO NOTHING;
+```
 
-### 2. Auto-preencher prioridade ao trocar categoria
+### 2. Novo hook: `useTicketFieldSettings.tsx`
 
-**Arquivo:** `src/components/forms/TicketFieldMapping.tsx`
+- Busca todas as configs com category = 'tickets' e key LIKE 'ticket_field_%_required'
+- Retorna um objeto tipado: `{ department: boolean, operation: boolean, origin: boolean, category: boolean, customer: boolean, assigned_to: boolean }`
+- Mutation para atualizar cada campo individualmente
 
-- No `onValueChange` do Select de categoria:
-  - Buscar a categoria selecionada na lista carregada
-  - Se ela tiver `priority`, atualizar `default_priority` automaticamente
-  - Chamar `onChange({ ...settings, default_category: v, default_priority: cat.priority })`
+### 3. Nova aba "Campos" na pagina Departments.tsx
 
-### 3. Atualizar tipo de `default_category`
+- Aba adicional ao lado de Departamentos, Operacoes, Categorias e Origens
+- Lista cada campo com:
+  - Nome do campo
+  - Toggle (Switch) obrigatorio/opcional
+  - Descricao curta
+- Salva automaticamente ao clicar no toggle (sem botao "Salvar")
 
-**Arquivo:** `src/hooks/useForms.tsx`
+### 4. Atualizar CreateTicketDialog.tsx
 
-- Alterar `default_category` de tipo union literal (`"financeiro" | "tecnico" | ...`) para `string`, ja que agora os valores vem do banco (IDs ou nomes dinamicos)
+- Importar `useTicketFieldSettings()`
+- Usar as configs para:
+  - Mostrar asterisco (*) nos labels de campos obrigatorios
+  - Mostrar "(opcional)" nos labels de campos nao obrigatorios
+  - Ajustar `canSubmit` dinamicamente baseado nos campos marcados como obrigatorios
+- Nenhum campo e removido do formulario - apenas muda se e obrigatorio ou nao
 
-## Arquivos modificados
+### 5. Logica de validacao dinamica
 
-| Arquivo | Mudanca |
+```typescript
+// Exemplo de canSubmit dinamico
+const canSubmit =
+  subject.trim() &&
+  (!fieldSettings.operation || operationId) &&
+  (!fieldSettings.origin || originId) &&
+  (!fieldSettings.department || departmentId) &&
+  (!fieldSettings.category || category) &&
+  (!fieldSettings.customer || customerId) &&
+  (!fieldSettings.assigned_to || assignedTo) &&
+  !createTicket.isPending;
+```
+
+## Arquivos envolvidos
+
+| Arquivo | Acao |
 |---|---|
-| `src/components/forms/TicketFieldMapping.tsx` | Carregar categorias do banco, auto-preencher prioridade ao selecionar |
-| `src/hooks/useForms.tsx` | Tipo de `default_category` para `string` |
+| Migracao SQL | Seed das configs |
+| `src/hooks/useTicketFieldSettings.tsx` | **Novo** - hook de leitura/escrita |
+| `src/pages/Departments.tsx` | Nova aba "Campos" |
+| `src/components/support/CreateTicketDialog.tsx` | Validacao dinamica |
 
 ## Impacto
 
-- Zero regressao: categorias existentes continuam funcionando
-- O Select de categoria agora reflete o que realmente existe no sistema
-- Prioridade e preenchida automaticamente mas pode ser alterada manualmente
-- Formularios ja salvos com categorias antigas continuam validos (string e compativel)
+- Zero regressao: valores padrao mantêm o comportamento atual (Operacao e Origem obrigatorios, resto opcional)
+- Admin pode mudar a qualquer momento sem deploy
+- Formulario reflete as configs em tempo real via React Query

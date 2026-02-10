@@ -1,43 +1,38 @@
 
 
-# Hardening Final: 5 ocorrencias restantes de select("*")
+# Hardening Complementar: 5 count queries restantes
 
-## Status atual
+## Descoberta
 
-O trabalho principal ja foi concluido em mensagens anteriores:
-- Helper `src/lib/supabase-count.ts` -- criado
-- ESLint guardrail em `eslint.config.js` -- configurado
-- 28 substituicoes nos hooks originais -- aplicadas
+A busca final revelou 5 ocorrencias de `select('*', { count: 'exact', head: true })` que usavam aspas simples e nao foram capturadas no inventario anterior.
 
-Restam apenas **5 ocorrencias** em 3 arquivos que nao estavam no inventario original.
+## Mudancas (cirurgicas, 100% seguras)
 
-## Mudancas
+### 1. `src/components/settings/RAGOrchestratorWidget.tsx` (4 substituicoes)
 
-### 1. `src/hooks/useConsultantDistributionReport.tsx` (2 substituicoes)
+- Linha 122: `.select('*', { count: 'exact', head: true })` -> `.select('id', { count: 'exact', head: true })`
+- Linha 127: mesma troca
+- Linha 133: mesma troca
+- Linha 139: mesma troca
 
-Linhas 48 e 55: trocar `select("*", { count: "exact", head: true })` por `select("id", { count: "exact", head: true })`.
+### 2. `src/hooks/useOnboardingFunnel.tsx` (1 substituicao)
 
-### 2. `src/hooks/useCopilotSuggestions.tsx` (1 substituicao)
-
-Linha 149: mesma troca.
-
-### 3. `supabase/functions/test-whatsapp-webhook/index.ts` (2 substituicoes)
-
-Linhas 142 e 147: mesma troca. Nota: edge functions usam o Supabase client da mesma forma, a mudanca e identica e segura.
+- Linha 18: `.select('*', { count: 'exact', head: true })` -> `.select('id', { count: 'exact', head: true })`
 
 ## Seguranca
 
-Todas as 5 ocorrencias usam `{ head: true, count: "exact" }` -- zero body retornado, apenas header Content-Range. Trocar `"*"` por `"id"` nao altera o resultado.
+Identico as fases anteriores: `head: true` nao retorna body, apenas header `Content-Range`. Trocar `'*'` por `'id'` nao muda o resultado.
+
+## Resultado apos aplicacao
+
+Zero ocorrencias de `select("*")` ou `select('*')` em count queries (head:true) em todo o projeto.
+
+As ~770 ocorrencias restantes de `select("*")` sem head:true sao queries que retornam dados reais e representam uma Fase 3 futura de hardening (cada uma precisa de campos explicitos especificos por tabela -- escopo muito maior).
 
 ## Arquivos modificados
 
 | Arquivo | Tipo | Mudanca |
 |---|---|---|
-| `src/hooks/useConsultantDistributionReport.tsx` | EDIT | 2x `"*"` para `"id"` |
-| `src/hooks/useCopilotSuggestions.tsx` | EDIT | 1x `"*"` para `"id"` |
-| `supabase/functions/test-whatsapp-webhook/index.ts` | EDIT | 2x `"*"` para `"id"` |
-
-## Resultado final
-
-Apos esta mudanca: **zero ocorrencias** de `select("*")` em todo o projeto (frontend + edge functions).
+| `src/components/settings/RAGOrchestratorWidget.tsx` | EDIT | 4x `'*'` -> `'id'` |
+| `src/hooks/useOnboardingFunnel.tsx` | EDIT | 1x `'*'` -> `'id'` |
 

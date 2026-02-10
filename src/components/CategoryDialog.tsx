@@ -96,27 +96,39 @@ export default function CategoryDialog({ open, onOpenChange, category }: Categor
       savedCategory = await createMutation.mutateAsync({ name, description, color, priority } as any);
     }
 
-    // Upsert SLA policy if values provided
+    // Manage SLA policy
     const catId = savedCategory?.id || category?.id;
-    if (catId && responseTimeValue && resolutionTimeValue) {
-      // Delete existing policy for this category+priority, then insert
-      await supabase
-        .from("sla_policies")
-        .delete()
-        .eq("category_id", catId)
-        .eq("priority", priority);
+    if (catId) {
+      const hasResponse = responseTimeValue !== "" && responseTimeValue > 0;
+      const hasResolution = resolutionTimeValue !== "" && resolutionTimeValue > 0;
 
-      await supabase
-        .from("sla_policies")
-        .insert({
-          category_id: catId,
-          priority,
-          response_time_value: Number(responseTimeValue),
-          response_time_unit: responseTimeUnit as any,
-          resolution_time_value: Number(resolutionTimeValue),
-          resolution_time_unit: resolutionTimeUnit as any,
-          is_active: true,
-        });
+      if (hasResponse && hasResolution) {
+        // Delete existing then insert new policy
+        await supabase
+          .from("sla_policies")
+          .delete()
+          .eq("category_id", catId)
+          .eq("priority", priority);
+
+        await supabase
+          .from("sla_policies")
+          .insert({
+            category_id: catId,
+            priority,
+            response_time_value: Number(responseTimeValue),
+            response_time_unit: responseTimeUnit as any,
+            resolution_time_value: Number(resolutionTimeValue),
+            resolution_time_unit: resolutionTimeUnit as any,
+            is_active: true,
+          });
+      } else {
+        // Both empty — remove any existing policy to avoid orphan data
+        await supabase
+          .from("sla_policies")
+          .delete()
+          .eq("category_id", catId)
+          .eq("priority", priority);
+      }
 
       queryClient.invalidateQueries({ queryKey: ["sla-policies"] });
     }

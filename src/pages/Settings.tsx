@@ -212,8 +212,8 @@ export default function Settings() {
             <SettingsCard
               icon={Database}
               iconBgColor="bg-blue-400"
-              title="Departamentos"
-              description="Setores da empresa"
+              title="Depart. & Operações"
+              description="Departamentos, operações e categorias"
               onClick={() => navigate('/settings/departments')}
             />
           </SettingsCategory>

@@ -803,7 +803,8 @@ async function handlePaidOrder(
           customer_name: Customer.full_name,
           product_name: Product.product_name,
           value: kiwifyValue,
-          deadline
+          deadline,
+          action_url: `/deals?deal=${matchingDeal.id}`,
         },
         read: false
       });
@@ -2089,7 +2090,8 @@ async function handleSubscriptionRenewal(
         product_name: Product.product_name,
         renewal_value: renewalValue,
         new_ltv: newLtv,
-        cs_deal_id: csRenewalDealId
+        cs_deal_id: csRenewalDealId,
+        action_url: csRenewalDealId ? `/deals?deal=${csRenewalDealId}` : '/deals',
       },
       read: false
     });

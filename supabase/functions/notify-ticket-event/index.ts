@@ -236,6 +236,7 @@ Deno.serve(async (req) => {
         actor_name: actorName,
         priority: ticket.priority,
         status: ticket.status,
+        action_url: `/support?ticket=${ticket_id}`,
       };
 
       // If we have ticket_event_id, use dedupe; otherwise insert directly

@@ -6051,7 +6051,8 @@ Por favor, digite o codigo que voce recebeu para confirmar sua identidade.`;
                   conversation_id: conversationId,
                   deal_id: dealId,
                   email: emailInformado,
-                  source: responseChannel
+                  source: responseChannel,
+                  action_url: `/inbox?conversation=${conversationId}`,
                 },
                 read: false
               });
@@ -6082,7 +6083,8 @@ Por favor, digite o codigo que voce recebeu para confirmar sua identidade.`;
                     metadata: { 
                       conversation_id: conversationId, 
                       deal_id: dealId,
-                      email: emailInformado
+                      email: emailInformado,
+                      action_url: `/inbox?conversation=${conversationId}`,
                     },
                     read: false
                   });

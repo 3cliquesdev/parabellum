@@ -90,7 +90,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       title: `Nova nota interna no ticket ${ticket.ticket_number}`,
       message: `${commenterName} adicionou uma nota interna: "${comment_content.substring(0, 100)}${comment_content.length > 100 ? '...' : ''}"`,
       type: 'internal_comment',
-      metadata: { ticket_id, ticket_number: ticket.ticket_number },
+      metadata: { ticket_id, ticket_number: ticket.ticket_number, action_url: `/support?ticket=${ticket_id}` },
       read: false,
     }));
 

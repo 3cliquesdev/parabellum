@@ -60,7 +60,8 @@ serve(async (req) => {
       title: string;
       message: string;
       type: string;
-      link: string;
+      metadata: { deal_id: string; action_url: string };
+      read: boolean;
     }> = [];
 
     const dealsToUpdate: Array<{
@@ -109,7 +110,8 @@ serve(async (req) => {
                 title: "🚨 Escalação: Deal Crítico",
                 message: `O negócio "${deal.title}" com ${contactName} está parado há ${daysSinceUpdate} dias. Valor: R$ ${(deal.value || 0).toLocaleString('pt-BR')}`,
                 type: "deal_escalation",
-                link: `/deals?dealId=${deal.id}`,
+                metadata: { deal_id: deal.id, action_url: `/deals?dealId=${deal.id}` },
+                read: false,
               });
             }
           }
@@ -121,7 +123,8 @@ serve(async (req) => {
               title: "⚠️ Seu deal foi escalado",
               message: `O negócio "${deal.title}" foi escalado para a gestão por inatividade de ${daysSinceUpdate} dias`,
               type: "deal_escalated",
-              link: `/deals?dealId=${deal.id}`,
+              metadata: { deal_id: deal.id, action_url: `/deals?dealId=${deal.id}` },
+              read: false,
             });
           }
         }
@@ -140,7 +143,8 @@ serve(async (req) => {
             title: "🔴 Deal Crítico - Ação Urgente",
             message: `"${deal.title}" com ${contactName} está sem movimentação há ${daysSinceUpdate} dias!`,
             type: "deal_critical",
-            link: `/deals?dealId=${deal.id}`,
+            metadata: { deal_id: deal.id, action_url: `/deals?dealId=${deal.id}` },
+            read: false,
           });
         }
       } else if (daysSinceUpdate >= THRESHOLDS.warning) {
@@ -152,7 +156,8 @@ serve(async (req) => {
             title: "⚠️ Deal Estagnado",
             message: `"${deal.title}" com ${contactName} está parado há ${daysSinceUpdate} dias. Que tal um follow-up?`,
             type: "deal_warning",
-            link: `/deals?dealId=${deal.id}`,
+            metadata: { deal_id: deal.id, action_url: `/deals?dealId=${deal.id}` },
+            read: false,
           });
         }
       }

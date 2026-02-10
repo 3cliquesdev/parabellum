@@ -275,6 +275,7 @@ Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence
               ticket_id: ticketId,
               agent_name: agentName,
               confidence: globalConfidence,
+              action_url: '/settings/ai-audit',
             },
             read: false,
           });

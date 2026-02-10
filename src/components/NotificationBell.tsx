@@ -90,14 +90,45 @@ export function NotificationBell() {
     setUnreadCount(0);
   };
 
+  const getNotificationTarget = (n: Notification): string | null => {
+    const md = (n.metadata ?? {}) as any;
+
+    // Universal: action_url tem prioridade
+    if (md.action_url) return md.action_url;
+
+    // Fallback por type para notificações antigas
+    switch (n.type) {
+      case 'ticket_created':
+      case 'ticket_status':
+      case 'ticket_transfer':
+      case 'ticket_reply':
+      case 'internal_comment':
+        return md.ticket_id ? `/support?ticket=${md.ticket_id}` : null;
+      case 'new_lead':
+        return md.conversation_id
+          ? `/inbox?conversation=${md.conversation_id}`
+          : '/inbox';
+      case 'payment_pending_validation':
+      case 'subscription_renewal':
+      case 'deal_marked_organic':
+      case 'deal_critical':
+      case 'deal_warning':
+      case 'deal_escalation':
+      case 'deal_escalated':
+        return md.deal_id ? `/deals?deal=${md.deal_id}` : '/deals';
+      case 'knowledge_approval':
+      case 'ai_learning':
+        return '/settings/ai-audit';
+      default:
+        return null;
+    }
+  };
+
   const handleClick = (notif: Notification) => {
     if (!notif.read) markAsRead(notif.id);
-
-    const meta = notif.metadata as any;
-    if (meta?.ticket_id) {
-      navigate(`/support?ticket=${meta.ticket_id}`);
-      setOpen(false);
-    }
+    const target = getNotificationTarget(notif);
+    if (target) navigate(target);
+    setOpen(false);
   };
 
   const getIcon = (type: string) => {
@@ -105,11 +136,22 @@ export function NotificationBell() {
       case "ticket_created":
       case "ticket_status":
       case "ticket_transfer":
+      case "ticket_reply":
       case "internal_comment":
         return <Ticket className="h-4 w-4 text-primary flex-shrink-0" />;
+      case "new_lead":
+        return <MessageSquare className="h-4 w-4 text-primary flex-shrink-0" />;
+      case "deal_critical":
+      case "deal_warning":
+      case "deal_escalation":
+      case "deal_escalated":
+      case "deal_marked_organic":
       case "subscription_renewal":
       case "payment_pending_validation":
         return <Info className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
+      case "knowledge_approval":
+      case "ai_learning":
+        return <Info className="h-4 w-4 text-primary flex-shrink-0" />;
       default:
         return <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
     }

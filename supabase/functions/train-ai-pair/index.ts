@@ -88,6 +88,7 @@ serve(async (req) => {
           metadata: {
             article_id: article.id,
             source: source,
+            action_url: '/settings/ai-audit',
           },
           read: false,
         });

@@ -101,7 +101,8 @@ serve(async (req) => {
             metadata: {
               deal_id: deal.id,
               deal_title: deal.title,
-              value: deal.value
+              value: deal.value,
+              action_url: `/deals?deal=${deal.id}`,
             },
             read: false
           });

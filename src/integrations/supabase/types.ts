@@ -8152,6 +8152,36 @@ export type Database = {
           },
         ]
       }
+      ticket_operations: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ticket_stakeholders: {
         Row: {
           added_at: string | null
@@ -8320,6 +8350,7 @@ export type Database = {
           internal_note: string | null
           last_email_message_id: string | null
           merged_to_ticket_id: string | null
+          operation_id: string | null
           priority: Database["public"]["Enums"]["ticket_priority"]
           rejection_reason: string | null
           resolved_at: string | null
@@ -8349,6 +8380,7 @@ export type Database = {
           internal_note?: string | null
           last_email_message_id?: string | null
           merged_to_ticket_id?: string | null
+          operation_id?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]
           rejection_reason?: string | null
           resolved_at?: string | null
@@ -8378,6 +8410,7 @@ export type Database = {
           internal_note?: string | null
           last_email_message_id?: string | null
           merged_to_ticket_id?: string | null
+          operation_id?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]
           rejection_reason?: string | null
           resolved_at?: string | null
@@ -8428,6 +8461,13 @@ export type Database = {
             columns: ["merged_to_ticket_id"]
             isOneToOne: false
             referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_operations"
             referencedColumns: ["id"]
           },
           {

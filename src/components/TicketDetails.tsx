@@ -399,7 +399,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
 
 
         {/* Controles inline compactos */}
-        <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-3 pt-1 flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">Status</span>
             <Select value={ticket.status} onValueChange={handleStatusChange}>
@@ -450,6 +450,16 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Operação */}
+          {ticket.operation_id && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Operação</span>
+              <Badge variant="outline" className="text-xs">
+                {(ticket as any).operation?.name || ticket.operation_id.slice(0, 8)}
+              </Badge>
+            </div>
+          )}
         </div>
       </div>
 

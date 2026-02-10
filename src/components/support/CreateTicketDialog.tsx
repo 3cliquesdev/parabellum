@@ -7,6 +7,7 @@ import { useUsers } from "@/hooks/useUsers";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useTicketAttachmentUpload } from "@/hooks/useTicketAttachmentUpload";
 import { useTags } from "@/hooks/useTags";
+import { useTicketOperations } from "@/hooks/useTicketOperations";
 import { useDropzone } from "react-dropzone";
 import {
   Dialog,
@@ -55,6 +56,7 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
   const { data: categories = [] } = useTicketCategories();
   const createCategory = useCreateTicketCategory();
   const { uploadFile, uploading, progress } = useTicketAttachmentUpload();
+  const { data: operations = [] } = useTicketOperations();
 
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
@@ -79,6 +81,9 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [uploadedAttachment, setUploadedAttachment] = useState<{ url: string; type: string; name: string } | null>(null);
+
+  // Operação (obrigatório)
+  const [operationId, setOperationId] = useState<string>("");
 
   // Tags
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -167,11 +172,12 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
       description: description.trim(),
       priority,
       category,
-      customer_id: customerId || undefined, // NULL ao invés de string vazia
+      customer_id: customerId || undefined,
       department_id: departmentId || undefined,
       assigned_to: assignedTo || undefined,
       attachments: uploadedAttachment ? [uploadedAttachment] : [],
       tag_ids: selectedTagIds,
+      operation_id: operationId || undefined,
     });
 
     // Reset form
@@ -182,6 +188,7 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
     setCustomerId("");
     setDepartmentId("");
     setAssignedTo("");
+    setOperationId("");
     setCustomerSearch("");
     setAttachmentFile(null);
     setAttachmentPreview(null);
@@ -193,7 +200,7 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
 
   const activeDepartments = departments?.filter((d) => d.is_active) || [];
 
-  const canSubmit = subject.trim() && !createTicket.isPending;
+  const canSubmit = subject.trim() && operationId && !createTicket.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -466,6 +473,29 @@ export function CreateTicketDialog({ open, onOpenChange }: CreateTicketDialogPro
                 </Select>
               )}
             </div>
+          </div>
+
+          {/* Operação (obrigatório) */}
+          <div className="space-y-2">
+            <Label>Operação *</Label>
+            <Select value={operationId} onValueChange={setOperationId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a operação" />
+              </SelectTrigger>
+              <SelectContent 
+                position="popper" 
+                side="bottom" 
+                align="start"
+                sideOffset={4}
+                className="z-[100] max-h-[200px] overflow-y-auto bg-popover text-popover-foreground shadow-lg border"
+              >
+                {operations.map((op) => (
+                  <SelectItem key={op.id} value={op.id}>
+                    {op.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Tags */}

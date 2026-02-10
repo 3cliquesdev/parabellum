@@ -1,63 +1,53 @@
 
-## Correcao do Bug CSAT Guard - Limpeza de awaiting_rating
+## Correcao: Webhook do Resend nao atualiza email_sends
 
-### Problema Identificado
+### Problema
 
-O CSAT Guard no `meta-whatsapp-webhook` roda ANTES de qualquer logica de conversa/fluxo. Quando um cliente nao avalia e volta a entrar em contato:
+O fluxo do playbook tem um no de condicao "Email Aberto" que verifica a coluna `opened_at` na tabela `email_sends`. Porem, quando o Resend envia o webhook de abertura (`email.opened`), a Edge Function `resend-webhook` registra o evento apenas em:
+- `email_tracking_events` (tabela de tracking)
+- `interactions` (tabela de interacoes)
 
-```text
-Mensagem 1: "Ola"
-  -> CSAT Guard: extractRating("Ola") = null -> cai no fluxo normal
-  -> Nova conversa criada -> Fluxo envia menu: "1. Pedidos 2. Sistema..."
-  -> awaiting_rating da conversa ANTERIOR permanece TRUE
-
-Mensagem 2: "1" (cliente escolhendo opcao do menu)
-  -> CSAT Guard: extractRating("1") = 1 -> CAPTURA como rating!
-  -> Salva 1 estrela na conversa anterior
-  -> continue -> mensagem NUNCA chega ao fluxo da nova conversa
-  -> Cliente fica sem resposta
-```
+**Nunca atualiza `email_sends.opened_at`**, que e exatamente onde a condicao do playbook consulta. Resultado: a condicao sempre retorna `false`, e o fluxo segue pelo caminho "Nao" (lembrete).
 
 ### Solucao
 
-Quando o CSAT Guard encontra uma conversa com `awaiting_rating = true` mas a mensagem NAO e um rating valido, **limpar o flag** imediatamente. Isso respeita a intencao do cliente de iniciar uma nova conversa.
+Adicionar no `resend-webhook` a atualizacao de `email_sends` quando receber eventos de abertura, clique ou bounce:
+
+```text
+Evento opened  -> UPDATE email_sends SET opened_at = NOW() WHERE resend_email_id = email_id
+Evento clicked -> UPDATE email_sends SET clicked_at = NOW() WHERE resend_email_id = email_id
+Evento bounced -> UPDATE email_sends SET bounced_at = NOW() WHERE resend_email_id = email_id
+```
 
 ### Arquivo alterado
 
-**`supabase/functions/meta-whatsapp-webhook/index.ts`** (linhas 374-454)
+**`supabase/functions/resend-webhook/index.ts`**
 
-Apos a verificacao `if (csatRating !== null)` (linha 377), adicionar um bloco `else` que:
-
-1. Limpa `awaiting_rating = false` na conversa anterior
-2. Loga a decisao
-3. Permite que a mensagem siga para o fluxo normal (sem `continue`)
+Apos o insert em `email_tracking_events` (linha 93) e antes do insert em `interactions`, adicionar:
 
 ```typescript
-if (csatConversation && csatConversation.awaiting_rating) {
-  const csatRating = extractRating(messageContent);
+// Atualizar email_sends com timestamps de interacao
+if (eventType === 'opened' || eventType === 'clicked' || eventType === 'bounced') {
+  const updateField = eventType === 'opened' ? 'opened_at' 
+    : eventType === 'clicked' ? 'clicked_at' 
+    : 'bounced_at';
   
-  if (csatRating !== null) {
-    // ... logica existente de captura de rating (sem alteracao) ...
-    continue;
+  const { error: updateError } = await supabase
+    .from('email_sends')
+    .update({ [updateField]: new Date().toISOString() })
+    .eq('resend_email_id', payload.data.email_id);
+  
+  if (updateError) {
+    console.warn('[resend-webhook] Falha ao atualizar email_sends:', updateError);
   } else {
-    // Cliente enviou mensagem nao-numerica apos CSAT
-    // Intencao clara: novo contato, nao avaliacao
-    // Limpar flag para nao interceptar proximas mensagens
-    console.log(`[meta-whatsapp-webhook] CSAT Guard: mensagem "${messageContent}" nao e rating. Limpando awaiting_rating da conversa ${csatConversation.id}`);
-    await supabase
-      .from("conversations")
-      .update({ awaiting_rating: false })
-      .eq("id", csatConversation.id);
-    // NAO usar continue - deixar mensagem seguir para fluxo normal
+    console.log(`[resend-webhook] email_sends.${updateField} atualizado para email ${payload.data.email_id}`);
   }
 }
 ```
 
-### Detalhes tecnicos
+### Impacto
 
-- Apenas 1 arquivo alterado: `meta-whatsapp-webhook/index.ts`
-- Zero regressao: a logica de captura de rating valido (1-5) permanece identica
-- A janela de 24h e a validacao strict (`^[1-5]$`) continuam ativas
-- O flag e limpo apenas quando o cliente demonstra intencao de novo contato
-- Conversas que recebem rating valido continuam funcionando normalmente
-- As 20+ conversas com `awaiting_rating = true` sem rating serao limpas naturalmente conforme os clientes voltarem a entrar em contato
+- Zero regressao: nenhuma logica existente e alterada, apenas um UPDATE adicional
+- A condicao `email_opened` no `process-playbook-queue` passara a funcionar corretamente
+- Emails ja abertos no passado nao serao retroativamente corrigidos (apenas novos eventos)
+- O campo `clicked_at` tambem sera corrigido preventivamente para condicoes `email_clicked`

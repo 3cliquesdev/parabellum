@@ -15,7 +15,7 @@ export function useOnboardingFunnel(startDate: Date, endDate: Date) {
       // Stage 1: Purchase Approved (contacts with status=customer)
       const { count: purchaseCount } = await supabase
         .from('contacts')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('status', 'customer')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString());

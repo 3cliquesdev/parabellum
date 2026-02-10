@@ -12,7 +12,8 @@ interface CreateTicketData {
   conversation_id?: string;
   attachments?: any[];
   department_id?: string;
-  tag_ids?: string[]; // NOVO - opcional
+  tag_ids?: string[];
+  operation_id?: string;
 }
 
 export function useCreateTicket() {

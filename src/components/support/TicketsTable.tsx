@@ -58,6 +58,11 @@ interface Ticket {
     name: string;
     color?: string | null;
   } | null;
+  requesting_department?: {
+    id: string;
+    name: string;
+    color?: string | null;
+  } | null;
 }
 
 interface TicketsTableProps {
@@ -173,7 +178,7 @@ export function TicketsTable({
     <div className="h-full flex flex-col bg-card">
       {/* Table Header */}
       <div className="flex-none border-b border-border bg-muted/50">
-        <div className="grid grid-cols-[40px_110px_minmax(100px,1.2fr)_minmax(80px,0.6fr)_minmax(100px,0.8fr)_minmax(100px,0.8fr)_minmax(80px,0.6fr)_50px_70px_60px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="grid grid-cols-[40px_110px_minmax(100px,1.2fr)_minmax(80px,0.6fr)_minmax(100px,0.8fr)_minmax(100px,0.8fr)_minmax(70px,0.5fr)_minmax(70px,0.5fr)_50px_70px_60px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
           {onToggleSelectAll && (
             <div className="flex items-center justify-center">
               <Checkbox 
@@ -189,7 +194,8 @@ export function TicketsTable({
           <div>SLA</div>
           <div>Solicitante</div>
           <div>Responsável</div>
-          <div>Departamento</div>
+          <div>Dept. Solicitante</div>
+          <div>Dept. Responsável</div>
           <div className="flex items-center justify-center">
             <Eye className="w-3 h-3" />
           </div>
@@ -220,7 +226,7 @@ export function TicketsTable({
                 key={ticket.id}
                 onClick={() => onSelectTicket(ticket.id)}
                 className={cn(
-                  "grid grid-cols-[40px_110px_minmax(100px,1.2fr)_minmax(80px,0.6fr)_minmax(100px,0.8fr)_minmax(100px,0.8fr)_minmax(80px,0.6fr)_50px_70px_60px] gap-2 px-3 py-3 cursor-pointer transition-colors items-center",
+                  "grid grid-cols-[40px_110px_minmax(100px,1.2fr)_minmax(80px,0.6fr)_minmax(100px,0.8fr)_minmax(100px,0.8fr)_minmax(70px,0.5fr)_minmax(70px,0.5fr)_50px_70px_60px] gap-2 px-3 py-3 cursor-pointer transition-colors items-center",
                   isSelected 
                     ? "bg-primary/5 border-l-2 border-primary" 
                     : "hover:bg-accent/50 border-l-2 border-transparent",
@@ -320,7 +326,24 @@ export function TicketsTable({
                   )}
                 </div>
 
-                {/* Department */}
+                {/* Dept. Solicitante */}
+                <div className="text-sm truncate">
+                  {ticket.requesting_department?.name ? (
+                    <span 
+                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+                      style={{ 
+                        backgroundColor: ticket.requesting_department.color ? `${ticket.requesting_department.color}20` : undefined,
+                        color: ticket.requesting_department.color || undefined
+                      }}
+                    >
+                      {ticket.requesting_department.name}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground/50">—</span>
+                  )}
+                </div>
+
+                {/* Dept. Responsável */}
                 <div className="text-sm truncate">
                   {ticket.department?.name ? (
                     <span 

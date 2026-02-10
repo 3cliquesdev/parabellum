@@ -8356,6 +8356,7 @@ export type Database = {
           operation_id: string | null
           priority: Database["public"]["Enums"]["ticket_priority"]
           rejection_reason: string | null
+          requesting_department_id: string | null
           resolved_at: string | null
           source_conversation_id: string | null
           status: Database["public"]["Enums"]["ticket_status"]
@@ -8386,6 +8387,7 @@ export type Database = {
           operation_id?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]
           rejection_reason?: string | null
+          requesting_department_id?: string | null
           resolved_at?: string | null
           source_conversation_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
@@ -8416,6 +8418,7 @@ export type Database = {
           operation_id?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]
           rejection_reason?: string | null
+          requesting_department_id?: string | null
           resolved_at?: string | null
           source_conversation_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
@@ -8471,6 +8474,13 @@ export type Database = {
             columns: ["operation_id"]
             isOneToOne: false
             referencedRelation: "ticket_operations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_requesting_department_id_fkey"
+            columns: ["requesting_department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
             referencedColumns: ["id"]
           },
           {

@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
         `)
         .eq('status', 'open')
         .eq('department', dept.id)
-        .in('ai_mode', ['autopilot', 'copilot'])
+        .eq('ai_mode', 'autopilot')
         .lt('last_message_at', inactivityThreshold);
 
       if (fetchError) {
@@ -272,6 +272,7 @@ async function sendWhatsAppMessages(
           instanceId: conversation.whatsapp_meta_instance_id,
           to: phoneNumber,
           message: closeMessage,
+          is_bot_message: true,
         }
       });
       
@@ -281,6 +282,7 @@ async function sendWhatsAppMessages(
             instanceId: conversation.whatsapp_meta_instance_id,
             to: phoneNumber,
             message: csatMessage,
+            is_bot_message: true,
           }
         });
       }
@@ -291,6 +293,7 @@ async function sendWhatsAppMessages(
           instanceId: conversation.whatsapp_instance_id,
           to: phoneNumber,
           message: closeMessage,
+          is_bot_message: true,
         }
       });
       
@@ -300,6 +303,7 @@ async function sendWhatsAppMessages(
             instanceId: conversation.whatsapp_instance_id,
             to: phoneNumber,
             message: csatMessage,
+            is_bot_message: true,
           }
         });
       }

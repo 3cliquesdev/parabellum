@@ -42,6 +42,7 @@ import { BulkMarkAsLostDialog } from "@/components/deals/BulkMarkAsLostDialog";
 import { TransferDealsDialog } from "@/components/deals/TransferDealsDialog";
 import { CleanupInvalidAssignmentsDialog } from "@/components/deals/CleanupInvalidAssignmentsDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { usePerformanceLog } from "@/lib/prefetch";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Deal = Tables<"deals"> & {
@@ -80,6 +81,7 @@ export default function Deals() {
   const { data: pipelines, isLoading: pipelinesLoading } = usePipelines();
   const { data: stages, isLoading: stagesLoading } = useStages(selectedPipeline);
   const { data: deals, isLoading: dealsLoading } = useDeals(selectedPipeline, dealFilters);
+  usePerformanceLog('Deals', !dealsLoading);
   const { data: salesReps } = useSalesReps();
   const { role, loading: roleLoading } = useUserRole();
   const { hasPermission } = useRolePermissions();

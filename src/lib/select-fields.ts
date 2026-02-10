@@ -22,7 +22,19 @@ export const TICKET_SELECT = `
 `;
 
 export const DEAL_SELECT = `
-  *,
+  id, title, value, status, stage_id, pipeline_id,
+  contact_id, organization_id, assigned_to,
+  probability, expected_close_date, expected_revenue,
+  created_at, updated_at, closed_at,
+  currency, lost_reason, lead_source,
+  lead_email, lead_phone, lead_whatsapp_id,
+  is_returning_customer, existing_products,
+  is_organic_sale, affiliate_name, affiliate_email, affiliate_commission,
+  kiwify_offer_id, kiwify_fee, net_value, gross_value,
+  pending_kiwify_event_id, pending_payment_at,
+  product_id, tracking_code,
+  success_criteria, pain_points, churn_risk,
+  became_rotten_at, rotten_notified_at, rotten_escalated_at,
   contacts(id, first_name, last_name, email, phone, company),
   organizations(name),
   assigned_user:profiles!deals_assigned_to_fkey(id, full_name, avatar_url)

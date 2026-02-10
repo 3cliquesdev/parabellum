@@ -124,26 +124,6 @@ export function TicketFieldMapping({
           </div>
         </div>
 
-        {/* Default Priority */}
-        <div className="space-y-2">
-          <Label className="text-sm">Prioridade Padrão</Label>
-          <Select
-            value={settings.default_priority}
-            onValueChange={(v) => onChange({ ...settings, default_priority: v as any })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PRIORITY_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         {/* Default Category */}
         <div className="space-y-2">
           <Label className="text-sm">Categoria Padrão</Label>
@@ -169,6 +149,32 @@ export function TicketFieldMapping({
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Default Priority (read-only when category is selected) */}
+        <div className="space-y-2">
+          <Label className="text-sm">Prioridade Padrão</Label>
+          <Select
+            value={settings.default_priority}
+            onValueChange={(v) => onChange({ ...settings, default_priority: v as any })}
+            disabled={!!settings.default_category}
+          >
+            <SelectTrigger className={settings.default_category ? "opacity-70 cursor-not-allowed" : ""}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRIORITY_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {settings.default_category && (
+            <p className="text-xs text-muted-foreground">
+              Definida automaticamente pela categoria selecionada
+            </p>
+          )}
         </div>
 
         {/* Default Operation */}

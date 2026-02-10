@@ -119,24 +119,24 @@ export function RAGOrchestratorWidget() {
       // Buscar artigos da KB
       const { count: kbTotal } = await supabase
         .from('knowledge_articles')
-        .select('*', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true });
 
       // Buscar artigos com embeddings
       const { count: kbWithEmbed } = await supabase
         .from('knowledge_articles')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .not('embedding', 'is', null);
 
       // Buscar contatos com dados Kiwify
       const { count: kiwifyCount } = await supabase
         .from('contacts')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('kiwify_validated', true);
 
       // Buscar regras de sandbox/training
       const { count: sandboxCount } = await supabase
         .from('ai_training_examples')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('is_active', true);
 
       return {

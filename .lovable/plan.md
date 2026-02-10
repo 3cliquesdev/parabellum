@@ -1,59 +1,31 @@
 
-## Trava Anti-Duplicacao de Playbooks
 
-### Problema
-Quando um cliente tem recorrencias (assinaturas), cada cobranca dispara o webhook Kiwify novamente, que chama `initiatePlaybook()` sem nenhuma verificacao se ja existe uma execucao ativa. Resultado: multiplas execucoes simultaneas do mesmo playbook para o mesmo contato (como aconteceu com edevaldo.horizonn@gmail.com - 3 execucoes ao mesmo tempo).
+## Cancelar Execucoes Duplicadas - edevaldo.horizonn@gmail.com
 
-### Onde falta a trava
+### Situacao Atual
 
-| Ponto de disparo | Tem anti-duplicacao? |
-|---|---|
-| `public-start-playbook` | Sim (linhas 200-220) |
-| `kiwify-webhook` → `initiatePlaybook()` | **Nao** |
-| `execute-playbook` (manual) | **Nao** |
-| `bulk-trigger-playbook` | Parcial (so checa `skipExisting` por qualquer status) |
+3 execucoes ativas do playbook "Onboarding - Assinaturas":
 
-### Solucao
+| Execucao | Criada em | Status | Acao |
+|---|---|---|---|
+| `92d6e241` | 10/02 15:47 | running | **Manter** (mais recente) |
+| `156d352b` | 10/02 06:25 | running | Cancelar |
+| `2575c2e9` | 10/02 06:25 | running | Cancelar |
 
-Adicionar verificacao anti-duplicacao nos 3 pontos que estao sem:
+### O que sera feito
 
-**1. `kiwify-webhook/index.ts` - funcao `initiatePlaybook()`**
+1. Atualizar o status das 2 execucoes mais antigas para `cancelled`
+2. Remover itens pendentes na fila (`playbook_execution_queue`) dessas execucoes
+3. Manter apenas a execucao mais recente (`92d6e241`) ativa
 
-Antes de criar a execucao (linha 324), adicionar:
+### Detalhes tecnicos
 
-```typescript
-// ANTI-DUPLICACAO: verificar se ja existe execucao running/pending
-const { data: existing } = await supabase
-  .from('playbook_executions')
-  .select('id, status')
-  .eq('playbook_id', playbook_id)
-  .eq('contact_id', contact_id)
-  .in('status', ['pending', 'running'])
-  .maybeSingle();
-
-if (existing) {
-  console.log(`[initiatePlaybook] ⚠️ Execucao ja ativa: ${existing.id} (${existing.status}). Pulando.`);
-  return null;
-}
-```
-
-**2. `execute-playbook/index.ts` (disparo manual)**
-
-Antes de criar a execucao (linha 117), adicionar a mesma verificacao, retornando a execucao existente em vez de criar uma nova.
-
-**3. `bulk-trigger-playbook/index.ts` - funcao `processContact()`**
-
-Antes de criar execucao (linha 117), adicionar verificacao por `running`/`pending` (atualmente so checa `skipExisting` para qualquer status historico).
-
-### Arquivos alterados
-
-1. `supabase/functions/kiwify-webhook/index.ts` - adicionar check na funcao `initiatePlaybook`
-2. `supabase/functions/execute-playbook/index.ts` - adicionar check antes do insert
-3. `supabase/functions/bulk-trigger-playbook/index.ts` - adicionar check na funcao `processContact`
+Sera executada uma migration SQL para:
+- `UPDATE playbook_executions SET status = 'cancelled' WHERE id IN ('156d352b-...', '2575c2e9-...')`
+- `UPDATE playbook_execution_queue SET status = 'cancelled' WHERE execution_id IN ('156d352b-...', '2575c2e9-...) AND status = 'pending'`
 
 ### Impacto
+- Zero regressao: apenas cancela execucoes duplicadas
+- A execucao principal (92d6e241) continua normalmente
+- A trava anti-duplicacao ja deployada impede que isso aconteca novamente
 
-- Zero regressao: apenas adiciona verificacao antes de criar, nao altera fluxo existente
-- Segue o mesmo padrao ja implementado em `public-start-playbook` (linhas 200-220)
-- Previne emails duplicados e desperdicio de recursos
-- Execucoes com status `completed`, `failed` ou `cancelled` continuam permitindo re-disparo

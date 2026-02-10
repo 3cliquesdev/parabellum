@@ -1,55 +1,84 @@
 
+## Correcao Critica: Mensagens dos agentes nao chegam aos clientes via WhatsApp
 
-## Diagnose: Atendimentos encerrando sozinhos
+### Causa Raiz
 
-### Causa Raiz Identificada
+A funcao `inboxItemToConversation` no arquivo `src/pages/Inbox.tsx` (linhas 151-236) converte itens do `inbox_view` em objetos `Conversation` para uso no `ChatWindow` e `SuperComposer`. Porem, tres campos criticos estao **hardcoded como `null`**:
 
-A Edge Function `auto-close-conversations` esta fechando conversas que estao em modo **copilot** (atendimento humano ativo). Isso significa que quando um consultor esta atendendo um cliente e o cliente demora mais de **30 minutos** para responder, o sistema fecha automaticamente a conversa e envia a pesquisa de satisfacao (CSAT).
+```
+whatsapp_instance_id: null,      // linha 184
+whatsapp_meta_instance_id: null,  // linha 185
+whatsapp_provider: null,          // linha 186
+```
 
-### Dados das ultimas 24h
+Alem disso, `contacts.whatsapp_id` tambem esta `null` (linha 232).
 
-| Tipo | Quantidade |
-|------|-----------|
-| Fechadas automaticamente (inatividade) | **145** |
-| Fechadas manualmente (copilot) | 303 |
-| Departamentos com auto-close ativo | 3 (Suporte, Suporte Pedidos, Suporte Sistema) |
-| Tempo configurado | 30 minutos |
+### Consequencia
 
-### Problemas encontrados
+O `SuperComposer` recebe essas props como `null`, entao a condicao que detecta WhatsApp Meta nunca e verdadeira:
 
-1. **Auto-close inclui modo `copilot`**: A linha 115 do codigo filtra por `ai_mode IN ('autopilot', 'copilot')`. Conversas em `copilot` sao atendidas por humanos e NAO devem ser fechadas automaticamente por inatividade de 30 min.
+```typescript
+// SuperComposer linha 355 - NUNCA entra aqui
+else if (whatsappProvider === 'meta' && whatsappMetaInstanceId && contactPhone) {
+```
 
-2. **Flag `is_bot_message` ausente**: As mensagens de encerramento e CSAT enviadas pelo auto-close via WhatsApp nao incluem `is_bot_message: true`, podendo causar mudanca indevida de `ai_mode` no pipeline.
+O codigo cai no fallback `web_chat` (linha 496), que salva a mensagem no banco com `channel: web_chat` e `provider_message_id: NULL` — **nunca enviando a mensagem via WhatsApp**.
 
-### Correcoes Propostas
+### Evidencia no Banco
 
-**Correcao 1 - Remover `copilot` do filtro de auto-close:**
-- Alterar o filtro de `.in('ai_mode', ['autopilot', 'copilot'])` para `.eq('ai_mode', 'autopilot')`
-- Apenas conversas onde a IA estava respondendo e o cliente parou de interagir serao fechadas
-- Conversas sob controle humano (copilot/disabled/waiting_human) ficam protegidas
+Todas as 12 mensagens recentes da Fernanda Giglio mostram:
+- `channel: web_chat` (deveria ser `whatsapp`)
+- `provider_message_id: NULL` (nunca enviada)
+- `status: NULL` (sem confirmacao de entrega)
+- As conversas correspondentes TEM `whatsapp_provider: meta` e `whatsapp_meta_instance_id` corretos
 
-**Correcao 2 - Adicionar `is_bot_message: true` nos envios WhatsApp:**
-- Incluir a flag em todas as chamadas `send-meta-whatsapp` e `send-whatsapp` dentro da funcao auto-close
-- Impede que mensagens automaticas de encerramento/CSAT causem mudanca de `ai_mode` no pipeline
+### Solucao
+
+Duas correcoes complementares:
+
+**Correcao 1 - Adicionar colunas ao `inbox_view`** (migracao SQL)
+
+A view `inbox_view` nao possui as colunas `whatsapp_instance_id`, `whatsapp_meta_instance_id` e `whatsapp_provider`. Precisamos atualiza-la para incluir esses campos da tabela `conversations`.
+
+**Correcao 2 - Mapear os campos em `inboxItemToConversation`** (Inbox.tsx)
+
+Alterar a funcao para ler os novos campos do `inbox_view` em vez de hardcodar `null`:
+
+```typescript
+whatsapp_instance_id: item.whatsapp_instance_id || null,
+whatsapp_meta_instance_id: item.whatsapp_meta_instance_id || null,
+whatsapp_provider: item.whatsapp_provider || null,
+```
+
+E no contato:
+```typescript
+whatsapp_id: item.contact_whatsapp_id || item.contact_phone || null,
+```
+
+**Correcao 3 - Atualizar o tipo `InboxViewItem`** (useInboxView.tsx)
+
+Adicionar os novos campos na interface:
+
+```typescript
+whatsapp_instance_id: string | null;
+whatsapp_meta_instance_id: string | null;
+whatsapp_provider: string | null;
+contact_whatsapp_id: string | null;
+```
 
 ### Secao Tecnica
 
-Arquivo alterado: `supabase/functions/auto-close-conversations/index.ts`
+Arquivos alterados:
 
-Mudanca 1 (linha 115):
-```typescript
-// DE:
-.in('ai_mode', ['autopilot', 'copilot'])
-// PARA:
-.eq('ai_mode', 'autopilot')
-```
+1. **Migracao SQL** - Recriar ou alterar a view `inbox_view` para incluir `whatsapp_instance_id`, `whatsapp_meta_instance_id`, `whatsapp_provider` da tabela `conversations`, e `whatsapp_id` do contato como `contact_whatsapp_id`
 
-Mudanca 2 (linhas 270-305 - todas as chamadas send-meta-whatsapp e send-whatsapp):
-Adicionar `is_bot_message: true` em todos os payloads de envio de mensagem WhatsApp.
+2. **`src/hooks/useInboxView.tsx`** - Adicionar 4 campos novos na interface `InboxViewItem`
+
+3. **`src/pages/Inbox.tsx`** - Mapear os campos na funcao `inboxItemToConversation` (linhas 183-186 e 232)
 
 ### Impacto
 
-- Zero regressao: conversas em autopilot continuam sendo fechadas normalmente
-- Consultores nao serao mais surpreendidos com encerramentos durante atendimento ativo
-- Alinhado com o Super Prompt v2.3 (secao 10: auto-close so em condicoes controladas)
-
+- **Zero regressao**: nenhuma feature existente e alterada
+- **Corrige imediatamente**: todas as mensagens de agentes passarao a ser enviadas via WhatsApp quando a conversa for WhatsApp
+- **Escopo cirurgico**: apenas 3 arquivos alterados + 1 migracao SQL
+- **Gravidade**: CRITICA - agentes estao trabalhando mas clientes nao recebem respostas

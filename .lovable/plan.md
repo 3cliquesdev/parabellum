@@ -1,84 +1,64 @@
 
-## Correcao Critica: Mensagens dos agentes nao chegam aos clientes via WhatsApp
+## Correção: Departamento e Atendente não aparecem na lista de conversas
 
-### Causa Raiz
+### Problema
 
-A funcao `inboxItemToConversation` no arquivo `src/pages/Inbox.tsx` (linhas 151-236) converte itens do `inbox_view` em objetos `Conversation` para uso no `ChatWindow` e `SuperComposer`. Porem, tres campos criticos estao **hardcoded como `null`**:
+O componente `ConversationListItem` renderiza badges de departamento (linha 328) e atendente (linha 362) apenas quando `conversation.department_data` e `conversation.assigned_user` existem como objetos com nome/cor. Porém, a função `inboxItemToConversation` no `Inbox.tsx` **nunca monta esses objetos** — ela só tem os UUIDs (`department` e `assigned_to`), sem os nomes correspondentes.
+
+### Causa
+
+A tabela `inbox_view` possui apenas `department` (UUID) e `assigned_to` (UUID), sem colunas de nome/cor do departamento ou nome/avatar do agente. A conversão para o tipo `Conversation` não resolve esses UUIDs em objetos com dados legíveis.
+
+### Solução (3 passos)
+
+**Passo 1 — Migração SQL: adicionar colunas desnormalizadas ao `inbox_view`**
+
+Adicionar ao `inbox_view`:
+- `department_name` (text)
+- `department_color` (text)
+- `assigned_agent_name` (text)
+- `assigned_agent_avatar` (text)
+
+Atualizar os triggers de sincronização para popularem esses campos a partir das tabelas `departments` e `profiles` via lookup na inserção/atualização.
+
+**Passo 2 — Atualizar tipo `InboxViewItem` em `useInboxView.tsx`**
+
+Adicionar os 4 novos campos na interface:
 
 ```
-whatsapp_instance_id: null,      // linha 184
-whatsapp_meta_instance_id: null,  // linha 185
-whatsapp_provider: null,          // linha 186
+department_name: string | null;
+department_color: string | null;
+assigned_agent_name: string | null;
+assigned_agent_avatar: string | null;
 ```
 
-Alem disso, `contacts.whatsapp_id` tambem esta `null` (linha 232).
+**Passo 3 — Mapear os objetos em `inboxItemToConversation` no `Inbox.tsx`**
 
-### Consequencia
-
-O `SuperComposer` recebe essas props como `null`, entao a condicao que detecta WhatsApp Meta nunca e verdadeira:
+Construir `department_data` e `assigned_user` a partir dos novos campos:
 
 ```typescript
-// SuperComposer linha 355 - NUNCA entra aqui
-else if (whatsappProvider === 'meta' && whatsappMetaInstanceId && contactPhone) {
+department_data: item.department_name ? {
+  id: item.department,
+  name: item.department_name,
+  color: item.department_color || null,
+} : null,
+
+assigned_user: item.assigned_agent_name ? {
+  id: item.assigned_to,
+  full_name: item.assigned_agent_name,
+  avatar_url: item.assigned_agent_avatar || null,
+  job_title: null,
+} : null,
 ```
 
-O codigo cai no fallback `web_chat` (linha 496), que salva a mensagem no banco com `channel: web_chat` e `provider_message_id: NULL` — **nunca enviando a mensagem via WhatsApp**.
+### Arquivos alterados
 
-### Evidencia no Banco
-
-Todas as 12 mensagens recentes da Fernanda Giglio mostram:
-- `channel: web_chat` (deveria ser `whatsapp`)
-- `provider_message_id: NULL` (nunca enviada)
-- `status: NULL` (sem confirmacao de entrega)
-- As conversas correspondentes TEM `whatsapp_provider: meta` e `whatsapp_meta_instance_id` corretos
-
-### Solucao
-
-Duas correcoes complementares:
-
-**Correcao 1 - Adicionar colunas ao `inbox_view`** (migracao SQL)
-
-A view `inbox_view` nao possui as colunas `whatsapp_instance_id`, `whatsapp_meta_instance_id` e `whatsapp_provider`. Precisamos atualiza-la para incluir esses campos da tabela `conversations`.
-
-**Correcao 2 - Mapear os campos em `inboxItemToConversation`** (Inbox.tsx)
-
-Alterar a funcao para ler os novos campos do `inbox_view` em vez de hardcodar `null`:
-
-```typescript
-whatsapp_instance_id: item.whatsapp_instance_id || null,
-whatsapp_meta_instance_id: item.whatsapp_meta_instance_id || null,
-whatsapp_provider: item.whatsapp_provider || null,
-```
-
-E no contato:
-```typescript
-whatsapp_id: item.contact_whatsapp_id || item.contact_phone || null,
-```
-
-**Correcao 3 - Atualizar o tipo `InboxViewItem`** (useInboxView.tsx)
-
-Adicionar os novos campos na interface:
-
-```typescript
-whatsapp_instance_id: string | null;
-whatsapp_meta_instance_id: string | null;
-whatsapp_provider: string | null;
-contact_whatsapp_id: string | null;
-```
-
-### Secao Tecnica
-
-Arquivos alterados:
-
-1. **Migracao SQL** - Recriar ou alterar a view `inbox_view` para incluir `whatsapp_instance_id`, `whatsapp_meta_instance_id`, `whatsapp_provider` da tabela `conversations`, e `whatsapp_id` do contato como `contact_whatsapp_id`
-
-2. **`src/hooks/useInboxView.tsx`** - Adicionar 4 campos novos na interface `InboxViewItem`
-
-3. **`src/pages/Inbox.tsx`** - Mapear os campos na funcao `inboxItemToConversation` (linhas 183-186 e 232)
+1. **Migração SQL** — Alterar `inbox_view` e triggers de sincronização
+2. **`src/hooks/useInboxView.tsx`** — Adicionar 4 campos na interface
+3. **`src/pages/Inbox.tsx`** — Montar objetos `department_data` e `assigned_user`
 
 ### Impacto
 
-- **Zero regressao**: nenhuma feature existente e alterada
-- **Corrige imediatamente**: todas as mensagens de agentes passarao a ser enviadas via WhatsApp quando a conversa for WhatsApp
-- **Escopo cirurgico**: apenas 3 arquivos alterados + 1 migracao SQL
-- **Gravidade**: CRITICA - agentes estao trabalhando mas clientes nao recebem respostas
+- Zero regressão: badges já existem no componente, só faltavam os dados
+- Restaura funcionalidade que existia anteriormente
+- Escopo cirúrgico: mesmos 3 arquivos + 1 migração do fix anterior

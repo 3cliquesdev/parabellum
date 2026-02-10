@@ -24,7 +24,7 @@ export function useSearchTickets(searchTerm: string, excludeTicketId?: string) {
           priority,
           created_at,
           customer:contacts(id, first_name, last_name, email),
-          department:departments(id, name)
+          department:departments!tickets_department_id_fkey(id, name)
         `)
         .in("status", ["open", "in_progress", "waiting_customer"])
         .is("merged_to_ticket_id", null); // Excluir tickets já mesclados

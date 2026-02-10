@@ -58,7 +58,12 @@ export function useTickets(
             full_name,
             avatar_url
           ),
-          department:departments(
+          department:departments!tickets_department_id_fkey(
+            id,
+            name,
+            color
+          ),
+          requesting_department:departments!tickets_requesting_department_id_fkey(
             id,
             name,
             color

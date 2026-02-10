@@ -144,7 +144,11 @@ serve(async (req) => {
         title: 'Nova resposta do cliente',
         message: `Cliente respondeu ao ticket #${ticketRef}`,
         type: 'ticket_reply',
-        reference_id: ticket_id,
+        metadata: {
+          ticket_id,
+          ticket_number: ticket.ticket_number || null,
+          action_url: `/support?ticket=${ticket_id}`,
+        },
         read: false
       });
       console.log('[add-customer-comment] Notification queued for agent:', ticket.assigned_to);
@@ -157,7 +161,11 @@ serve(async (req) => {
         title: 'Nova resposta do cliente',
         message: `Cliente respondeu ao ticket #${ticketRef} que você criou`,
         type: 'ticket_reply',
-        reference_id: ticket_id,
+        metadata: {
+          ticket_id,
+          ticket_number: ticket.ticket_number || null,
+          action_url: `/support?ticket=${ticket_id}`,
+        },
         read: false
       });
       console.log('[add-customer-comment] Notification queued for creator:', ticket.created_by);

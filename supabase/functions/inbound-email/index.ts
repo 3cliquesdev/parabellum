@@ -386,6 +386,11 @@ Deno.serve(async (req) => {
               title: "Nova resposta do cliente",
               message: `Cliente respondeu ao ticket #${existingTicket.id.slice(0, 8)}`,
               type: "ticket_reply",
+              metadata: {
+                ticket_id: existingTicket.id,
+                ticket_number: existingTicket.ticket_number || null,
+                action_url: `/support?ticket=${existingTicket.id}`,
+              },
               read: false,
             });
             console.log("[inbound-email] ✅ Notificação enviada ao agente");
@@ -509,6 +514,11 @@ Deno.serve(async (req) => {
               title: "Nova resposta do cliente",
               message: `Cliente respondeu ao ticket #${ticketBySubject.id.slice(0, 8)}`,
               type: "ticket_reply",
+              metadata: {
+                ticket_id: ticketBySubject.id,
+                ticket_number: ticketBySubject.ticket_number || null,
+                action_url: `/support?ticket=${ticketBySubject.id}`,
+              },
               read: false,
             });
           }

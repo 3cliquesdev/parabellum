@@ -7,6 +7,19 @@ interface AppErrorBoundaryProps {
 interface AppErrorBoundaryState {
   hasError: boolean;
   error?: Error;
+  copied: boolean;
+}
+
+const CHUNK_RETRY_KEY = "app_chunk_error_retry";
+
+function isChunkError(error: Error): boolean {
+  const msg = error.message || "";
+  return (
+    msg.includes("dynamically imported module") ||
+    msg.includes("Failed to fetch") ||
+    msg.includes("Loading chunk") ||
+    msg.includes("ChunkLoadError")
+  );
 }
 
 export class AppErrorBoundary extends React.Component<
@@ -15,64 +28,97 @@ export class AppErrorBoundary extends React.Component<
 > {
   constructor(props: AppErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, copied: false };
   }
 
-  static getDerivedStateFromError(error: Error): AppErrorBoundaryState {
+  static getDerivedStateFromError(error: Error): Partial<AppErrorBoundaryState> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("App crashed:", error, errorInfo);
+
+    // Auto-reload UMA vez para erros de chunk/import dinâmico
+    if (isChunkError(error) && !sessionStorage.getItem(CHUNK_RETRY_KEY)) {
+      sessionStorage.setItem(CHUNK_RETRY_KEY, "1");
+      window.location.reload();
+    }
   }
 
-  handleForceUpdate = async () => {
+  handleReload = () => {
+    window.location.reload();
+  };
+
+  handleHardRefresh = async () => {
     try {
-      // Importação dinâmica para evitar problemas de circular dependency
-      const { hardRefresh } = await import('@/lib/build/ensureLatestBuild');
+      const { hardRefresh } = await import("@/lib/build/ensureLatestBuild");
       await hardRefresh();
     } catch (e) {
-      // Fallback: reload simples se a importação falhar
       console.error("Erro ao executar hardRefresh:", e);
       window.location.reload();
     }
   };
 
+  handleCopyError = () => {
+    const error = this.state.error;
+    if (!error) return;
+    const text = `${error.name}: ${error.message}\n\n${error.stack || ""}`;
+    navigator.clipboard.writeText(text).then(() => {
+      this.setState({ copied: true });
+      setTimeout(() => this.setState({ copied: false }), 2000);
+    });
+  };
+
   render() {
     if (this.state.hasError) {
-      const isDev = import.meta.env.DEV;
+      const { error, copied } = this.state;
 
       return (
         <div className="h-screen flex flex-col items-center justify-center bg-background text-foreground p-6">
           <div className="max-w-md text-center space-y-6">
             <div className="text-6xl">⚠️</div>
-            <h1 className="text-2xl font-bold">Atualização importante</h1>
+            <h1 className="text-2xl font-bold">Algo deu errado</h1>
             <p className="text-muted-foreground">
-              Detectamos que seu navegador está usando uma versão antiga do sistema.
-              Para garantir o funcionamento correto, precisamos atualizar agora.
+              Ocorreu um erro inesperado. Tente recarregar a página.
             </p>
+
+            {/* Botão primário: reload simples */}
             <button
-              onClick={this.handleForceUpdate}
+              onClick={this.handleReload}
               className="w-full px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
             >
-              Atualizar agora
+              Recarregar Página
             </button>
-            
-            {/* Detalhes técnicos escondidos para devs */}
-            {isDev && this.state.error && (
+
+            {/* Botão secundário: hard refresh */}
+            <button
+              onClick={this.handleHardRefresh}
+              className="w-full px-6 py-3 border border-input bg-background text-foreground rounded-lg font-medium hover:bg-accent transition-colors text-sm"
+            >
+              Limpar Cache e Atualizar
+            </button>
+
+            {/* Detalhes do erro (visível para todos) */}
+            {error && (
               <details className="text-left text-xs text-muted-foreground mt-4">
                 <summary className="cursor-pointer hover:text-foreground transition-colors">
                   Detalhes técnicos
                 </summary>
-                <pre className="mt-2 p-2 bg-muted rounded overflow-auto max-h-40 text-destructive">
-                  {this.state.error.message}
-                  {this.state.error.stack && (
+                <pre className="mt-2 p-3 bg-muted rounded overflow-auto max-h-40 text-destructive">
+                  {error.name}: {error.message}
+                  {error.stack && (
                     <>
                       {"\n\n"}
-                      {this.state.error.stack}
+                      {error.stack}
                     </>
                   )}
                 </pre>
+                <button
+                  onClick={this.handleCopyError}
+                  className="mt-2 px-3 py-1.5 text-xs border border-input rounded-md hover:bg-accent transition-colors"
+                >
+                  {copied ? "✅ Copiado!" : "📋 Copiar erro"}
+                </button>
               </details>
             )}
           </div>

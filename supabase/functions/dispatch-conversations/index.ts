@@ -547,7 +547,7 @@ async function processAgentCapacity(
   for (const tm of (teamMembers || []) as any[]) {
     // Enterprise: Respect team-configured capacity limits (fallback: 10)
     const configuredMax = tm.team?.team_settings?.max_concurrent_chats;
-    const maxChats = configuredMax ?? 10;
+    const maxChats = configuredMax ?? 40;
     capacityMap.set(tm.user_id, maxChats);
   }
 

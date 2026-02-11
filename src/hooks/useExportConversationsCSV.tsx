@@ -101,7 +101,16 @@ export function useExportConversationsCSV() {
       XLSX.utils.book_append_sheet(wb, ws, "Conversas");
 
       const dateStr = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `relatorio_conversas_${dateStr}.xlsx`);
+      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio_conversas_${dateStr}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       const totalCount = (data as any[])[0]?.total_count ?? data.length;
       if (totalCount > MAX_EXPORT) {

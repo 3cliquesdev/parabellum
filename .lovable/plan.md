@@ -1,35 +1,34 @@
 
-# Plano: Aumentar Limite de Capacidade para 40 chats por Agente
+# Fix: Portal de Tickets do Cliente - Erro de Relacionamento Ambiguo
 
-## Diagnóstico Confirmado
+## Problema
+A Edge Function `get-customer-tickets` esta falhando com erro **PGRST201** porque a tabela `tickets` agora tem **duas** foreign keys para `departments`:
+- `tickets_department_id_fkey` (department_id)
+- `tickets_requesting_department_id_fkey` (requesting_department_id)
 
-1. **Nenhuma `team_settings` configurada**: A tabela `team_settings` está vazia.
-2. **Fallback ativo**: O código usa o limite hardcoded de **10 chats** por agente (linhas 550 e 576 de `dispatch-conversations/index.ts`).
-3. **Por isso a distribuição travou**: Mabile (31 chats), Miguel (14 chats) e Caroline (10 chats) todas estão acima ou no limite de 10, então o dispatcher não atribui novas conversas.
+O PostgREST nao sabe qual usar quando o codigo faz `department:departments(id, name)` sem especificar.
 
-## Solução: Duas Alterações
+## Solucao
+Alterar a query na Edge Function para desambiguar o join:
 
-### 1. Aumentar o Fallback Padrão de 10 para 40
-**Arquivo**: `supabase/functions/dispatch-conversations/index.ts`
+**Arquivo:** `supabase/functions/get-customer-tickets/index.ts`
 
-**Locais a alterar**:
-- Linha 550: `const maxChats = configuredMax ?? 10;` → `const maxChats = configuredMax ?? 40;`
-- Linha 576: `.filter((a: EligibleAgent) => a.active_chats < a.max_chats)` (já usa `a.max_chats`, então apenas a linha 550 precisa mudar)
+De:
+```
+department:departments(id, name)
+```
 
-Isso garante que:
-- O dispatch vai tentar atribuir conversas enquanto agentes tiverem menos de 40 chats
-- Quando uma conversa fechar, o agente volta abaixo do limite e recebe novas
-- Zero regressão: a lógica continua exatamente igual, apenas o threshold aumenta
+Para:
+```
+department:departments!tickets_department_id_fkey(id, name)
+```
 
-### 2. Por que não usar `team_settings` (ainda)
-Embora tenhamos a estrutura para isso, criar `team_settings` via UI/API seria mais complexo neste momento. O fallback de 40 resolve o problema imediatamente e é simples de ajustar depois se necessário.
+## Detalhes Tecnicos
+- Apenas 1 linha muda na Edge Function
+- Zero impacto em outras funcionalidades
+- A funcao ja usa service role key, entao nao ha problema de RLS
+- Apos o fix, redeploy automatico da funcao
 
-## Validação Obrigatória
-1. No preview: confirmar que conversas pendentes/escaladas começam a ser distribuídas
-2. Monitorar Miguel: verificar que recebe novas conversas enquanto tiver <40 chats
-3. Console sem erros
-4. Distribuição continua respeitando `online + agent_departments`
-
-## Rollback Rápido
-Se qualquer problema ocorrer: reverter linha 550 para `?? 10` e redeploy
-
+## Validacao
+- Testar a funcao com curl apos deploy
+- Confirmar que clientes conseguem ver tickets no portal `/my-tickets`

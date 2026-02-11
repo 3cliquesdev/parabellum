@@ -9278,6 +9278,16 @@ export type Database = {
           total_conversations: number
         }[]
       }
+      get_email_evolution: {
+        Args: { p_days?: number }
+        Returns: {
+          clicked: number
+          day: string
+          delivered: number
+          opened: number
+          sent: number
+        }[]
+      }
       get_kb_gaps_by_category: {
         Args: { p_end_date?: string; p_start_date?: string }
         Returns: {
@@ -9303,6 +9313,20 @@ export type Database = {
           conversation_id: string
           is_existing: boolean
           was_reopened: boolean
+        }[]
+      }
+      get_playbook_kpis: { Args: never; Returns: Json }
+      get_playbook_performance: {
+        Args: never
+        Returns: {
+          completed: number
+          emails_opened: number
+          emails_sent: number
+          executions: number
+          failed: number
+          open_rate: number
+          playbook_id: string
+          playbook_name: string
         }[]
       }
       get_sla_compliance_v2: {

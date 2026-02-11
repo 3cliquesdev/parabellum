@@ -1,41 +1,80 @@
 
+# Fix: Mostrar Todos os Agentes com Indicador de Status Online
 
-# Fix: Capacidade de distribuição inconsistente
+## Problema
 
-## Problema Raiz
+O dialog `TransferConversationDialog` está configurado com `onlineOnly: true` na linha 56, mostrando **APENAS agentes online**. Quando não há agentes online em um departamento (todos estão `busy`, `away`, ou `offline`), a lista fica vazia e o usuário não consegue visualizar os agentes disponíveis.
 
-Existem **dois fallbacks diferentes** no mesmo arquivo `dispatch-conversations/index.ts`:
+Além disso, há uma restrição RLS na tabela `agent_departments` que impede usuários não-gerenciais de visualizar a lista completa de agentes do departamento.
 
-- **Linha 550**: Quando o agente ESTA em `team_members` mas `max_concurrent_chats` e NULL → fallback = **40** (correto)
-- **Linha 576**: Quando o agente NAO esta em `team_members` (nao entra no capacityMap) → fallback = **10** (errado!)
+## Solução em Duas Partes
 
-A Mabile nao esta cadastrada em nenhum team, entao o sistema aplica o limite de 10. Com 15 chats ativos, ela aparece como "at capacity" mesmo tendo capacidade para 40.
+### **Parte 1: Liberar acesso de leitura à tabela `agent_departments` (RLS)**
 
-## Correcao
+**Por que**: O hook `useUsersByDepartment` usa `agent_departments!inner(department_id)` e a RLS atual só permite que cada agente veja seus próprios registros. Usuários normais (sales_rep, support_agent, etc.) precisam ver quem pertence ao departamento para transferir conversas.
 
-### Arquivo: `supabase/functions/dispatch-conversations/index.ts`
+**Mudança SQL**: Criar uma nova política RLS que permite leitura para usuários autenticados.
 
-Mudar a **linha 576** de:
-
-```typescript
-max_chats: capacityMap.get(p.id) ?? 10,
+```sql
+CREATE POLICY "Authenticated users can read agent_departments"
+ON public.agent_departments
+FOR SELECT
+USING (auth.uid() IS NOT NULL);
 ```
 
-Para:
+### **Parte 2: Mostrar todos os agentes com indicador visual de status (Frontend)**
 
-```typescript
-max_chats: capacityMap.get(p.id) ?? 40,
-```
+**Mudança no componente**: `src/components/TransferConversationDialog.tsx`
 
-Isso garante que agentes que nao pertencem a nenhum team tambem usem o padrao de 40 conversas simultaneas, consistente com a linha 550.
+1. **Linha 56**: Mudar de `onlineOnly: true` para `onlineOnly: false`
+   - Isso permite que o hook retorne TODOS os agentes do departamento
 
-### Impacto
+2. **Linha 158**: Atualizar label de "(apenas online)" para "(todos)"
+   - Deixar claro que estamos mostrando todos
 
-- **Mabile**: Vai passar de limite 10 para 40. Com 15 chats ativos, volta a ter capacidade (15 < 40)
-- **Outros agentes sem team**: Tambem serao beneficiados pelo limite correto
-- **Agentes COM team**: Zero impacto (ja usam o valor do `team_settings` ou fallback 40 da linha 550)
-- **Zero regressao**: Apenas corrige inconsistencia de fallback
+3. **Adicionar lógica de separação**: Dividir agentes em dois grupos:
+   - **Agentes Online** (availability_status === 'online')
+   - **Agentes Indisponíveis** (busy, away, offline)
 
-### Apos o deploy
+4. **Adicionar badges de status**:
+   - Online: Verde, com badge "Online"
+   - Busy: Amarelo, com badge "Ocupado"
+   - Away: Cinza, com badge "Ausente"
+   - Offline: Vermelho escuro, com badge "Offline"
 
-Os 57 jobs `escalated` serao reprocessados automaticamente na proxima execucao do dispatcher (ou quando um agente voltar online, conforme a politica de requeue existente).
+5. **Melhorar visual**:
+   - Mostrar agentes online PRIMEIRO (listagem prioritária)
+   - Mostrar agentes indisponíveis DEPOIS (colapsáveis ou com separador)
+   - Cada um com cor de avatar diferente de acordo com status
+
+## Fluxo de Uso
+
+1. Usuário abre dialog de transferência
+2. Seleciona departamento
+3. Vê:
+   - "Distribuir Automaticamente" (opção padrão)
+   - **Agentes Online** (com badge verde)
+   - **Separador/Seção**
+   - **Agentes Indisponíveis** (com badge amarelo/cinza/vermelho)
+4. Pode escolher:
+   - Distribuição automática (recomendado)
+   - Um agente online específico
+   - Um agente indisponível (por força, se necessário)
+
+## Impacto
+
+- ✅ **Resolve o problema RLS**: Usuários não-gerenciais conseguem ver a lista de agentes
+- ✅ **Mostra status visual**: Deixa claro quem está online e quem não está
+- ✅ **Mantém distribuição automática**: Opção padrão continua funcionando
+- ✅ **Zero regressão**: Apenas muda a visibilidade e visual, não a lógica de transferência
+- ✅ **Segurança**: Apenas leitura de `agent_departments`, nenhuma mudança em permissões de escrita
+
+## Testes Obrigatórios
+
+- [ ] Testar com usuário `sales_rep` (Thaynara) - deve ver agentes online
+- [ ] Testar com usuário `admin` - deve continuar funcionando normalmente
+- [ ] Verificar que a lista mostra status correto (online/busy/away/offline)
+- [ ] Testar distribuição automática
+- [ ] Testar seleção manual de agente indisponível
+- [ ] Console sem erros
+- [ ] RLS não quebra para escrita (managers continuam gerenciando)

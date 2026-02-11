@@ -1,64 +1,31 @@
 
 
-# Relatorio de Tickets com Export Excel
+# Correcao do Relatorio de Tickets - Erro de Tipo no Banco
 
-## O que sera criado
+## Problema Identificado
 
-Uma nova pagina de relatorio dedicada a Tickets, acessivel pelo menu Relatorios na aba "Atendimento", com filtros, tabela de preview e botao para exportar Excel (.xlsx).
+O erro `operator does not exist: ticket_status = text` ocorre porque as colunas `status`, `priority` e `category` da tabela `tickets` usam tipos ENUM customizados (`ticket_status`, `ticket_priority`, `ticket_category`), mas a funcao RPC compara diretamente com parametros TEXT sem fazer a conversao (cast).
 
-## Colunas do Excel
+## Solucao
 
-| Coluna | Descricao |
-|--------|-----------|
-| Protocolo | ticket_number |
-| Assunto | subject |
-| Status | status traduzido |
-| Prioridade | priority |
-| Categoria | category |
-| Solicitante (Nome) | contact first_name + last_name |
-| Solicitante (Email) | contact email |
-| Solicitante (Telefone) | contact phone |
-| Responsavel | profiles.full_name (assigned_to) |
-| Dept. Solicitante | requesting_department name |
-| Dept. Responsavel | department name |
-| Operacao | ticket_operations name |
-| Origem | ticket_origins name |
-| Canal | channel |
-| Data Criacao | data separada (dd/MM/yyyy) |
-| Hora Criacao | hora separada (HH:mm) |
-| Data Resolucao | data separada |
-| Hora Resolucao | hora separada |
-| Tempo Primeira Resposta (min) | first_response_at - created_at |
-| SLA Meta Resposta | sla_policies response_time |
-| SLA Meta Resolucao | sla_policies resolution_time |
-| SLA Status | within/breached |
-| Due Date | due_date |
+Recriar a funcao `get_tickets_export_report` com casts explicitos nos filtros e nos campos de retorno:
 
-## Implementacao Tecnica
+### Alteracoes na RPC (nova migration SQL)
 
-### 1. Nova RPC: `get_tickets_export_report`
-- JOINs: contacts, profiles, departments (x2), ticket_operations, ticket_origins, sla_policies
-- Calcula FRT e tempo de resolucao em minutos
-- Filtros: periodo, departamento, agente, status, prioridade, busca texto
-- Paginacao server-side
+1. **Filtros WHERE**: Adicionar `::text` nos campos enum ao comparar com parametros texto:
+   - `t.status::text = p_status` (em vez de `t.status = p_status`)
+   - `t.priority::text = p_priority` (em vez de `t.priority = p_priority`)
 
-### 2. Nova pagina: `src/pages/TicketsExportReport.tsx`
-- Filtros com DateRangePicker, selects de departamento/agente/status/prioridade
-- Tabela preview com paginacao (50/pagina)
-- Botao "Exportar Excel" usando lib `xlsx`
+2. **Campos SELECT**: Adicionar `::text` nos campos enum retornados:
+   - `t.status::text` 
+   - `t.priority::text`
+   - `t.category::text`
 
-### 3. Novo hook: `src/hooks/useTicketsExportReport.tsx`
-- Chama RPC com filtros e paginacao
+3. **JOIN com sla_policies**: A coluna `sp.priority` e texto, mas `t.priority` e enum, entao tambem precisa de cast: `sp.priority = t.priority::text`
 
-### 4. Novo utilitario: `src/hooks/useExportTicketsExcel.tsx`
-- Gera .xlsx com data/hora em colunas separadas
-- Formata tempos de SLA
+Isso corrige tanto a query de contagem (COUNT) quanto a query principal de dados.
 
-### 5. Rota e menu
-- Rota `/reports/tickets-export` no App.tsx
-- Card na aba Atendimento do Reports.tsx
+### Nenhuma alteracao no frontend
 
-### Impacto
-- Zero regressao: apenas adicoes de arquivos novos
-- Relatorio CSV existente permanece intacto
+Os hooks e a pagina permanecem iguais - o problema e exclusivamente no SQL.
 

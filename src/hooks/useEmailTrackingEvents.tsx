@@ -71,41 +71,36 @@ export function useEmailFunnelData(dateRange?: { from: Date; to: Date }) {
   return useQuery({
     queryKey: ["email-funnel-data", dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async () => {
-      let query = supabase
-        .from("email_tracking_events")
-        .select("event_type");
+      // Usar email_sends como fonte de verdade
+      let baseQuery = supabase.from("email_sends").select("id", { count: "exact", head: true });
+      if (dateRange?.from) baseQuery = baseQuery.gte('sent_at', dateRange.from.toISOString());
+      if (dateRange?.to) baseQuery = baseQuery.lte('sent_at', dateRange.to.toISOString());
 
-      if (dateRange?.from) {
-        query = query.gte('created_at', dateRange.from.toISOString());
-      }
+      const { count: sent } = await baseQuery;
 
-      if (dateRange?.to) {
-        query = query.lte('created_at', dateRange.to.toISOString());
-      }
+      let deliveredQuery = supabase.from("email_sends").select("id", { count: "exact", head: true }).is('bounced_at', null);
+      if (dateRange?.from) deliveredQuery = deliveredQuery.gte('sent_at', dateRange.from.toISOString());
+      if (dateRange?.to) deliveredQuery = deliveredQuery.lte('sent_at', dateRange.to.toISOString());
 
-      const { data, error } = await query;
+      const { count: delivered } = await deliveredQuery;
 
-      if (error) throw error;
+      let openedQuery = supabase.from("email_sends").select("id", { count: "exact", head: true }).not('opened_at', 'is', null);
+      if (dateRange?.from) openedQuery = openedQuery.gte('sent_at', dateRange.from.toISOString());
+      if (dateRange?.to) openedQuery = openedQuery.lte('sent_at', dateRange.to.toISOString());
 
-      const counts: Record<string, number> = {
-        sent: 0,
-        delivered: 0,
-        opened: 0,
-        clicked: 0,
-        bounced: 0,
-      };
+      const { count: opened } = await openedQuery;
 
-      data?.forEach(event => {
-        if (counts[event.event_type] !== undefined) {
-          counts[event.event_type]++;
-        }
-      });
+      let clickedQuery = supabase.from("email_sends").select("id", { count: "exact", head: true }).not('clicked_at', 'is', null);
+      if (dateRange?.from) clickedQuery = clickedQuery.gte('sent_at', dateRange.from.toISOString());
+      if (dateRange?.to) clickedQuery = clickedQuery.lte('sent_at', dateRange.to.toISOString());
+
+      const { count: clicked } = await clickedQuery;
 
       return [
-        { stage: 'Enviados', value: counts.sent, fill: 'hsl(var(--chart-1))' },
-        { stage: 'Entregues', value: counts.delivered, fill: 'hsl(var(--chart-2))' },
-        { stage: 'Abertos', value: counts.opened, fill: 'hsl(var(--chart-3))' },
-        { stage: 'Clicados', value: counts.clicked, fill: 'hsl(var(--chart-4))' },
+        { stage: 'Enviados', value: sent || 0, fill: 'hsl(var(--chart-1))' },
+        { stage: 'Entregues', value: delivered || 0, fill: 'hsl(var(--chart-2))' },
+        { stage: 'Abertos', value: opened || 0, fill: 'hsl(var(--chart-3))' },
+        { stage: 'Clicados', value: clicked || 0, fill: 'hsl(var(--chart-4))' },
       ];
     },
   });
@@ -115,36 +110,16 @@ export function useEmailEvolutionData(days: number = 7) {
   return useQuery({
     queryKey: ["email-evolution-data", days],
     queryFn: async () => {
-      const fromDate = new Date();
-      fromDate.setDate(fromDate.getDate() - days);
-
-      const { data, error } = await supabase
-        .from("email_tracking_events")
-        .select("event_type, created_at")
-        .gte('created_at', fromDate.toISOString())
-        .order('created_at', { ascending: true });
+      const { data, error } = await supabase.rpc("get_email_evolution", { p_days: days });
 
       if (error) throw error;
 
-      // Group by day
-      const dayMap = new Map<string, Record<string, number>>();
-
-      data?.forEach(event => {
-        const day = new Date(event.created_at).toISOString().split('T')[0];
-        
-        if (!dayMap.has(day)) {
-          dayMap.set(day, { sent: 0, delivered: 0, opened: 0, clicked: 0 });
-        }
-
-        const dayData = dayMap.get(day)!;
-        if (dayData[event.event_type] !== undefined) {
-          dayData[event.event_type]++;
-        }
-      });
-
-      return Array.from(dayMap.entries()).map(([date, counts]) => ({
-        date,
-        ...counts,
+      return (data as any[] || []).map((row: any) => ({
+        date: row.day,
+        sent: Number(row.sent) || 0,
+        delivered: Number(row.delivered) || 0,
+        opened: Number(row.opened) || 0,
+        clicked: Number(row.clicked) || 0,
       }));
     },
   });

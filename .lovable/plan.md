@@ -1,95 +1,46 @@
 
-Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Diagnóstico (por que “aparece sucesso” mas não baixa)
-- A busca no backend está funcionando (retorna 200 e dados; exemplo: 991 registros).
-- O problema está no “gatilho de download” no navegador:
-  1) **Download fora do gesto do usuário**: o arquivo só é gerado depois de um `await` (RPC). Alguns navegadores/ambientes (principalmente em iframe/preview) bloqueiam downloads iniciados de forma “assíncrona”, mesmo usando `<a>.click()`.
-  2) **`URL.revokeObjectURL(url)` imediato**: revogar o URL logo após o `click()` pode, em alguns browsers, cancelar/interromper o download antes de iniciar (especialmente em arquivos maiores).
+# Fix: Tela "Atualização importante" que aparece mesmo com navegador atualizado
 
-Isso explica o comportamento: toast de sucesso aparece (o código termina), mas o arquivo não chega ao usuário.
+## Problema Real
+A tela "Atualização importante" **nao e** um problema de versao do navegador. Ela e o **ErrorBoundary** do React — aparece quando o app crasha por qualquer erro JavaScript. A mensagem e enganosa porque diz "versao antiga do sistema", mas na verdade esta escondendo um erro real.
 
-## Objetivo do upgrade
-Garantir download confiável:
-- Preview (iframe)
-- Published (janela normal)
-- Com arquivo grande (centenas/milhares de linhas)
+O botao "Atualizar agora" faz hard refresh, mas se o erro persistir (ex.: chunk corrompido, import dinamico falhando, ou bug de runtime), o usuario fica preso nessa tela sem saber o que aconteceu.
 
-Sem afetar nada existente (zero regressão).
+## Solucao (2 mudancas)
 
----
+### 1. Melhorar o ErrorBoundary para mostrar informacoes uteis
+**Arquivo:** `src/components/AppErrorBoundary.tsx`
 
-## Mudanças propostas (sem reimplementar nada; só upgrade)
-### 1) Ajustar o hook `useExportConversationsCSV.tsx`
-**Arquivo:** `src/hooks/useExportConversationsCSV.tsx`
+- Mudar o titulo de "Atualizacao importante" para algo mais honesto: **"Algo deu errado"**
+- Mudar o texto explicativo para: "Ocorreu um erro inesperado. Tente recarregar a pagina."
+- Adicionar botao **"Recarregar Pagina"** (reload simples, sem limpar tudo)
+- Manter o botao "Limpar Cache e Atualizar" como opcao secundaria (hard refresh)
+- Mostrar detalhes do erro em modo colapsado (para todos, nao so DEV) — isso ajuda o usuario a reportar o problema
+- Adicionar um botao "Copiar erro" para facilitar o report
 
-**Alterações:**
-1. **Não revogar o object URL imediatamente**  
-   - Trocar `URL.revokeObjectURL(url)` por `setTimeout(() => URL.revokeObjectURL(url), 60_000)` (ou 30s).
-   - Motivo: dá tempo do download iniciar/consumir o URL.
+### 2. Adicionar tratamento de erro de chunk mais robusto
+- No `componentDidCatch`, verificar se o erro e de chunk/import dinamico
+- Se for erro de chunk, tentar reload automatico UMA vez (usando sessionStorage para controlar)
+- Se nao for erro de chunk, mostrar a tela de erro melhorada
 
-2. **Adicionar um “modo popup” opcional (mais confiável em iframe)**
-   - O hook passa a aceitar um `downloadWindow?: Window | null`.
-   - Se `downloadWindow` existir (aberto no clique do usuário), ao final do processamento:
-     - `downloadWindow.location.href = url`
-     - Opcional: escrever um HTML simples “Baixando…” (se quisermos melhorar UX).
+## Detalhes tecnicos
 
-3. **Fallback mantido (anchor click)**
-   - Se não houver `downloadWindow`, manter o `a.click()` atual.
-   - Mas com o `revokeObjectURL` atrasado.
+```text
+AppErrorBoundary.tsx (reescrita da UI de erro):
 
-**Resultado:** mesmo que o iframe bloqueie “download assíncrono”, o popup aberto no clique contorna isso.
+1. Titulo: "Algo deu errado" (em vez de "Atualizacao importante")
+2. Subtitulo: "Ocorreu um erro inesperado."
+3. Botao primario: "Recarregar Pagina" (window.location.reload())
+4. Botao secundario: "Limpar Cache e Atualizar" (hardRefresh)
+5. Detalhes colapsaveis com nome do erro + stack trace resumido
+6. Botao "Copiar erro" que copia error.message + stack para clipboard
+7. Auto-reload para erros de chunk (1x apenas, controlado por sessionStorage)
+```
 
----
-
-### 2) Ajustar o clique do botão de export no `ConversationsReport.tsx`
-**Arquivo:** `src/pages/ConversationsReport.tsx`
-
-**Alterações:**
-1. No `handleExport`, abrir a janela imediatamente (gesto do usuário):
-   - `const w = window.open("", "_blank");`
-2. Chamar `exportCSV(filters, { downloadWindow: w })`
-3. Se `w` vier `null` (popup bloqueado):
-   - Continuar com fallback (download por `<a>.click()`).
-   - Mostrar toast mais claro: “Seu navegador bloqueou popups; permita popups para baixar no preview.”
-
----
-
-## Correção adicional (pequena, mas importante): range de data duplicado
-Hoje o `ConversationsReport` já faz `endDate: addDays(..., 1)` e o hook ainda soma +1 (`endExclusive`). Isso pode buscar **um dia a mais** do que o usuário selecionou.
-
-Vou ajustar para:
-- **No page**: `endDate` = `dateRange.to` (sem `addDays`)
-- **No hook**: continuar fazendo `endExclusive +1` como já está (padrão correto “até o fim do dia”).
-
-Impacto:
-- Melhora precisão do filtro de data
-- Não altera regras críticas do CRM (kill switch/shadow mode/etc.)
-- Não mexe em dispatcher/flows/CSAT guard
-
----
-
-## Plano de implementação (ordem)
-1) Editar `src/hooks/useExportConversationsCSV.tsx`
-   - Adicionar parâmetro opcional `downloadWindow`
-   - Trocar revoke imediato por `setTimeout`
-   - Se `downloadWindow` existir, redirecionar o popup para o `blob:` URL
-
-2) Editar `src/pages/ConversationsReport.tsx`
-   - Ajustar `handleExport` para abrir popup sincronamente e passar ao hook
-   - Ajustar `endDate` para não somar +1
-
----
-
-## Como vamos validar (obrigatório)
-1) No preview: clicar “Exportar CSV” e confirmar que o navegador baixa/abre a planilha com dados.
-2) No published: repetir o teste.
-3) Testar com:
-   - poucos registros (ex.: 10)
-   - muitos registros (ex.: 991 como na imagem)
-4) Conferir Console sem erros e sem warnings relevantes.
-5) Confirmar que filtros (data/departamento/agente/status/canal/busca) continuam funcionando.
-
-## Rollback rápido
-- Se qualquer comportamento inesperado ocorrer, reverteremos para o download via `<a>.click()` apenas (mantendo o `setTimeout` no revoke, que é seguro), sem popup.
+## Impacto
+- Zero regressao: ErrorBoundary continua capturando erros normalmente
+- Melhora UX: usuario sabe que houve um erro real, nao acha que e problema de versao
+- Facilita debug: erro visivel + copiavel
+- Resolve loops: reload simples primeiro, hard refresh como opcao
 

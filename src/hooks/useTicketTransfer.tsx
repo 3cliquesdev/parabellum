@@ -50,12 +50,11 @@ export function useTicketTransfer() {
         throw error;
       }
 
-      // Cast result para tipo esperado
-      const transferResult = result as { 
-        success: boolean; 
-        error?: string; 
-        ticket_id?: string; 
-        department_id?: string; 
+      const transferResult = result as {
+        success: boolean;
+        error?: string;
+        ticket_id?: string;
+        department_id?: string;
         department_name?: string;
         assigned_to?: string;
         assignee_name?: string;
@@ -68,26 +67,55 @@ export function useTicketTransfer() {
 
       console.log('[useTicketTransfer] ✅ Ticket transferido com sucesso:', transferResult);
 
-      // Notificar stakeholders via edge function
+      // --- Criar evento canônico + notificar com email + in_app ---
+      const actorId = user?.id ?? null;
+      const metadata = {
+        to_department_id: department_id,
+        to_department: transferResult.department_name ?? null,
+        assigned_to: transferResult.assigned_to ?? null,
+        assignee_name: transferResult.assignee_name ?? null,
+        internal_note: internal_note ?? null,
+      };
+
+      let eventId: string | null = null;
+
       try {
-        await supabase.functions.invoke('notify-ticket-event', {
+        const { data: ev, error: evErr } = await supabase
+          .from("ticket_events")
+          .insert({
+            ticket_id,
+            event_type: "transferred",
+            actor_id: actorId,
+            metadata,
+          })
+          .select("id")
+          .single();
+
+        if (evErr) {
+          console.error("[useTicketTransfer] ticket_events insert failed:", evErr);
+        } else {
+          eventId = ev?.id ?? null;
+        }
+      } catch (insertErr) {
+        console.error("[useTicketTransfer] ticket_events insert exception:", insertErr);
+      }
+
+      try {
+        await supabase.functions.invoke("notify-ticket-event", {
           body: {
             ticket_id,
-            event_type: 'transferred',
-            actor_id: user?.id,
+            event_type: "transferred",
+            actor_id: actorId,
             old_value: null,
             new_value: department_id,
-            metadata: {
-              to_department: transferResult.department_name,
-              assigned_to: transferResult.assigned_to,
-              assignee_name: transferResult.assignee_name,
-              internal_note,
-            },
+            ticket_event_id: eventId,
+            channels: ["email", "in_app"],
+            metadata,
           },
         });
-        console.log('[useTicketTransfer] Stakeholders notified');
-      } catch (notifyError) {
-        console.error('[useTicketTransfer] Failed to notify stakeholders:', notifyError);
+        console.log(`[useTicketTransfer] Notified transferred (event_id=${eventId})`);
+      } catch (notifyErr) {
+        console.error("[useTicketTransfer] notify-ticket-event failed:", notifyErr);
       }
 
       return {
@@ -98,7 +126,7 @@ export function useTicketTransfer() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
       queryClient.invalidateQueries({ queryKey: ["ticket-comments", data.id] });
-      
+
       toast({
         title: "✅ Ticket Transferido",
         description: `Enviado para ${data.department?.name || 'novo departamento'}`,

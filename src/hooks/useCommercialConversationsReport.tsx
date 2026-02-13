@@ -45,9 +45,15 @@ export function useCommercialConversationsReport(filters: ReportFilters) {
   return useQuery({
     queryKey: ["commercial-conversations-report", filters],
     queryFn: async () => {
+      // +1 dia exclusivo para capturar o dia final completo (RPC usa < p_end)
+      const endExclusive = new Date(filters.endDate);
+      endExclusive.setDate(endExclusive.getDate() + 1);
+      endExclusive.setHours(0, 0, 0, 0);
+
       console.log('[Report] Calling with filters:', {
         p_start: filters.startDate.toISOString(),
-        p_end: filters.endDate.toISOString(),
+        p_end: endExclusive.toISOString(),
+        p_end_original: filters.endDate.toISOString(),
         p_department_id: filters.departmentId,
         p_agent_id: filters.agentId,
         p_status: filters.status,
@@ -59,7 +65,7 @@ export function useCommercialConversationsReport(filters: ReportFilters) {
 
       const { data, error } = await supabase.rpc("get_commercial_conversations_report", {
         p_start: filters.startDate.toISOString(),
-        p_end: filters.endDate.toISOString(),
+        p_end: endExclusive.toISOString(),
         p_department_id: filters.departmentId || null,
         p_agent_id: filters.agentId || null,
         p_status: filters.status || null,

@@ -826,11 +826,11 @@ function pickDepartment(question: string): string {
   // Ordem de prioridade: Financeiro > Técnico/Sistema > Pedidos/Logística > Comercial > Suporte Geral
   const rules: Array<{ dept: string; patterns: RegExp }> = [
     // Financeiro - maior prioridade
-    { dept: 'financeiro', patterns: /saque|sacar|pix|reembolso|estorno|comiss[aã]o|dinheiro|pagamento|carteira|transfer[eê]ncia|boleto|fatura|cobran[cç]a|saldo|recarga|devolu[cç][aã]o|devolver|cancelamento|cancelar/ },
+    { dept: 'financeiro', patterns: /saque|sacar|pix|reembolso|estorno|comiss[aã]o|pagamento|carteira|boleto|fatura|cobran[cç]a|saldo|recarga|transfer[eê]ncia.*banc|transf.*banc|valor de volta|dinheiro devolvido|reembolsado/ },
     // Suporte Sistema (técnico) - segunda maior prioridade
     { dept: 'suporte_sistema', patterns: /erro|bug|login|senha|acesso|n[aã]o funciona|travou|caiu|site fora|api|integra[cç][aã]o|token|sistema|nao funciona|num funciona|tela branca|pagina nao carrega|problema tecnico|suporte tecnico/ },
     // Suporte Pedidos (logística/rastreio) - terceira prioridade
-    { dept: 'suporte_pedidos', patterns: /envio|entrega|rastreio|transportadora|correios|prazo|encomenda|coleta|endereco|cep|frete|pedido|onde.*pedido|status.*pedido|rastrear/ },
+    { dept: 'suporte_pedidos', patterns: /envio|entrega|rastreio|transportadora|correios|prazo|encomenda|coleta|endereco|cep|frete|pedido|onde.*pedido|status.*pedido|rastrear|devolu[cç][aã]o|devolver.*pedido|devolvido|devolvi|problema.*envio|envio incorreto|produto errado|cancelar.*pedido|transfer[eê]ncia.*endereco|transfer.*pedido/ },
     // Comercial - quarta prioridade
     { dept: 'comercial', patterns: /pre[cç]o|proposta|plano|quanto custa|comprar|assinar|desconto|trial|teste|orcamento|catalogo|tabela|upgrade|downgrade|mudar plano|conhecer|demonstra[cç][aã]o|demo/ },
   ];

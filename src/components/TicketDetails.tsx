@@ -22,7 +22,17 @@ import { ApprovalStatusBadge } from "@/components/ApprovalStatusBadge";
 import { SLABadge } from "@/components/SLABadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertCircle, Clock, CheckCircle, Sparkles, Copy, ArrowRight, Users, GitMerge, ExternalLink, User, FileText, Send, AlertTriangle } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle, Sparkles, Copy, ArrowRight, Users, GitMerge, ExternalLink, User, FileText, Send, AlertTriangle, Tag } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -97,6 +107,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
   const [attachments, setAttachments] = useState(ticket.attachments || []);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+  const [showMissingTagsDialog, setShowMissingTagsDialog] = useState(false);
   
   // FASE 5: Agent Presence
   const { otherUsers, setTyping } = useTicketPresence(ticket.id);
@@ -111,11 +122,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
 
   const handleStatusChange = (status: string) => {
     if ((status === 'resolved' || status === 'closed') && fieldSettings.tags && (!ticketTagsData || ticketTagsData.length === 0)) {
-      toast({
-        title: "Tags obrigatórias",
-        description: "Adicione pelo menos uma tag antes de encerrar o ticket.",
-        variant: "destructive",
-      });
+      setShowMissingTagsDialog(true);
       return;
     }
     updateTicket.mutate({
@@ -630,6 +637,42 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
         sourceTicketId={ticket.id}
         sourceTicketSubject={ticket.subject}
       />
+
+      {/* Dialog de Tags Obrigatórias */}
+      <AlertDialog open={showMissingTagsDialog} onOpenChange={setShowMissingTagsDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Tags Obrigatórias Não Adicionadas
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  A configuração do seu departamento exige que <strong>pelo menos uma tag</strong> seja adicionada antes de encerrar um ticket.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Tags ajudam a classificar e organizar tickets para análise futura.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowMissingTagsDialog(false);
+                setTimeout(() => {
+                  document.getElementById('ticket-tags-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+              }}
+            >
+              <Tag className="h-4 w-4 mr-2" />
+              Adicionar Tags Agora
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

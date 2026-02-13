@@ -1,70 +1,138 @@
 
-# Obrigatoriedade de Tags nos Tickets
+# Melhoria: Aviso Obrigatório de Tags ao Encerrar Ticket
 
-## Situacao Atual
+## Situação Atual
 
-- O sistema de "Campos Obrigatorios" existe em `useTicketFieldSettings.tsx` com 6 campos: department, operation, origin, category, customer, assigned_to
-- **Tags NAO estao incluidas** nesse sistema -- sempre aparecem como "(opcional)"
-- O `handleStatusChange` em `TicketDetails.tsx` (linha 107) muda o status diretamente sem nenhuma validacao de tags
-- A pagina de configuracao (`Departments.tsx`, aba "Campos") lista os 6 campos mas nao inclui tags
+Quando um usuário tenta encerrar um ticket (status `resolved` ou `closed`) sem tags obrigatórias, o sistema exibe um toast padrão:
+- Tipo: toast simples (canto da tela)
+- Mensagem: "Tags obrigatórias" + "Adicione pelo menos uma tag antes de encerrar o ticket."
+- Impacto: Fácil de perder/ignorar, pouco visual
 
-## O Que Sera Feito
+**Problema**: Toast é discreto demais. Admin/agente pode não notar e achar que a ação foi bloqueada por erro, não por falta de dados.
 
-### 1. Adicionar "tags" ao sistema de campos obrigatorios
+## Solução: AlertDialog Modal Bloqueador
 
-**Arquivo: `src/hooks/useTicketFieldSettings.tsx`**
+Substituir o toast por um `AlertDialog` (modal) que:
 
-- Adicionar `tags: boolean` na interface `TicketFieldSettings`
-- Adicionar `tags: "ticket_field_tags_required"` no `FIELD_KEYS`
-- Default: `tags: false` (opcional por padrao, admin ativa quando quiser)
+1. **Bloqueia a ação** - Modal força o usuário a reconhecer
+2. **Mensagem clara em 2 níveis**:
+   - Título destacado: "⚠️ Tags Obrigatórias"
+   - Descrição: Explicar que a configuração requer tags antes de encerrar
+   - Botão auxiliar: "Adicionar Tags" leva direto ao card de tags
+3. **Fluxo**:
+   - Usuário clica em "Resolvido" ou "Fechado"
+   - Dialog abre bloqueando a ação
+   - Usuário tem opções:
+     - "Cancelar" - volta sem fazer nada
+     - "Adicionar Tags" - fecha dialog e scroll até TicketTagsCard (novo)
+     - Ou sair e voltar depois
 
-### 2. Validar tags na criacao do ticket
+## Mudanças Técnicas
 
-**Arquivo: `src/components/support/CreateTicketDialog.tsx`**
+### 1. `src/components/TicketDetails.tsx`
 
-- Na variavel `canSubmit` (linha 179), adicionar: `(!fieldSettings.tags || selectedTagIds.length > 0)`
-- No label de Tags (linha 388-391), trocar "(opcional)" por indicador dinamico baseado em `fieldSettings.tags` (usando o helper `fieldLabel` ja existente)
+**Adicionar estado para controlar o dialog:**
+```typescript
+const [showMissingTagsDialog, setShowMissingTagsDialog] = useState(false);
+const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+```
 
-### 3. Bloquear encerramento de ticket sem tags
+**Modificar `handleStatusChange`:**
+- Se status é `resolved`/`closed` e tags obrigatórias com zero tags → abrir dialog (não fazer toast)
+- Armazenar o status pendente em `pendingStatus`
+- Não chamar `updateTicket.mutate` ainda
 
-**Arquivo: `src/components/TicketDetails.tsx`**
+**Adicionar novo handler `handleConfirmStatusChange`:**
+- Chamado quando usuário clica "Confirmar" no dialog
+- Executa o `updateTicket.mutate` com o status armazenado
 
-- Importar `useTicketFieldSettings` e `useTicketTags`
-- No `handleStatusChange` (linha 107): antes de chamar `updateTicket.mutate`, verificar se o status destino e "resolved" ou "closed" e se tags sao obrigatorias
-- Se obrigatorio e ticket nao tem tags: exibir toast de erro e bloquear a mudanca
-- Manter todos os outros status changes livres (open, in_progress, waiting_customer, etc.)
+**Renderizar `AlertDialog` no final do JSX:**
+```typescript
+<AlertDialog open={showMissingTagsDialog} onOpenChange={setShowMissingTagsDialog}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+        <AlertTriangle className="h-5 w-5" />
+        Tags Obrigatórias Não Adicionadas
+      </AlertDialogTitle>
+      <AlertDialogDescription className="space-y-3">
+        <p>
+          A configuração do seu departamento exige que <strong>pelo menos uma tag</strong> seja adicionada 
+          antes de encerrar um ticket.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Tags ajudam a classificar e organizar tickets para análise futura.
+        </p>
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+      <AlertDialogAction 
+        onClick={() => {
+          setShowMissingTagsDialog(false);
+          // Scroll até TicketTagsCard
+          document.getElementById('ticket-tags-card')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+        className="bg-blue-600 hover:bg-blue-700"
+      >
+        <Tag className="h-4 w-4 mr-2" />
+        Adicionar Tags Agora
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
 
-### 4. Adicionar toggle na pagina de configuracao
+### 2. `src/components/TicketTagsCard.tsx`
 
-**Arquivo: `src/pages/Departments.tsx`**
+**Adicionar ID ao container:**
+```typescript
+<Card id="ticket-tags-card" className="...">
+```
 
-- Na lista de campos (linha 330-336), adicionar: `{ field: "tags" as const, label: "Tags", desc: "Etiquetas de classificacao do ticket" }`
-- O Switch ja funciona automaticamente via `updateField`
+Isso permite scroll automático quando usuário clica "Adicionar Tags Agora".
 
 ## Fluxo Resultante
 
-```text
-Admin ativa "Tags obrigatoria" na aba Campos
-                |
-    +-----------+-----------+
-    |                       |
-Criacao de Ticket     Encerramento (resolved/closed)
-    |                       |
-Botao "Criar"          handleStatusChange
-bloqueado se             verifica tags
-tag_ids vazio            antes de aplicar
 ```
+Usuário clica status "Resolvido/Fechado"
+    ↓
+handleStatusChange verifica tags obrigatórias
+    ↓
+Não tem tags? → Abre AlertDialog (modal)
+    ↓ (usuário vê: "⚠️ Tags Obrigatórias - Adicione uma tag!")
+    ├─ Clica "Cancelar" → Dialog fecha, ticket continua aberto
+    │
+    └─ Clica "Adicionar Tags Agora" → Scroll até card de tags + fecha dialog
+         (usuário adiciona tag manualmente e tenta novamente)
+```
+
+## Benefícios
+
+- ✅ **Visibilidade**: Modal grande e clara, impossível ignorar
+- ✅ **Guidância**: Botão "Adicionar Tags Agora" leva direto para o card
+- ✅ **UX clara**: Mensagem em português explicando a política
+- ✅ **Regressão zero**: Apenas muda apresentação do bloqueio (lógica de validação continua igual)
+- ✅ **Consistência**: Usa o mesmo padrão de `AlertDialog` que CloseConversationDialog, OfflineConfirmationDialog, etc.
 
 ## Arquivos Modificados
 
-1. `src/hooks/useTicketFieldSettings.tsx` -- Adicionar campo `tags` (3 linhas)
-2. `src/components/support/CreateTicketDialog.tsx` -- Validar `canSubmit` + label dinamico (2 linhas)
-3. `src/components/TicketDetails.tsx` -- Bloquear resolved/closed sem tags (~15 linhas)
-4. `src/pages/Departments.tsx` -- Adicionar toggle de tags (1 linha na lista)
+1. **`src/components/TicketDetails.tsx`**
+   - Adicionar estado `showMissingTagsDialog` e `pendingStatus`
+   - Refatorar `handleStatusChange` para abrir dialog ao invés de fazer toast
+   - Adicionar `handleConfirmStatusChange` para execução adiada
+   - Renderizar `<AlertDialog>` no final
+   - Importar `AlertDialog*` e `AlertTriangle` (já tem)
 
-## Zero Regressao
+2. **`src/components/TicketTagsCard.tsx`**
+   - Adicionar `id="ticket-tags-card"` ao Card raiz (1 linha)
 
-- Default `tags: false` = comportamento identico ao atual
-- Campos existentes (department, operation, etc.) nao sao alterados
-- Fluxos de status que nao sao resolved/closed nao sao afetados
-- Hook `useTicketTags` ja existe e e reutilizado (sem nova query)
+## Testes Obrigatórios
+
+Após implementação:
+1. Ativar obrigatoriedade de tags em Departamentos > Campos > Tags
+2. Tentar encerrar ticket sem tags → Deve exibir AlertDialog
+3. Clicar "Adicionar Tags Agora" → Deve fazer scroll até card de tags
+4. Adicionar tag e tentar encerrar novamente → Deve funcionar normalmente
+5. Clicar "Cancelar" no dialog → Deve fechar sem fazer nada
+6. Verificar que tickets sem obrigatoriedade de tags continuam encerrando normalmente (sem dialog)

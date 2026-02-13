@@ -11,8 +11,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, AlertTriangle, Tag } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useCloseConversation } from "@/hooks/useCloseConversation";
+import { useConversationCloseSettings } from "@/hooks/useConversationCloseSettings";
+import { useConversationTags } from "@/hooks/useTags";
 
 interface Conversation {
   id: string;
@@ -38,8 +41,13 @@ export default function CloseConversationDialog({
 }: CloseConversationDialogProps) {
   const [sendSurvey, setSendSurvey] = useState(true);
   const closeConversation = useCloseConversation();
+  const { tagsRequired, isLoading: loadingSettings } = useConversationCloseSettings();
+  const { data: conversationTags = [], isLoading: loadingTags } = useConversationTags(conversation?.id);
 
   if (!conversation) return null;
+
+  const hasTags = conversationTags.length > 0;
+  const missingTags = tagsRequired && !hasTags && !loadingSettings && !loadingTags;
 
   const handleClose = () => {
     closeConversation.mutate(
@@ -68,27 +76,50 @@ export default function CloseConversationDialog({
             <CheckCircle className="h-5 w-5 text-green-600" />
             Encerrar Conversa
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-4 text-sm text-muted-foreground">
-            <p>
-              Você está encerrando a conversa com <strong className="text-foreground">{customerName}</strong>.
-            </p>
-            
-            <div className="flex items-start space-x-2 rounded-lg border border-border bg-muted/50 p-3">
-              <Checkbox
-                id="send-survey"
-                checked={sendSurvey}
-                onCheckedChange={(checked) => setSendSurvey(checked as boolean)}
-              />
-              <div className="grid gap-1.5 leading-none">
-                <Label
-                  htmlFor="send-survey"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                >
-                  Enviar pesquisa de satisfação
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Recomendado para coleta de feedback
-                </p>
+          <AlertDialogDescription asChild>
+            <div className="space-y-4 text-sm text-muted-foreground">
+              <p>
+                Você está encerrando a conversa com <strong className="text-foreground">{customerName}</strong>.
+              </p>
+
+              {missingTags && (
+                <div className="flex items-start gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+                  <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                  <div className="space-y-2">
+                    <p className="font-medium text-destructive">Tags obrigatórias</p>
+                    <p className="text-xs text-muted-foreground">
+                      Adicione pelo menos uma tag antes de encerrar esta conversa. Tags ajudam na classificação e análise dos atendimentos.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onOpenChange(false)}
+                      className="mt-1"
+                    >
+                      <Tag className="h-3.5 w-3.5 mr-1.5" />
+                      Adicionar Tags
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex items-start space-x-2 rounded-lg border border-border bg-muted/50 p-3">
+                <Checkbox
+                  id="send-survey"
+                  checked={sendSurvey}
+                  onCheckedChange={(checked) => setSendSurvey(checked as boolean)}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label
+                    htmlFor="send-survey"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Enviar pesquisa de satisfação
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Recomendado para coleta de feedback
+                  </p>
+                </div>
               </div>
             </div>
           </AlertDialogDescription>
@@ -99,7 +130,7 @@ export default function CloseConversationDialog({
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleClose}
-            disabled={closeConversation.isPending}
+            disabled={closeConversation.isPending || missingTags}
             className="bg-green-600 hover:bg-green-700"
           >
             <CheckCircle className="h-4 w-4 mr-2" />

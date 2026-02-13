@@ -208,11 +208,11 @@ export function CommercialDetailedTable({
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
 
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t pt-4 mt-4">
-                <span className="text-sm text-muted-foreground">
-                  Mostrando {page * pageSize + 1} - {Math.min((page + 1) * pageSize, totalCount)} de {totalCount}
-                </span>
+            <div className="flex items-center justify-between border-t pt-4 mt-4">
+              <span className="text-sm text-muted-foreground">
+                Mostrando {page * pageSize + 1} - {Math.min((page + 1) * pageSize, totalCount)} de {totalCount.toLocaleString("pt-BR")} conversa{totalCount !== 1 ? "s" : ""}
+              </span>
+              {totalPages > 1 && (
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -231,8 +231,8 @@ export function CommercialDetailedTable({
                     Próximo <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </CardContent>

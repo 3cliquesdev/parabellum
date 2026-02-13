@@ -4307,9 +4307,15 @@ Se foram pagos recentemente, pode ser que ainda não tenham entrado em preparaç
       }
       
       // ✅ Cliente identificado → Continuar com handoff normal para Suporte
-      const handoffDepartment = confidenceResult.department || DEPT_SUPORTE_ID;
+      // ✅ Respeitar departamento definido pelo fluxo (nunca sobrescrever)
+      const handoffDepartment = conversation.department || confidenceResult.department || DEPT_SUPORTE_ID;
       
-      console.log('[ai-autopilot-chat] ✅ Cliente identificado - handoff para Suporte');
+      console.log('[ai-autopilot-chat] 🔄 Departamento de handoff:', {
+        flowDepartment: conversation.department,
+        aiDetectedDepartment: confidenceResult.department || 'nenhum',
+        finalDepartment: handoffDepartment,
+        reason: conversation.department ? 'RESPEITANDO FLUXO' : 'USANDO IA'
+      });
       
       // 🛡️ Atualizar ai_mode para waiting_human E marcar timestamp anti-race-condition
       const handoffTimestamp = new Date().toISOString();
@@ -6748,16 +6754,18 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
       const DEPT_COMERCIAL_ID = 'f446e202-bdc3-4bb3-aeda-8c0aa04ee53c';
       const DEPT_SUPORTE_ID = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a';
       
-      // Determinar departamento de destino
-      const handoffDepartment = isLeadWithoutEmail ? DEPT_COMERCIAL_ID : DEPT_SUPORTE_ID;
+      // ✅ Respeitar departamento definido pelo fluxo (nunca sobrescrever)
+      const handoffDepartment = conversation.department || 
+                               (isLeadWithoutEmail ? DEPT_COMERCIAL_ID : DEPT_SUPORTE_ID);
       
-      console.log('[ai-autopilot-chat] 🎯 Fallback department decision:', {
+      console.log('[ai-autopilot-chat] 🔄 Departamento de handoff (fallback):', {
+        flowDepartment: conversation.department,
         isLeadWithoutEmail,
         contactHasEmail,
         isCustomerInDatabase,
         contactStatus: contact.status,
-        handoffDepartment: isLeadWithoutEmail ? 'COMERCIAL' : 'SUPORTE',
-        departmentId: handoffDepartment
+        finalDepartment: handoffDepartment,
+        reason: conversation.department ? 'RESPEITANDO FLUXO' : (isLeadWithoutEmail ? 'LEAD→COMERCIAL' : 'SUPORTE')
       });
       
       // 1. MUDAR O MODO para waiting_human (NÃO copilot!) e marcar timestamp + departamento

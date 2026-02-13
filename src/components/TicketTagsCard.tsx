@@ -47,7 +47,7 @@ export function TicketTagsCard({ ticketId, readonly = false }: TicketTagsCardPro
   }
 
   return (
-    <Card>
+    <Card id="ticket-tags-card">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium flex items-center gap-2">

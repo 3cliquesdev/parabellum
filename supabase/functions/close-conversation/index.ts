@@ -95,6 +95,24 @@ Deno.serve(async (req) => {
     const tagNames = conversationTags?.map((ct: any) => ct.tags?.name).filter(Boolean) || [];
     console.log(`[close-conversation] Conversation tags: ${tagNames.join(", ") || "none"}`);
 
+    // Contagem de mensagens por tipo
+    const { count: messageCount } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", conversationId);
+
+    const { count: agentMessageCount } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", conversationId)
+      .eq("sender_type", "agent");
+
+    const { count: customerMessageCount } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", conversationId)
+      .eq("sender_type", "customer");
+
     // Calcular duração da conversa
     const startTime = new Date(conversation.created_at);
     const endTime = new Date();
@@ -182,6 +200,14 @@ Deno.serve(async (req) => {
       }
       timelineContent += `\nDuração: ${durationMinutes} minutos`;
 
+      // Verificar se teve assistência de IA (copilot/suggestions)
+      const { count: aiSuggestionsCount } = await supabase
+        .from("ai_suggestions")
+        .select("id", { count: "exact", head: true })
+        .eq("conversation_id", conversationId);
+
+      const hadAiAssistance = (aiSuggestionsCount || 0) > 0;
+
       const { error: interactionError } = await supabase
         .from("interactions")
         .insert({
@@ -195,6 +221,11 @@ Deno.serve(async (req) => {
             closed_by: userId,
             duration_minutes: durationMinutes,
             tags: tagNames,
+            message_count: messageCount || 0,
+            agent_messages: agentMessageCount || 0,
+            customer_messages: customerMessageCount || 0,
+            channel: conversation.channel,
+            had_ai_assistance: hadAiAssistance,
             auto_generated: true,
           },
         });

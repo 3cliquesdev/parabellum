@@ -11,6 +11,7 @@ import { useTicketCategories, useUpdateTicketCategory, useDeleteTicketCategory, 
 import { useTicketOrigins, useUpdateTicketOrigin, useDeleteTicketOrigin, type TicketOrigin } from "@/hooks/useTicketOrigins";
 import { useSLAPolicies } from "@/hooks/useSLAPolicies";
 import { useTicketFieldSettings } from "@/hooks/useTicketFieldSettings";
+import { useConversationCloseSettings } from "@/hooks/useConversationCloseSettings";
 import DepartmentDialog from "@/components/DepartmentDialog";
 import OperationDialog from "@/components/OperationDialog";
 import CategoryDialog from "@/components/CategoryDialog";
@@ -57,6 +58,7 @@ export default function Departments() {
   const { data: origins, isLoading: loadingOrigins } = useTicketOrigins();
   const { data: slaPolicies } = useSLAPolicies();
   const { settings: fieldSettings, updateField } = useTicketFieldSettings();
+  const { tagsRequired: convTagsRequired, updateTagsRequired } = useConversationCloseSettings();
 
   const unitLabels: Record<string, string> = { hours: "h", business_hours: "h úteis", business_days: "d úteis" };
   const getSlaForCategory = (catId: string, prio: string) => {
@@ -354,6 +356,27 @@ export default function Departments() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Conversas (Chat)</h3>
+            <Card>
+              <CardContent className="flex items-center justify-between py-4">
+                <div>
+                  <p className="font-medium text-foreground">Tags obrigatórias ao encerrar conversa</p>
+                  <p className="text-sm text-muted-foreground">Impede o encerramento de conversas sem pelo menos uma tag</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {convTagsRequired ? "Obrigatório" : "Opcional"}
+                  </span>
+                  <Switch
+                    checked={convTagsRequired}
+                    onCheckedChange={(checked) => updateTagsRequired(checked)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>

@@ -1,53 +1,65 @@
 
 
-## Correcao: Filtro de Data do Dashboard de Playbooks
+## Relatorio de Sequencia de E-mails por Venda (Onboarding)
 
-### Problema
+### Onde fica
 
-Ao selecionar um periodo (ex: 17/02/2026 - 17/02/2026), o frontend envia para as RPCs:
+Na pagina **Relatorios** (`/reports`), aba **Onboarding**, como um novo card que navega para uma pagina dedicada em `/reports/playbook-email-sequence`.
 
+### Formato da planilha exportada
+
+```text
+| Cliente | Email | Playbook | Data Venda | Hora Venda | Email 1 - Titulo | Email 1 - Data | Email 1 - Hora | Email 1 - Status | Email 2 - Titulo | ... |
 ```
-p_start: "2026-02-17T03:00:00.000Z"
-p_end:   "2026-02-17T03:00:00.000Z"
+
+- Cada execucao de playbook = 1 linha
+- Colunas de e-mail se expandem dinamicamente conforme o maximo de e-mails encontrados
+- Status: Enviado / Aberto / Clicado / Bounce / Erro
+
+### Arquivos e Alteracoes
+
+**1. Nova migracao SQL** — RPC `get_playbook_email_sequence_report`
+
+Consulta que retorna execucoes com seus e-mails ordenados, aceitando filtros opcionais `p_start`, `p_end`, `p_playbook_id`. Faz JOIN entre `playbook_executions`, `contacts`, `onboarding_playbooks` e `email_sends`, retornando o numero sequencial de cada e-mail via `ROW_NUMBER()`.
+
+**2. Novo arquivo: `src/hooks/usePlaybookEmailSequenceReport.tsx`**
+
+- Hook que chama a RPC com filtros de data e playbook
+- Retorna dados brutos para exibicao na tabela
+
+**3. Novo arquivo: `src/hooks/useExportPlaybookEmailSequence.tsx`**
+
+- Recebe os dados, pivota por execution_id (1 linha por execucao, N colunas por e-mail)
+- Gera arquivo `.xlsx` usando a biblioteca `xlsx` (ja instalada)
+- Segue o mesmo padrao do `useExportTicketsExcel`
+
+**4. Nova pagina: `src/pages/PlaybookEmailSequenceReport.tsx`**
+
+Pagina dedicada seguindo o padrao do `TicketsExportReport.tsx`:
+- Botao voltar para `/reports`
+- Filtros: DateRangePicker + Select de Playbook
+- Tabela com preview dos dados (primeiros 3 e-mails visiveis, restante no Excel)
+- Botao "Exportar Excel"
+
+**5. Editar: `src/pages/Reports.tsx`**
+
+Adicionar novo card na categoria Onboarding:
+```
+{
+  id: 'email_sequence',
+  name: 'Sequencia de E-mails',
+  description: 'Exportacao com todas as etapas de e-mail por venda/execucao',
+  icon: FileSpreadsheet,
+  route: '/reports/playbook-email-sequence',
+}
 ```
 
-Ambos sao a mesma hora exata (meia-noite local convertida para UTC). O intervalo tem largura zero, entao nenhum dado e retornado.
+**6. Editar: `src/App.tsx`**
 
-O mesmo problema afeta:
-- `usePlaybookMetrics` (KPIs + funil)
-- `useEmailEvolutionData` (grafico de evolucao)
-
-### Causa Raiz
-
-Os hooks usam `dateRange.from.toISOString()` e `dateRange.to.toISOString()` diretamente. O `react-day-picker` retorna datas com hora 00:00:00 local. O `toISOString()` converte para UTC (ex: -3h no Brasil), e o `p_end` precisa cobrir ate o final do dia, nao o inicio.
-
-### Solucao
-
-Usar os utilitarios locais ja existentes em `src/lib/dateUtils.ts` (`getStartOfDayString` e `getEndOfDayString`) para:
-
-- `p_start` = `YYYY-MM-DDT00:00:00` (inicio do dia local)
-- `p_end` = `YYYY-MM-DDT23:59:59` (final do dia local)
-
-### Arquivos Alterados
-
-**1. `src/hooks/usePlaybookMetrics.tsx`**
-
-Importar `getStartOfDayString` e `getEndOfDayString` de `@/lib/dateUtils`. Substituir todas as ocorrencias de `dateRange.from.toISOString()` por `getStartOfDayString(dateRange.from)` e `dateRange.to.toISOString()` por `getEndOfDayString(dateRange.to)`.
-
-Locais afetados:
-- Linha 47-48: parametros da RPC `get_playbook_kpis`
-- Linha 68: parametros da RPC `get_playbook_performance`
-- Linhas 86, 91: filtros do funil (salesQuery, sentQuery)
-- Linhas 105-112: filtros de delivered/opened/clicked
-
-**2. `src/hooks/useEmailTrackingEvents.tsx`**
-
-Mesma correcao nas linhas 114-115: substituir `.toISOString()` por `getStartOfDayString`/`getEndOfDayString`.
+Adicionar rota `/reports/playbook-email-sequence` apontando para a nova pagina.
 
 ### Impacto
 
 - Zero impacto em funcionalidades existentes
-- Sem filtro (dateRange undefined): comportamento inalterado
-- Com filtro: agora retorna dados do dia completo em vez de intervalo vazio
+- Apenas adiciona novo card + pagina + RPC
 - Kill Switch, Shadow Mode, CSAT, distribuicao nao sao afetados
-

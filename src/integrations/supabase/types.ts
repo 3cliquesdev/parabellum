@@ -8771,6 +8771,56 @@ export type Database = {
           },
         ]
       }
+      whatsapp_message_templates: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          has_variables: boolean | null
+          id: string
+          instance_id: string | null
+          is_active: boolean | null
+          language_code: string
+          name: string
+          updated_at: string | null
+          variable_examples: Json | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          has_variables?: boolean | null
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          language_code?: string
+          name: string
+          updated_at?: string | null
+          variable_examples?: Json | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          has_variables?: boolean | null
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          language_code?: string
+          name?: string
+          updated_at?: string | null
+          variable_examples?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_templates_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_meta_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_meta_instances: {
         Row: {
           access_token: string

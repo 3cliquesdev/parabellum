@@ -1,48 +1,35 @@
 
-## Gerenciamento de Macros direto pelo Inbox
+
+## Adicionar Seletor de Gatilho no Builder V2
 
 ### Problema
-Agentes de atendimento (support_agent, financial_agent, consultant) tem a permissao `inbox.access` mas NAO tem `settings.view`. Isso significa que eles conseguem usar macros no chat (via botao Zap ou /atalho), mas nao conseguem criar, editar ou excluir macros porque o unico caminho e Configuracoes, que esta bloqueado.
+No builder V2, o campo "Gatilho" na sidebar direita (aba Config) e apenas texto estático — mostra o valor atual mas nao permite alteracao. Diferente do V1, onde o usuario pode mudar o gatilho a qualquer momento.
 
 ### Solucao
-Expandir o `MacrosPopover` ja existente no composer do Inbox para incluir opcoes de gerenciamento (criar, editar, excluir) diretamente ali, sem precisar navegar para Configuracoes.
+Substituir o texto estático do gatilho por um Select editavel na sidebar direita do builder V2, reutilizando a mesma lista de trigger types e o hook `useUpdateEmailTemplateV2` que ja esta em uso na pagina.
 
-### Alteracoes
+### Alteracao
 
-**1. `src/components/MacrosPopover.tsx`** — Adicionar botoes de gerenciamento
+**Arquivo: `src/pages/EmailBuilderV2Page.tsx`**
 
-- Adicionar botao "Nova Macro" no topo do popover (ao lado da busca)
-- Em cada macro listada, adicionar icones de editar e excluir (visíveis no hover)
-- Integrar o `MacroDialog` existente para criar/editar macros inline
-- Adicionar AlertDialog de confirmacao para exclusao (mesmo padrao da pagina Macros)
-- Importar hooks `useCreateCannedResponse`, `useUpdateCannedResponse`, `useDeleteCannedResponse`
+1. Importar `Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue` (ja existem no projeto)
+2. Na aba "Config" da sidebar direita (linhas 234-249), substituir o bloco de "Informacoes" que mostra o gatilho como texto estatico por um Select editavel
+3. Ao mudar o valor, chamar `updateTemplate.mutate({ id, updates: { trigger_type: value } })` — mesmo padrao ja usado para Assunto e Preheader
+4. Adicionar a lista de trigger types (mesma do `CreateTemplateV2Dialog`) como constante local ou importada
 
-**2. Layout do popover atualizado**
+### Layout atualizado da sidebar Config
 
 ```text
-+----------------------------------+
-| [Buscar macro...]    [+ Nova]    |
-+----------------------------------+
-| /ola - Saudacao inicial   [E][X] |
-| /preco - Tabela de precos  [E][X]|
-| /tchau - Despedida         [E][X]|
-+----------------------------------+
-| \ ou Ctrl+M para macros         |
-+----------------------------------+
+Assunto:     [________________]
+Preheader:   [________________]
+---
+Gatilho:     [Select v]       <-- novo (era texto)
+Categoria:   transactional     (texto)
+Versao:      v1                (texto)
 ```
 
-- Clicar na macro: insere o conteudo (comportamento atual, inalterado)
-- Clicar no icone de editar (E): abre MacroDialog para edicao
-- Clicar no icone de excluir (X): abre confirmacao e exclui
-- Clicar em "+ Nova": abre MacroDialog vazio para criar
-
 ### O que NAO muda
-- Pagina /settings/macros continua existindo para managers/admins
-- Fluxo de selecao de macros (clicar para inserir) inalterado
-- SlashCommandMenu (/) continua funcionando normalmente
+- CreateTemplateV2Dialog continua funcionando igual
+- Assunto e Preheader continuam editaveis como estao
+- Nenhuma alteracao de banco de dados
 - Kill Switch, Shadow Mode, CSAT, distribuicao: nao afetados
-- Nenhuma alteracao de banco de dados ou permissoes necessaria
-
-### Detalhes Tecnicos
-
-O `MacroDialog` existente ja suporta tanto criacao quanto edicao (recebe `macro` opcional como prop). Basta reutiliza-lo dentro do popover. Os hooks de CRUD (`useCreateCannedResponse`, `useUpdateCannedResponse`, `useDeleteCannedResponse`) ja estao implementados em `useCannedResponses.tsx`.

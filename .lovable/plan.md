@@ -1,56 +1,48 @@
 
-
-## Colar Imagens no Chat do Inbox (Ctrl+V / Cmd+V)
+## Gerenciamento de Macros direto pelo Inbox
 
 ### Problema
-Hoje, para enviar uma imagem no inbox, o agente precisa clicar no botao de anexo e selecionar o arquivo manualmente. Nao e possivel simplesmente copiar uma imagem (print screen, imagem da web, etc.) e colar com Ctrl+V no campo de mensagem.
+Agentes de atendimento (support_agent, financial_agent, consultant) tem a permissao `inbox.access` mas NAO tem `settings.view`. Isso significa que eles conseguem usar macros no chat (via botao Zap ou /atalho), mas nao conseguem criar, editar ou excluir macros porque o unico caminho e Configuracoes, que esta bloqueado.
 
 ### Solucao
-Adicionar um listener de `paste` no Textarea do `SuperComposer.tsx` que detecta imagens no clipboard e as envia automaticamente pelo fluxo de upload existente (`handleFileSelect`).
+Expandir o `MacrosPopover` ja existente no composer do Inbox para incluir opcoes de gerenciamento (criar, editar, excluir) diretamente ali, sem precisar navegar para Configuracoes.
 
 ### Alteracoes
 
-**Arquivo: `src/components/inbox/SuperComposer.tsx`**
+**1. `src/components/MacrosPopover.tsx`** — Adicionar botoes de gerenciamento
 
-1. Adicionar handler `handlePaste` que:
-   - Intercepta o evento `paste` no textarea
-   - Verifica se ha itens de imagem no `clipboardData`
-   - Para cada imagem encontrada, converte o `DataTransferItem` em `File`
-   - Chama `handleFileSelect(file)` (fluxo ja existente de upload + preview)
-   - Previne o comportamento padrao apenas se uma imagem for detectada (texto colado continua funcionando normalmente)
+- Adicionar botao "Nova Macro" no topo do popover (ao lado da busca)
+- Em cada macro listada, adicionar icones de editar e excluir (visíveis no hover)
+- Integrar o `MacroDialog` existente para criar/editar macros inline
+- Adicionar AlertDialog de confirmacao para exclusao (mesmo padrao da pagina Macros)
+- Importar hooks `useCreateCannedResponse`, `useUpdateCannedResponse`, `useDeleteCannedResponse`
 
-2. Conectar o handler ao textarea via `onPaste={handlePaste}`
-
-Pseudocodigo:
+**2. Layout do popover atualizado**
 
 ```text
-const handlePaste = (e: React.ClipboardEvent) => {
-  const items = e.clipboardData?.items;
-  if (!items) return;
-
-  for (const item of Array.from(items)) {
-    if (item.type.startsWith('image/')) {
-      e.preventDefault();
-      const file = item.getAsFile();
-      if (file) {
-        // Gerar nome amigavel com timestamp
-        const ext = file.type.split('/')[1] || 'png';
-        const named = new File([file], `clipboard-${Date.now()}.${ext}`, { type: file.type });
-        handleFileSelect(named);
-      }
-      return; // processar apenas a primeira imagem
-    }
-  }
-  // Se nao for imagem, deixa o paste normal de texto acontecer
-};
++----------------------------------+
+| [Buscar macro...]    [+ Nova]    |
++----------------------------------+
+| /ola - Saudacao inicial   [E][X] |
+| /preco - Tabela de precos  [E][X]|
+| /tchau - Despedida         [E][X]|
++----------------------------------+
+| \ ou Ctrl+M para macros         |
++----------------------------------+
 ```
 
-### O que NAO muda
-- Fluxo de upload existente (useMediaUpload) permanece intacto
-- FileDropZone continua funcionando normalmente
-- Preview de imagem, retry, remocao de anexo — tudo inalterado
-- Colar texto normal continua funcionando
-- Kill Switch, Shadow Mode, CSAT, distribuicao: nao afetados
+- Clicar na macro: insere o conteudo (comportamento atual, inalterado)
+- Clicar no icone de editar (E): abre MacroDialog para edicao
+- Clicar no icone de excluir (X): abre confirmacao e exclui
+- Clicar em "+ Nova": abre MacroDialog vazio para criar
 
-### Resultado
-O agente podera copiar qualquer imagem (print screen, imagem da web, de outro app) e colar diretamente no campo de mensagem com Ctrl+V. A imagem aparecera na area de preview de anexos e sera enviada junto com a mensagem.
+### O que NAO muda
+- Pagina /settings/macros continua existindo para managers/admins
+- Fluxo de selecao de macros (clicar para inserir) inalterado
+- SlashCommandMenu (/) continua funcionando normalmente
+- Kill Switch, Shadow Mode, CSAT, distribuicao: nao afetados
+- Nenhuma alteracao de banco de dados ou permissoes necessaria
+
+### Detalhes Tecnicos
+
+O `MacroDialog` existente ja suporta tanto criacao quanto edicao (recebe `macro` opcional como prop). Basta reutiliza-lo dentro do popover. Os hooks de CRUD (`useCreateCannedResponse`, `useUpdateCannedResponse`, `useDeleteCannedResponse`) ja estao implementados em `useCannedResponses.tsx`.

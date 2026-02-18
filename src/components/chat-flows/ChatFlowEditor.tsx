@@ -694,7 +694,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                       </Button>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                      Adicione regras para criar 3+ saídas. Cada regra usa palavras-chave (vírgula = OR). Se nenhuma bater, segue por "Outros".
+                      O nome da regra é usado como condição. Opcionalmente, adicione frases extras no campo abaixo. Se nenhuma bater, segue por "Outros".
                     </p>
                     {(selectedNode.data.condition_rules || []).length > 0 && (
                       <p className="text-[10px] text-warning font-medium">
@@ -726,7 +726,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                         <Textarea
                           value={rule.keywords || ""}
                           onChange={(e) => updateConditionRule(idx, "keywords", e.target.value)}
-                          placeholder="Uma frase por linha (Enter para nova frase)"
+                          placeholder="Opcional: frases extras (1 por linha). Se vazio, usa o nome da regra acima."
                           className="min-h-[40px] text-xs"
                         />
                       </div>

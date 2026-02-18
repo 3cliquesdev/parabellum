@@ -189,7 +189,8 @@ function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>
     console.log(`[process-chat-flow] 🔍 Evaluating ${rules.length} condition rules. User message (normalized): "${msg}"`);
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
-      const rawKw = rule.keywords || "";
+      // Usar keywords se preenchido, senao usar label como fallback
+      const rawKw = (rule.keywords || "").trim() || (rule.label || "").trim();
       const terms = rawKw.includes("\n")
         ? rawKw.split("\n").map((t: string) => t.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).filter(Boolean)
         : [rawKw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')].filter(Boolean);

@@ -18,8 +18,19 @@ import {
   CheckCircle2, 
   AlertCircle,
   User,
-  Headphones
+  Headphones,
+  Paperclip,
+  Download,
+  ArrowRightLeft,
+  Image as ImageIcon
 } from "lucide-react";
+
+interface TicketAttachment {
+  url: string;
+  name: string;
+  type: string;
+  size: number;
+}
 
 interface TicketComment {
   id: string;
@@ -28,6 +39,16 @@ interface TicketComment {
   source: string | null;
   author_name: string;
   is_customer: boolean;
+  attachments?: TicketAttachment[];
+}
+
+interface TicketEvent {
+  id: string;
+  event_type: string;
+  created_at: string;
+  old_value?: string | null;
+  new_value?: string | null;
+  metadata?: Record<string, any>;
 }
 
 interface CustomerTicket {
@@ -45,6 +66,7 @@ interface CustomerTicket {
   department: { id: string; name: string } | null;
   comments: TicketComment[];
   comment_count: number;
+  events?: TicketEvent[];
 }
 
 interface MyTicketDetailProps {
@@ -76,7 +98,43 @@ const priorityLabels: Record<string, string> = {
   urgent: "Urgente",
 };
 
-export default function MyTicketDetail({ 
+const statusEventLabels: Record<string, string> = {
+  open: 'Aberto',
+  in_progress: 'Em Análise',
+  waiting_customer: 'Aguardando Cliente',
+  resolved: 'Resolvido',
+  closed: 'Fechado',
+  pending_approval: 'Aguard. Aprovação',
+  returned: 'Devolvido',
+  loja_bloqueada: 'Loja Bloqueada',
+  loja_concluida: 'Loja Concluída',
+  approved: 'Aprovado',
+};
+
+function getEventLabel(event: TicketEvent): string {
+  if (event.event_type === 'status_changed') {
+    const from = statusEventLabels[event.old_value || ''] || event.old_value;
+    const to = statusEventLabels[event.new_value || ''] || event.new_value;
+    return `Status alterado de ${from} para ${to}`;
+  }
+  if (event.event_type === 'resolved') return 'Ticket resolvido';
+  if (event.event_type === 'closed') return 'Ticket fechado';
+  if (event.event_type === 'assigned') return 'Ticket atribuído a um agente';
+  return 'Atualização do ticket';
+}
+
+type TimelineItem = { type: 'comment'; data: TicketComment; date: Date } | { type: 'event'; data: TicketEvent; date: Date };
+
+function mergeTimelineItems(comments: TicketComment[], events: TicketEvent[]): TimelineItem[] {
+  const items: TimelineItem[] = [
+    ...comments.map(c => ({ type: 'comment' as const, data: c, date: new Date(c.created_at) })),
+    ...events.map(e => ({ type: 'event' as const, data: e, date: new Date(e.created_at) })),
+  ];
+  items.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return items;
+}
+
+export default function MyTicketDetail({
   ticket, 
   contactId, 
   onBack, 
@@ -252,7 +310,7 @@ export default function MyTicketDetail({
             <CardTitle className="text-base">Histórico de Mensagens</CardTitle>
           </CardHeader>
           <CardContent>
-            {ticket.comments.length === 0 ? (
+            {ticket.comments.length === 0 && (!ticket.events || ticket.events.length === 0) ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>Nenhuma mensagem ainda.</p>
                 <p className="text-sm">Aguardando resposta da equipe de suporte.</p>
@@ -260,38 +318,89 @@ export default function MyTicketDetail({
             ) : (
               <ScrollArea className="max-h-[400px]">
                 <div className="space-y-4">
-                  {ticket.comments.map((comment) => (
-                    <div 
-                      key={comment.id} 
-                      className={`flex gap-3 ${comment.is_customer ? 'flex-row-reverse' : ''}`}
-                    >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        comment.is_customer 
-                          ? 'bg-primary/10 text-primary' 
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {comment.is_customer ? (
-                          <User className="w-4 h-4" />
-                        ) : (
-                          <Headphones className="w-4 h-4" />
-                        )}
-                      </div>
-                      <div className={`flex-1 max-w-[80%] ${comment.is_customer ? 'text-right' : ''}`}>
-                        <div className={`inline-block rounded-lg p-3 ${
-                          comment.is_customer 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'bg-muted'
-                        }`}>
-                          <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                  {/* Merge comments and events by date */}
+                  {mergeTimelineItems(ticket.comments, ticket.events || []).map((item) => {
+                    if (item.type === 'event') {
+                      const evt = item.data as TicketEvent;
+                      return (
+                        <div key={`event-${evt.id}`} className="flex justify-center">
+                          <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-1.5 text-xs text-muted-foreground">
+                            <ArrowRightLeft className="w-3 h-3" />
+                            <span>{getEventLabel(evt)}</span>
+                            <span>• {format(new Date(evt.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}</span>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {comment.is_customer ? 'Você' : comment.author_name} • {
-                            format(new Date(comment.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })
-                          }
-                        </p>
+                      );
+                    }
+
+                    const comment = item.data as TicketComment;
+                    return (
+                      <div 
+                        key={comment.id} 
+                        className={`flex gap-3 ${comment.is_customer ? 'flex-row-reverse' : ''}`}
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          comment.is_customer 
+                            ? 'bg-primary/10 text-primary' 
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {comment.is_customer ? (
+                            <User className="w-4 h-4" />
+                          ) : (
+                            <Headphones className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className={`flex-1 max-w-[80%] ${comment.is_customer ? 'text-right' : ''}`}>
+                          <div className={`inline-block rounded-lg p-3 ${
+                            comment.is_customer 
+                              ? 'bg-primary text-primary-foreground' 
+                              : 'bg-muted'
+                          }`}>
+                            <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                            {/* Attachments */}
+                            {comment.attachments && comment.attachments.length > 0 && (
+                              <div className="mt-2 space-y-2 border-t border-white/10 pt-2">
+                                {comment.attachments.map((att, idx) => {
+                                  const isImage = att.type?.startsWith('image/');
+                                  return (
+                                    <div key={idx}>
+                                      {isImage ? (
+                                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                                          <img 
+                                            src={att.url} 
+                                            alt={att.name} 
+                                            className="max-w-[200px] rounded border cursor-pointer hover:opacity-80 transition-opacity" 
+                                          />
+                                        </a>
+                                      ) : (
+                                        <a 
+                                          href={att.url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className={`flex items-center gap-2 text-xs hover:underline ${
+                                            comment.is_customer ? 'text-primary-foreground/80' : 'text-foreground/70'
+                                          }`}
+                                        >
+                                          <Paperclip className="w-3 h-3" />
+                                          <span className="truncate max-w-[150px]">{att.name}</span>
+                                          <Download className="w-3 h-3" />
+                                        </a>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {comment.is_customer ? 'Você' : comment.author_name} • {
+                              format(new Date(comment.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })
+                            }
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
             )}

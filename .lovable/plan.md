@@ -1,24 +1,24 @@
 
 
-## Correção do Erro de Build (bun.lock)
+## Correção do Erro de Build (mux-embed)
 
 ### Problema
-O build está falhando com erro `mux-embed@workspace:* failed to resolve` porque o arquivo `bun.lock` contém uma referência corrompida a uma dependência que não existe no projeto.
+O `bun.lock` contém referências a `@mux/mux-player` e `mux-embed` que não existem no `package.json`. Isso causa o erro `mux-embed@workspace:* failed to resolve` e impede o build.
 
 ### Solução
-Deletar o arquivo `bun.lock` para que seja regenerado automaticamente sem a referência corrompida.
-
-### Sobre a funcionalidade de Múltiplas Regras
-A feature está funcionando corretamente conforme a screenshot. A lógica é:
-- Cada regra contém palavras-chave separadas por vírgula (lógica OR)
-- O motor verifica as regras na ordem configurada
-- A primeira regra que bater direciona para o caminho conectado
-- Se nenhuma bater, segue pelo "Outros"
+Adicionar e imediatamente remover uma dependência dummy para forçar a regeneração do lockfile. Alternativa mais limpa: sobrescrever o `bun.lock` com conteúdo vazio para forçar recriação.
 
 ### Seção Técnica
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `bun.lock` | Deletar para regeneração limpa |
+| Ação | Detalhe |
+|------|---------|
+| Sobrescrever `bun.lock` | Gravar arquivo vazio para forçar regeneração completa pelo Bun |
+| Validar | Confirmar que o build passa sem erro |
 
-Nenhuma outra alteração necessária - a feature de múltiplas regras já está implementada e funcional.
+Nenhuma feature é afetada — apenas o lockfile é regenerado.
+
+### Sobre testar a feature
+Após o build passar, você poderá testar enviando mensagens via WhatsApp. O motor vai:
+1. Verificar cada regra na ordem configurada
+2. Se a mensagem contiver alguma palavra-chave de uma regra, seguir aquele caminho
+3. Se nenhuma regra bater, seguir pelo caminho "Outros"

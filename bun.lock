@@ -1,1 +1,9 @@
-{}
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "vite_react_shadcn_ts"
+    }
+  },
+  "packages": {}
+}

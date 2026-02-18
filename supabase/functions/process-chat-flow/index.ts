@@ -186,10 +186,14 @@ function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>
   // Multi-regra: iterar cada regra e retornar a primeira que bater
   if (rules && Array.isArray(rules) && rules.length > 0) {
     const msg = userMessage.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    for (const rule of rules) {
+    console.log(`[process-chat-flow] 🔍 Evaluating ${rules.length} condition rules. User message (normalized): "${msg}"`);
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
       const terms = (rule.keywords || "").split(",").map((t: string) => t.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).filter(Boolean);
+      console.log(`[process-chat-flow] 📋 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | keywords: [${terms.join(', ')}]`);
       if (terms.length > 0 && terms.some((term: string) => msg.includes(term))) {
-        console.log(`[process-chat-flow] 🎯 Multi-rule match: "${rule.label}" (${rule.id})`);
+        const matchedTerm = terms.find((term: string) => msg.includes(term));
+        console.log(`[process-chat-flow] 🎯 MATCH on Rule ${i + 1}: "${rule.label}" — matched keyword: "${matchedTerm}"`);
         return rule.id;
       }
     }

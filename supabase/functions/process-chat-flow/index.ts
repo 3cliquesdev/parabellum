@@ -143,8 +143,11 @@ function evaluateCondition(condition: any, collectedData: Record<string, any>, u
   const fieldValue = condition_field ? (collectedData[condition_field] || "") : userMessage;
   
   switch (condition_type) {
-    case "contains":
-      return userMessage.toLowerCase().includes((condition_value || "").toLowerCase());
+    case "contains": {
+      const terms = (condition_value || "").split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean);
+      const msg = userMessage.toLowerCase();
+      return terms.length > 0 && terms.some((term: string) => msg.includes(term));
+    }
     case "equals":
       return fieldValue.toLowerCase() === (condition_value || "").toLowerCase();
     case "has_data":

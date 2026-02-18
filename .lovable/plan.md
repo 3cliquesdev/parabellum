@@ -1,51 +1,43 @@
 
-## Suporte a Multiplos Valores no "Contem" da Condicao
 
-### Problema Atual
-O no de condicao do Chat Flow aceita apenas **um unico valor** no campo "Valor esperado". Para verificar se a mensagem contem "preco" OU "valor" OU "quanto custa", o usuario precisa criar 3 nos de condicao encadeados, o que e trabalhoso e poluente visualmente.
+## Correções: Multi-valor, Display e Build Error
 
-### Solucao
-Permitir que o campo "Valor esperado" aceite **multiplos valores separados por virgula** quando o tipo for "Contem" (contains). A logica sera: se a mensagem contem **qualquer um** dos valores, a condicao e verdadeira (logica OR).
+### 1. Corrigir erro de build "mux-embed"
 
-### Exemplo de uso
-- Tipo: Contem
-- Valor esperado: `preco, valor, quanto custa, orcamento`
-- Mensagem do usuario: "Qual o valor do plano?"
-- Resultado: TRUE (contem "valor")
+O `bun.lock` contém uma referência corrompida a `mux-embed` (dependência de `@mux/mux-player` que não está no `package.json`). A solução é deletar o `bun.lock` para que seja regenerado limpo.
 
-### Alteracoes
+- Arquivo: `bun.lock` -- deletar o arquivo para regeneração automática
 
-**1. Frontend - Editor da Condicao (src/components/chat-flows/ChatFlowEditor.tsx)**
-- No campo "Valor esperado", quando tipo for "contains", trocar o `Input` por um `Textarea` com placeholder explicativo: "Separe multiplas frases por virgula"
-- Adicionar texto de ajuda abaixo: "Use virgula para verificar multiplas frases (qualquer uma = verdadeiro)"
+### 2. Corrigir display do nó de Condição
 
-**2. Frontend - Exibicao do No (src/components/chat-flows/nodes/ConditionNode.tsx)**
-- Se `condition_value` contem virgula, mostrar no subtitle algo como: `Contem (Mensagem): "preco, valor, ..." (3 termos)` em vez de mostrar a string inteira
+Atualmente o nó mostra "(X termos)" para QUALQUER tipo de condição quando o valor tem vírgula. Isso é enganoso para "É igual a", que não suporta multi-valor. O display de termos deve aparecer APENAS quando o tipo é "contains".
 
-**3. Backend - Motor de Fluxo (supabase/functions/process-chat-flow/index.ts)**
-- Na funcao `evaluateCondition` (e na funcao `evalCond` duplicada mais abaixo), quando `condition_type === "contains"`:
-  - Fazer split por virgula no `condition_value`
-  - Verificar se a mensagem contem **qualquer um** dos termos (OR)
-  - Codigo:
-    ```
-    case "contains": {
-      const terms = (condition_value || "").split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
-      const msg = userMessage.toLowerCase();
-      return terms.length > 0 && terms.some(term => msg.includes(term));
-    }
-    ```
+- Arquivo: `src/components/chat-flows/nodes/ConditionNode.tsx`
+- Alteração: Verificar `condition_type` antes de fazer split por vírgula. Só mostrar contagem de termos quando tipo for "contains".
 
-### O que NAO muda
-- Condicoes existentes com valor unico continuam funcionando (split de um valor = array de 1)
-- Todos os outros tipos (equals, has_data, regex, etc.) nao sao afetados
-- Nenhuma alteracao de banco de dados
-- Kill Switch, Shadow Mode, CSAT, distribuicao: nao afetados
-- Fluxos salvos anteriormente continuam compativeis
+### 3. Suportar multi-valor também para "É igual a" (equals)
 
-### Secao Tecnica - Arquivos e Linhas
+Para dar mais flexibilidade, o tipo "equals" também passará a suportar múltiplos valores separados por vírgula com lógica OR (se o valor é igual a qualquer um dos termos).
 
-| Arquivo | Alteracao |
+- Arquivo: `supabase/functions/process-chat-flow/index.ts`
+- Na função `evaluateCondition`, o case "equals" fará split por vírgula e verificará se o campo é igual a qualquer um dos valores.
+- Arquivo: `src/components/chat-flows/ChatFlowEditor.tsx`
+- Trocar Input por Textarea também para tipo "equals" com o mesmo hint.
+- Arquivo: `src/components/chat-flows/nodes/ConditionNode.tsx`
+- Permitir display de termos para "contains" e "equals".
+
+### Seção Técnica
+
+| Arquivo | Alteração |
 |---------|-----------|
-| `src/components/chat-flows/ChatFlowEditor.tsx` (~linha 631-639) | Trocar Input por Textarea + hint quando tipo=contains |
-| `src/components/chat-flows/nodes/ConditionNode.tsx` (~linha 38-42) | Mostrar contagem de termos quando ha virgula |
-| `supabase/functions/process-chat-flow/index.ts` (~linhas 146-147 e 1058-1070) | Split por virgula no case "contains" das duas funcoes de avaliacao |
+| `bun.lock` | Deletar para regeneração |
+| `src/components/chat-flows/nodes/ConditionNode.tsx` | Mostrar "(X termos)" para contains e equals apenas |
+| `src/components/chat-flows/ChatFlowEditor.tsx` (~linha 634) | Textarea para "contains" e "equals" |
+| `supabase/functions/process-chat-flow/index.ts` (~linha 151-152) | Split por vírgula no case "equals" com lógica OR |
+
+### O que NÃO muda
+- Outros tipos de condição (has_data, regex, etc.) não são afetados
+- Fluxos existentes continuam compatíveis (valor único = array de 1)
+- Kill Switch, Shadow Mode, CSAT, distribuição: inalterados
+- Encadear condições (Condição → Não → outra Condição) continua sendo a forma recomendada para rotas diferentes
+

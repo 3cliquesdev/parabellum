@@ -1,51 +1,38 @@
 
+## Correção: Usar Label da Regra como Texto de Matching
 
-## Correção: Motor de Condições + Build
+### Problema Real (confirmado pelos logs)
+Os logs mostram que a **Regra 1** esta com keywords erradas (contem a frase da Regra 2). Alem disso, o fluxo atual exige que o usuario configure keywords separadamente do label, o que gera confusao.
 
-### Problema
-Linha 192 do `process-chat-flow/index.ts` faz `.split(",")` nas keywords. Quando a frase é "Olá, vim pelo email e gostaria de saber mais sobre a ressaca de carnaval", ela quebra em:
-- "olá" (match genérico em tudo)
-- "vim pelo email e gostaria de saber mais sobre a ressaca de carnaval"
+### Solucao
+Tornar o campo `keywords` **opcional** -- quando estiver vazio, o motor usa o **label da regra** como texto de matching. Isso simplifica a experiencia: o usuario escreve a frase no nome da regra e ela ja funciona como condicao.
 
-A Regra 1 captura por "olá" antes da Regra 2 ser avaliada.
+### Mudancas Tecnicas
 
-### Solução
-Trocar o separador de vírgula para **quebra de linha** (`\n`). Assim a frase completa (com vírgulas naturais) é tratada como uma keyword única.
+**1. Engine: `supabase/functions/process-chat-flow/index.ts` (funcao `evaluateConditionPath`)**
 
-### Mudanças
-
-**1. `supabase/functions/process-chat-flow/index.ts` (linha 192)**
+Na logica de keywords, adicionar fallback para label:
 
 ```
-// ANTES
-const terms = (rule.keywords || "").split(",").map(...)
-
-// DEPOIS
-const rawKw = rule.keywords || "";
-const terms = rawKw.includes("\n")
-  ? rawKw.split("\n").map((t: string) => t.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).filter(Boolean)
-  : [rawKw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')].filter(Boolean);
+// Usar keywords se preenchido, senao usar label como fallback
+const rawKw = (rule.keywords || "").trim() || (rule.label || "").trim();
 ```
 
-Isso garante que cada linha do campo keywords é uma frase completa para matching.
+O resto da logica de matching permanece identica (split por newline, normalize, includes).
 
-**2. `src/components/chat-flows/ChatFlowEditor.tsx` (linha 729)**
+**2. UI: `src/components/chat-flows/ChatFlowEditor.tsx`**
 
-Atualizar placeholder:
+Atualizar o placeholder do campo keywords para indicar que e opcional:
+
 ```
-// ANTES
-placeholder="Palavras-chave separadas por vírgula"
-
-// DEPOIS
-placeholder="Uma frase por linha (Enter para nova frase)"
+placeholder="Opcional: frases extras (1 por linha). Se vazio, usa o nome da regra acima."
 ```
 
-**3. Build fix: `package-lock.json`**
+**3. Atualizar texto de ajuda**
 
-Remover as 17 referências a `mux-embed`, `@mux/mux-player`, e `@mux/mux-player-react` e resetar `bun.lock`.
+Mudar a descricao de `"Cada regra usa palavras-chave (virgula = OR)"` para `"O nome da regra e usado como condicao. Opcionalmente, adicione frases extras no campo abaixo."`.
 
 ### Impactos
-- Sem downgrade: quem já usa keywords curtas pode colocar uma por linha
-- Upgrade: frases completas com vírgulas agora funcionam corretamente
-- Build: erro de workspace resolvido
-
+- Sem downgrade: quem ja usa keywords continua funcionando normalmente
+- Upgrade: regras sem keywords agora funcionam usando o label
+- O usuario nao precisa mais configurar keywords separadamente se o label ja contem a frase desejada

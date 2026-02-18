@@ -1,30 +1,51 @@
 
 
-## Plano: Correção do Build e Melhoria de Log
+## Correção: Motor de Condições + Build
 
-### Problema 1: Roteamento incorreto (Configuração do Fluxo)
-O problema NAO e de codigo. As duas regras no no de condicao estao configuradas com as **mesmas keywords** e a Regra 1 vem antes, entao sempre ganha. Alem disso, o termo "Ola" (separado por virgula) e generico demais e bate em qualquer mensagem.
+### Problema
+Linha 192 do `process-chat-flow/index.ts` faz `.split(",")` nas keywords. Quando a frase é "Olá, vim pelo email e gostaria de saber mais sobre a ressaca de carnaval", ela quebra em:
+- "olá" (match genérico em tudo)
+- "vim pelo email e gostaria de saber mais sobre a ressaca de carnaval"
 
-**Acao necessaria do usuario (no editor de fluxo):**
-- Regra 1 (Onboarding Armazem Drop): configurar keywords como `onboarding, armazem drop`
-- Regra 2 (Comercial/Carnaval): configurar keywords como `ressaca, carnaval`
-- Nao usar termos genericos como "Ola" porque batem em tudo
+A Regra 1 captura por "olá" antes da Regra 2 ser avaliada.
 
-### Problema 2: Erro de build (mux-embed)
-O `package-lock.json` contem referencias a `mux-embed` e `@mux/mux-player` que nao existem no `package.json`. Isso causa o erro `mux-embed@workspace:* failed to resolve`.
+### Solução
+Trocar o separador de vírgula para **quebra de linha** (`\n`). Assim a frase completa (com vírgulas naturais) é tratada como uma keyword única.
 
-**Acao tecnica:**
-Recriar o `package-lock.json` removendo todas as entradas de `mux-embed`, `@mux/mux-player`, e `@mux/mux-player-react` para resolver o erro de build.
+### Mudanças
 
-### Secao Tecnica
+**1. `supabase/functions/process-chat-flow/index.ts` (linha 192)**
 
-| Acao | Arquivo | Detalhe |
-|------|---------|---------|
-| Limpar mux-embed | `package-lock.json` | Remover entradas `node_modules/mux-embed`, `node_modules/@mux/mux-player`, `node_modules/@mux/mux-player-react` e todas as referencias `"mux-embed"` |
-| Adicionar log de debug | `supabase/functions/process-chat-flow/index.ts` | Logar as keywords de cada regra durante avaliacao para facilitar debug futuro |
+```
+// ANTES
+const terms = (rule.keywords || "").split(",").map(...)
+
+// DEPOIS
+const rawKw = rule.keywords || "";
+const terms = rawKw.includes("\n")
+  ? rawKw.split("\n").map((t: string) => t.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).filter(Boolean)
+  : [rawKw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')].filter(Boolean);
+```
+
+Isso garante que cada linha do campo keywords é uma frase completa para matching.
+
+**2. `src/components/chat-flows/ChatFlowEditor.tsx` (linha 729)**
+
+Atualizar placeholder:
+```
+// ANTES
+placeholder="Palavras-chave separadas por vírgula"
+
+// DEPOIS
+placeholder="Uma frase por linha (Enter para nova frase)"
+```
+
+**3. Build fix: `package-lock.json`**
+
+Remover as 17 referências a `mux-embed`, `@mux/mux-player`, e `@mux/mux-player-react` e resetar `bun.lock`.
 
 ### Impactos
-- Nenhum downgrade: o motor de fluxo nao muda comportamento
-- Upgrade: build volta a funcionar + logs melhorados para debug de regras
-- A correcao do roteamento depende do usuario ajustar as keywords no editor visual
+- Sem downgrade: quem já usa keywords curtas pode colocar uma por linha
+- Upgrade: frases completas com vírgulas agora funcionam corretamente
+- Build: erro de workspace resolvido
 

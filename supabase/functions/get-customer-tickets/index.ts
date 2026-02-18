@@ -69,6 +69,7 @@ serve(async (req) => {
           is_internal,
           source,
           created_by,
+          attachments,
           author:profiles!ticket_comments_created_by_fkey(full_name)
         `)
         .in('ticket_id', ticketIds)
@@ -93,16 +94,46 @@ serve(async (req) => {
         created_at: comment.created_at,
         source: comment.source,
         author_name: comment.author?.full_name || 'Equipe de Suporte',
-        is_customer: comment.source === 'customer'
+        is_customer: comment.source === 'customer',
+        attachments: comment.attachments || []
       });
       return acc;
     }, {} as Record<string, any[]>);
 
-    // Attach comments to tickets
+    // Fetch status events for timeline
+    let eventsByTicket: Record<string, any[]> = {};
+    if (ticketIds.length > 0) {
+      const { data: eventsData, error: eventsError } = await supabase
+        .from('ticket_events')
+        .select('id, ticket_id, event_type, created_at, old_value, new_value, metadata')
+        .in('ticket_id', ticketIds)
+        .in('event_type', ['status_changed', 'resolved', 'closed', 'assigned'])
+        .order('created_at', { ascending: true });
+
+      if (eventsError) {
+        console.error('[get-customer-tickets] Error fetching events:', eventsError);
+      } else {
+        eventsByTicket = (eventsData || []).reduce((acc, event) => {
+          if (!acc[event.ticket_id]) acc[event.ticket_id] = [];
+          acc[event.ticket_id].push({
+            id: event.id,
+            event_type: event.event_type,
+            created_at: event.created_at,
+            old_value: event.old_value,
+            new_value: event.new_value,
+            metadata: event.metadata
+          });
+          return acc;
+        }, {} as Record<string, any[]>);
+      }
+    }
+
+    // Attach comments and events to tickets
     const ticketsWithComments = tickets?.map(ticket => ({
       ...ticket,
       comments: commentsByTicket[ticket.id] || [],
-      comment_count: (commentsByTicket[ticket.id] || []).length
+      comment_count: (commentsByTicket[ticket.id] || []).length,
+      events: eventsByTicket[ticket.id] || []
     })) || [];
 
     console.log('[get-customer-tickets] Found', ticketsWithComments.length, 'tickets');

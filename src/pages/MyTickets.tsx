@@ -174,14 +174,18 @@ export default function MyTickets() {
     setSelectedTicket(null);
   };
 
-  const handleCommentAdded = () => {
-    fetchTickets();
+  const handleCommentAdded = async () => {
+    await fetchTickets();
+    // selectedTicket will be refreshed via the useEffect below
+  };
+
+  // Keep selectedTicket in sync with tickets array
+  useEffect(() => {
     if (selectedTicket) {
-      // Refresh selected ticket data
       const updated = tickets.find(t => t.id === selectedTicket.id);
       if (updated) setSelectedTicket(updated);
     }
-  };
+  }, [tickets]);
 
   const filteredTickets = tickets.filter(ticket => {
     if (activeTab === "open") return ["open", "in_progress", "pending"].includes(ticket.status);

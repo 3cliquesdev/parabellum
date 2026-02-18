@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { SentimentBadge } from "@/components/SentimentBadge";
-import { WifiOff, AlertTriangle } from "lucide-react";
+import { WifiOff, AlertTriangle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -386,6 +386,18 @@ function ConversationListItemComponent({
               Offline
             </Badge>
           )}
+          
+          {/* 🕐 Indicador de janela WhatsApp expirada */}
+          {conversation.status === 'closed' && (conversation as any).closed_reason === 'whatsapp_window_expired' && (
+            <Badge 
+              variant="outline" 
+              className="text-[10px] px-1.5 py-0 h-5 border-orange-500 text-orange-600 dark:text-orange-400 bg-orange-500/10 gap-0.5"
+              title="Janela de 24h do WhatsApp expirada - use Template para reengajar"
+            >
+              <Clock className="h-2.5 w-2.5" />
+              Janela expirada
+            </Badge>
+          )}
         </div>
       </div>
     </button>
@@ -400,6 +412,7 @@ export const ConversationListItem = memo(ConversationListItemComponent, (prev, n
     prev.conversation.status === next.conversation.status &&
     prev.conversation.ai_mode === next.conversation.ai_mode &&
     prev.conversation.assigned_to === next.conversation.assigned_to &&
+    (prev.conversation as any).closed_reason === (next.conversation as any).closed_reason &&
     prev.isActive === next.isActive &&
     prev.unreadCount === next.unreadCount &&
     prev.selectionMode === next.selectionMode &&

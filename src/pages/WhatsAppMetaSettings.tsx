@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { WhatsAppTemplatesManager } from "@/components/settings/WhatsAppTemplatesManager";
 import { 
   useWhatsAppMetaInstances, 
   useUpdateWhatsAppMetaToken, 
@@ -287,6 +288,15 @@ export default function WhatsAppMetaSettings() {
           ))
         )}
       </div>
+
+      {/* Templates Manager - one per instance */}
+      {instances && instances.length > 0 && (
+        <div className="space-y-4">
+          {instances.map((instance) => (
+            <WhatsAppTemplatesManager key={instance.id} instanceId={instance.id} />
+          ))}
+        </div>
+      )}
 
       {/* Update Token Dialog */}
       <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>

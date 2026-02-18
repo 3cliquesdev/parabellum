@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail, MessageCircle, ArrowRightLeft, FileText, Hand, Bot, MessageSquare, CheckCircle, AlertCircle, DollarSign, Ticket, PanelRightClose, PanelRight, FlaskConical } from "lucide-react";
+import { Mail, MessageCircle, ArrowRightLeft, FileText, Hand, Bot, MessageSquare, CheckCircle, AlertCircle, DollarSign, Ticket, PanelRightClose, PanelRight, FlaskConical, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMessages, useSendMessage } from "@/hooks/useMessages";
 import { useSendMessageInstant } from "@/hooks/useSendMessageInstant";
@@ -40,6 +40,7 @@ import { InternalNoteMessage } from "@/components/InternalNoteMessage";
 import { ConversationTagsSection } from "@/components/inbox/ConversationTagsSection";
 import { MessageBubble } from "@/components/inbox/MessageBubble";
 import { SuperComposer } from "@/components/inbox/SuperComposer";
+import { ReengageTemplateDialog } from "@/components/inbox/ReengageTemplateDialog";
 import { MessageSkeleton } from "@/components/inbox/MessageSkeleton";
 import { MessagesWithMedia } from "@/components/inbox/MessagesWithMedia";
 // REMOVIDO: useCustomerTags - tags do contato não devem aparecer no header do chat
@@ -81,6 +82,7 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
   const [createTicketDialogOpen, setCreateTicketDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [createDealDialogOpen, setCreateDealDialogOpen] = useState(false);
+  const [reengageDialogOpen, setReengageDialogOpen] = useState(false);
   // Captura os IDs antes de abrir o diálogo de confirmação (fix: conversation pode mudar para null)
   const [pendingTakeControl, setPendingTakeControl] = useState<{ conversationId: string; contactId: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -650,10 +652,21 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
             <div className="px-4 py-6 md:px-6">
               <div className="max-w-4xl mx-auto w-full">
                 {conversation.status === "closed" && (
-                  <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-center">
+                  <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-center space-y-2">
                     <p className="text-sm text-green-700 dark:text-green-400 font-medium">
                       Esta conversa foi encerrada
                     </p>
+                    {conversation.channel === "whatsapp" && (conversation as any).closed_reason === "whatsapp_window_expired" && conversation.whatsapp_instance_id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setReengageDialogOpen(true)}
+                        className="border-primary text-primary hover:bg-primary/10"
+                      >
+                        <Send className="h-3.5 w-3.5 mr-1" />
+                        Reengajar via Template
+                      </Button>
+                    )}
                   </div>
                 )}
                 
@@ -775,6 +788,15 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Reengage Template Dialog */}
+      {conversation && (
+        <ReengageTemplateDialog
+          open={reengageDialogOpen}
+          onOpenChange={setReengageDialogOpen}
+          conversation={conversation}
+        />
+      )}
     </>
   );
 }

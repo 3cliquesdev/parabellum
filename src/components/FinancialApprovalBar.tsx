@@ -21,9 +21,10 @@ interface FinancialApprovalBarProps {
   ticketStatus: string;
   hasEvidence: boolean;
   ticketCategory?: string;
+  isAdminUser?: boolean;
 }
 
-export function FinancialApprovalBar({ ticketId, ticketStatus, hasEvidence, ticketCategory }: FinancialApprovalBarProps) {
+export function FinancialApprovalBar({ ticketId, ticketStatus, hasEvidence, ticketCategory, isAdminUser = false }: FinancialApprovalBarProps) {
   // Saques não exigem evidência para aprovação
   const isWithdrawal = ticketCategory === 'saque' || ticketCategory === 'saque_carteira';
   const requiresEvidence = !isWithdrawal;
@@ -153,44 +154,50 @@ export function FinancialApprovalBar({ ticketId, ticketStatus, hasEvidence, tick
     );
   }
 
-  // Estado: Sem solicitação formal de aprovação - apenas informativo
+  // Estado: Sem solicitação formal de aprovação
+  // Admins podem aprovar diretamente; outros veem apenas informativo
   if (!isPendingApproval) {
-    return (
-      <Card className="border border-muted bg-muted/10">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-muted">
-              <Banknote className="w-6 h-6 text-muted-foreground" />
+    if (!isAdminUser) {
+      return (
+        <Card className="border border-muted bg-muted/10">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-muted">
+                <Banknote className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground">
+                  💰 Ticket Financeiro
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Aguardando solicitação de aprovação pelo agente.
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-foreground">
-                💰 Ticket Financeiro
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Aguardando solicitação de aprovação pelo agente.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+          </CardContent>
+        </Card>
+      );
+    }
+    // Admin: pode aprovar diretamente sem solicitação formal
   }
 
-  // Estado 1: Aguardando aprovação (pending_approval)
+  // Estado 1: Aguardando aprovação (pending_approval ou admin direto)
   return (
     <>
-      <Card className="border-2 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20">
+      <Card className={`border-2 ${isPendingApproval ? 'border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20' : 'border-orange-500/50 bg-orange-50 dark:bg-orange-950/20'}`}>
         <CardContent className="p-4">
           <div className="flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-yellow-500/10">
-              <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-500" />
+            <div className={`p-3 rounded-lg ${isPendingApproval ? 'bg-yellow-500/10' : 'bg-orange-500/10'}`}>
+              <AlertTriangle className={`w-6 h-6 ${isPendingApproval ? 'text-yellow-600 dark:text-yellow-500' : 'text-orange-600 dark:text-orange-500'}`} />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-yellow-900 dark:text-yellow-100">
-                ⚖️ Aprovação Gerencial Pendente
+              <h3 className={`font-semibold ${isPendingApproval ? 'text-yellow-900 dark:text-yellow-100' : 'text-orange-900 dark:text-orange-100'}`}>
+                ⚖️ {isPendingApproval ? 'Aprovação Gerencial Pendente' : 'Aprovação Direta (Admin)'}
               </h3>
-              <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                Este ticket aguarda sua decisão para aprovar ou rejeitar o reembolso.
+              <p className={`text-sm ${isPendingApproval ? 'text-yellow-700 dark:text-yellow-300' : 'text-orange-700 dark:text-orange-300'}`}>
+                {isPendingApproval 
+                  ? 'Este ticket aguarda sua decisão para aprovar ou rejeitar o reembolso.'
+                  : 'Como admin, você pode aprovar ou rejeitar este reembolso diretamente.'}
               </p>
             </div>
             <div className="flex gap-2">

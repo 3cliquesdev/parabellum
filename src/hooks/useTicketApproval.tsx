@@ -61,11 +61,37 @@ export function useTicketApproval() {
           created_by: user?.id,
         });
 
+      // Registrar evento na timeline do ticket
+      try {
+        const eventType = approved ? 'approval_granted' : 'approval_rejected';
+        const eventDescription = approved
+          ? 'Reembolso aprovado pelo financeiro'
+          : `Reembolso rejeitado: ${rejection_reason}`;
+
+        await supabase
+          .from("ticket_events")
+          .insert({
+            ticket_id,
+            event_type: eventType,
+            description: eventDescription,
+            actor_id: user?.id,
+            metadata: {
+              approved,
+              rejection_reason: rejection_reason || null,
+              approved_by_name: user?.email || 'Admin',
+            },
+          });
+      } catch (evErr) {
+        console.error('[useTicketApproval] ticket_events insert failed:', evErr);
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
       queryClient.invalidateQueries({ queryKey: ["ticket-comments", variables.ticket_id] });
+      queryClient.invalidateQueries({ queryKey: ["ticket-events", variables.ticket_id] });
+      queryClient.invalidateQueries({ queryKey: ["ticket", variables.ticket_id] });
       
       toast({
         title: variables.approved ? "✅ Reembolso Aprovado" : "❌ Reembolso Rejeitado",

@@ -1,52 +1,57 @@
 
 
-## Correção: Limpar Keywords Duplicadas e Prevenir Repetição
+## Notificacao de Aprovacao para Gestores Financeiros
 
-### Problema Confirmado (dados do banco)
-Ambas as regras no nó de condição têm o campo `keywords` com o **mesmo valor idêntico**:
-- Regra 1 (Onboarding): keywords = "Olá, vim pelo email e gostaria de saber mais sobre a ressaca de carnaval"
-- Regra 2 (Carnaval): keywords = "Olá, vim pelo email e gostaria de saber mais sobre a ressaca de carnaval"
+### Problema
+Quando um ticket e enviado para aprovacao (`pending_approval`), a edge function `notify-ticket-event` ignora o evento `approval_requested` porque:
+1. Nao esta na lista `notifiableEvents` (linha 194)
+2. Nao tem case no switch de titulo/mensagem
+3. Nao busca gestores financeiros/admins como destinatarios -- so notifica stakeholders existentes
 
-Como o campo keywords não está vazio, o fallback para o label nunca é acionado. E como são idênticos, a Regra 1 sempre ganha.
+### Solucao
 
-### Solução (3 partes)
+**1. Edge Function: `supabase/functions/notify-ticket-event/index.ts`**
 
-**1. Correção dos dados no banco (migração SQL)**
+- Adicionar `approval_requested` ao type do `TicketEventPayload`
+- Adicionar `approval_requested` ao array `notifiableEvents`
+- Adicionar case no switch para titulo/mensagem:
+  - Titulo: "Aprovacao Financeira Pendente"
+  - Mensagem: "Ticket #XXX aguarda aprovacao de reembolso. Solicitado por YYY."
+  - Tipo: `ticket_status`
+- Adicionar logica especifica para `approval_requested`: buscar usuarios com roles `financial_manager`, `admin`, `general_manager` na tabela `user_roles` e adicioná-los ao `usersToNotify`
+- Enviar tanto `in_app` quanto `email` (channels)
 
-Limpar o campo `keywords` de todas as regras que tenham keywords idêntico ao label de outra regra no mesmo nó, permitindo que o fallback para label funcione:
+**2. Hook: `src/hooks/useRequestApproval.tsx`**
 
-```sql
--- Atualizar o flow_definition para limpar keywords das regras de condição
--- Isso forçará o motor a usar o label de cada regra como texto de matching
+- Atualizar a chamada ao `notify-ticket-event` para incluir `channels: ["email", "in_app"]` para garantir que gestores recebam email alem da notificacao in-app
+- Criar um `ticket_event` antes de chamar a edge function para habilitar deduplicacao
+
+### Detalhes Tecnicos
+
+Na edge function, ao detectar `event_type === 'approval_requested'`:
+
+```text
+1. Buscar user_ids com roles relevantes:
+   SELECT user_id FROM user_roles WHERE role IN ('admin', 'financial_manager', 'general_manager')
+
+2. Adicionar todos ao usersToNotify (incluindo stakeholders existentes)
+
+3. Gerar notificacao com:
+   - title: "Aprovacao Financeira Pendente"
+   - message: "Ticket #TK-XXXX aguarda aprovacao de reembolso..."
+   - metadata.action_url: /support?ticket={ticket_id}
 ```
 
-Na prática: atualizar o JSON do flow removendo o conteúdo do campo `keywords` das duas regras, para que o motor use os labels "Onboarding" e "Carnaval" (ou os labels corretos que o usuário definir).
+No hook `useRequestApproval`:
 
-**2. Validação na UI: impedir keywords duplicadas entre regras**
-
-No `ChatFlowEditor.tsx`, adicionar validação ao salvar: se duas regras no mesmo nó de condição tiverem keywords idênticas, exibir alerta e bloquear o salvamento.
-
-**3. Auto-clear: limpar keywords quando igual ao label**
-
-No `ChatFlowEditor.tsx`, quando o usuário salvar, se o campo keywords de uma regra for idêntico ao label dela, limpar o keywords automaticamente (já que o motor usa o label como fallback).
-
-### Mudanças Técnicas
-
-**Arquivo: `src/components/chat-flows/ChatFlowEditor.tsx`**
-
-- Na função de salvar/atualizar regras de condição, adicionar:
-  1. Validação de duplicatas: `if (rules[i].keywords === rules[j].keywords && keywords não vazio) -> alerta`
-  2. Auto-clear: `if (rule.keywords.trim() === rule.label.trim()) -> rule.keywords = ""`
-
-**Arquivo: `supabase/functions/process-chat-flow/index.ts`**
-
-- Sem mudança na lógica do motor (já está correta com o fallback para label)
-
-**Correção de dados: migração SQL**
-
-- Atualizar o `flow_definition` do fluxo ativo (id: `3ea0d227-01f3-46a6-bcad-80a085ec2337`) para limpar o campo keywords das duas regras, forçando uso dos labels
+```text
+1. Inserir ticket_event com event_type = 'approval_requested'
+2. Passar ticket_event_id na chamada da edge function
+3. Incluir channels: ["email", "in_app"]
+```
 
 ### Impactos
-- Sem downgrade: a lógica do motor permanece igual
-- Upgrade: dados corrigidos, validação previne recorrência
-- O usuário só precisa garantir que os **labels** das regras sejam as frases corretas de matching
+- Sem downgrade: eventos existentes continuam funcionando
+- Upgrade: gestores financeiros recebem notificacao in-app + email quando ticket precisa de aprovacao
+- Deduplicacao mantida via ticket_notification_sends
+

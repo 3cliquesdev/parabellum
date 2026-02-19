@@ -1,51 +1,52 @@
 
 
-## Correcao: Tickets de Aprovacao Nao Aparecem para Admin
+## Correcao: Notificacoes Redirecionam ao Clicar
 
-### Problema Raiz (3 falhas encadeadas)
+### Problema
+Ao clicar numa notificacao no sino, nada acontece para alguns tipos (como "Nova oportunidade de aprendizado"). Isso ocorre porque:
 
-1. **Sidebar envia `financial_pending`** como filtro, mas o `getHookParams()` em `Support.tsx` nao tem um `case` para ele -- cai no `default` que nao aplica filtro nenhum relevante
-2. **`useTickets`** tem logica para `financial_pending` via o parametro `statusFilter` (1o argumento), mas `Support.tsx` **sempre passa `undefined`** nesse parametro -- nunca ativa essa logica
-3. **`useTicketCounts`** nao calcula a contagem de `financial_pending`, entao o badge na sidebar sempre mostra 0
+1. O tipo `passive_learning_pending` nao esta no switch de `getNotificationTarget` no `NotificationBell.tsx`
+2. A notificacao criada pelo trigger do banco nao inclui `action_url` no metadata
+3. Notificacoes de ticket ja funcionam (tem `action_url` no metadata), mas o tipo `passive_learning_pending` nao tem rota definida
 
-Alem disso, o status `pending_approval` ja existe como status dinamico na tabela `ticket_statuses`, entao clicar em "Aguard. Aprovacao" na secao "Por Status" funciona. Mas o filtro da secao "Financeiro" (que deveria mostrar tickets financeiros pendentes de aprovacao) esta completamente desconectado.
+### Solucao (2 partes)
 
-### Solucao
+**1. `src/components/NotificationBell.tsx` -- Adicionar tipos faltantes ao switch**
 
-**1. `src/pages/Support.tsx` -- Adicionar case para `financial_pending`**
-
-No `getHookParams()`, adicionar tratamento para o filtro `financial_pending` que filtra por status `pending_approval`:
-
-```text
-case 'financial_pending':
-  return { 
-    advancedFilters: { 
-      ...baseFilters, 
-      status: ['pending_approval'] 
-    } 
-  };
-```
-
-Isso e mais simples e correto do que a logica antiga no `useTickets` que tentava inferir tickets financeiros por keywords no subject.
-
-**2. `src/hooks/useTicketCounts.tsx` -- Adicionar contagem de `financial_pending`**
-
-No loop de contagem, adicionar logica para contar tickets com `status === 'pending_approval'`:
+Adicionar `passive_learning_pending` ao switch de `getNotificationTarget` para redirecionar para a pagina de curadoria/auditoria de IA:
 
 ```text
-// Financial pending = tickets aguardando aprovacao
-if (ticket.status === 'pending_approval') {
-  counts.financial_pending++;
-}
+case 'passive_learning_pending':
+case 'knowledge_approval':
+case 'ai_learning':
+  return '/settings/ai-audit';
 ```
 
-E inicializar `financial_pending: 0` no objeto `counts`.
+Tambem adicionar icone adequado para `passive_learning_pending` no switch de `getIcon`.
 
-**3. `src/hooks/useTickets.tsx` -- Remover logica morta de `financial_pending`**
+**2. Trigger do banco -- Incluir `action_url` no metadata**
 
-A logica especial de `statusFilter === 'financial_pending'` (linhas 79-91) nunca e ativada porque `Support.tsx` sempre passa `undefined` no primeiro parametro. Remover esse codigo morto para evitar confusao futura. A filtragem agora sera feita via `advancedFilters.status`.
+Atualizar a funcao `trigger_passive_learning()` para incluir `action_url: '/settings/ai-audit'` no JSON do metadata, garantindo que notificacoes futuras tenham a URL de destino diretamente. Isso segue o padrao universal ja usado pelas outras notificacoes.
+
+### Detalhes Tecnicos
+
+**Arquivo: `src/components/NotificationBell.tsx`**
+
+No `getNotificationTarget`:
+- Adicionar case `passive_learning_pending` junto com `knowledge_approval` e `ai_learning` apontando para `/settings/ai-audit`
+
+No `getIcon`:
+- Adicionar case `passive_learning_pending` com icone de Info/primary
+
+**Migracao SQL:**
+```sql
+CREATE OR REPLACE FUNCTION public.trigger_passive_learning()
+-- Mesma logica, mas metadata inclui:
+-- 'action_url', '/settings/ai-audit'
+```
 
 ### Impactos
-- Sem downgrade: status dinamicos e outros filtros continuam funcionando
-- Upgrade: admin/financial_manager agora veem tickets `pending_approval` na secao Financeiro com contagem correta
-- O badge na sidebar reflete a quantidade real de tickets aguardando aprovacao
+- Sem downgrade: notificacoes de ticket e deals ja funcionam e continuam iguais
+- Upgrade: clicar em qualquer notificacao agora redireciona para a pagina correta
+- Notificacoes existentes sem `action_url` serao tratadas pelo fallback do switch por tipo
+

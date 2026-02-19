@@ -1,52 +1,46 @@
 
 
-## Correcao: Notificacoes Redirecionam ao Clicar
+## Correção: Barra de Aprovação Mostra Botões Indevidamente
+
+### Situação Atual
+- O ticket TK-2026-00337 tem status `returned` e categoria `financeiro`
+- A barra de aprovação financeira aparece para admins em **qualquer** ticket financeiro (exceto resolved/closed)
+- Os botões "Rejeitar" e "Aprovar Reembolso" aparecem mesmo quando **ninguém solicitou aprovação**
+- Isso é confuso: parece que há aprovação pendente, mas o contador na sidebar mostra 0
 
 ### Problema
-Ao clicar numa notificacao no sino, nada acontece para alguns tipos (como "Nova oportunidade de aprendizado"). Isso ocorre porque:
+No `FinancialApprovalBar.tsx`, quando o status NAO é `pending_approval`, o componente mostra "Ticket financeiro disponível para revisão" com os mesmos botões de aprovação/rejeição. Isso permite aprovar/rejeitar sem que o agente tenha formalmente solicitado.
 
-1. O tipo `passive_learning_pending` nao esta no switch de `getNotificationTarget` no `NotificationBell.tsx`
-2. A notificacao criada pelo trigger do banco nao inclui `action_url` no metadata
-3. Notificacoes de ticket ja funcionam (tem `action_url` no metadata), mas o tipo `passive_learning_pending` nao tem rota definida
+### Solução
 
-### Solucao (2 partes)
+**Arquivo: `src/components/FinancialApprovalBar.tsx`**
 
-**1. `src/components/NotificationBell.tsx` -- Adicionar tipos faltantes ao switch**
+Alterar o comportamento para:
+- **Status `pending_approval`**: Mostrar barra amarela com botões "Rejeitar" e "Aprovar Reembolso" (como está hoje)
+- **Status `approved`**: Mostrar barra azul com "Concluir Reembolso" (como está hoje)
+- **Qualquer outro status**: Mostrar apenas uma barra informativa discreta SEM botões de ação, indicando que a aprovação precisa ser solicitada primeiro pelo agente
 
-Adicionar `passive_learning_pending` ao switch de `getNotificationTarget` para redirecionar para a pagina de curadoria/auditoria de IA:
+**Arquivo: `src/components/TicketDetails.tsx`**
 
-```text
-case 'passive_learning_pending':
-case 'knowledge_approval':
-case 'ai_learning':
-  return '/settings/ai-audit';
-```
-
-Tambem adicionar icone adequado para `passive_learning_pending` no switch de `getIcon`.
-
-**2. Trigger do banco -- Incluir `action_url` no metadata**
-
-Atualizar a funcao `trigger_passive_learning()` para incluir `action_url: '/settings/ai-audit'` no JSON do metadata, garantindo que notificacoes futuras tenham a URL de destino diretamente. Isso segue o padrao universal ja usado pelas outras notificacoes.
+Ajustar a condição `canApprove` para incluir o status `returned` na lista de exibição, mas a barra em si controlará o que aparece (informativo vs ação).
 
 ### Detalhes Tecnicos
 
-**Arquivo: `src/components/NotificationBell.tsx`**
+No `FinancialApprovalBar.tsx`, adicionar um guard antes dos botões:
 
-No `getNotificationTarget`:
-- Adicionar case `passive_learning_pending` junto com `knowledge_approval` e `ai_learning` apontando para `/settings/ai-audit`
-
-No `getIcon`:
-- Adicionar case `passive_learning_pending` com icone de Info/primary
-
-**Migracao SQL:**
-```sql
-CREATE OR REPLACE FUNCTION public.trigger_passive_learning()
--- Mesma logica, mas metadata inclui:
--- 'action_url', '/settings/ai-audit'
+```text
+Se status !== 'pending_approval' e status !== 'approved':
+  - Mostrar apenas texto informativo: "Aguardando solicitacao de aprovacao pelo agente."
+  - NAO mostrar botões de Rejeitar/Aprovar
+  - Estilo discreto (cinza/muted)
 ```
 
-### Impactos
-- Sem downgrade: notificacoes de ticket e deals ja funcionam e continuam iguais
-- Upgrade: clicar em qualquer notificacao agora redireciona para a pagina correta
-- Notificacoes existentes sem `action_url` serao tratadas pelo fallback do switch por tipo
+Isso garante que:
+1. Admins veem que o ticket e financeiro (informativo)
+2. Botões de ação so aparecem apos solicitação formal
+3. Contador "Aguard. Aprovação" continua correto (so conta `pending_approval`)
+4. Sem downgrade: tickets com `pending_approval` continuam funcionando igual
 
+### Impactos
+- Sem downgrade: fluxo de aprovação existente preservado
+- Upgrade: elimina confusão visual e previne aprovações sem solicitação formal

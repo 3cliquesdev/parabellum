@@ -211,6 +211,8 @@ export default function Support() {
         // Get archived status names dynamically
         const archivedStatusNames = activeStatuses?.filter(s => s.is_archived_status).map(s => s.name) || ['resolved', 'closed'];
         return { advancedFilters: { ...baseFilters, status: archivedStatusNames } };
+      case 'financial_pending':
+        return { advancedFilters: { ...baseFilters, status: ['pending_approval'] } };
       case 'all':
         return { advancedFilters: { ...baseFilters, status: baseFilters.status.length > 0 ? baseFilters.status : activeStatusNames } };
       default:

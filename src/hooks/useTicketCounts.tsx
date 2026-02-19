@@ -84,6 +84,7 @@ export function useTicketCounts() {
         sla_expired: 0,
         archived: 0,
         no_tags: 0,
+        financial_pending: 0,
       };
 
       // Initialize counts for all statuses
@@ -150,6 +151,11 @@ export function useTicketCounts() {
         // No tags (apenas ativos)
         if (!ticketIdsWithTags.has(ticket.id) && !isArchived) {
           counts.no_tags++;
+        }
+
+        // Financial pending = tickets aguardando aprovação
+        if (ticket.status === 'pending_approval') {
+          counts.financial_pending++;
         }
       });
 

@@ -532,6 +532,7 @@ export function TicketDetails({ ticket }: TicketDetailsProps) {
             ticketStatus={ticket.status}
             hasEvidence={hasEvidence}
             ticketCategory={ticket.category}
+            isAdminUser={isAdmin}
           />
         )}
 

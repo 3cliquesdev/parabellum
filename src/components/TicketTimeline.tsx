@@ -14,7 +14,10 @@ import {
   Clock,
   Loader2,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  CheckCircle,
+  XCircle,
+  FileCheck
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -88,6 +91,21 @@ const eventConfig: Record<string, { icon: React.ReactNode; label: string; color:
     icon: <RotateCcw className="h-4 w-4" />,
     label: 'Evidência restaurada',
     color: 'bg-green-500',
+  },
+  approval_requested: {
+    icon: <FileCheck className="h-4 w-4" />,
+    label: 'Aprovação solicitada',
+    color: 'bg-yellow-500',
+  },
+  approval_granted: {
+    icon: <CheckCircle className="h-4 w-4" />,
+    label: 'Reembolso aprovado',
+    color: 'bg-green-600',
+  },
+  approval_rejected: {
+    icon: <XCircle className="h-4 w-4" />,
+    label: 'Reembolso rejeitado',
+    color: 'bg-red-500',
   },
 };
 
@@ -163,6 +181,26 @@ function EventDescription({ event }: { event: TicketEvent }) {
         <span>
           <strong>{actorName}</strong> restaurou evidência{' '}
           <Badge variant="outline" className="ml-1 border-green-500 text-green-600">{event.metadata?.file_name || 'arquivo'}</Badge>
+        </span>
+      );
+
+    case 'approval_requested':
+      return <span><strong>{actorName}</strong> solicitou aprovação financeira</span>;
+
+    case 'approval_granted':
+      return (
+        <span>
+          <strong>{actorName}</strong> <Badge variant="outline" className="ml-1 border-green-500 text-green-600">aprovou</Badge> o reembolso
+        </span>
+      );
+
+    case 'approval_rejected':
+      return (
+        <span>
+          <strong>{actorName}</strong> <Badge variant="outline" className="ml-1 border-red-500 text-red-600">rejeitou</Badge> o reembolso
+          {event.metadata?.rejection_reason && (
+            <span className="block text-xs text-muted-foreground mt-1">Motivo: {event.metadata.rejection_reason}</span>
+          )}
         </span>
       );
 

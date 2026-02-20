@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import { fetchAllRpcPages } from "@/lib/fetchAllRpcPages";
 
 export interface ExportFilters {
   startDate: Date;
@@ -13,8 +14,6 @@ export interface ExportFilters {
   channel?: string;
   search?: string;
 }
-
-const MAX_EXPORT_ROWS = 5000;
 
 function formatDuration(seconds: number | null): string {
   if (!seconds) return "";
@@ -51,7 +50,7 @@ export function useExportCommercialConversationsCSV() {
     
     try {
       // Buscar KPIs, Pivot e Detalhado em paralelo
-      const [kpisResult, pivotResult, reportResult] = await Promise.all([
+      const [kpisResult, pivotResult, reportData] = await Promise.all([
         supabase.rpc("get_commercial_conversations_kpis", {
           p_start: filters.startDate.toISOString(),
           p_end: filters.endDate.toISOString(),
@@ -68,20 +67,20 @@ export function useExportCommercialConversationsCSV() {
           p_status: filters.status || null,
           p_channel: filters.channel || null,
         }),
-        supabase.rpc("get_commercial_conversations_report", {
-          p_start: filters.startDate.toISOString(),
-          p_end: filters.endDate.toISOString(),
-          p_department_id: filters.departmentId || null,
-          p_agent_id: filters.agentId || null,
-          p_status: filters.status || null,
-          p_channel: filters.channel || null,
-          p_search: filters.search || null,
-          p_limit: MAX_EXPORT_ROWS,
-          p_offset: 0,
+        fetchAllRpcPages({
+          rpcName: "get_commercial_conversations_report",
+          params: {
+            p_start: filters.startDate.toISOString(),
+            p_end: filters.endDate.toISOString(),
+            p_department_id: filters.departmentId || null,
+            p_agent_id: filters.agentId || null,
+            p_status: filters.status || null,
+            p_channel: filters.channel || null,
+            p_search: filters.search || null,
+          },
         }),
       ]);
 
-      // 🆕 Verificar TODOS os erros das queries paralelas
       if (kpisResult.error) {
         console.error("[Export] Erro ao buscar KPIs:", kpisResult.error);
         throw new Error(`Erro ao buscar KPIs: ${kpisResult.error.message || 'Erro desconhecido'}`);
@@ -90,11 +89,6 @@ export function useExportCommercialConversationsCSV() {
       if (pivotResult.error) {
         console.error("[Export] Erro ao buscar Pivot:", pivotResult.error);
         throw new Error(`Erro ao buscar Pivot: ${pivotResult.error.message || 'Erro desconhecido'}`);
-      }
-
-      if (reportResult.error) {
-        console.error("[Export] Erro ao buscar Relatório:", reportResult.error);
-        throw new Error(`Erro ao buscar Relatório: ${reportResult.error.message || 'Erro desconhecido'}`);
       }
 
       const kpis: KPIData = kpisResult.data?.[0] || {
@@ -108,7 +102,6 @@ export function useExportCommercialConversationsCSV() {
       };
 
       const pivotData: PivotRow[] = pivotResult.data || [];
-      const reportData = reportResult.data || [];
 
       if (reportData.length === 0) {
         toast.warning("Nenhum registro encontrado para exportar");
@@ -139,7 +132,6 @@ export function useExportCommercialConversationsCSV() {
 
       // ===== ABA 2: PIVOT =====
       if (pivotData.length > 0) {
-        // Agrupar por departamento e categoria
         const deptMap = new Map<string, Map<string, number>>();
         const allCategories = new Set<string>();
         
@@ -153,7 +145,6 @@ export function useExportCommercialConversationsCSV() {
         
         const categories = Array.from(allCategories).sort();
         
-        // Montar dados do pivot
         const pivotSheetData: (string | number)[][] = [];
         pivotSheetData.push(["Departamento", ...categories, "Total"]);
         
@@ -163,7 +154,6 @@ export function useExportCommercialConversationsCSV() {
           pivotSheetData.push([deptName, ...values, total]);
         });
 
-        // Linha de totais
         const totalsRow: (string | number)[] = ["TOTAL"];
         categories.forEach((cat) => {
           let catTotal = 0;
@@ -179,37 +169,18 @@ export function useExportCommercialConversationsCSV() {
         wsPivot["!cols"] = [{ wch: 25 }, ...categories.map(() => ({ wch: 15 })), { wch: 12 }];
         XLSX.utils.book_append_sheet(wb, wsPivot, "Pivot");
       } else {
-        // Aba vazia se não houver dados
         const wsPivot = XLSX.utils.aoa_to_sheet([["Sem dados de pivot para o período selecionado"]]);
         XLSX.utils.book_append_sheet(wb, wsPivot, "Pivot");
       }
 
       // ===== ABA 3: DETALHADO =====
       const headers = [
-        "ID Curto",
-        "ID Conversa",
-        "Status",
-        "Nome Contato",
-        "Email",
-        "Telefone",
-        "Organização",
-        "Criado em",
-        "Fechado em",
-        "Tempo de Espera",
-        "Duração",
-        "Agente Responsável",
-        "Participantes",
-        "Departamento",
-        "Total Interações",
-        "Origem",
-        "CSAT",
-        "Comentário CSAT",
-        "Ticket ID",
-        "Modo IA",
-        "Tags",
-        "Última Tag Conversa",
-        "Primeira Mensagem",
-        "Tempo Espera pós Atribuição",
+        "ID Curto", "ID Conversa", "Status", "Nome Contato", "Email",
+        "Telefone", "Organização", "Criado em", "Fechado em",
+        "Tempo de Espera", "Duração", "Agente Responsável", "Participantes",
+        "Departamento", "Total Interações", "Origem", "CSAT", "Comentário CSAT",
+        "Ticket ID", "Modo IA", "Tags", "Última Tag Conversa",
+        "Primeira Mensagem", "Tempo Espera pós Atribuição",
       ];
 
       const detailData: (string | number)[][] = [headers];
@@ -247,7 +218,6 @@ export function useExportCommercialConversationsCSV() {
       wsDetail["!cols"] = headers.map((h) => ({ wch: Math.max(h.length, 12) }));
       XLSX.utils.book_append_sheet(wb, wsDetail, "Detalhado");
 
-      // Gerar arquivo e download
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
@@ -259,16 +229,10 @@ export function useExportCommercialConversationsCSV() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      const totalCount = reportData[0]?.total_count || reportData.length;
-      if (totalCount > MAX_EXPORT_ROWS) {
-        toast.success(`Exportados ${MAX_EXPORT_ROWS} de ${totalCount} registros (limite máximo)`);
-      } else {
-        toast.success(`Exportados ${reportData.length} registros com sucesso`);
-      }
+      toast.success(`${reportData.length.toLocaleString("pt-BR")} registros exportados com sucesso`);
     } catch (error: any) {
       console.error("[Export] Erro ao exportar:", error);
       
-      // Extrair mensagem de erro mais específica
       const errorMessage = error?.message 
         || error?.details 
         || (typeof error === 'string' ? error : 'Erro desconhecido');

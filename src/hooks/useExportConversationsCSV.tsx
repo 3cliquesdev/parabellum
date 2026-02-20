@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRpcPages } from "@/lib/fetchAllRpcPages";
 import * as XLSX from "xlsx";
 
 interface ExportFilters {
@@ -16,8 +16,6 @@ interface ExportFilters {
 interface ExportOptions {
   downloadWindow?: Window | null;
 }
-
-const MAX_EXPORT = 5000;
 
 function formatDuration(seconds: number | null): string {
   if (!seconds || seconds <= 0) return "";
@@ -48,7 +46,6 @@ export function useExportConversationsCSV() {
     setIsExporting(true);
     const downloadWindow = options?.downloadWindow;
     
-    // Show loading message in popup if available
     if (downloadWindow && !downloadWindow.closed) {
       try {
         downloadWindow.document.write('<html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><p>Gerando planilha…</p></body></html>');
@@ -59,19 +56,19 @@ export function useExportConversationsCSV() {
       const endExclusive = new Date(filters.endDate);
       endExclusive.setDate(endExclusive.getDate() + 1);
 
-      const { data, error } = await supabase.rpc("get_commercial_conversations_report", {
-        p_start: filters.startDate.toISOString(),
-        p_end: endExclusive.toISOString(),
-        p_department_id: filters.departmentId || null,
-        p_agent_id: filters.agentId || null,
-        p_status: filters.status || null,
-        p_channel: filters.channel || null,
-        p_search: filters.search || null,
-        p_limit: MAX_EXPORT,
-        p_offset: 0,
+      const data = await fetchAllRpcPages({
+        rpcName: "get_commercial_conversations_report",
+        params: {
+          p_start: filters.startDate.toISOString(),
+          p_end: endExclusive.toISOString(),
+          p_department_id: filters.departmentId || null,
+          p_agent_id: filters.agentId || null,
+          p_status: filters.status || null,
+          p_channel: filters.channel || null,
+          p_search: filters.search || null,
+        },
       });
 
-      if (error) throw error;
       if (!data || data.length === 0) {
         toast.info("Nenhum dado para exportar");
         if (downloadWindow && !downloadWindow.closed) downloadWindow.close();
@@ -104,7 +101,6 @@ export function useExportConversationsCSV() {
 
       const ws = XLSX.utils.json_to_sheet(rows);
 
-      // Auto-width
       const colWidths = Object.keys(rows[0]).map((key) => {
         const maxLen = Math.max(key.length, ...rows.map((r: any) => String(r[key] ?? "").length));
         return { wch: Math.min(maxLen + 2, 60) };
@@ -119,11 +115,9 @@ export function useExportConversationsCSV() {
       const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
 
-      // Strategy 1: Use popup window (most reliable in iframes)
       if (downloadWindow && !downloadWindow.closed) {
         downloadWindow.location.href = url;
       } else {
-        // Strategy 2: Anchor click fallback
         const a = document.createElement("a");
         a.href = url;
         a.download = `relatorio_conversas_${dateStr}.xlsx`;
@@ -132,15 +126,9 @@ export function useExportConversationsCSV() {
         document.body.removeChild(a);
       }
 
-      // Delay revoke to ensure download starts
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
 
-      const totalCount = (data as any[])[0]?.total_count ?? data.length;
-      if (totalCount > MAX_EXPORT) {
-        toast.success(`Exportados ${MAX_EXPORT.toLocaleString("pt-BR")} de ${Number(totalCount).toLocaleString("pt-BR")} registros (limite)`);
-      } else {
-        toast.success(`${data.length.toLocaleString("pt-BR")} conversas exportadas`);
-      }
+      toast.success(`${data.length.toLocaleString("pt-BR")} conversas exportadas`);
     } catch (err) {
       console.error("[ExportConversations] Error:", err);
       toast.error("Erro ao exportar dados");

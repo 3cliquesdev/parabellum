@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import { TicketExportFilters, TicketExportRow } from "./useTicketsExportReport";
 import { toast } from "sonner";
+import { fetchAllRpcPages } from "@/lib/fetchAllRpcPages";
 
 const STATUS_MAP: Record<string, string> = {
   open: "Aberto",
@@ -41,8 +42,7 @@ export function useExportTicketsExcel() {
     toast.info("Gerando Excel...");
 
     try {
-      // Fetch ALL rows (no pagination)
-      const params: Record<string, any> = { p_limit: 10000, p_offset: 0 };
+      const params: Record<string, any> = {};
       if (filters.dateRange?.from) {
         const d = filters.dateRange.from;
         params.p_start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T00:00:00`;
@@ -57,10 +57,11 @@ export function useExportTicketsExcel() {
       if (filters.priority && filters.priority !== "all") params.p_priority = filters.priority;
       if (filters.search) params.p_search = filters.search;
 
-      const { data, error } = await supabase.rpc("get_tickets_export_report", params);
-      if (error) throw error;
+      const rows = (await fetchAllRpcPages<TicketExportRow>({
+        rpcName: "get_tickets_export_report",
+        params,
+      }));
 
-      const rows = (data as unknown as TicketExportRow[]) || [];
       if (!rows.length) {
         toast.warning("Nenhum dado para exportar");
         return;
@@ -97,14 +98,13 @@ export function useExportTicketsExcel() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Tickets");
 
-      // Auto-width columns
       const colWidths = Object.keys(excelRows[0]).map((key) => ({
         wch: Math.max(key.length, ...excelRows.map((r) => String((r as any)[key] || "").length)) + 2,
       }));
       ws["!cols"] = colWidths;
 
       XLSX.writeFile(wb, `relatorio-tickets-${new Date().toISOString().slice(0, 10)}.xlsx`);
-      toast.success(`${rows.length} tickets exportados com sucesso!`);
+      toast.success(`${rows.length.toLocaleString("pt-BR")} tickets exportados com sucesso!`);
     } catch (err: any) {
       console.error("Export error:", err);
       toast.error("Erro ao exportar: " + err.message);

@@ -1,35 +1,25 @@
 
 
-## Mostrar Nome do Template no Relatorio de Playbook
+## Corrigir Loop Infinito na Exportacao de Relatorios
 
-### Problema
-A coluna "Email N - Titulo" no relatorio de sequencia de emails mostra o **assunto do email** (ex: "Boas-vindas ao Armazem Drop! Seu caminho para a primeira venda comeca agora.") em vez do **nome do template** (ex: "Onboarding (Simples)").
+### Causa Raiz
+O `PAGE_SIZE` esta configurado como 2.000, mas o backend tem um limite padrao de 1.000 linhas por chamada RPC. Quando a RPC retorna 1.000 linhas (cap do backend), o codigo interpreta como "ultima pagina" (1.000 < 2.000) e para prematuramente -- exportando apenas 1.000 de 4.440 linhas. O toast de progresso fica travado mostrando "Buscando dados... 1.000 de ~4.440".
 
 ### Solucao
-Alterar a RPC `get_playbook_email_sequence_report` para extrair o nome do template a partir do `flow_definition` do playbook, usando o campo `playbook_node_id` de `email_sends` para localizar o no correto. Adicionar esse campo ao frontend e ao export Excel.
+Reduzir o `PAGE_SIZE` de 2.000 para 1.000 no utilitario `fetchAllRpcPages.ts`. Com isso:
 
-### Detalhes Tecnicos
+- Cada chamada solicita 1.000 linhas (dentro do limite do backend)
+- Se retornar exatamente 1.000, o loop sabe que ha mais paginas e continua
+- Paginacao funciona corretamente: 1.000 + 1.000 + 1.000 + 1.000 + 440 = 4.440
 
-**1. Alterar a RPC `get_playbook_email_sequence_report` (migracao SQL)**
-- Adicionar campo `email_template_name` ao retorno
-- Extrair o `label` do no correspondente no `flow_definition` via jsonb:
-  ```sql
-  (SELECT n->'data'->>'label'
-   FROM jsonb_array_elements(p.flow_definition::jsonb->'nodes') AS n
-   WHERE n->>'id' = es.playbook_node_id
-   LIMIT 1)::TEXT AS email_template_name
-  ```
+### Arquivo Afetado
 
-**2. `src/hooks/usePlaybookEmailSequenceReport.tsx`**
-- Adicionar `email_template_name: string | null` na interface `EmailSequenceRow`
-
-**3. `src/hooks/useExportPlaybookEmailSequence.tsx`**
-- Trocar a coluna "Email N - Titulo" para usar `email_template_name` (com fallback para `email_subject` caso esteja nulo)
-
-**4. `src/pages/PlaybookEmailSequenceReport.tsx`**
-- Se a tabela na tela exibir o titulo, atualizar para usar `email_template_name`
+**`src/lib/fetchAllRpcPages.ts`**
+- Unica alteracao: `PAGE_SIZE = 2000` para `PAGE_SIZE = 1000`
 
 ### Impacto
-- Upgrade: o nome do template e mais util e descritivo que o assunto
-- Fallback: se `email_template_name` for nulo, mantem o `email_subject` como antes
-- Nenhuma feature existente e afetada
+- Todas as exportacoes (Conversas, Comercial, Suporte, Tickets, Playbook) se beneficiam automaticamente
+- Mais roundtrips (5 em vez de 3 para 4.440 linhas), mas cada um mais rapido e confiavel
+- Nenhuma outra feature e afetada
+- Zero risco de regressao
+

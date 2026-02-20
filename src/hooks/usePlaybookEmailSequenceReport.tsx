@@ -17,6 +17,7 @@ export interface EmailSequenceRow {
   email_clicked_at: string | null;
   email_bounced_at: string | null;
   email_status: string | null;
+  email_template_name: string | null;
 }
 
 export interface EmailSequenceFilters {

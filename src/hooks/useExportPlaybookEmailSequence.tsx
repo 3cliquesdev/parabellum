@@ -64,7 +64,7 @@ export function useExportPlaybookEmailSequence() {
         for (let i = 0; i < maxEmails; i++) {
           const n = i + 1;
           const email = g.emails[i];
-          row[`Email ${n} - Título`] = email?.email_subject || "";
+          row[`Email ${n} - Template`] = email?.email_template_name || email?.email_subject || "";
           row[`Email ${n} - Data`] = email ? fmtDate(email.email_sent_at) : "";
           row[`Email ${n} - Hora`] = email ? fmtTime(email.email_sent_at) : "";
           row[`Email ${n} - Status`] = email ? getEmailStatus(email) : "";

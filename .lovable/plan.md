@@ -1,34 +1,85 @@
 
 
-## Adicionar Botao "Filtrar" no Relatorio de Conversas
+## Corrigir Tickets da MAbile Nao Chegando ao Financeiro
 
-### Problema
-Atualmente os filtros aplicam automaticamente a cada mudanca (data, departamento, agente, etc.), o que pode confundir alguns usuarios. Falta um botao explicito "Filtrar" para tornar a experiencia mais intuitiva.
+### Causa Raiz
+A Edge Function `generate-ticket-from-conversation` usa `service_role` (acesso total ao banco) mas nao preenche dois campos essenciais:
+
+1. **`created_by`**: fica NULL porque o ID do usuario nao e extraido do token de autenticacao
+2. **`department_id`**: fica NULL porque a categoria "financeiro" nao e mapeada para o departamento correspondente
+
+Consequencias:
+- O ticket nao aparece na fila do departamento Financeiro (sem `department_id`)
+- A MAbile nao consegue ver o ticket que ela mesma criou (sem `created_by`, a regra de seguranca nao reconhece como "criado por ela")
+- Stakeholders/notificacoes internas ficam vazias (`ticket.created_by` e NULL)
 
 ### Solucao
-Mudar a logica para que os filtros sejam "staged" (pendentes) ate o usuario clicar no botao "Filtrar". Isso segue o mesmo padrao ja usado no relatorio de Playbook Email Sequence (`PlaybookEmailSequenceReport.tsx`), que tem um botao "Buscar".
 
-### Detalhes Tecnicos
+**Arquivo: `supabase/functions/generate-ticket-from-conversation/index.ts`**
 
-**Arquivo: `src/pages/ConversationsReport.tsx`**
+1. **Extrair usuario do JWT**: Ler o header `Authorization`, criar um segundo cliente Supabase com o token do usuario para obter `auth.getUser()`, e usar o ID como `created_by`
 
-1. Criar estados separados para filtros "pendentes" (o que o usuario esta selecionando) e filtros "aplicados" (o que a query usa):
-   - Os selects e inputs atualizam os estados pendentes
-   - O botao "Filtrar" copia os pendentes para os aplicados e reseta a pagina
+2. **Mapear categoria para departamento**: Buscar o departamento pelo nome correspondente a categoria:
+   - `financeiro` -> departamento "Financeiro"
+   - `tecnico` -> departamento "Suporte Sistema" (ou similar)
+   - Fallback: NULL se nao encontrar (comportamento atual)
 
-2. Adicionar botao "Filtrar" com icone de Search ao lado dos filtros existentes
+3. **Inserir `created_by` e `department_id`** no INSERT do ticket
 
-3. Adicionar botao "Limpar" para resetar todos os filtros de uma vez
+4. **Corrigir stakeholders**: O bloco de notificacoes ja usa `ticket.created_by`, entao com a correcao, o criador sera adicionado automaticamente como stakeholder
 
-4. A query `useCommercialConversationsReport` passa a usar somente os filtros aplicados
+### Codigo (resumo das mudancas)
 
-### Comportamento
-- Usuario abre a pagina: carrega com filtros padrao (mes atual, sem departamento, etc.)
-- Usuario muda qualquer filtro: nada acontece na tabela ainda
-- Usuario clica "Filtrar": tabela atualiza com os novos filtros
-- Usuario clica "Limpar": todos os filtros voltam ao padrao e tabela atualiza
+```text
+// 1. Extrair user do JWT (novo)
+const authHeader = req.headers.get('Authorization');
+let actorId = null;
+if (authHeader) {
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } }
+  });
+  const { data: { user } } = await userClient.auth.getUser();
+  actorId = user?.id ?? null;
+}
+
+// 2. Mapear categoria -> departamento (novo)
+const categoryToDept: Record<string, string> = {
+  financeiro: 'Financeiro',
+  tecnico: 'Suporte Sistema',
+};
+const deptName = categoryToDept[category];
+let departmentId = null;
+if (deptName) {
+  const { data: dept } = await supabase
+    .from('departments')
+    .select('id')
+    .ilike('name', deptName)
+    .maybeSingle();
+  departmentId = dept?.id ?? null;
+}
+
+// 3. Inserir com os campos corretos
+.insert({
+  ...campos_existentes,
+  created_by: actorId,        // NOVO
+  department_id: departmentId, // NOVO
+})
+```
+
+### Tickets Existentes Orfaos (correcao retroativa)
+
+Executar uma query de correcao para os tickets ja criados sem `department_id`:
+
+```sql
+UPDATE tickets
+SET department_id = 'af3c75a9-2e3f-49f1-8e0b-7fb3f4b5ee45'
+WHERE department_id IS NULL
+  AND category = 'financeiro'
+  AND created_at > '2026-02-01';
+```
 
 ### Impacto
-- Upgrade de UX: mais claro e previsivel para o usuario
-- Zero regressao: mesma query, mesmos dados, mesmo export
-- Padrao consistente com o relatorio de Playbook que ja funciona assim
+- Upgrade: tickets criados via conversa agora chegam ao departamento correto e tem rastreabilidade completa
+- Fallback: se JWT nao estiver presente ou departamento nao existir, mantem NULL (comportamento atual)
+- Zero regressao: o INSERT policy e `WITH CHECK (true)`, entao adicionar `created_by` e `department_id` nao quebra nada
+- Notificacoes internas passam a funcionar corretamente para este fluxo

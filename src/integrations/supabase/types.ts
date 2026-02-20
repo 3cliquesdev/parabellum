@@ -9455,6 +9455,7 @@ export type Database = {
           email_sent_at: string
           email_status: string
           email_subject: string
+          email_template_name: string
           execution_id: string
           playbook_name: string
           sale_date: string

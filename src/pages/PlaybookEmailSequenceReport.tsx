@@ -174,7 +174,7 @@ export default function PlaybookEmailSequenceReport() {
                           return (
                             <TableCell key={i}>
                               <div className="text-xs space-y-0.5">
-                                <div className="font-medium truncate max-w-[180px]">{email.email_subject}</div>
+                                <div className="font-medium truncate max-w-[180px]">{email.email_template_name || email.email_subject}</div>
                                 <div className="text-muted-foreground">{fmtDate(email.email_sent_at)} {fmtTime(email.email_sent_at)}</div>
                                 <div className={getStatusColor(status)}>{status}</div>
                               </div>

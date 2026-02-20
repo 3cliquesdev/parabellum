@@ -343,6 +343,57 @@ export type Database = {
           },
         ]
       }
+      ai_events: {
+        Row: {
+          created_at: string
+          department_id: string | null
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id: string
+          input_summary: string | null
+          latency_ms: number | null
+          model: string
+          output_json: Json
+          prompt_version: string | null
+          score: number | null
+          tokens_used: number | null
+          trace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          department_id?: string | null
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id?: string
+          input_summary?: string | null
+          latency_ms?: number | null
+          model: string
+          output_json?: Json
+          prompt_version?: string | null
+          score?: number | null
+          tokens_used?: number | null
+          trace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          department_id?: string | null
+          entity_id?: string
+          entity_type?: string
+          event_type?: string
+          id?: string
+          input_summary?: string | null
+          latency_ms?: number | null
+          model?: string
+          output_json?: Json
+          prompt_version?: string | null
+          score?: number | null
+          tokens_used?: number | null
+          trace_id?: string | null
+        }
+        Relationships: []
+      }
       ai_failure_logs: {
         Row: {
           contact_id: string | null
@@ -2555,6 +2606,144 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      dashboard_blocks: {
+        Row: {
+          config_json: Json
+          dashboard_id: string
+          height: number
+          id: string
+          position_x: number
+          position_y: number
+          report_id: string
+          sort_order: number
+          title: string | null
+          visualization_type: string
+          width: number
+        }
+        Insert: {
+          config_json?: Json
+          dashboard_id: string
+          height?: number
+          id?: string
+          position_x?: number
+          position_y?: number
+          report_id: string
+          sort_order?: number
+          title?: string | null
+          visualization_type: string
+          width?: number
+        }
+        Update: {
+          config_json?: Json
+          dashboard_id?: string
+          height?: number
+          id?: string
+          position_x?: number
+          position_y?: number
+          report_id?: string
+          sort_order?: number
+          title?: string | null
+          visualization_type?: string
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_blocks_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_blocks_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "report_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dashboards: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_public: boolean
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      data_catalog: {
+        Row: {
+          allow_aggregate: boolean
+          allow_filter: boolean
+          allow_group: boolean
+          allowed_roles: string[] | null
+          category: string | null
+          created_at: string
+          description: string | null
+          entity: string
+          field_name: string
+          field_type: string
+          id: string
+          is_sensitive: boolean
+          label: string | null
+          sort_order: number
+        }
+        Insert: {
+          allow_aggregate?: boolean
+          allow_filter?: boolean
+          allow_group?: boolean
+          allowed_roles?: string[] | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          entity: string
+          field_name: string
+          field_type: string
+          id?: string
+          is_sensitive?: boolean
+          label?: string | null
+          sort_order?: number
+        }
+        Update: {
+          allow_aggregate?: boolean
+          allow_filter?: boolean
+          allow_group?: boolean
+          allowed_roles?: string[] | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          entity?: string
+          field_name?: string
+          field_type?: string
+          id?: string
+          is_sensitive?: boolean
+          label?: string | null
+          sort_order?: number
+        }
+        Relationships: []
       }
       deals: {
         Row: {
@@ -7147,6 +7336,191 @@ export type Database = {
         }
         Relationships: []
       }
+      report_definitions: {
+        Row: {
+          base_entity: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_public: boolean
+          is_template: boolean
+          joins: Json
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          base_entity: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          is_template?: boolean
+          joins?: Json
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          base_entity?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          is_template?: boolean
+          joins?: Json
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      report_fields: {
+        Row: {
+          alias: string | null
+          entity: string
+          field_name: string
+          id: string
+          report_id: string
+          sort_order: number
+        }
+        Insert: {
+          alias?: string | null
+          entity: string
+          field_name: string
+          id?: string
+          report_id: string
+          sort_order?: number
+        }
+        Update: {
+          alias?: string | null
+          entity?: string
+          field_name?: string
+          id?: string
+          report_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_fields_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "report_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_filters: {
+        Row: {
+          entity: string
+          field_name: string
+          id: string
+          is_required: boolean
+          operator: string
+          report_id: string
+          value: Json | null
+        }
+        Insert: {
+          entity: string
+          field_name: string
+          id?: string
+          is_required?: boolean
+          operator: string
+          report_id: string
+          value?: Json | null
+        }
+        Update: {
+          entity?: string
+          field_name?: string
+          id?: string
+          is_required?: boolean
+          operator?: string
+          report_id?: string
+          value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_filters_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "report_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_groupings: {
+        Row: {
+          entity: string
+          field_name: string
+          id: string
+          report_id: string
+          sort_order: number
+          time_grain: string | null
+        }
+        Insert: {
+          entity: string
+          field_name: string
+          id?: string
+          report_id: string
+          sort_order?: number
+          time_grain?: string | null
+        }
+        Update: {
+          entity?: string
+          field_name?: string
+          id?: string
+          report_id?: string
+          sort_order?: number
+          time_grain?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_groupings_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "report_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_metrics: {
+        Row: {
+          aggregation_type: string
+          entity: string
+          field_name: string | null
+          id: string
+          metric_name: string | null
+          report_id: string
+          sort_order: number
+        }
+        Insert: {
+          aggregation_type: string
+          entity: string
+          field_name?: string | null
+          id?: string
+          metric_name?: string | null
+          report_id: string
+          sort_order?: number
+        }
+        Update: {
+          aggregation_type?: string
+          entity?: string
+          field_name?: string | null
+          id?: string
+          metric_name?: string | null
+          report_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_metrics_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "report_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rlhf_feedback: {
         Row: {
           created_at: string | null
@@ -7504,6 +7878,54 @@ export type Database = {
           max_score?: number | null
           min_score?: number
           priority?: number | null
+        }
+        Relationships: []
+      }
+      semantic_metrics: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          default_filters: Json
+          denominator_field: string | null
+          description: string | null
+          entity_base: string
+          expression: string | null
+          expression_type: string
+          id: string
+          is_active: boolean
+          label: string | null
+          name: string
+          numerator_field: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          default_filters?: Json
+          denominator_field?: string | null
+          description?: string | null
+          entity_base: string
+          expression?: string | null
+          expression_type: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          name: string
+          numerator_field?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          default_filters?: Json
+          denominator_field?: string | null
+          description?: string | null
+          entity_base?: string
+          expression?: string | null
+          expression_type?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          name?: string
+          numerator_field?: string | null
         }
         Relationships: []
       }

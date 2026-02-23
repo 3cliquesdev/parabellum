@@ -1,65 +1,54 @@
 
-# Corrigir filtro "Agentes" no Relatorio de Tickets
+
+# Multi-Select de Agentes no Relatorio de Tickets
 
 ## Problema
-
-O dropdown "Todos Agentes" na pagina `/reports/tickets-export` esta listando **todos os profiles** (incluindo clientes, contatos, etc.) porque a query nao filtra por role interno.
-
-Codigo atual (linha 50-56 de `TicketsExportReport.tsx`):
-```typescript
-const { data: agents } = useQuery({
-  queryKey: ["agents-list"],
-  queryFn: async () => {
-    const { data } = await supabase.from("profiles").select("id, full_name").order("full_name");
-    return data ?? [];
-  },
-});
-```
+Atualmente o filtro de agentes permite selecionar apenas 1 agente por vez. O usuario quer marcar varios agentes para filtrar/exportar o relatorio.
 
 ## Solucao
 
-Filtrar apenas usuarios com roles internos (admin, manager, support_agent, etc.), usando um JOIN com `user_roles` — mesmo padrao ja usado em `useUsersByDepartment.tsx`.
+### 1. Migration: Alterar a RPC para aceitar array de UUIDs
 
-## Alteracao
+Recriar a funcao `get_tickets_export_report` trocando o parametro `p_agent_id uuid` por `p_agent_ids uuid[]` (array). A clausula WHERE muda de:
 
-**Arquivo**: `src/pages/TicketsExportReport.tsx` (linhas 50-56)
-
-Substituir a query de agentes por:
-
-```typescript
-const INTERNAL_ROLES = [
-  'admin', 'general_manager', 'manager', 'sales_rep', 'consultant',
-  'support_agent', 'support_manager', 'financial_manager', 'financial_agent',
-  'cs_manager', 'ecommerce_analyst'
-];
-
-const { data: agents } = useQuery({
-  queryKey: ["internal-agents-list"],
-  queryFn: async () => {
-    // 1. Buscar user_ids com roles internos
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .in("role", INTERNAL_ROLES);
-
-    const ids = roles?.map(r => r.user_id) || [];
-    if (ids.length === 0) return [];
-
-    // 2. Buscar profiles apenas desses users
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", ids)
-      .order("full_name");
-
-    return data ?? [];
-  },
-});
+```sql
+AND (p_agent_id IS NULL OR t.assigned_to = p_agent_id)
+```
+para:
+```sql
+AND (p_agent_ids IS NULL OR t.assigned_to = ANY(p_agent_ids))
 ```
 
-## Impacto
+Quando o array for NULL (nenhum agente selecionado), retorna todos. Quando tiver IDs, filtra por qualquer um deles.
 
-- **Zero regressao**: apenas muda quais profiles aparecem no dropdown de filtro
-- **Nenhuma tabela/RLS/migration** necessaria
-- **Padrao consistente** com `useUsersByDepartment` que ja usa a mesma logica
-- O filtro `p_agent_id` enviado para a RPC `get_tickets_export_report` continua funcionando igual
+### 2. Alterar tipo `TicketExportFilters`
+
+**Arquivo**: `src/hooks/useTicketsExportReport.tsx`
+
+- Trocar `agentId: string` por `agentIds: string[]`
+- No queryFn, enviar `p_agent_ids` como array (ou omitir se vazio)
+
+### 3. Alterar `useExportTicketsExcel.tsx`
+
+- Mesmo ajuste: usar `filters.agentIds` e enviar `p_agent_ids` ao inves de `p_agent_id`
+
+### 4. Alterar UI em `TicketsExportReport.tsx`
+
+- Trocar o `<Select>` de agente por um componente multi-select com checkboxes (Popover + lista de checkboxes, similar ao `AssignedToMultiSelect` que ja existe no projeto)
+- State inicial: `agentIds: []` (vazio = todos)
+- O botao mostra "Todos Agentes" quando vazio, ou "X agentes" quando ha selecao
+
+### 5. Arquivos impactados
+
+| Arquivo | Mudanca |
+|---------|---------|
+| Migration SQL | Recriar RPC com `p_agent_ids uuid[]` |
+| `src/hooks/useTicketsExportReport.tsx` | `agentId` -> `agentIds: string[]`, enviar como array |
+| `src/hooks/useExportTicketsExcel.tsx` | Mesmo ajuste no params |
+| `src/pages/TicketsExportReport.tsx` | Multi-select com checkboxes no lugar do Select simples |
+
+### 6. Zero regressao
+- A RPC continua retornando os mesmos dados
+- Quando nenhum agente selecionado (array NULL), comportamento identico ao atual "Todos Agentes"
+- Nenhum outro componente usa esta RPC
+

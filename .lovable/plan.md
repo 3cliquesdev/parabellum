@@ -1,43 +1,53 @@
 
 
-# Remover "Contato" do nome exibido na lista de conversas
+# Registrar envio de template na timeline do contato
 
 ## Problema
 
-Na lista de conversas, varios contatos aparecem com "Contato" no sobrenome (ex.: "Atendente Rafael Contato", "Jeferson cardoso Contato", "Nestor Contato"). Esse texto e provavelmente um valor padrao salvo no campo `last_name` quando o contato e criado automaticamente via WhatsApp.
+Quando um template de reengajamento e enviado, a mensagem aparece no chat (via edge function), mas nao e registrado nenhum evento na timeline de interacoes do contato. O painel lateral mostra "Nenhum evento registrado" mesmo apos envios de templates.
 
 ## Solucao
 
-Filtrar a palavra "Contato" do `last_name` no momento da exibicao, sem alterar o banco de dados.
-
-## Arquivo impactado
-
-`src/components/ConversationListItem.tsx` (linhas 280-283)
+Adicionar um INSERT na tabela `interactions` apos o envio bem-sucedido do template, registrando o evento como tipo `whatsapp_msg` (ou um tipo dedicado) com os detalhes do template enviado.
 
 ## Mudanca
 
-Trocar:
+### Arquivo: `src/components/inbox/ReengageTemplateDialog.tsx`
+
+Dentro do `onSuccess` da mutation (apos o envio funcionar), inserir uma interacao na tabela `interactions`:
 
 ```typescript
-<p className="font-medium truncate text-foreground text-sm">
-  {conversation.contacts?.first_name || 'Cliente'}{" "}
-  {conversation.contacts?.last_name || ''}
-</p>
+// Dentro de onSuccess, antes de invalidar queries:
+if (conversation.contact_id) {
+  await supabase.from("interactions").insert({
+    customer_id: conversation.contact_id,
+    type: "whatsapp_msg",
+    channel: "whatsapp",
+    direction: "outbound",
+    content: `📋 Template enviado: ${selectedTemplate?.name}`,
+    metadata: {
+      template_name: selectedTemplate?.name,
+      template_category: selectedTemplate?.category,
+      conversation_id: conversation.id,
+      sent_by: user?.id,
+    },
+  });
+}
 ```
 
-Por:
+Tambem invalidar a query de timeline para o contato aparecer atualizado:
 
 ```typescript
-<p className="font-medium truncate text-foreground text-sm">
-  {conversation.contacts?.first_name || 'Cliente'}
-</p>
+queryClient.invalidateQueries({ queryKey: ["unified-timeline", conversation.contact_id] });
+queryClient.invalidateQueries({ queryKey: ["customer-timeline", conversation.contact_id] });
 ```
 
-Remove a exibicao do `last_name` completamente, mantendo apenas o primeiro nome (ou "Cliente" como fallback).
+**Nota tecnica**: O `onSuccess` precisa virar `async` para aguardar o insert. Alternativamente, o insert pode ser fire-and-forget (sem await), ja que e apenas registro de auditoria e nao deve bloquear o fluxo principal.
 
 ## Zero regressao
 
-- Apenas visual, nao altera dados no banco
-- Avatar (iniciais) continua usando `first_name[0]` + `last_name[0]` nas linhas 268-269 - se quiser manter consistente, as iniciais tambem podem ser ajustadas para usar so a primeira letra do first_name
-- Nenhum outro componente e afetado
+- O envio do template nao muda - continua via edge function
+- Apenas adiciona um registro de auditoria na tabela `interactions`
+- Kill Switch, CSAT guard, fluxos: sem impacto
+- Timeline existente continua funcionando, apenas ganha mais um evento
 

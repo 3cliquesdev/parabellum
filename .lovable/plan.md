@@ -1,87 +1,40 @@
 
 
-# Unificar Teste de Fluxo em Um Unico Clique
+# Atualizar Status do Atendente em Tempo Real
 
-## Problema Atual
+## Problema
 
-O usuario precisa de **dois cliques em dois botoes diferentes** para testar um fluxo de rascunho:
-1. Clicar no botao "Testar" (header) para ativar o modo teste
-2. Procurar e clicar no botao "Workflow" (composer) para selecionar o fluxo
+Quando o status de um atendente e alterado (por ele mesmo ou por um admin), a atualizacao nao aparece imediatamente na sidebar do Inbox e em outros componentes. O delay ocorre por dois motivos:
 
-Isso e confuso e pouco intuitivo. O usuario espera que ao clicar em "Testar", ja possa escolher o fluxo.
+1. O hook `useAgentConversations` tem `staleTime: 30000` (30 segundos), o que faz com que invalidacoes nao disparem refetch imediato se os dados ainda estiverem "frescos"
+2. O hook `useManageAvailabilityStatus` (usado por admins para mudar status de outros agentes) nao invalida `agent-conversations-stats`, que e a query usada na sidebar do Inbox
 
-## Solucao Proposta
+## Alteracoes
 
-Transformar o botao "Testar" em um **dropdown com duas funcoes**:
-- Toggle do modo teste (liga/desliga)
-- Lista de fluxos de rascunho para iniciar diretamente
+### 1. Corrigir `useManageAvailabilityStatus.tsx`
 
-### Comportamento do Botao "Testar" (novo)
+Adicionar invalidacoes que faltam no `onSuccess`:
+- `agent-conversations-stats` (lista de agentes na sidebar)
+- `agent-conversations-list` (lista de conversas por agente)
+- `team-online-count` (contador de online)
+- `profiles` (dados gerais)
+- `support-agents` (lista de agentes de suporte)
 
-**Clique no botao principal:** Toggle do modo teste (comportamento atual preservado)
+### 2. Ajustar `useAgentConversations.tsx`
 
-**Seta/dropdown ao lado:** Abre lista de fluxos disponíveis para teste (rascunhos + ativos), similar ao FlowPickerButton mas posicionado no header.
+Reduzir o `staleTime` de 30s para 5s para que invalidacoes vindas do Realtime disparem refetch quase imediato. Manter `refetchInterval` de 60s como fallback.
 
-**OU alternativa mais simples:**
+### 3. Ajustar `useAvailabilityStatus.tsx`
 
-Transformar o botao "Testar" em um **DropdownMenu** que:
-1. Primeiro item: "Ativar/Desativar Modo Teste" (toggle)
-2. Separador
-3. Secao "Iniciar Fluxo de Rascunho" com lista dos fluxos inativos
-4. Secao "Iniciar Fluxo Ativo" com lista dos fluxos ativos
+No `onSuccess` da mutation, adicionar invalidacoes cruzadas para que quando o proprio agente mude seu status, as queries de outros componentes tambem sejam atualizadas:
+- `agent-conversations-stats`
+- `team-online-status`
+- `team-online-count`
+- `profiles`
 
-Ao selecionar um fluxo de rascunho, o sistema:
-- Ativa o modo teste automaticamente (se nao estiver ativo)
-- Inicia o fluxo selecionado
-- Tudo em um unico clique
+## Impacto
 
-### Alteracoes Tecnicas
-
-**Arquivo: `src/components/ChatWindow.tsx`**
-
-- Substituir o `Button` simples do teste (linhas 515-534) por um `DropdownMenu`
-- Importar `useChatFlows` para listar os fluxos disponiveis
-- Importar `useActiveFlowState` para verificar se ja ha fluxo ativo
-- Ao selecionar um fluxo rascunho:
-  1. Se `isTestMode` for `false`, chamar `toggleTestMode(true)` primeiro
-  2. Depois chamar `supabase.functions.invoke("process-chat-flow", { body: { conversationId, flowId, manualTrigger: true, bypassActiveCheck: true } })`
-- Se ja houver fluxo ativo (`activeFlow` nao nulo), mostrar toast bloqueando
-
-**Arquivo: `src/components/inbox/FlowPickerButton.tsx`**
-
-- Manter como esta (sem mudancas) — ele continua funcional no composer para quem preferir usar por la
-
-### UX do Dropdown
-
-```text
-[🧪 Testar v]
-  |
-  +-- [Toggle] Modo Teste: Ativo/Inativo
-  |
-  +-- ---- separador ----
-  |
-  +-- Rascunhos (teste):
-  |     > Fluxo Vendas v2
-  |     > Fluxo Suporte Beta
-  |
-  +-- ---- separador ----
-  |
-  +-- Ativos:
-  |     > Fluxo Principal
-  |     > Fluxo Suporte
-```
-
-### Logica de Seguranca (preservada)
-
-- Dropdown so aparece para `hasPermission('inbox.test_mode') && hasFullAccess(role)`
-- Fluxos de rascunho enviam `bypassActiveCheck: true` (validacao tripla no backend)
-- Se ha fluxo ativo, bloqueia inicio de outro
-- Modo teste e ativado automaticamente ao selecionar rascunho
-
-### Impacto
-
-- Zero regressao: FlowPickerButton no composer continua funcionando
-- Upgrade de UX: usuario testa rascunho com um unico clique no lugar obvio
-- Backend inalterado: mesma Edge Function, mesmas validacoes
-- ActiveFlowIndicator continua mostrando qual fluxo esta rodando
+- Zero regressao: nenhuma logica existente e alterada, apenas adicionadas invalidacoes e reduzido cache
+- Upgrade puro: status muda instantaneamente em todas as telas (sidebar, widget, header)
+- A infraestrutura de Realtime ja esta no lugar (`profiles` ja esta na publicacao `supabase_realtime` e `useProfilesRealtime` ja escuta globalmente), o ajuste e apenas garantir que as queries corretas sejam invalidadas e refetched sem delay
 

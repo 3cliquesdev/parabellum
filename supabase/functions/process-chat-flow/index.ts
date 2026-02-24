@@ -578,12 +578,28 @@ serve(async (req) => {
     }
 
     // 1. Verificar se existe estado ativo para esta conversa
-    const { data: activeState, error: stateError } = await supabaseClient
+    // 🆕 FIX: Usar order+limit ao invés de maybeSingle para evitar erro quando
+    // há múltiplos estados ativos (race condition master flow + draft de teste).
+    // O mais recente (draft) tem prioridade.
+    const { data: activeStates, error: stateError } = await supabaseClient
       .from('chat_flow_states')
       .select('*, chat_flows(*)')
       .eq('conversation_id', conversationId)
       .eq('status', 'active')
-      .maybeSingle();
+      .order('started_at', { ascending: false })
+      .limit(1);
+
+    const activeState = activeStates?.[0] || null;
+
+    // 🆕 Se há múltiplos estados ativos, cancelar os antigos (cleanup)
+    if (activeStates && activeStates.length > 1) {
+      console.log(`[process-chat-flow] ⚠️ Found ${activeStates.length} active states, keeping most recent, cancelling others`);
+      const idsToCancel = activeStates.slice(1).map((s: any) => s.id);
+      await supabaseClient
+        .from('chat_flow_states')
+        .update({ status: 'cancelled' })
+        .in('id', idsToCancel);
+    }
 
     if (stateError) {
       console.error('[process-chat-flow] Error fetching state:', stateError);

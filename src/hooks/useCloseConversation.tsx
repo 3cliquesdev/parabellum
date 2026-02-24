@@ -23,6 +23,12 @@ export function useCloseConversation() {
       });
 
       if (error) throw error;
+      
+      // Handle structured errors from edge function (e.g. missing tags)
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      
       return data;
     },
     onSuccess: () => {

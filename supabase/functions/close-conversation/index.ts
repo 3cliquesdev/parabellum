@@ -106,15 +106,13 @@ Deno.serve(async (req) => {
     const tagsRequired = tagsRequiredConfig?.value === "true";
 
     if (tagsRequired) {
-      const hasConversationCategoryTag = conversationTags?.some(
-        (ct: any) => ct.tags?.category === "conversation"
-      ) || false;
+      const hasAnyTag = (conversationTags?.length || 0) > 0;
 
-      if (!hasConversationCategoryTag) {
-        console.warn(`[close-conversation] BLOCKED: No conversation-category tag for ${conversationId}`);
+      if (!hasAnyTag) {
+        console.warn(`[close-conversation] BLOCKED: No tag for ${conversationId}`);
         return new Response(
           JSON.stringify({
-            error: "Conversa não pode ser encerrada sem pelo menos uma tag da categoria 'conversa'.",
+            error: "Conversa não pode ser encerrada sem uma tag vinculada.",
             code: "MISSING_CONVERSATION_TAG",
           }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

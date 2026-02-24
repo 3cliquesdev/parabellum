@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { X, Tag, Search } from "lucide-react";
+import { X, Tag, Search, Check } from "lucide-react";
 import { useTags, useConversationTags, useAddConversationTag, useRemoveConversationTag } from "@/hooks/useTags";
 
 interface ConversationTagsSectionProps {
@@ -14,23 +13,37 @@ interface ConversationTagsSectionProps {
 export function ConversationTagsSection({ conversationId }: ConversationTagsSectionProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const { data: allTags = [] } = useTags(); // Tags universais - sem filtro por categoria
+  const { data: allTags = [] } = useTags();
   const { data: conversationTags = [] } = useConversationTags(conversationId);
   const addTag = useAddConversationTag();
   const removeTag = useRemoveConversationTag();
 
-  const conversationTagIds = conversationTags.map((t: any) => t.id);
+  const currentTag = conversationTags.length > 0 ? conversationTags[0] : null;
 
   const filteredTags = allTags.filter((tag: any) =>
     tag.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleToggleTag = (tagId: string, isChecked: boolean) => {
-    if (isChecked) {
-      addTag.mutate({ conversationId, tagId });
-    } else {
+  const handleSelectTag = (tagId: string) => {
+    if (currentTag?.id === tagId) {
+      // Deselect current tag
       removeTag.mutate({ conversationId, tagId });
+    } else {
+      // Swap: remove old, add new
+      if (currentTag) {
+        removeTag.mutate(
+          { conversationId, tagId: currentTag.id },
+          {
+            onSuccess: () => {
+              addTag.mutate({ conversationId, tagId });
+            },
+          }
+        );
+      } else {
+        addTag.mutate({ conversationId, tagId });
+      }
     }
+    setOpen(false);
   };
 
   const handleRemoveTag = (tagId: string) => {
@@ -39,22 +52,21 @@ export function ConversationTagsSection({ conversationId }: ConversationTagsSect
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {conversationTags.map((tag: any) => (
+      {currentTag && (
         <Badge
-          key={tag.id}
           variant="secondary"
           className="text-xs flex items-center gap-1 pr-1"
-          style={{ backgroundColor: tag.color + "20", color: tag.color, borderColor: tag.color }}
+          style={{ backgroundColor: currentTag.color + "20", color: currentTag.color, borderColor: currentTag.color }}
         >
-          {tag.name}
+          {currentTag.name}
           <button
-            onClick={() => handleRemoveTag(tag.id)}
+            onClick={() => handleRemoveTag(currentTag.id)}
             className="hover:bg-black/10 rounded p-0.5"
           >
             <X className="h-3 w-3" />
           </button>
         </Badge>
-      ))}
+      )}
       
       <Popover open={open} onOpenChange={(isOpen) => {
         setOpen(isOpen);
@@ -67,7 +79,7 @@ export function ConversationTagsSection({ conversationId }: ConversationTagsSect
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-56 p-2 bg-popover border border-border z-50" align="start">
-          <div className="text-xs font-medium text-foreground mb-2">Adicionar Tag</div>
+          <div className="text-xs font-medium text-foreground mb-2">Selecionar Tag</div>
           <div className="relative mb-2">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
             <Input
@@ -83,24 +95,27 @@ export function ConversationTagsSection({ conversationId }: ConversationTagsSect
                 {search ? "Nenhuma tag encontrada" : "Nenhuma tag cadastrada"}
               </p>
             ) : (
-              filteredTags.map((tag: any) => (
-                <label
-                  key={tag.id}
-                  className="flex items-center gap-2 p-1.5 rounded hover:bg-muted cursor-pointer"
-                >
-                  <Checkbox
-                    checked={conversationTagIds.includes(tag.id)}
-                    onCheckedChange={(checked) => handleToggleTag(tag.id, !!checked)}
-                  />
-                  <Badge
-                    variant="secondary"
-                    className="text-xs"
-                    style={{ backgroundColor: tag.color + "20", color: tag.color }}
+              filteredTags.map((tag: any) => {
+                const isSelected = currentTag?.id === tag.id;
+                return (
+                  <button
+                    key={tag.id}
+                    onClick={() => handleSelectTag(tag.id)}
+                    className="flex items-center gap-2 p-1.5 rounded hover:bg-muted cursor-pointer w-full text-left"
                   >
-                    {tag.name}
-                  </Badge>
-                </label>
-              ))
+                    <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`}>
+                      {isSelected && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className="text-xs"
+                      style={{ backgroundColor: tag.color + "20", color: tag.color }}
+                    >
+                      {tag.name}
+                    </Badge>
+                  </button>
+                );
+              })
             )}
           </div>
         </PopoverContent>

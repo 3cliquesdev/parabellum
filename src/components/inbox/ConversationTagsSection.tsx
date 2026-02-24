@@ -4,21 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { X, Tag, Search, Check } from "lucide-react";
-import { useTags, useConversationTags, useAddConversationTag, useRemoveConversationTag } from "@/hooks/useTags";
+import { useUniversalTag } from "@/hooks/useUniversalTag";
 
 interface ConversationTagsSectionProps {
   conversationId: string;
+  contactId?: string;
 }
 
-export function ConversationTagsSection({ conversationId }: ConversationTagsSectionProps) {
+export function ConversationTagsSection({ conversationId, contactId }: ConversationTagsSectionProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const { data: allTags = [] } = useTags();
-  const { data: conversationTags = [] } = useConversationTags(conversationId);
-  const addTag = useAddConversationTag();
-  const removeTag = useRemoveConversationTag();
-
-  const currentTag = conversationTags.length > 0 ? conversationTags[0] : null;
+  const { currentTag, allTags, selectTag, removeTag } = useUniversalTag(conversationId, contactId);
 
   const filteredTags = allTags.filter((tag: any) =>
     tag.name.toLowerCase().includes(search.toLowerCase())
@@ -26,28 +22,15 @@ export function ConversationTagsSection({ conversationId }: ConversationTagsSect
 
   const handleSelectTag = (tagId: string) => {
     if (currentTag?.id === tagId) {
-      // Deselect current tag
-      removeTag.mutate({ conversationId, tagId });
+      removeTag.mutate();
     } else {
-      // Swap: remove old, add new
-      if (currentTag) {
-        removeTag.mutate(
-          { conversationId, tagId: currentTag.id },
-          {
-            onSuccess: () => {
-              addTag.mutate({ conversationId, tagId });
-            },
-          }
-        );
-      } else {
-        addTag.mutate({ conversationId, tagId });
-      }
+      selectTag.mutate(tagId);
     }
     setOpen(false);
   };
 
-  const handleRemoveTag = (tagId: string) => {
-    removeTag.mutate({ conversationId, tagId });
+  const handleRemoveTag = () => {
+    removeTag.mutate();
   };
 
   return (
@@ -60,7 +43,7 @@ export function ConversationTagsSection({ conversationId }: ConversationTagsSect
         >
           {currentTag.name}
           <button
-            onClick={() => handleRemoveTag(currentTag.id)}
+            onClick={handleRemoveTag}
             className="hover:bg-black/10 rounded p-0.5"
           >
             <X className="h-3 w-3" />

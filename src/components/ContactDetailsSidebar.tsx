@@ -232,7 +232,7 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
             <Separator className="my-2" />
             
             {/* Tags Permanentes do Contato - Tags da conversa são exibidas no header do ChatWindow */}
-            <ContactTagsSection contactId={contact.id} />
+            <ContactTagsSection contactId={contact.id} conversationId={conversation?.id} />
 
             <Separator className="my-2" />
 

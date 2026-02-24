@@ -1,65 +1,53 @@
 
-# Simplificar Labels do Painel "Resposta IA" (sem Kiwify)
 
-## Resumo
-Renomear todos os labels tecnicos do painel de propriedades do no "Resposta IA" para nomes simples e diretos. Remover a secao "Dados do Cliente (CRM)" que e interna (Kiwify) e nao faz sentido para o cliente final.
+# Mostrar Nome do Template no Cabecalho das Colunas do Relatorio
 
-## Arquivos alterados
+## Problema
+Atualmente os cabecalhos das colunas de email no Excel e no preview mostram nomes genericos como "Email 1 - Template", "Email 2 - Template". O usuario quer que o cabecalho mostre o nome real do template (ex: "Onboarding (Simples)", "Acesso ao ArmazemDrop").
 
-### 1. `src/components/chat-flows/panels/BehaviorControlsSection.tsx`
+## Solucao
 
-| Atual | Novo |
-|-------|------|
-| CONTROLES DE COMPORTAMENTO | COMO A IA DEVE RESPONDER |
-| Tooltip: "...respostas deterministicas" | "Configure como a IA vai se comportar neste ponto do fluxo" |
-| Objetivo da IA | O que a IA deve fazer aqui |
-| Placeholder: "Ex: Responder duvidas sobre rastreio de pedidos" | "Ex: Tirar duvidas sobre entrega do pedido" |
-| "A IA respondera SOMENTE sobre este objetivo especifico" | "A IA so vai falar sobre esse assunto" |
-| Maximo de Frases | Tamanho da resposta |
-| Restricoes Anti-Alucinacao | O que a IA NAO pode fazer |
-| Proibir Perguntas | Nao fazer perguntas |
-| "IA nao pode fazer perguntas ao cliente" | "A IA so responde, nao pergunta nada" |
-| Proibir Opcoes | Nao dar opcoes numeradas |
-| "IA nao pode oferecer multipla escolha" | "A IA nao oferece lista de opcoes (1, 2, 3...)" |
+Detectar o nome do template mais frequente em cada posicao (email 1, email 2, etc.) a partir dos dados ja carregados e usar esse nome como cabecalho da coluna.
 
-### 2. `src/components/chat-flows/panels/RAGSourcesSection.tsx`
+### 1. `src/hooks/useExportPlaybookEmailSequence.tsx`
 
-| Atual | Novo |
-|-------|------|
-| FONTES DE DADOS (RAG) | DE ONDE A IA BUSCA INFORMACAO |
-| Tooltip tecnico sobre RAG | "Escolha de onde a IA vai puxar as informacoes para responder o cliente" |
-| Base de Conhecimento | Artigos e FAQ |
-| "Filtrar por categorias (vazio = todas)" | "Buscar apenas nestas categorias:" |
-| **REMOVER bloco inteiro "Dados do Cliente (CRM)"** | -- |
-| Rastreio de Pedidos | Rastreio de Envio |
-| "A IA consultara status de envio e codigo de rastreio automaticamente" | "A IA consulta onde esta o pacote do cliente" |
+Alterar a geracao dos headers do Excel:
+- Em vez de `Email ${n} - Template`, usar o nome real do template daquela posicao
+- Formato: `{nome_template} - Data`, `{nome_template} - Hora`, `{nome_template} - Status`
+- Ex: "Onboarding (Simples) - Data", "Onboarding (Simples) - Status"
+- A coluna "Template" em si sera removida pois o nome ja esta no cabecalho
 
-A secao "Dados do Cliente (CRM)" com o switch `use_customer_data` e checkbox `use_order_history` sera completamente removida do componente, pois sao dados internos do Kiwify que clientes nao perguntam.
+Logica:
+- Percorrer todos os grupos e para cada posicao (0, 1, 2...) coletar o `email_template_name` mais comum
+- Usar esse nome no cabecalho
 
-### 3. `src/components/chat-flows/panels/SmartCollectionSection.tsx`
+### 2. `src/pages/PlaybookEmailSequenceReport.tsx`
 
-| Atual | Novo |
-|-------|------|
-| COLETA INTELIGENTE | PEDIR DADOS DO CLIENTE |
-| Tooltip: "A IA solicitara dados faltantes..." | "A IA pede os dados que faltam do cliente durante a conversa, de forma natural" |
-| "Dados que a IA pode solicitar quando necessario" | "A IA pode pedir esses dados se nao tiver:" |
-| Dica final longa | "A IA pede um dado por vez, so se ainda nao tiver no cadastro" |
+Alterar o preview da tabela:
+- Calcular os nomes dos templates por posicao a partir dos dados agrupados
+- Substituir o cabecalho generico "Email 1", "Email 2", "Email 3" pelo nome real do template
+- Manter as informacoes dentro de cada celula (data, hora, status) sem o nome do template (pois ja esta no cabecalho)
 
-### 4. `src/components/chat-flows/AIResponsePropertiesPanel.tsx`
+### Detalhes tecnicos
 
-| Atual | Novo |
-|-------|------|
-| CONTEXTO ADICIONAL | INSTRUCOES EXTRAS |
-| Placeholder: "Instrucoes adicionais para a IA..." | "Diga algo a mais para a IA seguir aqui..." |
-| MENSAGEM DE FALLBACK | RESPOSTA QUANDO NAO SOUBER |
-| "Exibida quando a IA nao encontra resposta ou viola restricoes" | "O que a IA diz quando nao tem a informacao" |
+```text
+Cabecalho atual (Excel):
+| Email 1 - Template | Email 1 - Data | Email 1 - Hora | Email 1 - Status |
 
-## O que NAO muda
-- Nenhuma key de dados (objective, max_sentences, use_tracking, etc.)
-- Nenhuma logica de negocio ou persistencia
-- Nenhuma funcionalidade removida que afete o fluxo (o bloco Kiwify/CRM era visual, os dados continuam disponiveis via tools internas)
+Cabecalho novo (Excel):
+| Onboarding (Simples) - Data | Onboarding (Simples) - Hora | Onboarding (Simples) - Status |
+
+Preview atual:
+| Email 1 | Email 2 | Email 3 |
+
+Preview novo:
+| Onboarding (Simples) | Acesso ao ArmazemDrop | Email 3 |
+```
+
+Para determinar o nome de cada posicao, sera usada a moda (valor mais frequente) dos `email_template_name` naquela posicao. Se nao houver nome, cai no fallback "Email N".
 
 ## Impacto
-- Apenas mudanca visual de textos
-- Remocao de uma secao (CRM/Kiwify) que nao e util para quem monta fluxos
-- Zero regressao
+- Apenas mudanca visual nos cabecalhos
+- Dados exportados continuam os mesmos
+- Zero impacto em logica de negocio
+

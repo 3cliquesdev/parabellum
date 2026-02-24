@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -100,6 +100,7 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
   const { isAIEnabled: isAIGlobalEnabled } = useAIGlobalConfig();
   const { isTestMode, toggle: toggleTestMode, isPending: isTestModePending } = useTestModeToggle(conversation?.id || null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Verificar se pode assumir esta conversa
@@ -373,6 +374,18 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
 
   const handleUseSuggestion = (text: string) => {
     setMessage(text);
+  };
+
+  const handleReopenConversation = async () => {
+    if (!conversation) return;
+    const { error } = await supabase
+      .from("conversations")
+      .update({ status: "open", closed_at: null })
+      .eq("id", conversation.id);
+    if (!error) {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      toast({ title: "Conversa reaberta" });
+    }
   };
 
   const effectiveAIMode = (aiMode as any) ?? (conversation?.ai_mode as any);
@@ -652,21 +665,10 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
             <div className="px-4 py-6 md:px-6">
               <div className="max-w-4xl mx-auto w-full">
                 {conversation.status === "closed" && (
-                  <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-center space-y-2">
+                  <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-center">
                     <p className="text-sm text-green-700 dark:text-green-400 font-medium">
                       Esta conversa foi encerrada
                     </p>
-                    {conversation.channel === "whatsapp" && (conversation.whatsapp_instance_id || conversation.whatsapp_meta_instance_id) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setReengageDialogOpen(true)}
-                        className="border-primary text-primary hover:bg-primary/10"
-                      >
-                        <Send className="h-3.5 w-3.5 mr-1" />
-                        Reengajar via Template
-                      </Button>
-                    )}
                   </div>
                 )}
                 
@@ -704,6 +706,26 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
                 conversationId={conversation.id}
                 onUseSuggestion={handleUseSuggestion}
               />
+            </div>
+          )}
+
+          {conversation.status === "closed" && (
+            <div className="flex-none p-3 border-t border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+              <div className="max-w-3xl mx-auto flex items-center justify-center gap-3">
+                <span className="text-sm text-amber-700 dark:text-amber-400 font-medium">
+                  Esta conversa foi encerrada
+                </span>
+                {conversation.channel === "whatsapp" && (conversation.whatsapp_instance_id || conversation.whatsapp_meta_instance_id) ? (
+                  <Button size="sm" onClick={() => setReengageDialogOpen(true)} className="bg-primary hover:bg-primary/90">
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    Reengajar via Template
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={handleReopenConversation}>
+                    Reabrir Conversa
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 

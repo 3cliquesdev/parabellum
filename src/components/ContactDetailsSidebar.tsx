@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Mail, Phone, Building2, Plus, Clock, AlertCircle, TrendingUp, Ticket, MessageSquare, ExternalLink, Loader2 } from "lucide-react";
+import { Mail, Phone, Building2, Plus, Clock, AlertCircle, TrendingUp, Ticket, MessageSquare, ExternalLink, Loader2, AlertTriangle, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ContactTagsSection from "./inbox/ContactTagsSection";
 import { useQuery } from "@tanstack/react-query";
@@ -16,9 +16,11 @@ import { useContactTickets } from "@/hooks/useContactTickets";
 import { useUnifiedTimeline } from "@/hooks/useUnifiedTimeline";
 import DealDialog from "./DealDialog";
 import { SLABadge } from "./SLABadge";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
+import { useActiveTicketStatuses } from "@/hooks/useTicketStatuses";
+import { getStatusIcon } from "@/lib/ticketStatusIcons";
 
 type Conversation = Tables<"conversations"> & {
   contacts: Tables<"contacts"> & {
@@ -60,6 +62,7 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
 
   const { data: contactTickets = [] } = useContactTickets(contactId);
   const { data: unifiedTimeline = [] } = useUnifiedTimeline(contactId);
+  const { data: ticketStatuses } = useActiveTicketStatuses();
 
   const { data: conversationMessages = [], isLoading: isLoadingMessages } = useQuery({
     queryKey: ["conversation-history-messages", selectedConversationId],
@@ -135,15 +138,24 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch(status) {
-      case 'open': return { label: 'Aberto', variant: 'secondary' as const };
-      case 'in_progress': return { label: 'Em Progresso', variant: 'default' as const };
-      case 'waiting_customer': return { label: 'Aguardando Cliente', variant: 'outline' as const };
-      case 'resolved': return { label: 'Resolvido', variant: 'default' as const };
-      case 'closed': return { label: 'Fechado', variant: 'secondary' as const };
-      default: return { label: status, variant: 'secondary' as const };
-    }
+  const fallbackStatusConfig: Record<string, { label: string; color: string }> = {
+    open: { label: "Aberto", color: "#3B82F6" },
+    in_progress: { label: "Em Andamento", color: "#F97316" },
+    waiting_customer: { label: "Aguardando Cliente", color: "#EAB308" },
+    resolved: { label: "Resolvido", color: "#22C55E" },
+    closed: { label: "Fechado", color: "#6B7280" },
+    pending_approval: { label: "Aguard. Aprovação", color: "#CA8A04" },
+    returned: { label: "Devolvido", color: "#F97316" },
+    loja_bloqueada: { label: "Loja Bloqueada", color: "#EF4444" },
+    loja_concluida: { label: "Loja Concluída", color: "#22C55E" },
+    approved: { label: "Aprovado", color: "#2563EB" },
+  };
+
+  const priorityConfig: Record<string, { label: string; variant: "outline" | "secondary" | "destructive" }> = {
+    low: { label: "Baixa", variant: "outline" },
+    medium: { label: "Média", variant: "secondary" },
+    high: { label: "Alta", variant: "destructive" },
+    urgent: { label: "Urgente", variant: "destructive" },
   };
 
   return (
@@ -248,32 +260,66 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
                 </p>
                 {openTickets.length > 0 ? (
                   <div className="space-y-1.5">
-                    {openTickets.map((ticket) => (
-                      <div
-                        key={ticket.id}
-                        className="p-2 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-start justify-between gap-1 mb-1">
-                          <p className="text-xs font-medium text-foreground line-clamp-1 flex-1">
+                    {openTickets.map((ticket) => {
+                      const dynStatus = ticketStatuses?.find(s => s.name === ticket.status);
+                      const sLabel = dynStatus?.label || fallbackStatusConfig[ticket.status]?.label || ticket.status;
+                      const sColor = dynStatus?.color || fallbackStatusConfig[ticket.status]?.color || "#6B7280";
+                      const SIcon = dynStatus ? getStatusIcon(dynStatus.icon) : null;
+                      const priority = priorityConfig[ticket.priority as keyof typeof priorityConfig];
+                      const isOverdue = ticket.due_date && 
+                        !['resolved', 'closed'].includes(ticket.status) && 
+                        new Date(ticket.due_date) < new Date();
+
+                      return (
+                        <div
+                          key={ticket.id}
+                          className={`p-2 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors cursor-pointer ${isOverdue ? "border-l-2 border-l-destructive bg-destructive/5" : ""}`}
+                          onClick={() => navigate(`/support/ticket/${ticket.id}`)}
+                        >
+                          {/* Line 1: Ticket number + Status badge */}
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <div className="flex items-center gap-1.5">
+                              {isOverdue && <AlertTriangle className="w-3 h-3 text-destructive animate-pulse" />}
+                              <span className="font-mono text-[10px] text-muted-foreground">
+                                #{ticket.ticket_number || ticket.id.slice(0, 8)}
+                              </span>
+                            </div>
+                            <Badge className="text-[9px] px-1 py-0 text-white flex-shrink-0 flex items-center gap-0.5" style={{ backgroundColor: sColor }}>
+                              {SIcon && <SIcon className="h-2.5 w-2.5" />}
+                              {sLabel}
+                            </Badge>
+                          </div>
+
+                          {/* Line 2: Subject */}
+                          <p className="text-xs font-medium text-foreground line-clamp-1 mb-1">
                             {ticket.subject}
                           </p>
-                          <Badge {...getStatusBadge(ticket.status)} className="text-[9px] px-1 py-0 flex-shrink-0">
-                            {getStatusBadge(ticket.status).label}
-                          </Badge>
+
+                          {/* Line 3: SLA + Priority + Time */}
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1.5">
+                              {ticket.due_date && !['resolved', 'closed'].includes(ticket.status) && (
+                                <SLABadge 
+                                  dueDate={ticket.due_date} 
+                                  priority={ticket.priority as 'urgent' | 'high' | 'medium' | 'low'}
+                                  size="sm"
+                                />
+                              )}
+                              {priority && (
+                                <Badge variant={priority.variant} className="text-[9px] px-1 py-0">
+                                  {priority.label}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <Clock className="h-2.5 w-2.5" />
+                              {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true, locale: ptBR })}
+                              <ChevronRight className="h-3 w-3" />
+                            </div>
+                          </div>
                         </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <SLABadge 
-                            dueDate={ticket.due_date} 
-                            priority={ticket.priority}
-                            size="sm"
-                          />
-                          <span className="text-[10px] text-muted-foreground">
-                            {format(new Date(ticket.created_at), "dd/MM HH:mm", { locale: ptBR })}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground text-center py-3">

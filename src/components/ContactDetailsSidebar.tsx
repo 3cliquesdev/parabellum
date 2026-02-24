@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -5,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail, Phone, Building2, Plus, Clock, AlertCircle, TrendingUp, Ticket, MessageSquare } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Mail, Phone, Building2, Plus, Clock, AlertCircle, TrendingUp, Ticket, MessageSquare, ExternalLink, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ContactTagsSection from "./inbox/ContactTagsSection";
 import { useQuery } from "@tanstack/react-query";
@@ -29,6 +31,9 @@ interface ContactDetailsSidebarProps {
 }
 
 export default function ContactDetailsSidebar({ conversation }: ContactDetailsSidebarProps) {
+  const navigate = useNavigate();
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [selectedConversationMeta, setSelectedConversationMeta] = useState<any>(null);
   const contactId = conversation?.contacts?.id || null;
 
   const { data: contactDeals = [] } = useQuery({
@@ -55,7 +60,21 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
 
   const { data: contactTickets = [] } = useContactTickets(contactId);
   const { data: unifiedTimeline = [] } = useUnifiedTimeline(contactId);
-  
+
+  const { data: conversationMessages = [], isLoading: isLoadingMessages } = useQuery({
+    queryKey: ["conversation-history-messages", selectedConversationId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("messages")
+        .select("id, content, created_at, sender_type, is_ai_generated, is_internal, sender:profiles!sender_id(full_name)")
+        .eq("conversation_id", selectedConversationId!)
+        .order("created_at", { ascending: true })
+        .limit(500);
+      return data || [];
+    },
+    enabled: !!selectedConversationId,
+  });
+
   if (!conversation) {
     return (
       <div className="h-full w-full border-l bg-slate-50 dark:bg-card border-slate-200 dark:border-border p-6 flex items-center justify-center">
@@ -77,7 +96,6 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
     );
   }
 
-  const navigate = useNavigate();
   const openTickets = contactTickets.filter(t => t.status !== 'closed' && t.status !== 'resolved');
   
   const conversations = unifiedTimeline
@@ -339,7 +357,10 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
                           <div
                             key={event.id}
                             className="p-2 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
-                            onClick={() => navigate(`/inbox?conversation=${event.id}`)}
+                            onClick={() => {
+                              setSelectedConversationId(event.id);
+                              setSelectedConversationMeta({ ...meta, date: event.date });
+                            }}
                           >
                             <div className="flex items-center justify-between gap-1 mb-1">
                               <div className="flex items-center gap-1.5 min-w-0">
@@ -403,6 +424,120 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
           </div>
         </div>
       </div>
+
+      {/* Dialog de Histórico da Conversa */}
+      <Dialog
+        open={selectedConversationId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedConversationId(null);
+            setSelectedConversationMeta(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="flex-none">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <MessageSquare className="h-4 w-4" />
+              {selectedConversationMeta && (
+                <>
+                  Conversa {getChannelLabel(selectedConversationMeta.channel || '')}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${getConversationStatusBadge(selectedConversationMeta.status || 'open').className}`}>
+                    {getConversationStatusBadge(selectedConversationMeta.status || 'open').label}
+                  </span>
+                </>
+              )}
+            </DialogTitle>
+            {selectedConversationMeta && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {selectedConversationMeta.profiles?.full_name && (
+                  <span>Atendente: {selectedConversationMeta.profiles.full_name}</span>
+                )}
+                {selectedConversationMeta.date && (
+                  <span>· {format(new Date(selectedConversationMeta.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                )}
+              </div>
+            )}
+          </DialogHeader>
+
+          <ScrollArea className="flex-1 min-h-0 max-h-[55vh] pr-2">
+            {isLoadingMessages ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-sm text-muted-foreground">Carregando mensagens...</span>
+              </div>
+            ) : conversationMessages.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-12">
+                Nenhuma mensagem encontrada
+              </p>
+            ) : (
+              <div className="space-y-2 py-2">
+                {conversationMessages.map((msg: any) => {
+                  const isContact = msg.sender_type === 'contact';
+                  const isInternal = msg.is_internal === true;
+                  const senderName = isContact
+                    ? 'Cliente'
+                    : msg.is_ai_generated
+                    ? 'IA'
+                    : msg.sender?.full_name || 'Agente';
+
+                  if (isInternal) {
+                    return (
+                      <div key={msg.id} className="flex justify-center">
+                        <div className="max-w-[85%] p-2.5 rounded-lg bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[10px] font-medium text-yellow-700 dark:text-yellow-300">📝 Nota Interna</span>
+                            <span className="text-[10px] text-yellow-600 dark:text-yellow-400">· {senderName}</span>
+                          </div>
+                          <p className="text-xs text-yellow-800 dark:text-yellow-200 whitespace-pre-wrap">{msg.content}</p>
+                          <span className="text-[9px] text-yellow-600 dark:text-yellow-400 mt-1 block text-right">
+                            {format(new Date(msg.created_at), "HH:mm")}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={msg.id} className={`flex ${isContact ? 'justify-start' : 'justify-end'}`}>
+                      <div className={`max-w-[75%] p-2.5 rounded-lg ${isContact ? 'bg-muted' : 'bg-primary/10'}`}>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[10px] font-semibold text-foreground">{senderName}</span>
+                        </div>
+                        <p className="text-xs text-foreground whitespace-pre-wrap break-words">{msg.content}</p>
+                        <span className="text-[9px] text-muted-foreground mt-1 block text-right">
+                          {format(new Date(msg.created_at), "HH:mm")}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {conversationMessages.length >= 500 && (
+                  <p className="text-[10px] text-center text-muted-foreground py-2">
+                    ⚠️ Mostrando apenas as 500 primeiras mensagens
+                  </p>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+
+          <div className="flex-none pt-3 border-t border-border">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={() => {
+                navigate(`/inbox?conversation=${selectedConversationId}`);
+                setSelectedConversationId(null);
+                setSelectedConversationMeta(null);
+              }}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Abrir no Inbox
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

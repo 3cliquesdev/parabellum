@@ -460,7 +460,7 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
             )}
           </DialogHeader>
 
-          <ScrollArea className="flex-1 min-h-0 max-h-[55vh] pr-2">
+          <ScrollArea className="flex-1 min-h-0 pr-2">
             {isLoadingMessages ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -527,9 +527,9 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
               size="sm"
               className="w-full gap-2"
               onClick={() => {
-                navigate(`/inbox?conversation=${selectedConversationId}`);
                 setSelectedConversationId(null);
                 setSelectedConversationMeta(null);
+                window.location.href = `/inbox?conversation=${selectedConversationId}`;
               }}
             >
               <ExternalLink className="h-3.5 w-3.5" />

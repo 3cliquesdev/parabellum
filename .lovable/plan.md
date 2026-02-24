@@ -1,122 +1,102 @@
 
-# Contrato de Paridade: Admin = Gerentes (FULL_ACCESS_ROLES)
+# Fix: Prioridade do Fluxo de Teste (Draft) sobre Master Flow
 
-## Diagnostico
+## Problema
 
-O editor de fluxos (Chat Flow Editor) ja e identico para todos os roles com permissao `settings.chat_flows`. Nao ha nenhum filtro de role dentro dos componentes do editor. Os screenshots mostram a mesma interface com scroll e tema diferentes.
+Quando um draft e iniciado manualmente via TestModeDropdown, tres falhas impedem o funcionamento correto:
 
-Porem, existem areas do sistema com restricoes exclusivas de admin que precisam ser abertas para gerentes conforme o contrato de paridade.
+1. **State criado no `start` node**: O manual trigger cria o estado com `current_node_id = start` (no sem conteudo), retorna `response: ""`, e o webhook nao envia nada
+2. **Cancelamento incompleto**: So cancela estados com `status = 'active'`, mas master flow pode estar em `waiting_input` ou `in_progress`
+3. **Protecao do master flow usa `maybeSingle()`**: Pode falhar silenciosamente com multiplos estados
 
-## Areas com Restricao Exclusiva de Admin (a corrigir)
+## Mudancas
 
-| Area | Arquivo | Restricao Atual | Proposta |
-|---|---|---|---|
-| Super Admin Panel | `SuperAdminPanel.tsx` | `isAdmin` only | Abrir para `hasFullAccess(role)` |
-| Instagram Secrets | `InstagramSecretsCard.tsx` | `isAdmin` only | Abrir para `hasFullAccess(role)` |
-| Restaurar evidencia | `useRestoreTicketAttachment.tsx` | `isAdmin` only | Abrir para `hasFullAccess(role)` |
-| Permissao `super_admin.access` | `role_permissions` | Verificar quais roles tem | Garantir que gerentes tenham |
+### 1. Manual Trigger: Travessia automatica apos detectar startNode
 
-## Implementacao
+**Arquivo:** `supabase/functions/process-chat-flow/index.ts` (linhas 526-577)
 
-### 1. SuperAdminPanel.tsx -- Abrir para gerentes
+Apos encontrar o `startNode` (linha 537), aplicar a mesma logica de travessia que ja existe no Master Flow (linhas 1125-1245):
 
-**Arquivo:** `src/pages/SuperAdminPanel.tsx`
+```text
+Antes (linhas 535-562):
+  startNode = primeiro no (sem edges apontando)
+  cria state com startNode.id
+  retorna startNode.data.message (vazio para start/input)
+
+Depois:
+  startNode = primeiro no
+  TRAVERSE: loop ate 12 passos
+    - start/input: seguir edge simples
+    - condition: avaliar e seguir handle correto
+    - parar no primeiro content node (message, ask_options, ai_response, transfer, etc.)
+  cria state com contentNode.id
+  retorna contentNode.data.message (mensagem real)
+```
+
+Reutilizar as mesmas funcoes auxiliares (`findNextNode`, `evaluateConditionPath`, `evalCond`) e carregar dados de contato/conversa para avaliacao de condicoes.
+
+Para o `ai_response` node, retornar `useAI: true` com `personaId` e `kbCategories` para que o webhook acione a IA corretamente.
+
+### 2. Manual Trigger: Cancelar TODOS os estados existentes
+
+**Arquivo:** `supabase/functions/process-chat-flow/index.ts` (linhas 519-524)
 
 Mudar de:
 ```typescript
-if (!isAdmin) {
-  return <Navigate to="/" replace />;
-}
+.eq('status', 'active')
 ```
 
 Para:
 ```typescript
-const { role } = useUserRole();
-if (!hasFullAccess(role)) {
-  return <Navigate to="/" replace />;
-}
+.in('status', ['active', 'waiting_input', 'in_progress'])
 ```
 
-Importar `hasFullAccess` de `@/config/roles`.
+Isso garante que o master flow seja cancelado independentemente do status em que esteja.
 
-### 2. InstagramSecretsCard.tsx -- Abrir para gerentes
+### 3. Protecao do Master Flow: Substituir maybeSingle por order+limit
 
-**Arquivo:** `src/components/settings/InstagramSecretsCard.tsx`
+**Arquivo:** `supabase/functions/process-chat-flow/index.ts` (linhas 1059-1064)
 
 Mudar de:
 ```typescript
-if (!isAdmin) return null;
+const { data: existingActiveFlowState } = await supabaseClient
+  .from('chat_flow_states')
+  .select('id, flow_id, current_node_id')
+  .eq('conversation_id', conversationId)
+  .eq('status', 'active')
+  .maybeSingle();
 ```
 
 Para:
 ```typescript
-if (!hasFullAccess(role)) return null;
+const { data: existingActiveFlowStates } = await supabaseClient
+  .from('chat_flow_states')
+  .select('id, flow_id, current_node_id')
+  .eq('conversation_id', conversationId)
+  .in('status', ['active', 'waiting_input', 'in_progress'])
+  .order('started_at', { ascending: false })
+  .limit(1);
+
+const existingActiveFlowState = existingActiveFlowStates?.[0] || null;
 ```
 
-### 3. useRestoreTicketAttachment.tsx -- Abrir para gerentes
+Inclui `waiting_input` e `in_progress` na busca para cobrir todos os cenarios.
 
-**Arquivo:** `src/hooks/useRestoreTicketAttachment.tsx`
+### 4. Query principal (linha 584-590): Incluir waiting_input e in_progress
 
-Mudar de:
-```typescript
-if (!isAdmin) {
-  throw new Error("Apenas administradores podem restaurar evidencias");
-}
-```
-
-Para:
-```typescript
-if (!hasFullAccess(role)) {
-  throw new Error("Apenas administradores e gerentes podem restaurar evidencias");
-}
-```
-
-### 4. Permissao `super_admin.access` no banco
-
-Garantir que os roles de gestao (`manager`, `general_manager`, `support_manager`, `cs_manager`, `financial_manager`) tenham `super_admin.access = true` na tabela `role_permissions`.
-
-```sql
-UPDATE role_permissions 
-SET enabled = true, updated_at = now()
-WHERE permission_key = 'super_admin.access' 
-AND role IN ('manager', 'general_manager', 'support_manager', 'cs_manager', 'financial_manager');
-```
-
-### 5. Contrato formalizado em `src/config/roles.ts`
-
-Adicionar comentario-contrato no arquivo de roles para futuras implementacoes:
-
-```typescript
-/**
- * CONTRATO DE PARIDADE:
- * Todos os roles em FULL_ACCESS_ROLES devem ter acesso identico
- * a todas as funcionalidades do sistema.
- * 
- * REGRA: Nunca usar `isAdmin` sozinho para restringir acesso.
- * Sempre usar `hasFullAccess(role)` que inclui todos os gerentes.
- * 
- * Unica excecao: alteracao de permissoes do role "admin" 
- * (auto-protecao em RolePermissionsManager).
- */
-```
+Mudar o filtro de `.eq('status', 'active')` para `.in('status', ['active', 'waiting_input', 'in_progress'])` na query principal que busca estado ativo da conversa. Isso garante que o draft em qualquer status seja encontrado.
 
 ## Resumo
 
-| O que muda | Antes | Depois |
+| Local | Antes | Depois |
 |---|---|---|
-| SuperAdminPanel | So admin | Admin + todos gerentes |
-| InstagramSecretsCard | So admin | Admin + todos gerentes |
-| Restaurar evidencia | So admin | Admin + todos gerentes |
-| Permissao super_admin.access | Verificar | Todos gerentes habilitados |
-| Contrato de paridade | Informal | Formalizado em `roles.ts` |
-
-## Sobre o Editor de Fluxos
-
-O editor de fluxos (`ChatFlowEditor`, `AIResponsePropertiesPanel`, `RAGSourcesSection`, `BehaviorControlsSection`, `SmartCollectionSection`) **ja e identico para todos**. Nao ha nenhuma logica de role dentro dos componentes. Qualquer usuario com permissao `settings.chat_flows` ve exatamente a mesma interface.
+| Manual trigger (start) | State no `start` node, response vazia | Traversa ate content node, response real |
+| Manual trigger (cancel) | Cancela so `active` | Cancela `active` + `waiting_input` + `in_progress` |
+| Master flow protection | `maybeSingle()` so `active` | `order+limit` com 3 status |
+| Query principal | `eq('status', 'active')` | `in('status', [...])` |
 
 ## Impacto
 
-- Zero regressao: admin continua com acesso total
-- Upgrade: gerentes ganham acesso ao painel Super Admin e configuracoes
-- Padrao futuro: `hasFullAccess(role)` e a unica forma correta de verificar acesso privilegiado
-- Seguranca mantida: roles operacionais (agentes, consultores, vendedores) continuam sem acesso
+- Zero regressao: fluxos ativos continuam identicos (mesma logica de travessia reutilizada)
+- Draft responde desde o primeiro trigger com mensagem real
+- Master flow nao interfere quando draft esta ativo em qualquer status

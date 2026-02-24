@@ -13,6 +13,9 @@ interface CreateTicketRequest {
   category: 'financeiro' | 'tecnico' | 'bug' | 'outro';
   assigned_to?: string;
   internal_note?: string;
+  operation_id?: string;
+  origin_id?: string;
+  tag_ids?: string[];
 }
 
 Deno.serve(async (req) => {
@@ -55,6 +58,9 @@ Deno.serve(async (req) => {
       category,
       assigned_to,
       internal_note,
+      operation_id,
+      origin_id,
+      tag_ids,
     }: CreateTicketRequest = await req.json();
 
     console.log('📝 Request data:', {
@@ -222,6 +228,8 @@ Deno.serve(async (req) => {
         internal_note,
         created_by: actorId,
         department_id: departmentId,
+        operation_id: operation_id || null,
+        origin_id: origin_id || null,
       })
       .select()
       .single();
@@ -238,6 +246,20 @@ Deno.serve(async (req) => {
     }
 
     console.log('✅ Ticket created:', ticket.id);
+
+    // 7a. Insert tags if provided
+    if (tag_ids && tag_ids.length > 0) {
+      console.log('🏷️ Inserting tags:', tag_ids);
+      const tagRows = tag_ids.map(tag_id => ({ ticket_id: ticket.id, tag_id }));
+      const { error: tagError } = await supabase
+        .from('ticket_tags')
+        .insert(tagRows);
+      if (tagError) {
+        console.warn('⚠️ Warning: Failed to insert tags:', tagError);
+      } else {
+        console.log('✅ Tags inserted successfully');
+      }
+    }
 
     // 7. Update conversation with related_ticket_id (always points to newest ticket)
     console.log('🔗 Updating conversation with newest ticket link...');

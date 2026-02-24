@@ -10,6 +10,9 @@ interface GenerateTicketRequest {
   category: 'financeiro' | 'tecnico' | 'bug' | 'outro';
   assigned_to?: string;
   internal_note?: string;
+  operation_id?: string;
+  origin_id?: string;
+  tag_ids?: string[];
 }
 
 export function useGenerateTicketFromConversation() {

@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     console.log(`[close-conversation] Found conversation, channel: ${conversation.channel}`);
 
-    // FASE 4: Buscar tags da conversa ANTES de fechar
+    // FASE 4: Buscar tags da conversa ANTES de fechar (com categoria)
     const { data: conversationTags } = await supabase
       .from("conversation_tags")
       .select(`
@@ -87,13 +87,40 @@ Deno.serve(async (req) => {
         tags (
           id,
           name,
-          color
+          color,
+          category
         )
       `)
       .eq("conversation_id", conversationId);
 
     const tagNames = conversationTags?.map((ct: any) => ct.tags?.name).filter(Boolean) || [];
     console.log(`[close-conversation] Conversation tags: ${tagNames.join(", ") || "none"}`);
+
+    // === VALIDAÇÃO SERVER-SIDE: Tags de conversa obrigatórias ===
+    const { data: tagsRequiredConfig } = await supabase
+      .from("system_configurations")
+      .select("value")
+      .eq("key", "conversation_tags_required")
+      .maybeSingle();
+
+    const tagsRequired = tagsRequiredConfig?.value === "true";
+
+    if (tagsRequired) {
+      const hasConversationCategoryTag = conversationTags?.some(
+        (ct: any) => ct.tags?.category === "conversation"
+      ) || false;
+
+      if (!hasConversationCategoryTag) {
+        console.warn(`[close-conversation] BLOCKED: No conversation-category tag for ${conversationId}`);
+        return new Response(
+          JSON.stringify({
+            error: "Conversa não pode ser encerrada sem pelo menos uma tag da categoria 'conversa'.",
+            code: "MISSING_CONVERSATION_TAG",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // Contagem de mensagens por tipo
     const { count: messageCount } = await supabase

@@ -505,7 +505,7 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
                   
                   {/* Tags da conversa - cada conversa começa limpa */}
                   <div className="flex items-center gap-1.5 mt-1 overflow-x-auto scrollbar-none">
-                    <ConversationTagsSection conversationId={conversation.id} />
+                    <ConversationTagsSection conversationId={conversation.id} contactId={conversation.contacts?.id} />
                   </div>
                 </div>
               </div>

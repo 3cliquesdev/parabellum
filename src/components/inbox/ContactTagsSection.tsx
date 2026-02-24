@@ -6,35 +6,35 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Tag, X } from "lucide-react";
-import { useTags, useContactTags } from "@/hooks/useTags";
-import { useAddContactTag, useRemoveContactTag } from "@/hooks/useContactTagsMutation";
+import { Input } from "@/components/ui/input";
+import { Plus, X, Search, Check } from "lucide-react";
+import { useUniversalTag } from "@/hooks/useUniversalTag";
 
 interface ContactTagsSectionProps {
   contactId: string;
+  conversationId?: string;
 }
 
-export default function ContactTagsSection({ contactId }: ContactTagsSectionProps) {
+export default function ContactTagsSection({ contactId, conversationId }: ContactTagsSectionProps) {
   const [open, setOpen] = useState(false);
-  const { data: allTags = [] } = useTags();
-  const { data: contactTags = [] } = useContactTags(contactId);
-  const addTag = useAddContactTag();
-  const removeTag = useRemoveContactTag();
+  const [search, setSearch] = useState("");
+  const { currentTag, allTags, selectTag, removeTag } = useUniversalTag(conversationId, contactId);
 
-  const contactTagIds = contactTags.map((t: any) => t.id);
+  const filteredTags = allTags.filter((tag: any) =>
+    tag.name.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const handleToggleTag = (tagId: string, isChecked: boolean) => {
-    if (isChecked) {
-      addTag.mutate({ contactId, tagId });
+  const handleSelectTag = (tagId: string) => {
+    if (currentTag?.id === tagId) {
+      removeTag.mutate();
     } else {
-      removeTag.mutate({ contactId, tagId });
+      selectTag.mutate(tagId);
     }
+    setOpen(false);
   };
 
-  const handleRemoveTag = (tagId: string) => {
-    removeTag.mutate({ contactId, tagId });
+  const handleRemoveTag = () => {
+    removeTag.mutate();
   };
 
   return (
@@ -43,74 +43,82 @@ export default function ContactTagsSection({ contactId }: ContactTagsSectionProp
         <p className="text-xs font-medium text-muted-foreground uppercase">
           Tags
         </p>
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={(isOpen) => {
+          setOpen(isOpen);
+          if (!isOpen) setSearch("");
+        }}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-6 px-2 text-foreground border-border">
               <Plus className="h-3 w-3 mr-1" />
               Adicionar
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-64 p-0" align="end">
-            <div className="p-3 border-b">
-              <p className="text-sm font-medium">Selecionar Tags</p>
+          <PopoverContent className="w-56 p-2 bg-popover border border-border z-50" align="end">
+            <div className="text-xs font-medium text-foreground mb-2">Selecionar Tag</div>
+            <div className="relative mb-2">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <Input
+                placeholder="Buscar tag..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-7 text-xs pl-7"
+              />
             </div>
-            <ScrollArea className="h-64">
-              <div className="p-2 space-y-1">
-                {allTags.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-2 text-center">
-                    Nenhuma tag disponível
-                  </p>
-                ) : (
-                  allTags.map((tag) => (
-                    <label
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {filteredTags.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2 text-center">
+                  {search ? "Nenhuma tag encontrada" : "Nenhuma tag cadastrada"}
+                </p>
+              ) : (
+                filteredTags.map((tag: any) => {
+                  const isSelected = currentTag?.id === tag.id;
+                  return (
+                    <button
                       key={tag.id}
-                      className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                      onClick={() => handleSelectTag(tag.id)}
+                      className="flex items-center gap-2 p-1.5 rounded hover:bg-muted cursor-pointer w-full text-left"
                     >
-                      <Checkbox
-                        checked={contactTagIds.includes(tag.id)}
-                        onCheckedChange={(checked) =>
-                          handleToggleTag(tag.id, checked as boolean)
-                        }
-                      />
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: tag.color || "#6b7280" }}
-                      />
-                      <span className="text-sm">{tag.name}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
+                      <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`}>
+                        {isSelected && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className="text-xs"
+                        style={{ backgroundColor: tag.color + "20", color: tag.color }}
+                      >
+                        {tag.name}
+                      </Badge>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </PopoverContent>
         </Popover>
       </div>
 
-      {/* Tags atuais */}
+      {/* Tag atual */}
       <div className="flex flex-wrap gap-1.5">
-        {contactTags.length === 0 ? (
+        {!currentTag ? (
           <p className="text-xs text-muted-foreground">Sem tags</p>
         ) : (
-          contactTags.map((tag: any) => (
-            <Badge
-              key={tag.id}
-              variant="secondary"
-              className="text-xs gap-1 pr-1"
-              style={{
-                backgroundColor: `${tag.color}20`,
-                color: tag.color,
-                borderColor: tag.color,
-              }}
+          <Badge
+            variant="secondary"
+            className="text-xs gap-1 pr-1"
+            style={{
+              backgroundColor: `${currentTag.color}20`,
+              color: currentTag.color,
+              borderColor: currentTag.color,
+            }}
+          >
+            {currentTag.name}
+            <button
+              onClick={handleRemoveTag}
+              className="ml-0.5 hover:opacity-70"
             >
-              {tag.name}
-              <button
-                onClick={() => handleRemoveTag(tag.id)}
-                className="ml-0.5 hover:opacity-70"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
         )}
       </div>
     </div>

@@ -5,11 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useGenerateTicketFromConversation } from "@/hooks/useGenerateTicketFromConversation";
 import { useUsers } from "@/hooks/useUsers";
 import { useMessages } from "@/hooks/useMessages";
 import { useAISummary } from "@/hooks/useAISummary";
-import { Clock, AlertCircle, MessageSquare, User, Tag, FileText, StickyNote, Sparkles } from "lucide-react";
+import { useTicketOperations } from "@/hooks/useTicketOperations";
+import { useTicketOrigins } from "@/hooks/useTicketOrigins";
+import { useTags } from "@/hooks/useTags";
+import { useTicketFieldSettings } from "@/hooks/useTicketFieldSettings";
+import { Clock, AlertCircle, MessageSquare, User, Tag, FileText, StickyNote, Sparkles, Search, X, Plus } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -30,34 +35,10 @@ const CATEGORY_OPTIONS = [
 ] as const;
 
 const PRIORITY_OPTIONS = [
-  { 
-    value: 'urgent', 
-    label: 'Urgente',
-    sla: '4 horas',
-    color: 'text-destructive',
-    bgColor: 'bg-destructive/10'
-  },
-  { 
-    value: 'high', 
-    label: 'Alta',
-    sla: '8 horas',
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-100 dark:bg-orange-900/20'
-  },
-  { 
-    value: 'medium', 
-    label: 'Média',
-    sla: '24 horas',
-    color: 'text-yellow-600',
-    bgColor: 'bg-yellow-100 dark:bg-yellow-900/20'
-  },
-  { 
-    value: 'low', 
-    label: 'Baixa',
-    sla: '48 horas',
-    color: 'text-green-600',
-    bgColor: 'bg-green-100 dark:bg-green-900/20'
-  },
+  { value: 'urgent', label: 'Urgente', sla: '4 horas', color: 'text-destructive', bgColor: 'bg-destructive/10' },
+  { value: 'high', label: 'Alta', sla: '8 horas', color: 'text-orange-600', bgColor: 'bg-orange-100 dark:bg-orange-900/20' },
+  { value: 'medium', label: 'Média', sla: '24 horas', color: 'text-yellow-600', bgColor: 'bg-yellow-100 dark:bg-yellow-900/20' },
+  { value: 'low', label: 'Baixa', sla: '48 horas', color: 'text-green-600', bgColor: 'bg-green-100 dark:bg-green-900/20' },
 ] as const;
 
 export function CreateTicketFromInboxDialog({
@@ -72,11 +53,21 @@ export function CreateTicketFromInboxDialog({
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [assignedTo, setAssignedTo] = useState<string | undefined>(undefined);
   const [internalNote, setInternalNote] = useState("");
+  const [operationId, setOperationId] = useState("");
+  const [originId, setOriginId] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagSearch, setTagSearch] = useState("");
+  const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
 
   const generateTicket = useGenerateTicketFromConversation();
   const { data: users } = useUsers();
   const { data: messages } = useMessages(conversationId);
   const aiSummary = useAISummary();
+  const { data: operations = [] } = useTicketOperations();
+  const { data: origins = [] } = useTicketOrigins();
+  const activeOrigins = origins.filter((o: any) => o.is_active);
+  const { data: allTags = [] } = useTags();
+  const { settings: fieldSettings } = useTicketFieldSettings();
 
   // Reset form when dialog closes
   useEffect(() => {
@@ -87,29 +78,44 @@ export function CreateTicketFromInboxDialog({
       setPriority('medium');
       setAssignedTo(undefined);
       setInternalNote("");
+      setOperationId("");
+      setOriginId("");
+      setSelectedTagIds([]);
+      setTagSearch("");
+      setTagPopoverOpen(false);
     }
   }, [open]);
 
-  // Get last 10 messages for preview
   const recentMessages = messages?.slice(-10).reverse() || [];
-  
-  // Get selected priority details
   const selectedPriority = PRIORITY_OPTIONS.find(p => p.value === priority);
-
-  // Filter online/active users (in real scenario, you'd check actual status)
   const availableUsers = users?.filter(u => u.id) || [];
+
+  // Validation
+  const canSubmit =
+    subject.trim() &&
+    (!fieldSettings.operation || operationId) &&
+    (!fieldSettings.origin || originId) &&
+    (!fieldSettings.tags || selectedTagIds.length > 0) &&
+    !generateTicket.isPending;
+
+  const fieldLabel = (label: string, field: keyof typeof fieldSettings) => (
+    <>
+      {label}
+      {fieldSettings[field]
+        ? <span className="text-destructive ml-0.5">*</span>
+        : <span className="text-xs text-muted-foreground font-normal ml-1">(opcional)</span>
+      }
+    </>
+  );
 
   const handleAISummary = () => {
     if (!messages || messages.length === 0) return;
-
     const formattedMessages = messages.map(m => ({
       content: m.content,
       sender_type: m.sender_type as 'user' | 'contact'
     }));
-
     aiSummary.mutate(formattedMessages, {
       onSuccess: (result) => {
-        // Extract category suggestion from AI response
         const categoryMatch = result.match(/Categoria sugerida:\s*(\w+)/i);
         if (categoryMatch) {
           const suggestedCategory = categoryMatch[1].toLowerCase();
@@ -117,8 +123,6 @@ export function CreateTicketFromInboxDialog({
             setCategory(suggestedCategory as any);
           }
         }
-
-        // Extract summary and set as description
         const summaryMatch = result.match(/Resumo:([\s\S]*?)(?=Categoria sugerida:|$)/i);
         if (summaryMatch) {
           setDescription(summaryMatch[1].trim());
@@ -129,10 +133,7 @@ export function CreateTicketFromInboxDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!conversationId || !subject.trim()) {
-      return;
-    }
+    if (!conversationId || !subject.trim() || !canSubmit) return;
 
     generateTicket.mutate(
       {
@@ -143,6 +144,9 @@ export function CreateTicketFromInboxDialog({
         priority,
         assigned_to: assignedTo || undefined,
         internal_note: internalNote.trim() || undefined,
+        operation_id: operationId || undefined,
+        origin_id: originId || undefined,
+        tag_ids: selectedTagIds.length > 0 ? selectedTagIds : undefined,
       },
       {
         onSuccess: () => {
@@ -151,6 +155,13 @@ export function CreateTicketFromInboxDialog({
       }
     );
   };
+
+  // Tag filtering
+  const filteredTags = allTags.filter(
+    (t) =>
+      !selectedTagIds.includes(t.id) &&
+      t.name.toLowerCase().includes(tagSearch.toLowerCase())
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -236,7 +247,7 @@ export function CreateTicketFromInboxDialog({
                 )}
               </div>
 
-              {/* Assignee (Intelligent) */}
+              {/* Assignee */}
               <div className="col-span-2">
                 <Label htmlFor="assignee" className="flex items-center gap-2">
                   <User className="h-4 w-4" />
@@ -259,6 +270,104 @@ export function CreateTicketFromInboxDialog({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Operação */}
+              <div>
+                <Label className="flex items-center gap-2">
+                  {fieldLabel("Operação", "operation")}
+                </Label>
+                <Select value={operationId} onValueChange={setOperationId}>
+                  <SelectTrigger className="mt-1 bg-background">
+                    <SelectValue placeholder="Selecione a operação" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom" align="start" sideOffset={4} className="z-[100] max-h-[200px] overflow-y-auto bg-popover text-popover-foreground shadow-lg border">
+                    {operations.map((op) => (
+                      <SelectItem key={op.id} value={op.id}>{op.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Origem do Ticket */}
+              <div>
+                <Label className="flex items-center gap-2">
+                  {fieldLabel("Origem do Ticket", "origin")}
+                </Label>
+                <Select value={originId} onValueChange={setOriginId}>
+                  <SelectTrigger className="mt-1 bg-background">
+                    <SelectValue placeholder="Selecione a origem" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom" align="start" sideOffset={4} className="z-[100] max-h-[200px] overflow-y-auto bg-popover text-popover-foreground shadow-lg border">
+                    {activeOrigins.map((origin: any) => (
+                      <SelectItem key={origin.id} value={origin.id}>{origin.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Tags */}
+              <div className="col-span-2">
+                <Label className="flex items-center gap-1">
+                  <Tag className="h-3.5 w-3.5" />
+                  {fieldLabel("Tags", "tags")}
+                </Label>
+                {selectedTagIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1 mb-2">
+                    {selectedTagIds.map(tagId => {
+                      const tag = allTags.find(t => t.id === tagId);
+                      if (!tag) return null;
+                      return (
+                        <Badge key={tagId} variant="secondary" className="text-xs pr-1"
+                          style={{ backgroundColor: tag.color ? `${tag.color}20` : undefined, borderColor: tag.color || undefined, color: tag.color || undefined }}>
+                          {tag.name}
+                          <Button type="button" variant="ghost" size="sm" className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                            onClick={() => setSelectedTagIds(prev => prev.filter(id => id !== tagId))}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+                <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" className="mt-1 gap-1 text-xs">
+                      <Plus className="h-3 w-3" /> Adicionar tag
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-2" align="start">
+                    <div className="relative mb-2">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar tag..."
+                        value={tagSearch}
+                        onChange={(e) => setTagSearch(e.target.value)}
+                        className="pl-7 h-8 text-xs"
+                      />
+                    </div>
+                    <ScrollArea className="max-h-40">
+                      {filteredTags.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-2">Nenhuma tag encontrada</p>
+                      ) : (
+                        filteredTags.map(tag => (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted transition-colors flex items-center gap-2"
+                            onClick={() => {
+                              setSelectedTagIds(prev => [...prev, tag.id]);
+                              setTagSearch("");
+                            }}
+                          >
+                            {tag.color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />}
+                            {tag.name}
+                          </button>
+                        ))
+                      )}
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Description with AI Summary */}
@@ -290,7 +399,7 @@ export function CreateTicketFromInboxDialog({
                 />
               </div>
 
-              {/* Internal Note (Yellow Field) */}
+              {/* Internal Note */}
               <div className="col-span-2">
                 <Label htmlFor="internal-note" className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
                   <StickyNote className="h-4 w-4" />
@@ -364,7 +473,7 @@ export function CreateTicketFromInboxDialog({
             </Button>
             <Button
               type="submit"
-              disabled={generateTicket.isPending || !subject.trim()}
+              disabled={!canSubmit}
             >
               {generateTicket.isPending ? "Gerando..." : "Gerar Ticket"}
             </Button>

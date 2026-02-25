@@ -1,68 +1,80 @@
 
 
-# Plano: Redirecionar para Consultor após Verificação de Email
+# Plano: Expandir Verificação de Email para Incluir Base Kiwify
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Problema
+## Problema Identificado
 
-Quando um lead fornece o email e o sistema encontra o cadastro, o código atual (linha 2693-2762 de `ai-autopilot-chat/index.ts`) **sempre** mostra o menu genérico "1-Pedidos, 2-Sistema" — mesmo que o cliente encontrado tenha um `consultant_id` definido.
+A função `verify-customer-email` busca **apenas** contatos com `status = 'customer'` na tabela `contacts`. Porém, existem **986 contatos** que possuem eventos `paid` na Kiwify mas estão com status `lead` ou `churned` — ou seja, são clientes reais que o sistema não reconhece.
 
-O comportamento correto (que funcionava antes via o fluxo de transferência) é: se o cliente tem consultor, redirecionar direto para ele em modo `copilot`, sem mostrar menu.
+Quando um desses clientes fornece o email, o sistema retorna `found: false` e trata como lead novo, quebrando a vinculação e o redirecionamento ao consultor.
 
-## Causa Raiz
+## Dados Concretos
 
-Dois pontos falhando:
+| Situação | Quantidade |
+|---|---|
+| Contatos `customer` com email | 13.309 |
+| Contatos com evento `paid` na Kiwify mas status ≠ `customer` | 986 |
+| Emails Kiwify sem contato algum | 0 |
 
-1. **`verify-customer-email`** não retorna o `consultant_id` do cliente encontrado — o campo não é consultado no SELECT.
-2. **`ai-autopilot-chat`** (bloco de email encontrado, ~linha 2693) não verifica se o cliente tem consultor antes de montar a resposta com menu.
+## Solução em 2 Partes
 
-## Solução
+### Parte 1: Correção em Massa (Migration SQL)
 
-### 1. `verify-customer-email/index.ts` — Incluir `consultant_id` no retorno
+Atualizar os 986 contatos que têm evento `paid` na `kiwify_events` mas status ≠ `customer` para `status = 'customer'`. Isso resolve o problema na raiz — a base de contatos passa a refletir a realidade da Kiwify.
 
-- Adicionar `consultant_id` ao SELECT (linha 37)
-- Incluir `consultant_id` no objeto de resposta JSON
-
-### 2. `ai-autopilot-chat/index.ts` — Verificar consultor antes de mostrar menu
-
-No bloco `if (verifyResult.found)` (~linha 2693), **antes** de montar o menu:
-
-```text
-Email encontrado?
-    │
-    ├── Cliente tem consultant_id?
-    │   ├── SIM → Atribuir conversa ao consultor (copilot)
-    │   │         Enviar mensagem: "Encontrei seu cadastro! Vou te conectar com seu consultor."
-    │   │         Chamar route-conversation
-    │   │         RETURN (sem menu)
-    │   │
-    │   └── NÃO → Mostrar menu "1-Pedidos / 2-Sistema" (comportamento atual)
-    │
+```sql
+UPDATE contacts c
+SET status = 'customer', updated_at = now()
+FROM (
+  SELECT DISTINCT lower(ke.customer_email) as email
+  FROM kiwify_events ke
+  WHERE ke.event_type = 'paid'
+  AND ke.customer_email IS NOT NULL
+) k
+WHERE lower(c.email) = k.email
+AND c.status IN ('lead', 'churned');
 ```
 
-Lógica específica quando `consultant_id` existe:
-- UPDATE `conversations` → `assigned_to = consultant_id`, `ai_mode = 'copilot'`
-- Persistir `consultant_id` no contato do lead (se diferente)
-- Chamar `route-conversation` para enfileirar distribuição
-- Enviar mensagem personalizada (sem menu)
-- Registrar nota de auditoria em `interactions`
+### Parte 2: Fallback na `verify-customer-email`
+
+Para evitar que isso aconteça novamente no futuro, adicionar um fallback: se o email não for encontrado como `customer` na `contacts`, buscar na `kiwify_events` por evento `paid`. Se encontrado, promover o contato para `customer` automaticamente e retornar `found: true`.
+
+**Fluxo atualizado:**
+
+```text
+Email recebido
+    │
+    ├── Busca em contacts WHERE status='customer'
+    │   ├── Encontrou → Retorna found:true (atual)
+    │   └── Não encontrou ↓
+    │
+    ├── Busca em kiwify_events WHERE event_type='paid' AND customer_email = email
+    │   ├── Encontrou → Promove contato para 'customer' + Retorna found:true
+    │   └── Não encontrou → Retorna found:false (atual)
+```
+
+**Alteração em `verify-customer-email/index.ts`** (após linha 71):
+- Buscar `kiwify_events` pelo email com `event_type = 'paid'`
+- Se encontrar, fazer UPDATE no contato existente para `status = 'customer'`
+- Se não existir contato, criar um novo com os dados do payload Kiwify
+- Retornar `found: true` com os dados do contato (incluindo `consultant_id`)
 
 ## Impacto
 
 | Regra | Status |
 |---|---|
-| Kill Switch respeitado | Sim — não envia via IA, só atribui |
-| Fluxo não quebra | Sim — return early antes do menu |
-| Conversas já atribuídas | Não afetadas — só atua em `assigned_to IS NULL` |
-| ROUTING-LOCK | Não alterado |
-| TRANSFER-PERSIST-LOCK | Não alterado |
-| Auditoria | Sim — log em `interactions` |
+| Regressão zero | Sim — lógica atual mantida, fallback é adicional |
+| Kill Switch | Não afetado — verificação não envia mensagens |
+| Fluxo existente | Preservado — só adiciona caminho alternativo |
+| CSAT guard | Não afetado |
+| Auditoria | Log no console da Edge Function |
 
 ## Arquivos
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/verify-customer-email/index.ts` | Adicionar `consultant_id` ao SELECT e retorno |
-| `supabase/functions/ai-autopilot-chat/index.ts` | Verificar `consultant_id` no bloco de email encontrado (~linha 2693) e redirecionar se existir |
+| Migration SQL | UPDATE em massa dos 986 contatos com `paid` para `customer` |
+| `supabase/functions/verify-customer-email/index.ts` | Adicionar fallback de busca na `kiwify_events` |
 

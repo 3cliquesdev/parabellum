@@ -1,57 +1,49 @@
 
 
-# Portal do Cliente — Diagnóstico e Plano
+# Email de Confirmação para o Cliente ao Criar Ticket
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Respostas às suas perguntas
+## Diagnóstico
 
-### 1. Onde configuro o número do WhatsApp?
+O sistema **não envia email para o cliente** quando um ticket é criado. A Edge Function `notify-ticket-event` notifica apenas **stakeholders internos** (agentes, admins) — usuários com conta no sistema. O cliente (tabela `contacts`) não é incluído na lista de destinatários.
 
-**Hoje: em lugar nenhum.** O número está **hardcoded** no código (`5511999999999`) em `src/pages/ClientPortal.tsx`, linha 42. Não existe nenhuma tela de configuração para alterar esse número sem mexer no código.
-
-### 2. Como o cliente faz login?
-
-O cliente acessa `/auth` (a mesma tela de login dos agentes). Após login, o sistema verifica o role do usuário na tabela `user_roles`. Se o role for `"user"`, ele é redirecionado para `/client-portal`. Ou seja, **o admin precisa criar a conta do cliente manualmente e atribuir o role "user"**.
-
----
-
-## Problemas identificados
-
-| Problema | Impacto |
+| O que existe | Para quem |
 |---|---|
-| Número do WhatsApp hardcoded | Não configurável sem deploy |
-| Sem tela de gestão do portal | Admin não tem onde personalizar |
-| Login compartilha a mesma rota `/auth` dos agentes | Confuso para o cliente |
+| `notify-ticket-event` → email + in_app | Agentes/admins internos |
+| `send-ticket-email-reply` | Cliente (mas só para respostas manuais) |
+| Email ao criar ticket para o cliente | **NÃO EXISTE** |
 
-## Plano de melhoria
+## Solução
 
-### Passo 1 — Tornar o número configurável via banco de dados
+Adicionar ao fluxo de `notify-ticket-event`, no evento `created`, um **email de confirmação para o cliente** (contato) quando `customer_id` estiver presente e o contato tiver email.
 
-Usar a tabela `public_ticket_portal_config` que já existe (tem campos `name`, `description`, `is_active`). Adicionar uma coluna `whatsapp_number` (text, nullable) via migration.
+### Mudança única: `supabase/functions/notify-ticket-event/index.ts`
 
-### Passo 2 — Painel de configuração do portal (admin)
+Após o bloco de emails internos (linha ~490), adicionar:
 
-Na página de configurações do portal de tickets (onde já existe o toggle de ativar/desativar), adicionar campo editável para o número do WhatsApp. Assim o admin configura sem tocar em código.
+1. Verificar se `ticket.customer_id` existe
+2. Buscar email do contato na tabela `contacts`
+3. Se tiver email, buscar branding configurado (`email_branding` + `email_senders`)
+4. Enviar email via Resend com template de confirmação: "Seu ticket #XXX foi criado com sucesso"
+5. Dedupe via `ticket_notification_sends` com channel `email_customer`
 
-### Passo 3 — Atualizar `ClientPortal.tsx`
+### Conteúdo do email para o cliente
 
-Buscar o número da tabela `public_ticket_portal_config` em vez de usar o valor hardcoded. Se não houver número configurado, esconder o botão de WhatsApp.
+- Assunto: `Ticket #XXX criado — {subject}`
+- Corpo: saudação com nome do cliente, número do ticket, assunto, e instrução de que será atendido em breve
+- Branding: usa o `email_branding` e `email_senders` já configurados (mesmo visual do `send-ticket-email-reply`)
+- Link para acompanhar: `/my-tickets` (se o portal estiver ativo)
 
-### Passo 4 — (Opcional) Criar rota `/client-login` separada
-
-Para evitar confusão, criar uma página de login dedicada ao cliente (`/client-login`) com visual mais simples, que só permite login (sem signup de admin). Redireciona para `/client-portal` após autenticação.
-
-## Arquivos modificados/criados
+## Arquivos modificados
 
 | Arquivo | Mudança |
 |---|---|
-| Migration SQL | Adicionar coluna `whatsapp_number` em `public_ticket_portal_config` |
-| `src/pages/ClientPortal.tsx` | Buscar número do banco em vez de hardcoded |
-| `src/hooks/usePublicTicketPortal.tsx` | Incluir `whatsapp_number` no tipo e query |
-| Tela de config do portal (existente) | Adicionar campo editável para WhatsApp |
+| `supabase/functions/notify-ticket-event/index.ts` | Adicionar envio de email de confirmação ao cliente no evento `created` |
 
 ## Impacto
-- Zero regressão: portal continua funcionando, só troca a fonte do número
-- Upgrade: admin pode configurar o número sem deploy
+- **Zero regressão**: emails internos continuam iguais
+- **Upgrade**: cliente recebe confirmação automática por email ao ter ticket aberto
+- **Segurança**: usa Resend API já configurada, sem expor dados sensíveis
+- **Deduplicação**: protegido contra envio duplicado via `ticket_notification_sends`
 

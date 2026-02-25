@@ -9,6 +9,9 @@ import {
   Database, 
   BookOpen, 
   Package,
+  Users,
+  ShoppingCart,
+  GraduationCap,
   Info
 } from "lucide-react";
 import { useKnowledgeCategories } from "@/hooks/useKnowledgeCategories";
@@ -130,6 +133,52 @@ export function RAGSourcesSection({
         )}
       </div>
 
+      {/* CRM / Clientes */}
+      <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-emerald-500" />
+            <Label className="text-sm font-medium">CRM / Clientes</Label>
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
+              CRM
+            </Badge>
+          </div>
+          <Switch
+            checked={selectedNode.data.use_crm_data === true}
+            onCheckedChange={(checked) => updateNodeData("use_crm_data", checked)}
+          />
+        </div>
+
+        {selectedNode.data.use_crm_data && (
+          <p className="text-[10px] text-muted-foreground px-2 pt-1">
+            A IA consulta dados do cliente (nome, email, status, consultor)
+          </p>
+        )}
+      </div>
+
+      {/* Kiwify (Vendas/Financeiro) */}
+      <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4 text-purple-500" />
+            <Label className="text-sm font-medium">Kiwify (Vendas)</Label>
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-purple-500/40 text-purple-600 dark:text-purple-400 bg-purple-500/10">
+              Kiwify
+            </Badge>
+          </div>
+          <Switch
+            checked={selectedNode.data.use_kiwify_data === true}
+            onCheckedChange={(checked) => updateNodeData("use_kiwify_data", checked)}
+          />
+        </div>
+
+        {selectedNode.data.use_kiwify_data && (
+          <p className="text-[10px] text-muted-foreground px-2 pt-1">
+            A IA consulta pedidos e status de pagamento
+          </p>
+        )}
+      </div>
+
       {/* Rastreio de Envio */}
       <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
         <div className="flex items-center justify-between">
@@ -149,6 +198,29 @@ export function RAGSourcesSection({
         {selectedNode.data.use_tracking && (
           <p className="text-[10px] text-muted-foreground px-2 pt-1">
             A IA consulta onde está o pacote do cliente
+          </p>
+        )}
+      </div>
+
+      {/* Treinamento Sandbox */}
+      <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="h-4 w-4 text-cyan-500" />
+            <Label className="text-sm font-medium">Treinamento Sandbox</Label>
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10">
+              Sandbox
+            </Badge>
+          </div>
+          <Switch
+            checked={selectedNode.data.use_sandbox_data === true}
+            onCheckedChange={(checked) => updateNodeData("use_sandbox_data", checked)}
+          />
+        </div>
+
+        {selectedNode.data.use_sandbox_data && (
+          <p className="text-[10px] text-muted-foreground px-2 pt-1">
+            A IA consulta regras aprendidas por correção manual
           </p>
         )}
       </div>

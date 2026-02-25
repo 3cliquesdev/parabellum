@@ -1,77 +1,100 @@
 
 
-# Correção: Gerentes bloqueados por RLS em `organizations` (e outras tabelas)
+# Correção: Mensagens de conversas não atribuídas invisíveis para o time
 
 ## Diagnóstico
 
-O Danilo tem role `support_manager`. As políticas de INSERT/UPDATE/DELETE na tabela `organizations` usam `has_role()` verificando apenas `admin`, `manager` e `general_manager` — faltam `support_manager`, `cs_manager` e `financial_manager`.
+Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-Além disso, a função `is_manager_or_admin()` (que deveria ser a fonte única da verdade) está **incompleta**: falta `financial_manager`.
+O problema está na **política RLS de SELECT da tabela `messages`**. Existe uma inconsistência entre as políticas de `conversations` e `messages`:
 
-### Tabelas afetadas (políticas sem todos os gerentes)
-| Tabela | Comandos bloqueados |
+| Tabela | Agentes podem ver conversas não atribuídas? |
 |---|---|
-| **organizations** | INSERT, UPDATE, DELETE |
-| activities | INSERT, UPDATE, DELETE |
-| admin_alerts | UPDATE, DELETE |
-| ai_response_cache | INSERT, DELETE |
-| ai_suggestions | UPDATE, DELETE |
-| deals | DELETE |
-| knowledge_articles | INSERT, UPDATE, DELETE |
-| quotes / quote_items | INSERT, UPDATE, DELETE |
-| ticket_notification_rules | INSERT, UPDATE, DELETE |
-| + outras (messages, interactions, etc.) |
+| `conversations` | **SIM** — a policy `canonical_select_conversations` permite ver conversas `assigned_to IS NULL` do mesmo departamento ou sem departamento |
+| `messages` | **NÃO** — a policy `role_based_select_messages` só permite `c.assigned_to = auth.uid()` para agentes não-gerentes |
 
-## Solução em 2 passos
+Resultado: o agente vê a conversa na lista, mas ao clicar, **não consegue ler as mensagens** porque o RLS bloqueia o SELECT na tabela `messages`.
 
-### Passo 1 — Corrigir `is_manager_or_admin()` (adicionar `financial_manager`)
+## Solução
+
+Atualizar a política `role_based_select_messages` para alinhar com a política de `conversations`, adicionando visibilidade de mensagens para conversas não atribuídas do mesmo departamento (ou sem departamento).
+
+### SQL da migração
 
 ```sql
-CREATE OR REPLACE FUNCTION public.is_manager_or_admin(_user_id uuid)
-RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_roles
-    WHERE user_id = _user_id
-      AND role IN ('admin','manager','general_manager','support_manager','cs_manager','financial_manager')
-  );
-$$;
+DROP POLICY IF EXISTS "role_based_select_messages" ON messages;
+
+CREATE POLICY "role_based_select_messages" ON messages FOR SELECT
+TO authenticated
+USING (
+  -- Gerentes veem tudo
+  is_manager_or_admin(auth.uid())
+  OR
+  -- Agente vê mensagens das conversas atribuídas a ele
+  EXISTS (
+    SELECT 1 FROM conversations c
+    WHERE c.id = messages.conversation_id
+      AND c.assigned_to = auth.uid()
+  )
+  OR
+  -- Agente vê mensagens de conversas não atribuídas do mesmo departamento
+  EXISTS (
+    SELECT 1 FROM conversations c
+    WHERE c.id = messages.conversation_id
+      AND c.status = 'open'
+      AND c.assigned_to IS NULL
+      AND has_any_role(auth.uid(), ARRAY[
+        'sales_rep','support_agent','financial_agent','consultant'
+      ]::app_role[])
+      AND (
+        c.department = (SELECT p.department FROM profiles p WHERE p.id = auth.uid())
+        OR c.department IS NULL
+      )
+  )
+);
 ```
 
-### Passo 2 — Consolidar políticas da tabela `organizations`
+### Também atualizar a policy de UPDATE
 
-Substituir as 6 políticas fragmentadas (3 legadas `admin_manager_*` + 3 `role_based_*`) por 3 políticas consolidadas usando `is_manager_or_admin(auth.uid())`:
+A policy `role_based_update_messages` tem o mesmo gap — agentes não conseguem marcar mensagens como lidas (`is_read = true`) em conversas não atribuídas. Mesma correção:
 
 ```sql
--- Drop das 6 políticas antigas
-DROP POLICY IF EXISTS "admin_manager_create_organizations" ON organizations;
-DROP POLICY IF EXISTS "role_based_insert_organizations" ON organizations;
-DROP POLICY IF EXISTS "admin_manager_update_organizations" ON organizations;
-DROP POLICY IF EXISTS "role_based_update_organizations" ON organizations;
-DROP POLICY IF EXISTS "admin_manager_delete_organizations" ON organizations;
-DROP POLICY IF EXISTS "role_based_delete_organizations" ON organizations;
+DROP POLICY IF EXISTS "role_based_update_messages" ON messages;
 
--- 3 políticas consolidadas
-CREATE POLICY "managers_insert_organizations" ON organizations FOR INSERT
-  TO authenticated WITH CHECK (is_manager_or_admin(auth.uid()));
-
-CREATE POLICY "managers_update_organizations" ON organizations FOR UPDATE
-  TO authenticated USING (is_manager_or_admin(auth.uid()))
-  WITH CHECK (is_manager_or_admin(auth.uid()));
-
-CREATE POLICY "managers_delete_organizations" ON organizations FOR DELETE
-  TO authenticated USING (is_manager_or_admin(auth.uid()));
+CREATE POLICY "role_based_update_messages" ON messages FOR UPDATE
+TO authenticated
+USING (
+  is_manager_or_admin(auth.uid())
+  OR
+  EXISTS (
+    SELECT 1 FROM conversations c
+    WHERE c.id = messages.conversation_id
+      AND (
+        c.assigned_to = auth.uid()
+        OR (
+          c.status = 'open'
+          AND c.assigned_to IS NULL
+          AND has_any_role(auth.uid(), ARRAY[
+            'sales_rep','support_agent','financial_agent','consultant'
+          ]::app_role[])
+          AND (
+            c.department = (SELECT p.department FROM profiles p WHERE p.id = auth.uid())
+            OR c.department IS NULL
+          )
+        )
+      )
+  )
+);
 ```
-
-### Passo 3 — Mesma consolidação nas demais tabelas críticas
-
-Aplicar o mesmo padrão (substituir `has_role` por `is_manager_or_admin`) nas tabelas: `activities`, `admin_alerts`, `ai_response_cache`, `ai_suggestions`, `deals`, `knowledge_articles`, `quotes`, `quote_items`, `ticket_notification_rules`.
 
 ## Impacto
-- Zero regressão: gerentes que já tinham acesso continuam tendo
-- Upgrade: `support_manager`, `cs_manager` e `financial_manager` ganham acesso igual (contrato de paridade)
-- Manutenibilidade: futuras adições de roles gerenciais só precisam alterar a função `is_manager_or_admin()`
-- Nenhuma alteração de código frontend necessária
+- **Zero regressão**: gerentes continuam vendo tudo; agentes com conversas atribuídas continuam vendo normalmente
+- **Upgrade**: agentes passam a ver o conteúdo das mensagens de conversas não atribuídas (mesmo departamento ou pool global) para decidir se assumem
+- **Segurança mantida**: agentes só veem mensagens de conversas que já tinham acesso via `conversations` — alinhamento 1:1 entre as policies
+- **Nenhuma alteração de código frontend**: o problema é 100% RLS
+
+## Arquivo modificado
+| Arquivo | Mudança |
+|---|---|
+| Migration SQL | Atualizar policies `role_based_select_messages` e `role_based_update_messages` |
 

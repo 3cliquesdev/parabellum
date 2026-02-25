@@ -980,7 +980,35 @@ serve(async (req) => {
 
         if (keywordMatch || maxReached) {
           // SAIR: limpar __ai e avançar para próximo nó
-          console.log(`[process-chat-flow] 🔄 AI persistent EXIT: keyword=${keywordMatch} maxReached=${maxReached} count=${aiCount}`);
+          const exitReason = keywordMatch ? 'exit_keyword' : 'max_interactions';
+          console.log(`[process-chat-flow] 🔄 AI persistent EXIT: reason=${exitReason} keyword=${keywordMatch} maxReached=${maxReached} count=${aiCount}`);
+
+          // 🆕 UPGRADE 2: Log de transferência estruturado em ai_events
+          try {
+            await supabaseClient
+              .from('ai_events')
+              .insert({
+                entity_type: 'conversation',
+                entity_id: conversationId,
+                event_type: 'ai_transfer',
+                model: 'process-chat-flow',
+                output_json: {
+                  exit_reason: exitReason,
+                  interaction_count: aiCount,
+                  max_interactions: maxInteractions,
+                  exit_keywords_configured: exitKeywords,
+                  keyword_matched: keywordMatch ? msgLower : null,
+                  flow_id: activeState.flow_id,
+                  node_id: currentNode.id,
+                },
+                input_summary: userMessage.substring(0, 200),
+                department_id: conversation?.department_id || null,
+              });
+            console.log(`[process-chat-flow] 📊 Transfer reason logged: ${exitReason}`);
+          } catch (logErr) {
+            console.error('[process-chat-flow] ⚠️ Failed to log transfer reason:', logErr);
+          }
+
           delete collectedData.__ai;
           // Cai no findNextNode normal abaixo
         } else {

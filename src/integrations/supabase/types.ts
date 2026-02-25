@@ -2181,6 +2181,7 @@ export type Database = {
           previous_agent_id: string | null
           rating_sent_at: string | null
           related_ticket_id: string | null
+          resolved_by: string | null
           session_token: string | null
           status: Database["public"]["Enums"]["conversation_status"]
           support_channel_id: string | null
@@ -2217,6 +2218,7 @@ export type Database = {
           previous_agent_id?: string | null
           rating_sent_at?: string | null
           related_ticket_id?: string | null
+          resolved_by?: string | null
           session_token?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]
           support_channel_id?: string | null
@@ -2253,6 +2255,7 @@ export type Database = {
           previous_agent_id?: string | null
           rating_sent_at?: string | null
           related_ticket_id?: string | null
+          resolved_by?: string | null
           session_token?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]
           support_channel_id?: string | null

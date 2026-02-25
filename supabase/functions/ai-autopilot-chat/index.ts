@@ -7225,7 +7225,43 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
       console.log('📊 [USAGE LOG] Uso da IA registrado com sucesso');
     } catch (logError) {
       console.error('⚠️ [USAGE LOG ERROR] Erro ao registrar uso (não bloqueante):', logError);
-      // Não bloqueia a resposta ao cliente se o log falhar
+    }
+
+    // 🆕 UPGRADE 1: Telemetria real em ai_events (confiança, artigos, latência)
+    try {
+      const telemetryEndTime = Date.now();
+      const interactionCount = flow_context?.collectedData?.__ai?.interaction_count || 1;
+      const maxInteractions = flow_context?.collectedData?.__ai?.max_ai_interactions || 0;
+      const isPersistent = !!flow_context?.collectedData?.__ai;
+
+      await supabaseClient
+        .from('ai_events')
+        .insert({
+          entity_type: 'conversation',
+          entity_id: conversationId,
+          event_type: 'ai_response',
+          model: configuredAIModel || 'openai/gpt-5-mini',
+          output_json: {
+            confidence_score: confidenceResult?.score ?? null,
+            confidence_action: confidenceResult?.action ?? null,
+            articles_used: knowledgeArticles.map((a: any) => a.title),
+            articles_count: knowledgeArticles.length,
+            interaction_number: interactionCount,
+            max_interactions: maxInteractions,
+            exit_reason: null,
+            query_preview: customerMessage.substring(0, 120),
+            persistent_mode: isPersistent,
+            persona_id: persona?.id,
+            persona_name: persona?.name,
+          },
+          score: confidenceResult?.score ?? null,
+          tokens_used: null,
+          department_id: conversation?.department || null,
+          input_summary: customerMessage.substring(0, 200),
+        });
+      console.log('📊 [AI_EVENTS] Telemetria registrada em ai_events');
+    } catch (telemetryError) {
+      console.error('⚠️ [AI_EVENTS ERROR] Erro ao registrar telemetria (não bloqueante):', telemetryError);
     }
 
     console.log('[ai-autopilot-chat] ✅ Resposta processada com sucesso!');

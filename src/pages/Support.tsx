@@ -214,7 +214,13 @@ export default function Support() {
       case 'financial_pending':
         return { advancedFilters: { ...baseFilters, status: ['pending_approval'] } };
       case 'all':
-        return { advancedFilters: { ...baseFilters, status: baseFilters.status.length > 0 ? baseFilters.status : activeStatusNames } };
+        // Se há busca ativa e nenhum status selecionado manualmente, buscar em TODOS os status
+        const hasActiveSearch = !!(baseFilters.search && baseFilters.search.trim().length > 0);
+        const hasManualStatusFilter = baseFilters.status.length > 0;
+        if (hasActiveSearch && !hasManualStatusFilter) {
+          return { advancedFilters: { ...baseFilters } }; // Busca global sem filtro de status
+        }
+        return { advancedFilters: { ...baseFilters, status: hasManualStatusFilter ? baseFilters.status : activeStatusNames } };
       default:
         // Handle dynamic status from database
         if (isDynamicStatus) {

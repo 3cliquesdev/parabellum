@@ -1,74 +1,76 @@
 
 
-# Plano: Relatório Excel — Leads de Formulário vs Conversão
+# Plano: Adicionar Datas Detalhadas ao Relatório
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
 ## Objetivo
 
-Criar uma página de relatório no menu Relatórios (aba Vendas) que exibe e exporta em Excel a comparação entre leads criados por formulário (`form_submissions`) e deals fechados (`deals` com `lead_source = 'formulario'` e `status = 'won'`).
+Adicionar uma segunda aba/seção ao relatório com visao detalhada por registro individual, mostrando:
+- **Data do preenchimento** (`form_submissions.created_at`)
+- **Data do fechamento** (`deals.closed_at`)
+- Nome do contato, formulario, status do deal, valor
 
-## Arquivos
+A tabela resumida diaria atual continua existindo (sem regressao).
 
-| Arquivo | Mudança |
-|---|---|
-| `src/hooks/useFormLeadsConversionReport.tsx` | **Novo** — hook com queries paralelas em `form_submissions` + `deals` |
-| `src/hooks/useExportFormLeadsExcel.tsx` | **Novo** — exportação Excel com XLSX |
-| `src/pages/FormLeadsConversionReport.tsx` | **Novo** — página com KPIs, tabela diária e botão exportar Excel |
-| `src/pages/Reports.tsx` | Adicionar card na aba Vendas com `route: '/reports/form-leads-conversion'` |
-| `src/App.tsx` | Adicionar rota protegida `/reports/form-leads-conversion` |
+## Como funciona a ligacao
 
-## Detalhes Técnicos
+`form_submissions.contact_id` → `contacts.id` ← `deals.contact_id` + `deals.lead_source = 'formulario'`
 
-### 1. Hook `useFormLeadsConversionReport`
+## Mudancas
 
-Duas queries paralelas via `useQuery`:
+### 1. Hook `useFormLeadsConversionReport.tsx` — Nova query detalhada
 
-- **Leads**: `form_submissions.select("id, created_at, form_id")` filtrado por período
-- **Deals won**: `deals.select("id, closed_at, value").eq("lead_source", "formulario").eq("status", "won")` filtrado por `closed_at` no período
-- **Deals lost**: mesma query com `status = 'lost'`
-
-Agrupamento client-side por dia. Retorna:
-- `dailyData: { date, leads, won, lost, conversionRate }[]`
-- `kpis: { totalLeads, totalWon, totalLost, conversionRate, totalRevenue }`
-- Filtro opcional por `form_id`
-
-### 2. Hook `useExportFormLeadsExcel`
-
-Usa `xlsx` (já instalado) para gerar planilha com colunas:
-- Data | Leads Criados | Deals Ganhos | Deals Perdidos | Taxa Conversão (%) | Receita (R$)
-- Linha de totais no final
-- Nome do arquivo: `leads-vs-conversao-YYYY-MM-DD.xlsx`
-
-### 3. Página `FormLeadsConversionReport`
-
-Segue o padrão do `TicketsExportReport`:
-
-- **Header**: botão voltar + título "Leads Formulário vs Conversão" + botão "Exportar Excel"
-- **Filtros**: DateRange picker (default 30 dias) + Select de formulário específico (query em `forms`)
-- **4 KPI Cards**: Total Leads | Deals Ganhos | Taxa Conversão | Receita Total
-- **Tabela**: colunas Data | Leads | Ganhos | Perdidos | Conversão % | Receita — com paginação
-- Loading skeletons e estado vazio
-
-### 4. Reports.tsx — Novo card na aba Vendas
+Adicionar query que busca form_submissions com join no contato e nos deals:
 
 ```
+form_submissions.select(`
+  id, created_at, form_id,
+  contact:contacts!form_submissions_contact_id_fkey(id, name),
+  forms!form_submissions_form_id_fkey(name)
+`)
+```
+
+Separadamente, buscar deals com `lead_source = 'formulario'` no periodo, agrupados por `contact_id`. Fazer o match client-side.
+
+Retorna novo array `detailedData`:
+```
 {
-  id: 'form_leads_conversion',
-  name: 'Leads Formulário vs Conversão',
-  description: 'Comparativo de leads criados por formulário vs deals fechados (Excel)',
-  icon: FileSpreadsheet,
-  route: '/reports/form-leads-conversion',
+  submissionDate: string     // form_submissions.created_at
+  closingDate: string | null // deals.closed_at (se existir)
+  contactName: string
+  formName: string
+  dealStatus: string | null  // won/lost/open/null
+  dealValue: number | null
 }
 ```
 
-### 5. App.tsx — Rota
+### 2. Pagina `FormLeadsConversionReport.tsx` — Nova tabela detalhada
 
-Lazy import + rota protegida com `analytics.view`.
+Adicionar Tabs (Resumo Diario | Detalhado) usando `@radix-ui/react-tabs`:
+
+**Aba "Resumo Diario"**: tabela atual (sem mudanca)
+
+**Aba "Detalhado"**: nova tabela com colunas:
+- Data Preenchimento | Contato | Formulario | Status Deal | Data Fechamento | Valor
+
+Com paginacao propria e ordenacao por data de preenchimento.
+
+### 3. Excel `useExportFormLeadsExcel.tsx` — Segunda planilha
+
+Adicionar segunda aba na planilha Excel ("Detalhado") com os registros individuais incluindo ambas as datas.
+
+## Arquivos
+
+| Arquivo | Mudanca |
+|---|---|
+| `src/hooks/useFormLeadsConversionReport.tsx` | Adicionar query detalhada + retornar `detailedData` |
+| `src/pages/FormLeadsConversionReport.tsx` | Adicionar Tabs com aba detalhada |
+| `src/hooks/useExportFormLeadsExcel.tsx` | Adicionar segunda sheet com dados detalhados |
 
 ## Impacto
 
-- Zero regressão: apenas adição de novos arquivos + 1 card na lista + 1 rota
-- Usa padrões visuais já existentes (DatePickerWithRange, Card, Table, XLSX export)
-- Biblioteca `xlsx` já está instalada no projeto
+- Zero regressao: aba "Resumo Diario" permanece identica
+- Apenas adicao de nova aba e nova query
+- Join via `contact_id` compartilhado entre form_submissions e deals
 

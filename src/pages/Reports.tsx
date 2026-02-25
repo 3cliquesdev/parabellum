@@ -118,6 +118,13 @@ export default function Reports() {
           description: 'Taxa de conversão criados → ganhos e tempo médio de ciclo',
           icon: Clock,
         },
+        {
+          id: 'form_leads_conversion',
+          name: 'Leads Formulário vs Conversão',
+          description: 'Comparativo de leads criados por formulário vs deals fechados (Excel)',
+          icon: FileSpreadsheet,
+          route: '/reports/form-leads-conversion',
+        },
       ],
     },
     {

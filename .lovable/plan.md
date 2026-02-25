@@ -1,45 +1,77 @@
 
 
-# Múltiplos Gatilhos por Template de Email
+# Correção: Gerentes bloqueados por RLS em `organizations` (e outras tabelas)
 
-## Problema Atual
-Cada template de email aceita apenas **um** `trigger_type` (string). Se o usuário quer que o mesmo template dispare em "churned" **e** "refunded", precisa duplicar o template.
+## Diagnóstico
 
-## Solução
+O Danilo tem role `support_manager`. As políticas de INSERT/UPDATE/DELETE na tabela `organizations` usam `has_role()` verificando apenas `admin`, `manager` e `general_manager` — faltam `support_manager`, `cs_manager` e `financial_manager`.
 
-### 1. Migração do Banco de Dados
-- Adicionar coluna `trigger_types text[]` na tabela `email_templates`
-- Migrar dados existentes: copiar valor de `trigger_type` para `trigger_types` como array de 1 elemento
-- Manter `trigger_type` temporariamente para compatibilidade (pode ser removido depois)
+Além disso, a função `is_manager_or_admin()` (que deveria ser a fonte única da verdade) está **incompleta**: falta `financial_manager`.
 
-### 2. Frontend — Multi-select com Checkboxes
-- No `EmailTemplateDialog.tsx`: substituir o `<Select>` único por uma lista de checkboxes (ou dropdown multi-select) onde o usuário marca múltiplos gatilhos
-- No `CreateTemplateV2Dialog.tsx`: mesma mudança
-- Salvar como array `trigger_types` no banco
+### Tabelas afetadas (políticas sem todos os gerentes)
+| Tabela | Comandos bloqueados |
+|---|---|
+| **organizations** | INSERT, UPDATE, DELETE |
+| activities | INSERT, UPDATE, DELETE |
+| admin_alerts | UPDATE, DELETE |
+| ai_response_cache | INSERT, DELETE |
+| ai_suggestions | UPDATE, DELETE |
+| deals | DELETE |
+| knowledge_articles | INSERT, UPDATE, DELETE |
+| quotes / quote_items | INSERT, UPDATE, DELETE |
+| ticket_notification_rules | INSERT, UPDATE, DELETE |
+| + outras (messages, interactions, etc.) |
 
-### 3. Backend — Edge Functions
-- **`send-triggered-email`**: alterar query de `.eq("trigger_type", trigger_type)` para `.contains("trigger_types", [trigger_type])` — busca templates cujo array contém o gatilho disparado
-- **`get-email-template`**: mesma alteração
-- **`kiwify-webhook`**: sem mudança (já passa o trigger como string, o backend resolve)
+## Solução em 2 passos
 
-### 4. Hooks e Types
-- Atualizar `useEmailTemplates`, `useCreateEmailTemplate`, `useUpdateEmailTemplate` para trabalhar com `trigger_types: string[]`
-- Atualizar tipos em `emailBuilderV2.ts`
+### Passo 1 — Corrigir `is_manager_or_admin()` (adicionar `financial_manager`)
+
+```sql
+CREATE OR REPLACE FUNCTION public.is_manager_or_admin(_user_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role IN ('admin','manager','general_manager','support_manager','cs_manager','financial_manager')
+  );
+$$;
+```
+
+### Passo 2 — Consolidar políticas da tabela `organizations`
+
+Substituir as 6 políticas fragmentadas (3 legadas `admin_manager_*` + 3 `role_based_*`) por 3 políticas consolidadas usando `is_manager_or_admin(auth.uid())`:
+
+```sql
+-- Drop das 6 políticas antigas
+DROP POLICY IF EXISTS "admin_manager_create_organizations" ON organizations;
+DROP POLICY IF EXISTS "role_based_insert_organizations" ON organizations;
+DROP POLICY IF EXISTS "admin_manager_update_organizations" ON organizations;
+DROP POLICY IF EXISTS "role_based_update_organizations" ON organizations;
+DROP POLICY IF EXISTS "admin_manager_delete_organizations" ON organizations;
+DROP POLICY IF EXISTS "role_based_delete_organizations" ON organizations;
+
+-- 3 políticas consolidadas
+CREATE POLICY "managers_insert_organizations" ON organizations FOR INSERT
+  TO authenticated WITH CHECK (is_manager_or_admin(auth.uid()));
+
+CREATE POLICY "managers_update_organizations" ON organizations FOR UPDATE
+  TO authenticated USING (is_manager_or_admin(auth.uid()))
+  WITH CHECK (is_manager_or_admin(auth.uid()));
+
+CREATE POLICY "managers_delete_organizations" ON organizations FOR DELETE
+  TO authenticated USING (is_manager_or_admin(auth.uid()));
+```
+
+### Passo 3 — Mesma consolidação nas demais tabelas críticas
+
+Aplicar o mesmo padrão (substituir `has_role` por `is_manager_or_admin`) nas tabelas: `activities`, `admin_alerts`, `ai_response_cache`, `ai_suggestions`, `deals`, `knowledge_articles`, `quotes`, `quote_items`, `ticket_notification_rules`.
 
 ## Impacto
-- **Zero regressão**: dados existentes migrados automaticamente
-- **Backward-compatible**: templates com 1 gatilho continuam funcionando
-- **Importante**: quando um evento dispara, pode encontrar **múltiplos templates** ativos — o `send-triggered-email` precisará usar `.select()` sem `.single()` e iterar para enviar todos
-
-## Arquivos Modificados
-| Arquivo | Mudança |
-|---|---|
-| Migration SQL | Nova coluna + migração de dados |
-| `src/components/EmailTemplateDialog.tsx` | Multi-select de gatilhos |
-| `src/components/email-builder-v2/CreateTemplateV2Dialog.tsx` | Multi-select de gatilhos |
-| `supabase/functions/send-triggered-email/index.ts` | Query com `contains` |
-| `supabase/functions/get-email-template/index.ts` | Query com `contains` |
-| `src/hooks/useEmailTemplates.tsx` | Suporte a `trigger_types[]` |
-| `src/hooks/useCreateEmailTemplate.tsx` | Suporte a `trigger_types[]` |
-| `src/hooks/useUpdateEmailTemplate.tsx` | Suporte a `trigger_types[]` |
+- Zero regressão: gerentes que já tinham acesso continuam tendo
+- Upgrade: `support_manager`, `cs_manager` e `financial_manager` ganham acesso igual (contrato de paridade)
+- Manutenibilidade: futuras adições de roles gerenciais só precisam alterar a função `is_manager_or_admin()`
+- Nenhuma alteração de código frontend necessária
 

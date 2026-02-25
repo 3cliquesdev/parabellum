@@ -1,78 +1,77 @@
 
 
-# Diagnóstico: IA Transferindo em Vez de Ajudar
+# Diagnóstico: Indicador de Fluxo Ativo Não Aparece
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Problema Real Identificado
+## Problema Identificado
 
-A IA **não está "alucinando"** — ela está **sem cota/saldo** para processar qualquer requisição. Os logs mostram claramente:
+O banco de dados **não tem nenhum estado ativo** para esta conversa — o único registro existente tem status `cancelled`. Isso explica por que o `ActiveFlowIndicator` não aparece: ele consulta estados com status `active`, `waiting_input` ou `in_progress`, e não encontra nenhum.
 
-```text
-QUOTA_ERROR: Erro de Saldo/Cota na IA.
-```
+A causa raiz são **dois problemas combinados**:
 
-**Fluxo do que aconteceu:**
+### Problema 1: Dupla limpeza redundante no manual trigger
 
-1. Cliente mandou "Eu quero falar sobre um pedido"
-2. O fluxo de chat (`process-chat-flow`) falhou com `unique_active_flow` constraint (estado preso no banco)
-3. O sistema caiu para o `ai-autopilot-chat` como fallback
-4. O Autopilot tentou chamar a OpenAI → **falhou** (429 / quota)
-5. O Autopilot tentou o fallback Lovable AI → **também falhou** (429 / quota)
-6. O sistema enviou a mensagem de erro: *"Desculpe, estou com dificuldades técnicas. Vou te conectar com um atendente humano!"*
+O código de `process-chat-flow` faz **duas operações de cleanup** antes de criar o estado:
+- **Linha 537**: `UPDATE ... SET status = 'cancelled'` (muda todos para cancelled)
+- **Linha 668**: `DELETE ... WHERE status IN ('active', 'waiting_input', 'in_progress')` (mas já não há nenhum com esses status, pois foram cancelados)
 
-**Ou seja: a IA nem chegou a processar a mensagem. Ela foi bloqueada por falta de saldo.**
+Embora redundante, isso não deveria causar perda de estado. Porém, o INSERT subsequente pode colidir com a constraint `unique_active_flow` se existir um registro cancelado com a mesma combinação `(conversation_id, flow_id, status)` — ou seja, se já existir um registro `(conv, flow_draft, active)` de uma tentativa anterior que foi re-ativado.
 
-## Dois Problemas a Resolver
+### Problema 2: Estado criado em nó `message` sem auto-avanço
 
-### Problema 1: Estado travado no banco (unique_active_flow)
+Quando o fluxo para no nó `welcome_ia` (type: `message`), o estado é criado como `active`. Porém, nós do tipo `message` são **display-only** — não coletam input. O fluxo deveria **auto-avançar** para o próximo nó (a Condição) imediatamente após enviar a mensagem, deixando o estado pronto para receber a resposta do usuário no nó correto.
 
-O `process-chat-flow` tenta limpar estados antigos, mas filtra apenas pelo `flow_id` do rascunho. Porém existe um estado **ativo do fluxo principal** (`3ea0d227`) que interfere. A limpeza precisa ser mais abrangente.
-
-**Fix:** Antes de iniciar um fluxo manual (teste de rascunho), limpar TODOS os estados ativos da conversa, independente do `flow_id`.
-
-### Problema 2: Quota da IA esgotada
-
-Tanto a OpenAI quanto o gateway Lovable AI estão retornando 429. A mensagem "dificuldades técnicas" é o fallback de erro, não uma decisão da IA.
-
-**Fix:** Verificar/renovar o saldo da chave OpenAI. Adicionalmente, melhorar a mensagem de fallback para não parecer transferência, e sim aviso temporário.
+Atualmente, o estado fica preso no nó `message`, e quando o usuário envia uma mensagem, o processamento tenta avaliar o input contra um nó que não espera input.
 
 ## Alterações Propostas
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/process-chat-flow/index.ts` | Na limpeza de estados antes do insert manual, remover filtro `.eq('flow_id', flow.id)` — limpar TODOS os estados ativos/waiting_input da conversa |
-| `supabase/functions/ai-autopilot-chat/index.ts` | Melhorar mensagem de fallback de quota para diferenciar "sem saldo" de "erro técnico" — evitar transferência automática quando é só quota |
-| SQL (migration) | Limpar o estado travado atual: `DELETE FROM chat_flow_states WHERE conversation_id = '4ed80263-02fc-4085-9b29-5290a4174dc5' AND status = 'active'` |
+| `supabase/functions/process-chat-flow/index.ts` | 1. Consolidar dupla limpeza em apenas DELETE (remover o UPDATE redundante) |
+| `supabase/functions/process-chat-flow/index.ts` | 2. Após criar estado em nó `message`, auto-avançar para o próximo nó (condition/ask_options/etc.) |
+| SQL (migration) | Limpar estados órfãos: DELETE de estados travados |
 
 ## Detalhamento Técnico
 
-### Fix 1: Limpeza abrangente em process-chat-flow (linha ~668)
+### Fix 1: Consolidar cleanup (remover UPDATE, manter DELETE)
 
-```typescript
-// ANTES (limpa só o flow específico):
-.eq('conversation_id', conversationId)
-.eq('flow_id', flow.id)
-.in('status', ['active', 'waiting_input', 'in_progress']);
+```text
+ANTES:
+  Linha 537: UPDATE → status = cancelled (todos os ativos)
+  Linha 668: DELETE → WHERE status IN active/waiting/in_progress (redundante)
 
-// DEPOIS (limpa TODOS os flows ativos da conversa):
-.eq('conversation_id', conversationId)
-.in('status', ['active', 'waiting_input', 'in_progress']);
+DEPOIS:
+  Apenas DELETE → WHERE status IN active/waiting/in_progress/cancelled
+  (limpa tudo de uma vez, incluindo cancelados antigos que poderiam colidir)
 ```
 
-### Fix 2: Fallback de quota no ai-autopilot-chat
+### Fix 2: Auto-avanço em nós `message` após delivery
 
-Quando o erro é `QUOTA_ERROR`, em vez de enviar "dificuldades técnicas + transferir", enviar uma mensagem mais adequada como "Estou com alta demanda no momento, por favor tente novamente em alguns instantes" e **não** fazer transferência automática. Isso evita o comportamento de "a IA transferiu sem tentar".
+Após entregar a mensagem do nó `message` via `deliverManualMessage`, o sistema deve:
+1. Encontrar o próximo nó via `findNextNode`
+2. Se o próximo for um nó de conteúdo (ask_options, condition, ai_response), atualizar o `current_node_id` do estado
+3. Se o próximo for condition, fazer a travessia automática até o próximo nó executável
+4. Atualizar o status para `waiting_input` se parar em ask_options
 
-### Ação Imediata do Usuário
+Isso garante que:
+- O estado sempre aponta para o nó que de fato espera input do usuário
+- O indicador mostra o fluxo ativo corretamente
+- A próxima mensagem do usuário é processada no nó correto
 
-Verificar o saldo/cota da chave `OPENAI_API_KEY` configurada. Se a cota estiver zerada, é preciso recarregar no painel da OpenAI para que a IA volte a funcionar normalmente.
+### Fix 3: Limpeza de estados órfãos
+
+```sql
+DELETE FROM chat_flow_states 
+WHERE conversation_id = '4ed80263-02fc-4085-9b29-5290a4174dc5';
+```
 
 ## Impacto
 
 | Regra | Status |
 |---|---|
-| Regressão zero | Sim — apenas melhora limpeza e fallback |
+| Regressão zero | Sim — apenas melhora lógica de estados no manual trigger |
 | Kill Switch | Preservado |
-| Rollback | Reverter delete filter e mensagem de fallback |
+| Indicador | Volta a funcionar porque o estado fica persistido corretamente |
+| Rollback | Reverter consolidação de cleanup e remover auto-avanço |
 

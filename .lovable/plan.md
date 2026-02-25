@@ -1,74 +1,57 @@
 
 
-# Permitir que clientes enviem evidências/anexos nos comentários de tickets
+# Portal do Cliente — Diagnóstico e Plano
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Diagnóstico
+## Respostas às suas perguntas
 
-O problema é claro: **o portal do cliente não tem funcionalidade de upload de arquivos**. Atualmente:
+### 1. Onde configuro o número do WhatsApp?
 
-| Componente | Suporta anexos? |
+**Hoje: em lugar nenhum.** O número está **hardcoded** no código (`5511999999999`) em `src/pages/ClientPortal.tsx`, linha 42. Não existe nenhuma tela de configuração para alterar esse número sem mexer no código.
+
+### 2. Como o cliente faz login?
+
+O cliente acessa `/auth` (a mesma tela de login dos agentes). Após login, o sistema verifica o role do usuário na tabela `user_roles`. Se o role for `"user"`, ele é redirecionado para `/client-portal`. Ou seja, **o admin precisa criar a conta do cliente manualmente e atribuir o role "user"**.
+
+---
+
+## Problemas identificados
+
+| Problema | Impacto |
 |---|---|
-| `MyTicketDetail.tsx` (UI do cliente) | **NÃO** — só tem `Textarea` para texto |
-| `add-customer-comment` (Edge Function) | **NÃO** — só aceita `{ ticket_id, contact_id, content }`, sem campo `attachments` |
-| `get-customer-tickets` (Edge Function) | **SIM** — já retorna `attachments` dos comentários e a UI já renderiza imagens/links |
+| Número do WhatsApp hardcoded | Não configurável sem deploy |
+| Sem tela de gestão do portal | Admin não tem onde personalizar |
+| Login compartilha a mesma rota `/auth` dos agentes | Confuso para o cliente |
 
-Ou seja, a **leitura** de anexos já funciona (se o time interno anexar algo, o cliente vê). Mas o **envio** pelo cliente está completamente ausente.
+## Plano de melhoria
 
-## Solução — 3 mudanças
+### Passo 1 — Tornar o número configurável via banco de dados
 
-### 1. Criar bucket de storage para anexos de clientes
+Usar a tabela `public_ticket_portal_config` que já existe (tem campos `name`, `description`, `is_active`). Adicionar uma coluna `whatsapp_number` (text, nullable) via migration.
 
-O bucket `ticket-attachments` pode já existir (usado pelo time interno). Precisamos garantir que exista e que tenha uma policy de INSERT pública (ou via edge function com service role). Como o cliente não é um usuário autenticado no Supabase Auth, o upload será feito **via edge function** usando service role key.
+### Passo 2 — Painel de configuração do portal (admin)
 
-**Nova Edge Function**: `upload-ticket-attachment`
-- Recebe o arquivo via FormData
-- Valida tipo (imagens, PDF, vídeos) e tamanho (max 10MB)
-- Faz upload ao bucket `ticket-attachments` com service role
-- Retorna `{ url, name, type, size }`
+Na página de configurações do portal de tickets (onde já existe o toggle de ativar/desativar), adicionar campo editável para o número do WhatsApp. Assim o admin configura sem tocar em código.
 
-### 2. Atualizar Edge Function `add-customer-comment`
+### Passo 3 — Atualizar `ClientPortal.tsx`
 
-Adicionar campo opcional `attachments` ao body:
-```
-{ ticket_id, contact_id, content, attachments?: Array<{url, name, type, size}> }
-```
-O insert na tabela `ticket_comments` já tem coluna `attachments` (tipo JSON) — basta passar os dados.
+Buscar o número da tabela `public_ticket_portal_config` em vez de usar o valor hardcoded. Se não houver número configurado, esconder o botão de WhatsApp.
 
-### 3. Atualizar UI `MyTicketDetail.tsx`
+### Passo 4 — (Opcional) Criar rota `/client-login` separada
 
-Adicionar ao formulário de resposta do cliente:
-- Botão de anexar arquivo (ícone `Paperclip`)
-- Input file hidden que aceita imagens, PDFs e vídeos
-- Preview dos arquivos selecionados (thumbnails para imagens, ícone+nome para outros)
-- Botão de remover arquivo da lista
-- Estado de upload com indicador de progresso
-- Ao clicar "Enviar Resposta", primeiro faz upload dos arquivos via `upload-ticket-attachment`, depois envia o comentário com as URLs
+Para evitar confusão, criar uma página de login dedicada ao cliente (`/client-login`) com visual mais simples, que só permite login (sem signup de admin). Redireciona para `/client-portal` após autenticação.
 
-## Fluxo do cliente
-
-```text
-Cliente abre ticket → Clica no ícone 📎 → Seleciona foto/PDF
-→ Preview aparece abaixo do textarea
-→ Clica "Enviar Resposta"
-→ Upload do arquivo via edge function (progress bar)
-→ Comentário salvo com attachments no JSON
-→ Time interno vê o anexo na timeline do ticket
-```
-
-## Arquivos criados/modificados
+## Arquivos modificados/criados
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/upload-ticket-attachment/index.ts` | **Novo** — Edge function para upload de arquivos do cliente |
-| `supabase/functions/add-customer-comment/index.ts` | Adicionar suporte ao campo `attachments` no insert |
-| `src/components/MyTicketDetail.tsx` | Adicionar UI de upload de arquivos com preview e progresso |
-| Migration SQL | Garantir que bucket `ticket-attachments` existe com policies corretas |
+| Migration SQL | Adicionar coluna `whatsapp_number` em `public_ticket_portal_config` |
+| `src/pages/ClientPortal.tsx` | Buscar número do banco em vez de hardcoded |
+| `src/hooks/usePublicTicketPortal.tsx` | Incluir `whatsapp_number` no tipo e query |
+| Tela de config do portal (existente) | Adicionar campo editável para WhatsApp |
 
 ## Impacto
-- **Zero regressão**: comentários sem anexo continuam funcionando normalmente
-- **Upgrade**: clientes passam a poder enviar fotos, PDFs e vídeos como evidência
-- **Segurança**: upload via edge function com service role (cliente não precisa de auth), validação de tipo e tamanho no servidor
-- **Alinhamento**: a UI de leitura de anexos já existe — agora completa o ciclo com a escrita
+- Zero regressão: portal continua funcionando, só troca a fonte do número
+- Upgrade: admin pode configurar o número sem deploy
 

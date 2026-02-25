@@ -1,136 +1,53 @@
 
 
-# Plano Ajustado: Configuração Admin de Emails ao Cliente
+# Plano: Widget de Leads por Formulário (Gráfico de Linha)
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Resumo
+## Objetivo
 
-Permitir que o admin controle quais eventos geram email para o cliente via 3 toggles na página de Mensagens da IA (`/settings/ai-messages`). Inclui helper reutilizável, cache na Edge Function e segurança via RLS.
+Adicionar um widget de gráfico de linha na aba de Analytics de Vendas (`SalesDashboardTab`) mostrando leads de formulários por dia nos últimos 30 dias, com filtro de período integrado ao `dateRange` já existente.
 
-## Detalhes Técnicos
+## Mudanças
 
-### 1. Seed das 3 configs (insert via ferramenta de dados)
+### 1. Novo hook: `src/hooks/useFormSubmissionsDaily.tsx`
 
-Inserir na tabela `system_configurations` com `upsert` por `key`:
+Query na tabela `form_submissions` agrupando por dia (`DATE(created_at)`):
+- Recebe `startDate` e `endDate` do dateRange (default: últimos 30 dias)
+- Retorna array `{ date: string, count: number }[]`
+- Usa `formatLocalDate` do `src/lib/dateUtils.ts` para consistência de timezone
+- `queryKey: ['form-submissions-daily', startStr, endStr]`
+- `staleTime: 30000`
 
-| key | value | category | description |
-|---|---|---|---|
-| `ticket_email_customer_created` | `true` | `ticket_email` | Email ao cliente na criação do ticket |
-| `ticket_email_customer_resolved` | `true` | `ticket_email` | Email ao cliente na resolução do ticket |
-| `ticket_email_customer_comment` | `true` | `ticket_email` | Email ao cliente em comentário público |
+A query busca todos os registros no período e agrupa no client-side (a tabela `form_submissions` não tem RPC de agregação). Alternativa: buscar apenas `id, created_at` para minimizar payload.
 
-Valor `string` — `"true"` / `"false"` — compatível com o schema existente (`value: string`).
+### 2. Novo widget: `src/components/widgets/FormLeadsChartWidget.tsx`
 
-### 2. Helper `useTicketEmailConfig` (novo hook)
+- Card com título "Leads de Formulários" e ícone `FileText`
+- Gráfico de linha (recharts `AreaChart`) similar ao `RevenueEvolutionWidget`
+- Eixo X: datas (dd/MM)
+- Eixo Y: quantidade de leads
+- Tooltip com data e contagem
+- Estados: loading (Skeleton), vazio ("Sem dados"), e dados normais
+- Recebe `dateRange` como prop para filtrar
 
-Criar `src/hooks/useTicketEmailConfig.tsx`:
+### 3. `src/components/dashboard/SalesDashboardTab.tsx` — Adicionar widget
 
-- **Query única**: busca as 3 keys com `.in('key', [...])` 
-- **parseBool helper** interno: converte `"true"` → `true`, default `true` se não encontrado
-- **Mutation genérica**: recebe `{ key, enabled }`, faz `upsert` na `system_configurations`
-- **queryKey**: `['ticket-email-config']` com `staleTime: 30000`
-- Exporta `{ config, isLoading, toggleConfig }` onde config é `{ created: boolean, resolved: boolean, comment: boolean }`
+Adicionar como ROW 6 (full width, span 4) ou span 2 ao lado de outro widget. Sugestão: inserir como `BentoCard span="full"` após ROW 5 para destaque.
 
-Isso evita queries repetidas na UI e no `useCreateComment`.
+Passar o `dateRange` existente da prop para o widget.
 
-### 3. `src/pages/AIMessagesSettings.tsx` — Card de notificações
-
-Adicionar **antes dos filtros** (entre o header e a barra de busca) um card com:
-
-- Título: "Notificações por Email ao Cliente"
-- Descrição: "Controle quais eventos enviam email automático para o cliente"
-- 3 switches com labels:
-  - "Ticket criado" → `ticket_email_customer_created`
-  - "Ticket resolvido" → `ticket_email_customer_resolved`  
-  - "Comentário público" → `ticket_email_customer_comment`
-- Loading skeleton enquanto carrega
-- Toast "Configuração salva" ao alterar
-- **Guarda de permissão**: só exibe o card se `hasFullAccess(role)` for `true`
-
-### 4. `supabase/functions/notify-ticket-event/index.ts` — Cache + consulta dinâmica
-
-Antes do bloco de email ao cliente (linha ~465):
-
-```text
-// Cache in-memory com TTL 60s (similar ao ai-config-cache.ts)
-let emailConfigCache = { value: null, expiresAt: 0 }
-
-async function getTicketEmailConfig(supabase):
-  if cache válido: return cache
-  buscar 3 keys com .in('key', [...])
-  parseBool cada uma (default true)
-  cachear por 60s
-  return { created, resolved, comment }
-```
-
-Construir `customerEmailEvents` dinamicamente:
-```text
-const cfg = await getTicketEmailConfig(supabase)
-const customerEmailEvents = []
-if (cfg.created) customerEmailEvents.push('created')
-if (cfg.resolved) customerEmailEvents.push('resolved')
-// 'closed' removido definitivamente
-```
-
-### 5. `src/hooks/useCreateComment.tsx` — Respeitar config
-
-Antes de invocar `send-ticket-email-reply`:
-
-1. Buscar `ticket_email_customer_comment` da `system_configurations` (query simples, pode usar cache do React Query)
-2. Se `"false"`: return sem enviar
-3. Se `"true"` ou não encontrado: enviar normalmente
-
-Implementação: query inline com `.maybeSingle()` — leve e isolada do fluxo principal.
-
-### 6. Segurança — RLS
-
-A tabela `system_configurations` já tem política de **SELECT aberta** para autenticados (conforme memória do projeto). Para **UPDATE/INSERT**, verificar se existe política restrita a admins/managers. Se não existir, criar migration:
-
-```sql
-CREATE POLICY "Only managers can update system_configurations"
-ON public.system_configurations
-FOR UPDATE
-TO authenticated
-USING (public.is_manager_or_admin(auth.uid()));
-
-CREATE POLICY "Only managers can insert system_configurations"
-ON public.system_configurations
-FOR INSERT
-TO authenticated
-WITH CHECK (public.is_manager_or_admin(auth.uid()));
-```
-
-Isso garante que mesmo sem a UI, o banco barra alterações de não-admins.
-
-## Arquivos modificados
+## Arquivos
 
 | Arquivo | Mudança |
 |---|---|
-| `system_configurations` (dados) | Upsert 3 registros de configuração |
-| `src/hooks/useTicketEmailConfig.tsx` | **Novo** — helper com query única + parseBool + mutation |
-| `src/pages/AIMessagesSettings.tsx` | Card com 3 switches (guarded por `hasFullAccess`) |
-| `supabase/functions/notify-ticket-event/index.ts` | Cache 60s + construção dinâmica de `customerEmailEvents` |
-| `src/hooks/useCreateComment.tsx` | Consultar config antes de enviar email de comentário |
-| Migration SQL (se necessário) | RLS policies de UPDATE/INSERT para `system_configurations` |
-
-## Critérios de aceite
-
-| Critério | Cobertura |
-|---|---|
-| Admin vê 3 toggles em /settings/ai-messages | Card com switches |
-| Desligar "Ticket criado" → criar ticket não manda email | Edge function consulta config |
-| Desligar "Ticket resolvido" → resolver não manda email | Edge function consulta config |
-| Desligar "Comentário público" → comentário não manda email | useCreateComment consulta config |
-| Defaults = true (sem mudança para quem não mexer) | parseBool com fallback true |
-| Não-admin não altera config (UI + banco) | hasFullAccess guard + RLS policies |
-| 1 query por leitura (não 3 separadas) | `.in('key', [...])` no helper |
-| Edge function não faz query a cada request | Cache in-memory 60s |
+| `src/hooks/useFormSubmissionsDaily.tsx` | **Novo** — hook de query diária de form_submissions |
+| `src/components/widgets/FormLeadsChartWidget.tsx` | **Novo** — widget com AreaChart de leads/dia |
+| `src/components/dashboard/SalesDashboardTab.tsx` | Importar e adicionar o widget na grid |
 
 ## Impacto
 
-- Zero regressão: defaults mantêm comportamento atual
-- Upgrade: controle granular para admin sobre emails ao cliente
-- Performance: cache na Edge Function, query única na UI
-- Segurança: RLS + guard de role na interface
+- Zero regressão: apenas adição de novo widget na grid existente
+- Usa o `dateRange` já propagado pelo dashboard pai
+- Padrão visual consistente com `RevenueEvolutionWidget` (AreaChart, gradiente, tooltip)
 

@@ -1,81 +1,67 @@
 
 
-# Plano: Atribuição Automática ao Consultor Pós-Onboarding
+# Correção das 4 Conversas Pendentes
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Problema Identificado
+## Conversas Identificadas
 
-Conversas criadas durante o onboarding entram em `autopilot` com `assigned_to = null`. Quando o contato recebe um `consultant_id` (via distribuição de deal ou atribuição manual), a conversa **aberta** não é atualizada — fica "presa" em autopilot sem agente.
+| Contato | Conversa ID | Consultor ID |
+|---|---|---|
+| Helen Pereira | `725c1297-...` | `0d0b0a9c-...` |
+| Jorge Luiz Ribeiro | `945fe70e-...` | `d76a5406-...` |
+| Virginia de Oliveira Monteiro | `b13845a8-...` | `dc6d6f88-...` |
+| Emerson Smanioto | `da4f0ab4-...` | `dc6d6f88-...` |
 
-O ROUTING-LOCK (linha 479) resolve apenas conversas **novas** de clientes recorrentes. Para conversas já existentes, não há mecanismo de sincronização.
+Todas estão com `status = 'open'`, `assigned_to = NULL`, `ai_mode = 'autopilot'`.
 
-## Solução
+## Ação
 
-Criar um **trigger no banco de dados** que, ao detectar atualização de `consultant_id` em `contacts`, busca conversas abertas sem `assigned_to` desse contato e as atribui automaticamente ao consultor.
+Executar um único UPDATE via migration (data fix) que:
 
-## Mudanças
+1. Atribui `assigned_to = consultant_id` do contato
+2. Muda `ai_mode` de `autopilot` para `copilot`
+3. Registra log em `interactions` para auditoria
 
-### 1. Migration SQL — Trigger `sync_consultant_to_open_conversations`
+### SQL a executar
 
-Criar função + trigger na tabela `contacts`:
+```sql
+-- Fix: Atribuir as 4 conversas pendentes ao consultor do contato
+UPDATE conversations c
+SET 
+  assigned_to = cont.consultant_id,
+  ai_mode = 'copilot',
+  updated_at = now()
+FROM contacts cont
+WHERE c.contact_id = cont.id
+  AND c.status = 'open'
+  AND c.assigned_to IS NULL
+  AND cont.consultant_id IS NOT NULL;
 
-- **Dispara quando**: `UPDATE` em `contacts` onde `consultant_id` muda de `NULL` para um valor (ou muda para um novo valor)
-- **Ação**: Busca conversas do contato com `status = 'open'` e `assigned_to IS NULL`
-- **Atualiza**: `assigned_to = NEW.consultant_id`, `ai_mode = 'copilot'`
-- **Proteção**: Não altera conversas que já têm `assigned_to` (respeita atribuições manuais/transferências)
-- **Log**: Insere registro em `interactions` para auditoria
-
-```text
-contacts (UPDATE consultant_id)
-        │
-        ▼
-┌─────────────────────────────┐
-│  trigger: sync_consultant   │
-│  AFTER UPDATE ON contacts   │
-│  WHEN NEW.consultant_id     │
-│       IS DISTINCT FROM      │
-│       OLD.consultant_id     │
-│       AND NEW.consultant_id │
-│       IS NOT NULL           │
-└──────────┬──────────────────┘
-           │
-           ▼
-┌─────────────────────────────┐
-│  UPDATE conversations       │
-│  SET assigned_to = consultor│
-│      ai_mode = 'copilot'    │
-│  WHERE contact_id = NEW.id  │
-│    AND status = 'open'      │
-│    AND assigned_to IS NULL  │
-└─────────────────────────────┘
+-- Auditoria: registrar a correção
+INSERT INTO interactions (conversation_id, type, content)
+SELECT c.id, 'note', 'Conversa atribuída manualmente ao consultor do contato (correção pontual de dados pré-trigger)'
+FROM conversations c
+JOIN contacts cont ON cont.id = c.contact_id
+WHERE c.assigned_to = cont.consultant_id
+  AND c.ai_mode = 'copilot'
+  AND c.id IN (
+    '725c1297-e03b-4df5-870a-61c6196e20a8',
+    '945fe70e-add1-4238-9f6a-7a54b90fe6c2',
+    'b13845a8-9c17-4724-824a-46ad089a3f95',
+    'da4f0ab4-f1d0-4f87-a4cb-aea2cc5abb32'
+  );
 ```
-
-### 2. Nenhuma mudança no código frontend ou Edge Functions
-
-- O trigger é puramente server-side (DB-level)
-- Não afeta ROUTING-LOCK nem TRANSFER-PERSIST-LOCK
-- Não altera fluxos, distribuição ou kill switch
-
-## Regras de Segurança
-
-| Regra | Respeitada |
-|---|---|
-| Só atualiza conversas sem `assigned_to` | Sim — `WHERE assigned_to IS NULL` |
-| Não altera conversas fechadas | Sim — `WHERE status = 'open'` |
-| Não interfere com kill switch | Sim — trigger não envia mensagens |
-| Não interfere com fluxos ativos | Sim — apenas muda atribuição |
-| Auditoria | Sim — log em `interactions` |
 
 ## Impacto
 
-- **Upgrade**: Contatos que recebem consultor passam a ter suas conversas abertas atribuídas automaticamente
-- **Zero regressão**: Conversas já atribuídas, fechadas ou em transferência não são afetadas
-- **Rollback**: Basta dropar o trigger (`DROP TRIGGER sync_consultant_to_open_conversations ON contacts`)
+- **Zero regressão**: Apenas 4 conversas específicas são afetadas
+- **Trigger ativo**: Futuras atualizações de `consultant_id` serão tratadas automaticamente pelo trigger já implementado
+- **Auditoria**: Log registrado em `interactions`
 
-## Arquivos
+## Arquivo
 
-| Arquivo | Tipo | Mudança |
-|---|---|---|
-| Migration SQL (novo) | Database | Função + trigger `sync_consultant_to_open_conversations` |
+| Tipo | Mudança |
+|---|---|
+| Migration SQL (data fix) | UPDATE + INSERT para as 4 conversas pendentes |
 

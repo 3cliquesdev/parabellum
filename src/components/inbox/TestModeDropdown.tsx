@@ -29,7 +29,7 @@ export function TestModeDropdown({
   conversationId,
 }: TestModeDropdownProps) {
   const { data: flows = [] } = useChatFlows();
-  const { activeFlow } = useActiveFlowState(conversationId);
+  const { activeFlow, cancelFlow } = useActiveFlowState(conversationId);
   const [isStarting, setIsStarting] = useState(false);
 
   const draftFlows = flows.filter((f) => !f.is_active);
@@ -37,8 +37,8 @@ export function TestModeDropdown({
 
   const handleStartFlow = async (flowId: string, isDraft: boolean) => {
     if (activeFlow) {
-      toast.error("Já existe um fluxo em execução nesta conversa. Cancele-o antes de iniciar outro.");
-      return;
+      await cancelFlow(activeFlow.stateId);
+      await new Promise((r) => setTimeout(r, 500));
     }
 
     setIsStarting(true);
@@ -116,7 +116,7 @@ export function TestModeDropdown({
               <DropdownMenuItem
                 key={flow.id}
                 onClick={() => handleStartFlow(flow.id, true)}
-                disabled={!!activeFlow || isStarting}
+                disabled={isStarting}
                 className="gap-2 cursor-pointer"
               >
                 <Workflow className="h-3.5 w-3.5 text-amber-500" />
@@ -138,7 +138,7 @@ export function TestModeDropdown({
               <DropdownMenuItem
                 key={flow.id}
                 onClick={() => handleStartFlow(flow.id, false)}
-                disabled={!!activeFlow || isStarting}
+                disabled={isStarting}
                 className="gap-2 cursor-pointer"
               >
                 <Workflow className="h-3.5 w-3.5 text-green-500" />

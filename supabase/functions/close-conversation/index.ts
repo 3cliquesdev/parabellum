@@ -143,6 +143,29 @@ Deno.serve(async (req) => {
     const endTime = new Date();
     const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
 
+    // 🆕 UPGRADE 3: Determinar resolved_by (ai, human, mixed)
+    let resolvedBy: string | null = null;
+    try {
+      const { data: lastMessages } = await supabase
+        .from("messages")
+        .select("sender_type, is_ai_generated")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (lastMessages && lastMessages.length > 0) {
+        const hasHumanAgent = lastMessages.some((m: any) => m.sender_type === 'agent' && !m.is_ai_generated);
+        const hasAI = lastMessages.some((m: any) => m.is_ai_generated === true || m.sender_type === 'bot');
+        
+        if (hasAI && !hasHumanAgent) resolvedBy = 'ai';
+        else if (hasHumanAgent && !hasAI) resolvedBy = 'human';
+        else if (hasAI && hasHumanAgent) resolvedBy = 'mixed';
+      }
+      console.log(`[close-conversation] resolved_by: ${resolvedBy}`);
+    } catch (resolveErr) {
+      console.error(`[close-conversation] Failed to determine resolved_by:`, resolveErr);
+    }
+
     // Update conversation status to closed
     const { error: updateError } = await supabase
       .from("conversations")
@@ -150,6 +173,7 @@ Deno.serve(async (req) => {
         status: "closed",
         closed_by: userId,
         closed_at: endTime.toISOString(),
+        resolved_by: resolvedBy,
       })
       .eq("id", conversationId);
 

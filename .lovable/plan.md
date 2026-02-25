@@ -1,100 +1,74 @@
 
 
-# Correção: Mensagens de conversas não atribuídas invisíveis para o time
-
-## Diagnóstico
+# Permitir que clientes enviem evidências/anexos nos comentários de tickets
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-O problema está na **política RLS de SELECT da tabela `messages`**. Existe uma inconsistência entre as políticas de `conversations` e `messages`:
+## Diagnóstico
 
-| Tabela | Agentes podem ver conversas não atribuídas? |
+O problema é claro: **o portal do cliente não tem funcionalidade de upload de arquivos**. Atualmente:
+
+| Componente | Suporta anexos? |
 |---|---|
-| `conversations` | **SIM** — a policy `canonical_select_conversations` permite ver conversas `assigned_to IS NULL` do mesmo departamento ou sem departamento |
-| `messages` | **NÃO** — a policy `role_based_select_messages` só permite `c.assigned_to = auth.uid()` para agentes não-gerentes |
+| `MyTicketDetail.tsx` (UI do cliente) | **NÃO** — só tem `Textarea` para texto |
+| `add-customer-comment` (Edge Function) | **NÃO** — só aceita `{ ticket_id, contact_id, content }`, sem campo `attachments` |
+| `get-customer-tickets` (Edge Function) | **SIM** — já retorna `attachments` dos comentários e a UI já renderiza imagens/links |
 
-Resultado: o agente vê a conversa na lista, mas ao clicar, **não consegue ler as mensagens** porque o RLS bloqueia o SELECT na tabela `messages`.
+Ou seja, a **leitura** de anexos já funciona (se o time interno anexar algo, o cliente vê). Mas o **envio** pelo cliente está completamente ausente.
 
-## Solução
+## Solução — 3 mudanças
 
-Atualizar a política `role_based_select_messages` para alinhar com a política de `conversations`, adicionando visibilidade de mensagens para conversas não atribuídas do mesmo departamento (ou sem departamento).
+### 1. Criar bucket de storage para anexos de clientes
 
-### SQL da migração
+O bucket `ticket-attachments` pode já existir (usado pelo time interno). Precisamos garantir que exista e que tenha uma policy de INSERT pública (ou via edge function com service role). Como o cliente não é um usuário autenticado no Supabase Auth, o upload será feito **via edge function** usando service role key.
 
-```sql
-DROP POLICY IF EXISTS "role_based_select_messages" ON messages;
+**Nova Edge Function**: `upload-ticket-attachment`
+- Recebe o arquivo via FormData
+- Valida tipo (imagens, PDF, vídeos) e tamanho (max 10MB)
+- Faz upload ao bucket `ticket-attachments` com service role
+- Retorna `{ url, name, type, size }`
 
-CREATE POLICY "role_based_select_messages" ON messages FOR SELECT
-TO authenticated
-USING (
-  -- Gerentes veem tudo
-  is_manager_or_admin(auth.uid())
-  OR
-  -- Agente vê mensagens das conversas atribuídas a ele
-  EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = messages.conversation_id
-      AND c.assigned_to = auth.uid()
-  )
-  OR
-  -- Agente vê mensagens de conversas não atribuídas do mesmo departamento
-  EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = messages.conversation_id
-      AND c.status = 'open'
-      AND c.assigned_to IS NULL
-      AND has_any_role(auth.uid(), ARRAY[
-        'sales_rep','support_agent','financial_agent','consultant'
-      ]::app_role[])
-      AND (
-        c.department = (SELECT p.department FROM profiles p WHERE p.id = auth.uid())
-        OR c.department IS NULL
-      )
-  )
-);
+### 2. Atualizar Edge Function `add-customer-comment`
+
+Adicionar campo opcional `attachments` ao body:
+```
+{ ticket_id, contact_id, content, attachments?: Array<{url, name, type, size}> }
+```
+O insert na tabela `ticket_comments` já tem coluna `attachments` (tipo JSON) — basta passar os dados.
+
+### 3. Atualizar UI `MyTicketDetail.tsx`
+
+Adicionar ao formulário de resposta do cliente:
+- Botão de anexar arquivo (ícone `Paperclip`)
+- Input file hidden que aceita imagens, PDFs e vídeos
+- Preview dos arquivos selecionados (thumbnails para imagens, ícone+nome para outros)
+- Botão de remover arquivo da lista
+- Estado de upload com indicador de progresso
+- Ao clicar "Enviar Resposta", primeiro faz upload dos arquivos via `upload-ticket-attachment`, depois envia o comentário com as URLs
+
+## Fluxo do cliente
+
+```text
+Cliente abre ticket → Clica no ícone 📎 → Seleciona foto/PDF
+→ Preview aparece abaixo do textarea
+→ Clica "Enviar Resposta"
+→ Upload do arquivo via edge function (progress bar)
+→ Comentário salvo com attachments no JSON
+→ Time interno vê o anexo na timeline do ticket
 ```
 
-### Também atualizar a policy de UPDATE
+## Arquivos criados/modificados
 
-A policy `role_based_update_messages` tem o mesmo gap — agentes não conseguem marcar mensagens como lidas (`is_read = true`) em conversas não atribuídas. Mesma correção:
-
-```sql
-DROP POLICY IF EXISTS "role_based_update_messages" ON messages;
-
-CREATE POLICY "role_based_update_messages" ON messages FOR UPDATE
-TO authenticated
-USING (
-  is_manager_or_admin(auth.uid())
-  OR
-  EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = messages.conversation_id
-      AND (
-        c.assigned_to = auth.uid()
-        OR (
-          c.status = 'open'
-          AND c.assigned_to IS NULL
-          AND has_any_role(auth.uid(), ARRAY[
-            'sales_rep','support_agent','financial_agent','consultant'
-          ]::app_role[])
-          AND (
-            c.department = (SELECT p.department FROM profiles p WHERE p.id = auth.uid())
-            OR c.department IS NULL
-          )
-        )
-      )
-  )
-);
-```
-
-## Impacto
-- **Zero regressão**: gerentes continuam vendo tudo; agentes com conversas atribuídas continuam vendo normalmente
-- **Upgrade**: agentes passam a ver o conteúdo das mensagens de conversas não atribuídas (mesmo departamento ou pool global) para decidir se assumem
-- **Segurança mantida**: agentes só veem mensagens de conversas que já tinham acesso via `conversations` — alinhamento 1:1 entre as policies
-- **Nenhuma alteração de código frontend**: o problema é 100% RLS
-
-## Arquivo modificado
 | Arquivo | Mudança |
 |---|---|
-| Migration SQL | Atualizar policies `role_based_select_messages` e `role_based_update_messages` |
+| `supabase/functions/upload-ticket-attachment/index.ts` | **Novo** — Edge function para upload de arquivos do cliente |
+| `supabase/functions/add-customer-comment/index.ts` | Adicionar suporte ao campo `attachments` no insert |
+| `src/components/MyTicketDetail.tsx` | Adicionar UI de upload de arquivos com preview e progresso |
+| Migration SQL | Garantir que bucket `ticket-attachments` existe com policies corretas |
+
+## Impacto
+- **Zero regressão**: comentários sem anexo continuam funcionando normalmente
+- **Upgrade**: clientes passam a poder enviar fotos, PDFs e vídeos como evidência
+- **Segurança**: upload via edge function com service role (cliente não precisa de auth), validação de tipo e tamanho no servidor
+- **Alinhamento**: a UI de leitura de anexos já existe — agora completa o ciclo com a escrita
 

@@ -7,6 +7,7 @@ export interface PublicTicketPortalConfig {
   is_active: boolean;
   name: string;
   description: string;
+  whatsapp_number: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +63,46 @@ export function useTogglePortal() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao atualizar portal",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useUpdatePortalWhatsApp() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (whatsappNumber: string) => {
+      const { data: config } = await supabase
+        .from("public_ticket_portal_config")
+        .select("id")
+        .single();
+
+      if (!config) throw new Error("Config not found");
+
+      const { data, error } = await supabase
+        .from("public_ticket_portal_config")
+        .update({ whatsapp_number: whatsappNumber || null } as any)
+        .eq("id", config.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["public-ticket-portal-config"] });
+      toast({
+        title: "Número atualizado",
+        description: "O número do WhatsApp do portal foi salvo.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao salvar número",
         description: error.message,
         variant: "destructive",
       });

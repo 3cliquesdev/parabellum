@@ -1,0 +1,1 @@
+ALTER TABLE public.public_ticket_portal_config ADD COLUMN IF NOT EXISTS whatsapp_number text;

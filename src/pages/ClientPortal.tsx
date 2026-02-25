@@ -1,18 +1,22 @@
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, LogOut, User } from "lucide-react";
+import { MessageCircle, LogOut, User, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { usePublicTicketPortalConfig } from "@/hooks/usePublicTicketPortal";
 
 export default function ClientPortal() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { data: portalConfig, isLoading: portalLoading } = usePublicTicketPortalConfig();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/auth");
   };
+
+  const whatsappNumber = portalConfig?.whatsapp_number;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -38,12 +42,18 @@ export default function ClientPortal() {
               Para atendimento, entre em contato conosco:
             </p>
             
-            <Button variant="outline" className="w-full" asChild>
-              <a href="https://wa.me/5511999999999" target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Falar com Suporte via WhatsApp
-              </a>
-            </Button>
+            {portalLoading ? (
+              <div className="flex justify-center py-2">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : whatsappNumber ? (
+              <Button variant="outline" className="w-full" asChild>
+                <a href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Falar com Suporte via WhatsApp
+                </a>
+              </Button>
+            ) : null}
           </div>
           
           <Button variant="ghost" onClick={handleLogout} className="w-full text-muted-foreground hover:text-foreground">

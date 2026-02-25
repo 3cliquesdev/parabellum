@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,13 +15,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ExternalLink, Trash2, Copy, Ticket, Sparkles, Download } from "lucide-react";
+import { Plus, ExternalLink, Trash2, Copy, Ticket, Sparkles, Download, Phone, Save } from "lucide-react";
 import { useForms, useDeleteForm, useUpdateForm, Form } from "@/hooks/useForms";
 import FormDialog from "@/components/FormDialog";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
-import { usePublicTicketPortalConfig, useTogglePortal } from "@/hooks/usePublicTicketPortal";
+import { usePublicTicketPortalConfig, useTogglePortal, useUpdatePortalWhatsApp } from "@/hooks/usePublicTicketPortal";
 import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 
 export default function Forms() {
@@ -34,6 +35,8 @@ export default function Forms() {
   const { toast } = useToast();
   const { data: portalConfig, isLoading: portalLoading } = usePublicTicketPortalConfig();
   const togglePortal = useTogglePortal();
+  const updateWhatsApp = useUpdatePortalWhatsApp();
+  const [whatsappInput, setWhatsappInput] = useState("");
 
   const handleFilterChange = (value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -228,7 +231,7 @@ export default function Forms() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -246,6 +249,31 @@ export default function Forms() {
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </Button>
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                WhatsApp do Portal do Cliente
+              </label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Número exibido no portal do cliente para contato. Ex: 5511999999999
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="5511999999999"
+                  value={whatsappInput || portalConfig?.whatsapp_number || ""}
+                  onChange={(e) => setWhatsappInput(e.target.value)}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => updateWhatsApp.mutate(whatsappInput || portalConfig?.whatsapp_number || "")}
+                  disabled={updateWhatsApp.isPending}
+                >
+                  <Save className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -2707,11 +2707,11 @@ Como posso ajudar você hoje?`;
             let foundMessage = await getMessageTemplate(
               supabaseClient,
               'confirmacao_email_encontrado',
-              { contact_name: verifyResult.customer?.name || verifyResult.customer_name || contact.first_name || 'cliente' }
+              { contact_name: contact.first_name || verifyResult.customer?.name || 'cliente' }
             );
             
             if (!foundMessage) {
-              foundMessage = `Encontrei seu cadastro, ${verifyResult.customer?.name || verifyResult.customer_name || contact.first_name || 'cliente'}! 🎉\n\nAgora me diz: precisa de ajuda com:\n**1** - Pedidos\n**2** - Sistema`;
+              foundMessage = `Encontrei seu cadastro, ${contact.first_name || verifyResult.customer?.name || 'cliente'}! 🎉\n\nAgora me diz: precisa de ajuda com:\n**1** - Pedidos\n**2** - Sistema`;
             }
             
             if (isExistingCustomerDifferent) {
@@ -2794,7 +2794,7 @@ Como posso ajudar você hoje?`;
               });
               
               // Mensagem personalizada (sem menu)
-              autoResponse = `Encontrei seu cadastro, ${verifyResult.customer?.name || contact.first_name || 'cliente'}! 🎉\n\nVou te conectar com seu consultor. Aguarde um momento! 🤝`;
+              autoResponse = `Encontrei seu cadastro, ${contact.first_name || verifyResult.customer?.name || 'cliente'}! 🎉\n\nVou te conectar com seu consultor. Aguarde um momento! 🤝`;
             } else if (consultantId && flow_context) {
               // flow_context ativo: IA continua ajudando, não redireciona
               console.log('[ai-autopilot-chat] ℹ️ Consultor encontrado mas flow_context ativo - IA continua ajudando');
@@ -2806,8 +2806,12 @@ Como posso ajudar você hoje?`;
                 .is('consultant_id', null);
               
               autoResponse = foundMessage;
+            } else if (!consultantId && flow_context) {
+              // flow_context ativo sem consultor: confirmar email e deixar IA continuar
+              console.log('[ai-autopilot-chat] ✅ Email verificado com flow_context ativo - IA continua sem menu');
+              autoResponse = `Encontrei seu cadastro! ✅ Continuando seu atendimento...`;
             } else {
-              // Sem consultor - comportamento atual (Master Flow assume triagem)
+              // Sem consultor, sem flow_context - Master Flow assume triagem
               console.log('[ai-autopilot-chat] ✅ Email verificado sem consultor - Master Flow assumirá a triagem');
               autoResponse = foundMessage;
             }

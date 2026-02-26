@@ -668,7 +668,7 @@ export function SuperComposer({
       )}
 
       {/* ========== WRAPPER ENTERPRISE (WhatsApp Web Style) ========== */}
-      <div className="max-w-[1180px] mx-auto px-4 py-2">
+      <div className="px-4 py-2">
         <div className="flex items-end gap-3 rounded-2xl border border-[hsl(var(--chat-border))] bg-background p-2.5">
           {isRecordingAudio ? (
             <AudioRecorder
@@ -724,27 +724,29 @@ export function SuperComposer({
               </Popover>
 
               {/* TEXTAREA ATUALIZADO - Auto-resize */}
-              <SlashCommandMenu value={message} onChange={setMessage}>
-                <Textarea
-                  ref={textareaRef}
-                  placeholder={isDisabled ? "Conversa encerrada" : "Digite sua mensagem ou / para macros..."}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  onPaste={handlePaste}
-                  disabled={isSending || isDisabled}
-                  rows={1}
-                  className={cn(
-                    "w-full resize-none bg-transparent border-0",
-                    "text-[15px] leading-[22px]",
-                    "px-4 py-2.5",
-                    "min-h-[44px] max-h-[160px]",
-                    "focus-visible:ring-0 focus-visible:ring-offset-0",
-                    "placeholder:text-muted-foreground",
-                    isInternal && "bg-yellow-50/50 dark:bg-yellow-900/20"
-                  )}
-                />
-              </SlashCommandMenu>
+              <div className="flex-1 min-w-0">
+                <SlashCommandMenu value={message} onChange={setMessage}>
+                  <Textarea
+                    ref={textareaRef}
+                    placeholder={isDisabled ? "Conversa encerrada" : "Digite sua mensagem ou / para macros..."}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    onPaste={handlePaste}
+                    disabled={isSending || isDisabled}
+                    rows={1}
+                    className={cn(
+                      "w-full resize-none bg-transparent border-0",
+                      "text-[15px] leading-[22px]",
+                      "px-2 py-2.5",
+                      "min-h-[44px] max-h-[160px]",
+                      "focus-visible:ring-0 focus-visible:ring-offset-0",
+                      "placeholder:text-muted-foreground",
+                      isInternal && "bg-yellow-50/50 dark:bg-yellow-900/20"
+                    )}
+                  />
+                </SlashCommandMenu>
+              </div>
 
               {/* Send Button */}
               <Button

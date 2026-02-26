@@ -1,41 +1,53 @@
 
 
-# Buscar Consultor pelo Email do Cliente
+# Diagnóstico: Mensagem "Concluí o onboarding" indo para IA em vez de transferir
 
-## O que muda
+## Causa Raiz
 
-Na página **Consultores** (`/consultants`), o campo de busca atual (que filtra por nome/cargo do consultor) será expandido para aceitar também **email de cliente**. Ao digitar um email de cliente:
+O nó de **Condição** no Master Flow ("Fluxo Principal") foi configurado com **multi-regras** (Onboarding + Carnaval), mas as **conexões (edges)** ainda usam os handles antigos `true`/`false` do modo clássico.
 
-1. O sistema consulta a tabela `contacts` pelo email
-2. Se encontrar, mostra um **card de resultado** acima dos consultores com: nome do cliente, email, e o consultor responsável (com botão para abrir a lista de clientes dele)
-3. Se não encontrar, mostra aviso simples: "Nenhum cliente encontrado com este email"
+```text
+COMO ESTÁ (QUEBRADO):
+┌──────────────┐    sourceHandle="false"    ┌──────────────────┐
+│  Condição    │ ──────────────────────────> │  Múltipla Escolha │
+│ (multi-rule) │    sourceHandle="true"      │  "Seja bem-vindo" │
+│              │ ──────────────────────────> │  (outro nó)       │
+└──────────────┘                            └──────────────────┘
 
-A busca por nome/cargo do consultor continua funcionando normalmente.
-
-## Implementação
-
-### Arquivo: `src/pages/Consultants.tsx`
-
-1. Detectar quando o texto de busca parece um email (contém `@`)
-2. Quando for email, fazer query em `contacts` buscando `email.ilike(search)` com join em `profiles` via `consultant_id`
-3. Exibir resultado inline entre o campo de busca e o grid de consultores:
-   - **Encontrado**: Card com nome do cliente, email, consultor responsável, botão "Ver clientes"
-   - **Não encontrado**: Badge/aviso "Nenhum cliente com este email"
-   - **Sem consultor**: "Cliente encontrado mas sem consultor atribuído"
-4. A busca normal por nome do consultor continua ativa para textos sem `@`
-
-### Lógica de detecção
-
-```
-const isEmailSearch = search.includes("@");
+COMO DEVERIA SER:
+┌──────────────┐    sourceHandle="rule_1771439085235"   ┌──────────────┐
+│  Condição    │ ──────────────────────────────────────> │  Transfer CS │
+│ (multi-rule) │    sourceHandle="rule_1771439103779"   │              │
+│              │ ──────────────────────────────────────> │  (Carnaval)  │
+│              │    sourceHandle="else"                  │              │
+│              │ ──────────────────────────────────────> │  IA / Menu   │
+└──────────────┘                                        └──────────────┘
 ```
 
-Quando `isEmailSearch = true`:
-- Query: `supabase.from("contacts").select("id, first_name, last_name, email, consultant_id").ilike("email", `%${search}%`).limit(5)`
-- Para cada resultado com `consultant_id`, buscar nome do consultor nos dados já carregados de `consultants`
+Quando a mensagem "Concluí o onboarding" chega:
+1. `evaluateConditionPath` retorna `rule_1771439085235` (match correto ✅)
+2. `findNextNode` busca edge com `sourceHandle === "rule_1771439085235"` → **não encontra** ❌
+3. Cai no fallback "any edge" → pega o `false` → vai para "Seja bem-vindo" (errado)
+4. Como não tem estado ativo, o Master Flow redireciona para IA
 
-### Zero regressão
-- Busca por nome/cargo do consultor não é afetada (só ativa busca por email quando tem `@`)
-- Nenhum hook/componente existente é alterado
-- Tudo client-side com dados já disponíveis + 1 query adicional só quando tem `@`
+## Solução: Duas correções
+
+### 1. Fix imediato — Reconectar edges no banco de dados
+
+Atualizar as edges do Master Flow para usar os rule IDs corretos. Isso corrige o fluxo SEM mudar código:
+
+- Edge `sourceHandle: "true"` → mudar para `sourceHandle: "rule_1771439085235"` (Onboarding → Transfer CS)
+- Edge `sourceHandle: "false"` → mudar para `sourceHandle: "else"` (Outros → Múltipla Escolha)
+- Adicionar nova edge: `sourceHandle: "rule_1771439103779"` (Carnaval → destino apropriado)
+
+### 2. Fix preventivo — Auto-migrar edges no editor
+
+No `ChatFlowEditor`, quando o usuário muda um nó de condição de modo clássico para multi-regra (ou vice-versa), **deletar automaticamente as edges órfãs** que usam handles inválidos. Isso previne o mesmo problema no futuro.
+
+Implementação no `onNodesChange` ou `onNodeDataChange`: detectar mudança de `condition_rules` e limpar edges com handles `true`/`false` que não existem mais.
+
+## Impacto
+
+- **Zero regressão**: apenas corrige edges do Master Flow e adiciona proteção no editor
+- A lógica do `evaluateConditionPath` e `findNextNode` está correta — o problema são os dados (edges desconectadas)
 

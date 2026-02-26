@@ -1,71 +1,66 @@
 
 
-# Plano: Modo Teste bloqueado por ai_mode=waiting_human (regressão)
+# Contrato do Modo Teste — Regras Travadas
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Diagnóstico
+## Objetivo
 
-Na conversa `#7D091C1D`, após o fluxo anterior atingir `max_interactions` e o fix avançar para o próximo nó, a conversa ficou com `ai_mode = waiting_human`. Quando você tenta ativar o Modo Teste novamente:
+Criar um arquivo de contrato (`TEST_MODE_CONTRACT.md`) na raiz do projeto que documenta todas as regras do Modo Teste, servindo como referência imutável para evitar regressões futuras. Adicionalmente, atualizar a memory do projeto para refletir o contrato.
 
-1. `TestModeDropdown` seta `is_test_mode = true` e chama `process-chat-flow` com `manualTrigger: true`
-2. `process-chat-flow` chega na **linha 371** — proteção de `ai_mode`
-3. Como `ai_mode = waiting_human`, retorna `PROTEÇÃO: ai_mode=waiting_human - NÃO processar` **antes** de chegar no handler de `manualTrigger` (linha 447)
-4. O bypass de `isTestMode` só existe para o Kill Switch (linha 339), **não** para a proteção de `ai_mode`
+## Contrato proposto
 
-Os logs confirmam: `🛡️ PROTEÇÃO: ai_mode=waiting_human - NÃO processar fluxo/IA` aparece repetidamente.
+O arquivo conterá as seguintes regras travadas:
 
-## Solução
+---
 
-Duas mudanças coordenadas:
+### 1. Ativação (atômica)
 
-### Mudança 1: `process-chat-flow/index.ts` — linha 371
+- `TestModeDropdown.handleSelectFlow` faz uma operação atômica:
+  - `is_test_mode = true`
+  - `ai_mode = 'autopilot'`
+  - Chama `process-chat-flow` com `manualTrigger: true`
+- Nunca ativar `is_test_mode` sem resetar `ai_mode` para `autopilot`
 
-Adicionar `isTestMode` como bypass na proteção de `ai_mode`, igual já existe no Kill Switch:
+### 2. Bypass de proteções
 
-```typescript
-// ANTES (linha 371):
-if (currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled') {
+- **Kill Switch** (`ai_global_enabled = false`): Teste bypassa (linha 339)
+- **ai_mode protection** (`waiting_human / copilot / disabled`): Teste bypassa (linha 371)
+- Ambos os bypasses usam a mesma condição: `&& !isTestMode`
 
-// DEPOIS:
-if ((currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled') && !isTestMode) {
-```
+### 3. Fluxo ativo no teste
 
-E adicionar log quando test mode bypassa:
+- Master Flow e triggers automáticos são bloqueados em teste
+- Apenas o fluxo selecionado manualmente roda
+- Separador visual "TESTE DE FLUXO INICIADO" é inserido
+- Mensagens de teste têm highlight amarelo (`border-amber-400`)
 
-```typescript
-if (isTestMode && (currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled')) {
-  console.log(`[process-chat-flow] 🧪 TEST MODE: Bypassing ai_mode=${currentAiMode} protection`);
-}
-```
+### 4. ai_response (nó IA persistente)
 
-### Mudança 2: `TestModeDropdown.tsx` — `handleSelectFlow`
+- Anti-duplicação: janela de 5s para mesmo texto
+- `exit_keyword` → limpa `__ai`, avança para próximo nó
+- `max_interactions` → (opcional) envia `fallback_message` como `sender_type: 'system'`, limpa `__ai`, avança para próximo nó
+- **Proibido**: hardcodar `waiting_human` ou completar flow state no max_interactions
 
-Ao ativar teste, resetar `ai_mode` para `autopilot` junto com `is_test_mode: true`:
+### 5. Desativação
 
-```typescript
-// ANTES:
-.update({ is_test_mode: true })
+- Clique no botão amarelo → `is_test_mode = false`
+- Não reseta `ai_mode` (mantém o estado atual)
 
-// DEPOIS:
-.update({ is_test_mode: true, ai_mode: 'autopilot' })
-```
+### 6. Reativação
 
-Isso garante que mesmo que o bypass do `process-chat-flow` falhe, a conversa volta ao estado correto para aceitar fluxos.
+- Pode reativar a qualquer momento, independente do `ai_mode` atual
+- A ativação atômica (regra 1) reseta tudo
 
-## Arquivos e linhas
+---
 
-| Arquivo | Linhas | Mudança |
-|---|---|---|
-| `supabase/functions/process-chat-flow/index.ts` | 371 | Adicionar `&& !isTestMode` na proteção de ai_mode |
-| `src/components/inbox/TestModeDropdown.tsx` | 67 | Resetar `ai_mode: 'autopilot'` ao ativar teste |
+## Arquivo a criar
+
+| Arquivo | Ação |
+|---|---|
+| `TEST_MODE_CONTRACT.md` | Criar — contrato completo com as 6 regras acima |
 
 ## Impacto
 
-| Regra | Status |
-|---|---|
-| Regressão zero | Sim — proteção de ai_mode continua funcionando para conversas normais (não teste) |
-| Upgrade | Sim — teste pode ser reativado em qualquer estado da conversa |
-| Kill Switch | Não afetado — bypass de Kill Switch já existia separadamente |
-| Segurança | Sim — apenas `is_test_mode=true` permite bypass; operação atômica no frontend |
+Nenhuma mudança de código. Apenas documentação de referência para prevenir regressões.
 

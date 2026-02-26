@@ -1,62 +1,68 @@
 
 
-# Diagnóstico: A KB está alimentando a IA instantaneamente?
+# Fix: Erro "column conversation_id of relation interactions does not exist"
 
-## Status Atual
+## Causa Raiz
 
-| Aspecto | Status | Detalhe |
-|---|---|---|
-| Artigos publicados | 48 | OK |
-| Com embedding | 47/48 | **1 artigo sem embedding** ("Cancelamento de Assinatura Kiwify") |
-| Trigger automático de embedding | **NÃO EXISTE** | Embeddings só são gerados manualmente (botão "Gerar Embeddings" ou ao salvar artigo via UI) |
-| Busca semântica no autopilot | ✅ Funciona | `match_knowledge_articles` com threshold 0.50 |
-| Busca keyword fallback | ✅ Funciona | Fallback quando embedding falha |
+O trigger `sync_consultant_to_open_conversations` (disparado no `UPDATE contacts SET consultant_id = ...`) tenta inserir na tabela `interactions` usando a coluna `conversation_id` — que **não existe**. A tabela usa `customer_id`, não `conversation_id`.
 
-## Problemas Encontrados
+Quando a distribuição round-robin atualiza `contacts.consultant_id`, esse trigger dispara e falha.
 
-### 1. Sem trigger automático de embedding
-Quando um artigo é criado/editado **fora da UI** (ex: via `train-ai-pair`, importação de spreadsheet, `extract-knowledge-from-chat`), o embedding **NÃO é gerado automaticamente**. Só é gerado quando:
-- O usuário salva pelo dialog `KnowledgeArticleDialog` (linha 103-106)
-- O usuário clica "Gerar Embeddings" manualmente
-- O candidato é aprovado via `useApproveCandidate`
+## Correção
 
-### 2. 1 artigo publicado sem embedding
-"Cancelamento de Assinatura Kiwify" está publicado mas **invisível para a busca semântica**.
+### Migration SQL — Recriar a função `sync_consultant_to_open_conversations`
 
-## Plano de Correção
-
-### 1. Criar trigger no banco para gerar embedding automaticamente
-Usar `pg_net` para chamar a edge function `generate-article-embedding` automaticamente sempre que um artigo for inserido ou atualizado com `is_published = true`.
+Substituir `conversation_id` por `customer_id` e adicionar a coluna `channel` (obrigatória):
 
 ```sql
-CREATE OR REPLACE FUNCTION public.trigger_generate_embedding()
-RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION public.sync_consultant_to_open_conversations()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $function$
+DECLARE
+  updated_conv RECORD;
 BEGIN
-  IF NEW.is_published = true AND (
-    OLD IS NULL OR 
-    OLD.content IS DISTINCT FROM NEW.content OR 
-    OLD.is_published IS DISTINCT FROM NEW.is_published
-  ) THEN
-    PERFORM net.http_post(
-      url := '<supabase_url>/functions/v1/generate-article-embedding',
-      headers := '{"Content-Type":"application/json","Authorization":"Bearer <anon_key>"}'::jsonb,
-      body := json_build_object('article_id', NEW.id, 'content', NEW.content)::jsonb
+  FOR updated_conv IN
+    UPDATE conversations
+    SET assigned_to = NEW.consultant_id,
+        ai_mode = 'copilot'
+    WHERE contact_id = NEW.id
+      AND status = 'open'
+      AND assigned_to IS NULL
+    RETURNING id
+  LOOP
+    INSERT INTO interactions (
+      customer_id,
+      type,
+      content,
+      channel,
+      metadata,
+      created_at
+    ) VALUES (
+      NEW.id,
+      'note',
+      'Conversa atribuída automaticamente ao consultor do contato (sync_consultant_trigger)',
+      'other',
+      jsonb_build_object(
+        'trigger', 'sync_consultant_to_open_conversations',
+        'consultant_id', NEW.consultant_id,
+        'contact_id', NEW.id,
+        'conversation_id', updated_conv.id
+      ),
+      now()
     );
-  END IF;
+  END LOOP;
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_article_publish
-  AFTER INSERT OR UPDATE ON knowledge_articles
-  FOR EACH ROW EXECUTE FUNCTION trigger_generate_embedding();
+$function$;
 ```
 
-### 2. Gerar embedding do artigo faltante
-Executar embedding para o artigo "Cancelamento de Assinatura Kiwify" que está sem.
+Mudanças:
+- `conversation_id` → `customer_id` (usando `NEW.id` que é o `contact_id`)
+- Adicionada coluna `channel` = `'other'` (obrigatória)
+- `conversation_id` preservado no `metadata` para referência
 
-## Resultado Esperado
-- Qualquer artigo publicado (via UI, train-ai-pair, import, passive learning) terá embedding gerado **automaticamente em segundos**
-- A IA sempre terá acesso semântico ao conteúdo mais recente
-- Zero intervenção manual necessária
+Zero regressão — o trigger continua fazendo o sync de conversas abertas, apenas o INSERT na `interactions` passa a usar as colunas corretas.
 

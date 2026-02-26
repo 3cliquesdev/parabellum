@@ -1,82 +1,60 @@
 
 
-# Plano: Fix do Auto-Avanço que Pula o Nó AI Response
+# Plano: Bypass Identity Wall quando IA é chamada via Flow (ai_response node)
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Diagnóstico com Evidência
+## Diagnóstico com Evidencia
 
-O problema é um bug no **auto-avanço de nós `message`** (linhas 843-908 de `process-chat-flow/index.ts`).
+O fluxo **funcionou perfeitamente**:
+1. Manual trigger → welcome message → condition → auto-advance para `ai_response` (ia_entrada) com `status=active`
+2. Usuario envia "Quero saber sobre meu pedido" → `process-chat-flow` encontra estado ativo em `ai_response` → retorna `{ useAI: true, aiNodeActive: true }`
+3. Webhook chama `ai-autopilot-chat` com `flow_context` correto
 
-### Caminho real do fluxo no manual trigger:
+**O problema esta no `ai-autopilot-chat` (linhas 5098-5109):**
 
 ```text
-start → welcome_ia (message) → condition (false) → ia_entrada (ai_response) → ask_options
+Identity Wall detecta:
+  contactHasEmail: false
+  isValidatedCustomer: false
+→ Injeta priorityInstruction: "PRIMEIRA coisa: peça email"
+→ IA ignora a pergunta do cliente e pede email
 ```
 
-### O que acontece:
+Essa priorityInstruction **sobrescreve tudo**, inclusive o objetivo do nó `ai_response` do fluxo. Quando a IA é chamada via flow (`flow_context` existe), quem controla a conversa é o **fluxo**, não a Identity Wall.
 
-1. Traversal inicial encontra `welcome_ia` (message) como primeiro nó de conteúdo
-2. Estado salvo em `welcome_ia`, mensagem de boas-vindas entregue
-3. **Auto-avanço** entra (linha 845: `if contentNode.type === 'message'`)
-4. Iteração 1: `findNextNode(welcome_ia)` → condição → avalia false → `advanceNode = ia_entrada` — **SEM break** (estava dentro do handler de condição)
-5. Iteração 2: `findNextNode(ia_entrada)` → `ask_options` → **break** (nó de conteúdo)
-6. Estado atualizado para `ask_options` com `waiting_input`
-7. Opções entregues ao cliente
+## Solucao
 
-**O nó `ia_entrada` (ai_response) é completamente pulado** porque o loop de auto-avanço não para em nós de conteúdo que foram alcançados via avaliação de condição.
+Adicionar uma verificação simples: se `flow_context` existe, **pular** o bloco de Identity Wall que injeta `priorityInstruction` para pedir email.
 
-### Código com bug (linhas 859-882):
+### Mudanca: `supabase/functions/ai-autopilot-chat/index.ts` (linha 5098)
 
+Antes:
 ```typescript
-if (nextNode.type === 'condition') {
-  // avalia condição...
-  advanceNode = condNext;  // ← SEM break! Continua o loop.
-} else if (nextNode.type === 'input' || nextNode.type === 'start') {
-  advanceNode = nextNode;  // ← SEM break
-} else {
-  advanceNode = nextNode;
-  break;  // ← Só para aqui (content nodes diretos)
-}
+if (!contactHasEmail && !isPhoneVerified && !isCustomerInDatabase && !isKiwifyValidated && responseChannel === 'whatsapp') {
+  priorityInstruction = `=== INSTRUÇÃO PRIORITÁRIA ...`;
 ```
 
-O `ia_entrada` é definido como `advanceNode` pelo handler de condição, mas como não há `break`, a próxima iteração avança para `ask_options`.
-
-## Solução
-
-Adicionar verificação de tipo de conteúdo após setar `advanceNode` dentro do handler de condição. Se o nó alcançado via condição é um nó de conteúdo (`ai_response`, `ask_options`, `ask_input`, `transfer`, `message`), fazer `break`.
-
-### Mudança: `process-chat-flow/index.ts` (linhas 873-875)
-
-Após `advanceNode = condNext;`, adicionar:
-
+Depois:
 ```typescript
-if (condNext) break;
-advanceNode = condNext;
+if (!contactHasEmail && !isPhoneVerified && !isCustomerInDatabase && !isKiwifyValidated && responseChannel === 'whatsapp' && !flow_context) {
+  priorityInstruction = `=== INSTRUÇÃO PRIORITÁRIA ...`;
 ```
 
-Não, mais simples — após `advanceNode = condNext;` verificar se é nó de conteúdo:
-
-```typescript
-advanceNode = condNext;
-// Se alcançou um nó de conteúdo via condição, parar aqui
-if (!['condition', 'input', 'start'].includes(advanceNode.type)) break;
-```
-
-Isso garante que quando a condição leva a um `ai_response`, o auto-avanço para ali em vez de continuar para o próximo nó.
+Uma unica condicao adicionada: `&& !flow_context`. Quando a IA é chamada pelo fluxo, o fluxo ja tem seu proprio `objective`, `contextPrompt` e restricoes — a Identity Wall nao deve interferir.
 
 ## Resumo
 
-| Arquivo | Mudança |
+| Arquivo | Mudanca |
 |---|---|
-| `supabase/functions/process-chat-flow/index.ts` | Adicionar `break` após condição levar a nó de conteúdo no auto-avanço (1 linha) |
+| `supabase/functions/ai-autopilot-chat/index.ts` | Adicionar `&& !flow_context` na condicao da Identity Wall (linha 5098) |
 
 ## Impacto
 
 | Regra | Status |
 |---|---|
-| Regressão zero | Sim — apenas corrige caso onde condição leva a ai_response; ask_options diretos continuam funcionando |
-| Upgrade | Sim — ai_response agora é respeitado como ponto de parada no auto-avanço |
-| Kill Switch | Não afetado |
-| Fluxo nunca mudo | Não afetado — o nó ai_response será ativado corretamente e a IA vai responder |
+| Regressao zero | Sim — Identity Wall continua funcionando para conversas sem fluxo ativo |
+| Upgrade | Sim — IA dentro do fluxo responde conforme objetivo do no ai_response |
+| Kill Switch | Nao afetado |
+| Fluxo nunca mudo | Melhora — IA agora responde em vez de pedir email fora de contexto |
 

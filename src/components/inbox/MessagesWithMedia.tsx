@@ -118,13 +118,28 @@ export function MessagesWithMedia({
     retryLoad(attachmentId);
   }, [retryLoad]);
 
+  // Detectar separador de teste para aplicar borda amarela nas mensagens seguintes
+  const testSeparatorIndex = useMemo(() => {
+    // Encontrar o ÚLTIMO separador de teste para destacar apenas as mensagens mais recentes
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (
+        messages[i].sender_type === 'system' &&
+        messages[i].content?.includes('TESTE DE FLUXO INICIADO')
+      ) {
+        return i;
+      }
+    }
+    return -1;
+  }, [messages]);
+
   return (
     <div className="space-y-4 py-3">
-      {messages.map((message) => {
+      {messages.map((message, index) => {
         const isCustomer = message.sender_type === 'contact';
         const isSystem = message.sender_type === 'system';
         const isAI = message.is_ai_generated;
         const isInternalNote = message.is_internal;
+        const isInTestZone = testSeparatorIndex >= 0 && index > testSeparatorIndex;
         
         // Parse AI debug metadata
         let usedArticles: any[] = [];
@@ -234,28 +249,29 @@ export function MessagesWithMedia({
         }
 
         return (
-          <MessageBubble
-            key={message.id}
-            content={message.content}
-            createdAt={message.created_at}
-            isCustomer={isCustomer}
-            isAI={isAI}
-            sender={message.sender ? {
-              id: message.sender.id,
-              full_name: message.sender.full_name,
-              avatar_url: message.sender.avatar_url || null,
-              job_title: message.sender.job_title || null,
-            } : null}
-            contactInitials={`${contact?.first_name?.[0] || ''}${contact?.last_name?.[0] || ''}`}
-            channel={conversation.channel}
-            showChannel={false}
-            status={message.status as "sending" | "sent" | "delivered" | "read" | "failed" | undefined}
-            errorDetail={errorDetail}
-            usedArticles={usedArticles}
-            isAdmin={isAdmin}
-            isManager={isManager}
-            attachments={attachments}
-          />
+          <div key={message.id} className={isInTestZone ? "border-l-2 border-amber-400 pl-2" : undefined}>
+            <MessageBubble
+              content={message.content}
+              createdAt={message.created_at}
+              isCustomer={isCustomer}
+              isAI={isAI}
+              sender={message.sender ? {
+                id: message.sender.id,
+                full_name: message.sender.full_name,
+                avatar_url: message.sender.avatar_url || null,
+                job_title: message.sender.job_title || null,
+              } : null}
+              contactInitials={`${contact?.first_name?.[0] || ''}${contact?.last_name?.[0] || ''}`}
+              channel={conversation.channel}
+              showChannel={false}
+              status={message.status as "sending" | "sent" | "delivered" | "read" | "failed" | undefined}
+              errorDetail={errorDetail}
+              usedArticles={usedArticles}
+              isAdmin={isAdmin}
+              isManager={isManager}
+              attachments={attachments}
+            />
+          </div>
         );
       })}
       <div ref={messagesEndRef} />

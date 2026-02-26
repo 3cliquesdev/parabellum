@@ -627,10 +627,11 @@ serve(async (req) => {
           const hasMultiRules = contentNode.data?.condition_rules?.length > 0;
           let next: any = null;
 
-          if (hasMultiRules) {
-            const path = evaluateConditionPath(contentNode.data, manualCollectedData, '');
-            console.log(`[process-chat-flow] 🔀 Manual multi-rule path: "${path}"`);
-            next = findNextNode(flowDef, contentNode, path);
+        if (hasMultiRules) {
+            // 🆕 FIX: Multi-regra com keywords precisa de mensagem real do usuário
+            // Na travessia manual inicial não há userMessage — parar aqui e aguardar input
+            console.log('[process-chat-flow] 🛑 Manual traversal: multi-rule condition without userMessage — stopping as waiting_input');
+            break;
           } else {
             const result = manualEvalCond(contentNode.data);
             console.log(`[process-chat-flow] 🔀 Manual classic condition: ${result}`);
@@ -659,7 +660,8 @@ serve(async (req) => {
       console.log(`[process-chat-flow] 📍 Manual content node: ${contentNode?.type} (${contentNode?.id}) steps=${traversalSteps}`);
 
       // Determinar status inicial baseado no tipo do nó
-      const initialStatus = (contentNode.type === 'ask_options' || contentNode.type === 'ask_input')
+      // 🆕 condition (multi-regra) também fica como waiting_input quando parou sem mensagem
+      const initialStatus = (contentNode.type === 'ask_options' || contentNode.type === 'ask_input' || contentNode.type === 'condition')
         ? 'waiting_input'
         : 'active';
 
@@ -801,6 +803,22 @@ serve(async (req) => {
       }
 
       // Montar resposta baseada no tipo do nó de conteúdo alcançado
+      // 🆕 Condição multi-regra aguardando input — não enviar nada
+      if (contentNode.type === 'condition') {
+        console.log('[process-chat-flow] 🛑 Manual flow stopped at condition node — waiting for user message');
+        return new Response(
+          JSON.stringify({
+            useAI: false,
+            response: null,
+            flowId: flow.id,
+            flowStarted: true,
+            manualTrigger: true,
+            waitingConditionInput: true,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       if (contentNode.type === 'ai_response') {
         // ai_response: não entregar mensagem aqui, a IA vai processar
         return new Response(
@@ -1728,7 +1746,12 @@ serve(async (req) => {
             const hasMultiRules = node.data?.condition_rules?.length > 0;
             let next: any = null;
 
-            if (hasMultiRules) {
+          if (hasMultiRules) {
+              // 🆕 FIX: Se não há userMessage real, parar na condição e aguardar input
+              if (!userMessage || userMessage.trim().length === 0) {
+                console.log('[process-chat-flow] 🛑 Master flow: multi-rule condition without userMessage — stopping as waiting_input');
+                break;
+              }
               // Multi-regra: usar evaluateConditionPath que retorna rule.id ou "else"
               const path = evaluateConditionPath(node.data, collectedData, userMessage);
               console.log(`[process-chat-flow] 🔀 Multi-rule condition path: "${path}"`);
@@ -1784,7 +1807,11 @@ serve(async (req) => {
           console.log('[process-chat-flow] 📝 Updating existing state:', stateId);
           await supabaseClient
             .from('chat_flow_states')
-            .update({ current_node_id: node.id, collected_data: collectedData })
+            .update({ 
+              current_node_id: node.id, 
+              collected_data: collectedData,
+              status: node.type === 'condition' ? 'waiting_input' : 'active',
+            })
             .eq('id', existingState.id);
         } else {
           const { data: newState, error } = await supabaseClient
@@ -1794,7 +1821,8 @@ serve(async (req) => {
               flow_id: masterFlow.id,
               current_node_id: node.id,
               collected_data: collectedData,
-              status: 'active',
+              // 🆕 condition (multi-regra parada) → waiting_input
+              status: node.type === 'condition' ? 'waiting_input' : 'active',
             })
             .select('id')
             .single();
@@ -1816,6 +1844,23 @@ serve(async (req) => {
         }
 
         // 5) Responder baseado no nó final - CORREÇÃO #1: Nunca response: ""
+
+        // 🆕 Condição multi-regra aguardando input — não enviar nada, só registrar estado
+        if (node.type === 'condition') {
+          console.log('[process-chat-flow] 🛑 Master flow stopped at condition node — waiting for user message');
+          return new Response(
+            JSON.stringify({
+              useAI: false,
+              response: null,
+              flowId: masterFlow.id,
+              flowStarted: true,
+              isMasterFlow: true,
+              waitingConditionInput: true,
+              debug: { startNodeType: startNode.type, contentNodeType: node.type, steps, stateId }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
         if (node.type === 'ai_response') {
           return new Response(
@@ -1952,6 +1997,12 @@ serve(async (req) => {
       console.log('[process-chat-flow] ⏩ Nó sem conteúdo (', currentNode.type, ') - avançando...');
       
       if (currentNode.type === 'condition') {
+        // 🆕 FIX: Multi-regra com keywords precisa de mensagem real
+        const hasMultiRules = currentNode.data?.condition_rules?.length > 0;
+        if (hasMultiRules && (!userMessage || userMessage.trim().length === 0)) {
+          console.log('[process-chat-flow] 🛑 New flow: multi-rule condition without userMessage — stopping as waiting_input');
+          break;
+        }
         const path = evaluateConditionPath(currentNode.data, {}, userMessage);
         console.log('[process-chat-flow] 🔍 Condição avaliada → path:', path);
         currentNode = findNextNode(flowDef, currentNode, path);
@@ -1989,7 +2040,8 @@ serve(async (req) => {
         flow_id: matchedFlow.id,
         current_node_id: startNode.id,
         collected_data: {},
-        status: 'active',
+        // 🆕 condition (multi-regra parada) → waiting_input
+        status: startNode.type === 'condition' ? 'waiting_input' : 'active',
       })
       .select()
       .single();
@@ -2004,6 +2056,21 @@ serve(async (req) => {
 
     console.log('[process-chat-flow] Flow started:', newState.id);
     
+    // 🆕 Condição multi-regra aguardando input
+    if (startNode.type === 'condition') {
+      console.log('[process-chat-flow] 🛑 New flow stopped at condition node — waiting for user message');
+      return new Response(
+        JSON.stringify({
+          useAI: false,
+          response: null,
+          flowId: matchedFlow.id,
+          flowStarted: true,
+          waitingConditionInput: true,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 🆕 CONTRATO ANTI-ALUCINAÇÃO: Se o nó é AI response, aiNodeActive = true
     if (startNode.type === 'ai_response') {
       return new Response(

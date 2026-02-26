@@ -121,6 +121,7 @@ export function AIResponsePropertiesPanel({
         </div>
         
         <Textarea
+          onKeyDown={(e) => e.stopPropagation()}
           value={selectedNode.data.context_prompt || ""}
           onChange={(e) => updateNodeData("context_prompt", e.target.value)}
           placeholder="Diga algo a mais para a IA seguir aqui..."
@@ -151,6 +152,7 @@ export function AIResponsePropertiesPanel({
           )}
         </div>
         <Textarea
+          onKeyDown={(e) => e.stopPropagation()}
           value={selectedNode.data.fallback_message || "No momento não tenho essa informação."}
           onChange={(e) => updateNodeData("fallback_message", e.target.value)}
           placeholder="Mensagem se a IA não conseguir responder..."

@@ -523,6 +523,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                 <div className="space-y-1.5">
                   <Label className="text-xs">Mensagem</Label>
                   <Textarea
+                    onKeyDown={(e) => e.stopPropagation()}
                     value={selectedNode.data.message || ""}
                     onChange={(e) => updateNodeData("message", e.target.value)}
                     rows={3}
@@ -695,7 +696,8 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                       <Label className="text-xs">Valor esperado</Label>
                       {(selectedNode.data.condition_type === "contains" || selectedNode.data.condition_type === "equals") ? (
                         <>
-                          <Textarea
+                        <Textarea
+                            onKeyDown={(e) => e.stopPropagation()}
                             value={selectedNode.data.condition_value || ""}
                             onChange={(e) => updateNodeData("condition_value", e.target.value)}
                             placeholder="Separe múltiplos valores por vírgula"
@@ -757,6 +759,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                           </Button>
                         </div>
                         <Textarea
+                          onKeyDown={(e) => e.stopPropagation()}
                           value={rule.keywords || ""}
                           onChange={(e) => updateConditionRule(idx, "keywords", e.target.value)}
                           placeholder="Opcional: frases extras (1 por linha). Se vazio, usa o nome da regra acima."

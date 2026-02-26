@@ -63,6 +63,7 @@ export function BehaviorControlsSection({
         </div>
         
         <Textarea
+          onKeyDown={(e) => e.stopPropagation()}
           value={objective}
           onChange={(e) => updateNodeData("objective", e.target.value)}
           placeholder="Ex: Tirar dúvidas sobre entrega do pedido"

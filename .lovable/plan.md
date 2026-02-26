@@ -1,84 +1,67 @@
 
 
-# Plano: Corrigir alucinação após detecção de email no fluxo
+# Plano: max_interactions avança para próximo nó (não abandona cliente)
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Diagnóstico
+## O que muda
 
-A conversa #CC381749 estava fluindo normalmente com a IA respondendo contextualmente (pedidos, plano creation, saque). Quando o contato enviou `libertecdados@gmail.com`, o sistema:
+Substituir o bloco de `max_interactions` (linhas 1150-1220) em `supabase/functions/process-chat-flow/index.ts` que atualmente:
+- Hardcoda `waiting_human`
+- Completa o flow state
+- Retorna `completed: true` (abandona o cliente)
 
-1. **Detectou o email** e encontrou que pertence a "Ronny teste Ronny teste" (customer `ceb1d054`)
-2. **Revinculou a conversa** ao contato "Ronny teste" (correto em termos de identificação)
-3. **Enviou mensagem hardcoded**: `"Encontrei seu cadastro, Ronny teste Ronny teste! 🎉 Agora me diz: precisa de ajuda com: 1 - Pedidos / 2 - Sistema"`
+Pelo comportamento correto:
+- Opcionalmente envia `fallback_message` como `sender_type: 'system'`
+- Limpa `__ai` do `collectedData`
+- **Não** retorna — cai no `findNextNode` (linha 1264) igual ao `exit_keyword`
 
-### Dois problemas distintos:
+## Segurança do inbox
 
-**Problema 1 — Nome errado no contexto**: O contato está conversando como "Oliver Contato" mas a mensagem usa o nome do customer encontrado no banco ("Ronny teste Ronny teste"). Em cenário de teste, isso parece alucinação.
+A trigger `update_inbox_view_on_message` já ignora `sender_type = 'system'` (migração `20260225183436`), então inserir a fallback_message com `sender_type: 'system'` **não afeta** o filtro "Não respondidas".
 
-**Problema 2 — Menu hardcoded quebra o fluxo**: Quando `flow_context` está ativo (IA vinha respondendo bem), a triagem de email injeta um menu estático "Pedidos/Sistema" que **não tem relação com o que o contato estava perguntando** (ele queria sacar saldo). O fluxo da conversa é completamente interrompido por um menu genérico.
+## Mudança exata
 
-### Causa raiz no código
+**Arquivo:** `supabase/functions/process-chat-flow/index.ts`
+**Linhas:** 1150-1225
 
-Em `ai-autopilot-chat/index.ts`:
-- **Linha 2714**: `foundMessage` usa `verifyResult.customer?.name` (nome do customer do banco, não do contato atual)
-- **Linhas 2808-2812**: Quando `flow_context` está ativo e não há consultor, o sistema envia `foundMessage` (menu hardcoded) como `autoResponse`, em vez de deixar a IA continuar respondendo contextualmente
-
-## Solução
-
-### Mudança 1: Quando `flow_context` está ativo, não enviar menu hardcoded
-
-Se o `flow_context` está ativo (IA vinha respondendo), após verificar o email devemos:
-- Confirmar identificação com mensagem simples (sem menu)
-- Deixar a IA continuar respondendo ao assunto original do contato
-- O fluxo da conversa não deve ser interrompido pelo menu de triagem
+Substituir todo o bloco `if (maxReached && !keywordMatch) { ... }` + o comentário de exit keyword por:
 
 ```typescript
-// Linha 2809-2812 — branch: sem consultor, COM flow_context
-} else if (!consultantId && flow_context) {
-  // flow_context ativo sem consultor: confirmar email e deixar IA continuar
-  console.log('[ai-autopilot-chat] ✅ Email verificado com flow_context ativo - IA continua sem menu');
-  autoResponse = `Encontrei seu cadastro! ✅ Continuando seu atendimento...`;
-}
+          // ✅ UPGRADE: max_interactions deve AVANÇAR para próximo nó
+          if (maxReached && !keywordMatch) {
+            const fallbackMsg = currentNode.data?.fallback_message;
+            if (fallbackMsg && String(fallbackMsg).trim().length > 0) {
+              try {
+                await supabaseClient.from('messages').insert({
+                  conversation_id: conversationId,
+                  content: String(fallbackMsg),
+                  sender_type: 'system',
+                  is_ai_generated: true,
+                  is_internal: false,
+                  status: 'sent',
+                  channel: conversation?.channel || 'web_chat',
+                });
+                console.log('[process-chat-flow] ✅ fallback_message inserted on max_interactions (will advance)');
+              } catch (sendErr) {
+                console.error('[process-chat-flow] ⚠️ Failed to insert fallback_message:', sendErr);
+              }
+            }
+            console.log(`[process-chat-flow] 🔄 AI max_interactions reached (${aiCount}/${maxInteractions}) - advancing to next node`);
+          }
+
+          // Em ambos os casos (keyword ou max), limpa __ai e deixa o fluxo seguir
+          delete collectedData.__ai;
+          // Cai no findNextNode normal abaixo (linha 1264)
 ```
-
-E manter o `else` final apenas para quando NÃO tem flow_context (caso legítimo de triagem):
-
-```typescript
-} else {
-  // Sem consultor, sem flow_context - Master Flow assume triagem
-  autoResponse = foundMessage; // Menu de triagem só aparece sem contexto
-}
-```
-
-### Mudança 2: Usar nome do contato atual, não do customer do banco
-
-Na construção do `foundMessage` (linha 2714), priorizar o nome do contato atual da conversa:
-
-```typescript
-// Antes (errado):
-verifyResult.customer?.name || verifyResult.customer_name || contact.first_name || 'cliente'
-
-// Depois (correto):
-contact.first_name || verifyResult.customer?.name || 'cliente'
-```
-
-Isso evita que o sistema chame "Oliver" de "Ronny" durante um teste.
-
-## Arquivo e linhas
-
-| Arquivo | Linhas | Mudança |
-|---|---|---|
-| `ai-autopilot-chat/index.ts` | 2710, 2714 | Priorizar `contact.first_name` no template de nome |
-| `ai-autopilot-chat/index.ts` | 2797 | Mesma correção de nome no branch de consultor |
-| `ai-autopilot-chat/index.ts` | 2809-2812 | Separar branch: com `flow_context` → sem menu, IA continua |
 
 ## Impacto
 
 | Regra | Status |
 |---|---|
-| Regressão zero | Sim — menu de triagem continua funcionando quando não há flow_context |
-| Upgrade | Sim — IA não é mais interrompida por menu genérico durante conversa contextual |
+| Regressão zero | ✅ exit_keyword continua igual; anti-duplicação mantida |
+| Upgrade | ✅ cliente não fica abandonado, fluxo avança naturalmente |
 | Kill Switch | Não afetado |
-| Fluxo nunca mudo | Sim — mensagem de confirmação é enviada, IA continua |
+| Fluxo nunca mudo | ✅ avança para próximo nó (menu, transfer, etc.) |
+| Inbox "Não respondidas" | ✅ sender_type='system' já é ignorado pela trigger |
 

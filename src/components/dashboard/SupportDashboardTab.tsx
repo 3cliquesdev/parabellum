@@ -1,4 +1,4 @@
-import { Headphones, Clock, Target } from "lucide-react";
+import { Headphones, Clock, Target, MessageSquare } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { startOfMonth, endOfMonth } from "date-fns";
 import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
@@ -10,24 +10,18 @@ import { SLAComplianceWidget } from "@/components/widgets/SLAComplianceWidget";
 import { SentimentDistributionWidget } from "@/components/widgets/SentimentDistributionWidget";
 import { TopTopicsWidget } from "@/components/widgets/TopTopicsWidget";
 import { TopTagsWidget } from "@/components/widgets/TopTagsWidget";
-import { useSLAAlerts } from "@/hooks/useSLAAlerts";
-import { useTicketCounts } from "@/hooks/useTicketCounts";
-import { useSupportMetrics } from "@/hooks/useSupportMetrics";
+import { useSupportMetrics, useSupportDashboardCounts } from "@/hooks/useSupportMetrics";
 
 interface SupportDashboardTabProps {
   dateRange?: DateRange;
 }
 
 export function SupportDashboardTab({ dateRange }: SupportDashboardTabProps) {
-  const { data: slaAlerts } = useSLAAlerts();
-  const { data: ticketCounts } = useTicketCounts();
-  const activeSlaAlerts = slaAlerts?.length || 0;
-
-  // Default date range if not provided
   const startDate = dateRange?.from || startOfMonth(new Date());
   const endDate = dateRange?.to || endOfMonth(new Date());
 
   const { data: supportMetrics } = useSupportMetrics(startDate, endDate);
+  const { data: counts } = useSupportDashboardCounts(startDate, endDate);
 
   const formatTime = (minutes: number | undefined) => {
     if (!minutes || minutes === 0) return "0s";
@@ -50,25 +44,25 @@ export function SupportDashboardTab({ dateRange }: SupportDashboardTabProps) {
       <BentoCard>
         <KPICard 
           title="SLA em Risco" 
-          value={activeSlaAlerts.toString()}
+          value={(counts?.sla_risk || 0).toString()}
           icon={Clock}
-          description="alertas ativos"
+          description="no período"
         />
       </BentoCard>
       <BentoCard>
         <KPICard 
           title="Tickets Abertos" 
-          value={(ticketCounts?.total || 0).toString()}
+          value={(counts?.tickets_open || 0).toString()}
           icon={Headphones}
-          description="aguardando resposta"
+          description="no período"
         />
       </BentoCard>
       <BentoCard>
         <KPICard 
-          title="FRT Médio" 
-          value={formatTime(supportMetrics?.avgFRT)}
-          icon={Clock}
-          description="first response time"
+          title="Conversas" 
+          value={(counts?.conversations_open || 0).toString()}
+          icon={MessageSquare}
+          description={`${counts?.conversations_closed || 0} encerradas`}
         />
       </BentoCard>
       <BentoCard>
@@ -76,7 +70,7 @@ export function SupportDashboardTab({ dateRange }: SupportDashboardTabProps) {
           title="CSAT" 
           value={supportMetrics?.avgCSAT ? `${supportMetrics.avgCSAT.toFixed(1)}/5` : "0/5"}
           icon={Target}
-          description="satisfação do cliente"
+          description={`${supportMetrics?.totalRatings || 0} avaliações`}
         />
       </BentoCard>
       

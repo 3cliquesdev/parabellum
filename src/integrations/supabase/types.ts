@@ -9927,6 +9927,10 @@ export type Database = {
           total: number
         }[]
       }
+      get_support_dashboard_counts: {
+        Args: { p_end: string; p_start: string }
+        Returns: Json
+      }
       get_support_drilldown_v2: {
         Args: {
           p_agent_id?: string

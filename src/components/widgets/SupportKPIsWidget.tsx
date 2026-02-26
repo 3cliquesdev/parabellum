@@ -45,7 +45,7 @@ export function SupportKPIsWidget({ startDate, endDate }: SupportKPIsWidgetProps
 
   const supportMetrics: CompactMetric[] = [
     {
-      title: "Tempo de 1ª Resposta (FRT)",
+      title: "Tempo até Resposta Humana",
       value: formatTime(metrics?.avgFRT || 0),
       icon: Clock,
       color: frtStatus.color === "green" 
@@ -59,16 +59,16 @@ export function SupportKPIsWidget({ startDate, endDate }: SupportKPIsWidgetProps
           ? "bg-yellow-100 dark:bg-yellow-900/30"
           : "bg-red-100 dark:bg-red-900/30",
       subtext: frtStatus.label,
-      tooltip: "Tempo médio até a primeira resposta do agente"
+      tooltip: "Tempo médio desde roteamento ao departamento até o agente humano responder"
     },
     {
-      title: "Tempo Médio Resolução (MTTR)",
+      title: "Tempo Médio de Atendimento",
       value: formatTime(metrics?.avgMTTR || 0),
       icon: Timer,
       color: "text-primary",
       bgColor: "bg-primary/10",
-      subtext: "Tempo total até fechar ticket",
-      tooltip: "Tempo médio desde abertura até resolução do ticket"
+      subtext: "Do agente assumir até encerramento",
+      tooltip: "Tempo médio desde o agente assumir a conversa até o encerramento"
     },
     {
       title: "Satisfação (CSAT)",

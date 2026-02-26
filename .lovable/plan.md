@@ -1,72 +1,58 @@
 
 
-# Plano: Bloquear Master Flow / Auto-Triggers em Modo Teste
+# Plano: Ajustar 2 pontos antes de implementar isolamento de teste
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Causa Raiz
+## Ponto 1: `continue` vs `return` no webhook
 
-Quando `is_test_mode = true`, a flag so serve para:
-1. Bypassar o Kill Switch (linha 339)
-2. Permitir execucao de drafts (linha 478)
+**Resultado da análise:** `continue` é o correto.
 
-Mas **nao bloqueia** o Master Flow nem os trigger keywords de rodarem automaticamente. Resultado: se o draft flow completa, ou se a conversa nao tem estado ativo, o Master Flow entra e "contamina" o teste.
+O webhook usa um loop `for...of` aninhado (linha 226-228) iterando sobre `entry.changes` e mensagens. O padrão em todo o arquivo é `continue` para pular para a próxima mensagem no loop — usado em 15+ lugares (CSAT, kill switch, skipAutoResponse, etc.).
 
-## Evidencia nos Logs
+O bloco `skipAutoResponse` (linha 667-733) já usa `continue` na linha 733 para o caso geral. O guard de test mode cairá dentro desse mesmo bloco (`flowData.skipAutoResponse = true` + `flowData.reason === 'test_mode_manual_only'`).
 
-```
-01:30:24 Manual trigger → draft flow 20a05c59 starts (correct)
-01:30:47 User "Oi" → invalidOption from draft flow (correct)
-```
-
-Mas se o draft completar e o usuario enviar nova mensagem, o fluxo cairia em:
-- Linha 1326: busca `chat_flows` ativos
-- Linha 1477-1510: sem trigger match → inicia Master Flow
-- Resultado: Master Flow roda na conversa de teste
-
-## Solucao
-
-### Mudanca unica: `process-chat-flow/index.ts`
-
-Apos o bloco de processamento de estado ativo (linha ~1316) e antes da verificacao de triggers (linha ~1318), adicionar guard:
+**Ação:** Adicionar tratamento específico DENTRO do bloco `if (flowData.skipAutoResponse)` (linha 667), antes da mensagem de "aguarde" (linha 675). Se `reason === 'test_mode_manual_only'`, fazer `continue` direto — sem enviar mensagem de aguarde, sem mudar `ai_mode`:
 
 ```typescript
-// 🧪 MODO TESTE: Bloquear triggers e Master Flow automaticos
-// Em modo teste, APENAS fluxos iniciados manualmente devem rodar
-if (isTestMode && !manualTrigger) {
-  console.log('[process-chat-flow] 🧪 TEST MODE: Bloqueando auto-triggers e Master Flow');
-  return new Response(JSON.stringify({
-    useAI: false,
-    aiNodeActive: false,
-    skipAutoResponse: true,
-    reason: 'test_mode_manual_only',
-    message: 'Modo teste ativo - apenas fluxos manuais permitidos'
-  }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
+// Linha ~668, após o log
+if (flowData.reason === 'test_mode_manual_only') {
+  console.log("[meta-whatsapp-webhook] 🧪 TEST MODE: Ignorando - apenas fluxos manuais");
+  continue;
 }
 ```
 
-**Posicao**: Inserir na linha 1317, DEPOIS do `}` que fecha o bloco `if (activeState)` e ANTES do `if (!userMessage)`.
+Isso é seguro porque:
+- `continue` pula para a próxima mensagem no loop (comportamento padrão do webhook)
+- Não envia mensagem de "aguarde" (desnecessária em teste)
+- Não altera `ai_mode` (preserva estado da conversa)
 
-Isso garante que:
-- Se existe estado ativo (draft flow em andamento), ele e processado normalmente (linhas 943-1316)
-- Se NAO existe estado ativo e a conversa esta em modo teste, NADA automatico roda
-- Manual trigger continua funcionando (ja retorna antes na linha 447-907)
+## Ponto 2: Frontend renderiza `sender_type: 'system'`
 
-### O que NAO muda
+**Resultado da análise:** Sim, já renderiza com estilo visual diferente.
 
-- Draft flow em andamento continua sendo processado (invalidOption, avancos, etc.)
-- Manual trigger continua funcionando
-- Kill Switch bypass em modo teste continua funcionando
-- Conversas normais (nao-teste) nao sao afetadas
+Em `MessagesWithMedia.tsx` (linhas 200-210), mensagens com `sender_type === 'system'` são renderizadas como:
+- Centralizadas (`justify-center`)
+- Badge cinza arredondado (`bg-muted/50 px-4 py-2 rounded-full`)
+- Texto pequeno (`text-xs text-muted-foreground`)
+- Prefixo 📢
+
+**Ação:** Nenhuma mudança necessária no frontend. A mensagem separadora `🧪 ─── TESTE DE FLUXO INICIADO ───` será renderizada automaticamente como system message centralizada.
+
+## Resumo de implementação
+
+| Mudança | Arquivo | Tipo |
+|---|---|---|
+| Guard test mode no `skipAutoResponse` | `meta-whatsapp-webhook/index.ts` | `continue` dentro do bloco existente |
+| Mensagem separadora system | `process-chat-flow/index.ts` | Insert antes de `deliverManualMessage` |
+| Frontend | Nenhum | Já renderiza `sender_type: 'system'` corretamente |
 
 ## Impacto
 
 | Regra | Status |
 |---|---|
-| Regressao zero | Sim - so adiciona guard, nao altera logica existente |
-| Upgrade | Sim - isola testes de fluxos automaticos |
-| Kill Switch | Nao afetado |
-| Fluxo nunca mudo | Nao afetado - draft continua respondendo quando ativo |
+| Regressão zero | Sim — apenas adiciona guards dentro de blocos existentes |
+| Upgrade | Sim — isola visualmente e logicamente testes de fluxo |
+| Kill Switch | Não afetado |
+| Fluxo nunca mudo | Não afetado |
 

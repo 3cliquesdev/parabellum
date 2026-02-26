@@ -199,6 +199,24 @@ export const AI_TOOLS_SCHEMA = {
         },
         required: ["customer_id", "datetime", "channel"]
       }
+    },
+    {
+      name: "close_conversation",
+      description: "Encerra a conversa após confirmação do cliente. Usar em 2 etapas: primeiro perguntar, depois executar com customer_confirmed=true.",
+      input_schema: {
+        type: "object",
+        properties: {
+          reason: {
+            type: "string",
+            description: "Motivo do encerramento (ex: assunto_resolvido, cliente_agradeceu)"
+          },
+          customer_confirmed: {
+            type: "boolean",
+            description: "true SOMENTE após cliente confirmar explicitamente"
+          }
+        },
+        required: ["reason", "customer_confirmed"]
+      }
     }
   ]
 };
@@ -212,7 +230,8 @@ export type ToolName =
   | 'transfer_to_department'
   | 'summarize_for_handoff'
   | 'check_customer_eligibility'
-  | 'schedule_callback';
+  | 'schedule_callback'
+  | 'close_conversation';
 
 export interface ToolCall {
   name: ToolName;

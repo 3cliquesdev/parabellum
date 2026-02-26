@@ -1597,6 +1597,165 @@ serve(async (req) => {
       }
 
       // ============================================================
+      // 🔒 PRIORIDADE: ESTADO awaiting_close_confirmation
+      // Se IA pediu confirmação de encerramento, processar resposta
+      // ============================================================
+      {
+        const closeMeta = conversation.customer_metadata || {};
+        if (closeMeta.awaiting_close_confirmation === true) {
+          const msgLower = (customerMessage || '').toLowerCase().trim();
+          
+          // Padrões de SIM
+          const yesPatterns = /^(sim|s|yes|pode|pode sim|ok|claro|com certeza|isso|beleza|blz|valeu|vlw|pode fechar|encerra|encerrar|fechou|fechou!|tá bom|ta bom|tá|ta)$/i;
+          // Padrões de NÃO
+          const noPatterns = /^(n[aã]o|nao|n|não|nope|ainda n[aã]o|tenho|tenho sim|outra|mais uma|espera|perai|pera)$/i;
+          
+          if (yesPatterns.test(msgLower)) {
+            console.log('[ai-autopilot-chat] ✅ Cliente CONFIRMOU encerramento');
+            
+            // Checar governança
+            const { data: aiConfigs } = await supabaseClient
+              .from('system_configurations')
+              .select('key, value')
+              .in('key', ['ai_global_enabled', 'ai_shadow_mode', 'conversation_tags_required']);
+            
+            const configMap = new Map((aiConfigs || []).map((c: any) => [c.key, c.value]));
+            const killSwitch = configMap.get('ai_global_enabled') === 'false';
+            const shadowMode = configMap.get('ai_shadow_mode') === 'true';
+            const tagsRequired = configMap.get('conversation_tags_required') === 'true';
+            
+            // Limpar flag
+            const cleanMeta = { ...closeMeta };
+            delete cleanMeta.awaiting_close_confirmation;
+            delete cleanMeta.close_reason;
+            
+            if (killSwitch) {
+              await supabaseClient.from('conversations')
+                .update({ ai_mode: 'waiting_human', customer_metadata: cleanMeta })
+                .eq('id', conversationId);
+              const killMsg = 'No momento, o encerramento automático está indisponível. Um atendente humano vai finalizar seu atendimento. Aguarde um momento!';
+              await supabaseClient.from('messages').insert({
+                conversation_id: conversationId, content: killMsg,
+                sender_type: 'user', is_ai_generated: true, is_bot_message: true
+              });
+              if (responseChannel === 'whatsapp' || responseChannel === 'whatsapp_meta') {
+                await supabaseClient.functions.invoke('send-meta-whatsapp', {
+                  body: { conversationId, message: killMsg }
+                });
+              }
+              return new Response(JSON.stringify({ status: 'disabled', reason: 'kill_switch' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
+            
+            if (shadowMode) {
+              await supabaseClient.from('conversations')
+                .update({ customer_metadata: cleanMeta })
+                .eq('id', conversationId);
+              const shadowMsg = 'Obrigado pelo contato! Se precisar de mais alguma coisa, estou por aqui. 😊';
+              await supabaseClient.from('messages').insert({
+                conversation_id: conversationId, content: shadowMsg,
+                sender_type: 'user', is_ai_generated: true, is_bot_message: true
+              });
+              // Shadow mode: NÃO enviar via WhatsApp, apenas sugestão interna
+              await supabaseClient.from('ai_suggestions').insert({
+                conversation_id: conversationId,
+                suggested_reply: '(Sugestão) Conversa pode ser encerrada pelo agente - cliente confirmou encerramento.',
+                suggestion_type: 'close_suggestion',
+                confidence_score: 0.95
+              });
+              return new Response(JSON.stringify({ status: 'suggested_only', reason: 'shadow_mode' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
+            
+            // Checar tags obrigatórias
+            if (tagsRequired) {
+              const { data: convTags } = await supabaseClient
+                .from('conversation_tags')
+                .select('tag_id')
+                .eq('conversation_id', conversationId);
+              
+              if (!convTags || convTags.length === 0) {
+                await supabaseClient.from('conversations')
+                  .update({ ai_mode: 'waiting_human', customer_metadata: cleanMeta })
+                  .eq('id', conversationId);
+                const tagMsg = 'Obrigado pelo contato! Um atendente vai finalizar seu atendimento em instantes. 😊';
+                await supabaseClient.from('messages').insert({
+                  conversation_id: conversationId, content: tagMsg,
+                  sender_type: 'user', is_ai_generated: true, is_bot_message: true
+                });
+                if (responseChannel === 'whatsapp' || responseChannel === 'whatsapp_meta') {
+                  await supabaseClient.functions.invoke('send-meta-whatsapp', {
+                    body: { conversationId, message: tagMsg }
+                  });
+                }
+                await supabaseClient.from('interactions').insert({
+                  customer_id: contact.id, type: 'internal_note',
+                  content: '**Encerramento pendente**: Cliente confirmou encerramento mas tags obrigatórias estão ausentes. Adicione tags e feche manualmente.',
+                  channel: responseChannel,
+                  metadata: { source: 'ai_close_blocked_tags' }
+                });
+                return new Response(JSON.stringify({ status: 'blocked', reason: 'missing_tags' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+              }
+            }
+            
+            // TUDO OK → Chamar close-conversation
+            const closeMsg = 'Foi um prazer ajudar! Seu atendimento será encerrado agora. Até a próxima! 😊';
+            await supabaseClient.from('messages').insert({
+              conversation_id: conversationId, content: closeMsg,
+              sender_type: 'user', is_ai_generated: true, is_bot_message: true
+            });
+            if (responseChannel === 'whatsapp' || responseChannel === 'whatsapp_meta') {
+              await supabaseClient.functions.invoke('send-meta-whatsapp', {
+                body: { conversationId, message: closeMsg }
+              });
+            }
+            
+            // Invocar close-conversation (reuso total de CSAT, métricas, timeline)
+            const { data: closeResult, error: closeError } = await supabaseClient.functions.invoke('close-conversation', {
+              body: {
+                conversationId,
+                userId: conversation.assigned_to || 'ai-autopilot',
+                sendCsat: true
+              }
+            });
+            
+            if (closeError) {
+              console.error('[ai-autopilot-chat] ❌ Erro ao encerrar conversa:', closeError);
+            } else {
+              console.log('[ai-autopilot-chat] ✅ Conversa encerrada com sucesso via close-conversation');
+            }
+            
+            await supabaseClient.from('conversations')
+              .update({ customer_metadata: cleanMeta })
+              .eq('id', conversationId);
+            
+            return new Response(JSON.stringify({ status: 'applied', action: 'conversation_closed' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            
+          } else if (noPatterns.test(msgLower)) {
+            console.log('[ai-autopilot-chat] ❌ Cliente NÃO quer encerrar');
+            const cleanMeta = { ...closeMeta };
+            delete cleanMeta.awaiting_close_confirmation;
+            delete cleanMeta.close_reason;
+            await supabaseClient.from('conversations')
+              .update({ customer_metadata: cleanMeta })
+              .eq('id', conversationId);
+            // Não retorna - cai no fluxo normal para IA continuar atendimento
+          } else {
+            // Ambíguo - repetir pergunta
+            const ambiguousMsg = 'Só confirmando: posso encerrar seu atendimento? Responda **sim** ou **não**.';
+            await supabaseClient.from('messages').insert({
+              conversation_id: conversationId, content: ambiguousMsg,
+              sender_type: 'user', is_ai_generated: true, is_bot_message: true
+            });
+            if (responseChannel === 'whatsapp' || responseChannel === 'whatsapp_meta') {
+              await supabaseClient.functions.invoke('send-meta-whatsapp', {
+                body: { conversationId, message: ambiguousMsg }
+              });
+            }
+            return new Response(JSON.stringify({ status: 'awaiting_confirmation' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          }
+        }
+      }
+
+      // ============================================================
       // 🆕 PRIORIDADE ABSOLUTA: ESTADO awaiting_email_for_handoff
       // Se está aguardando email, processar ANTES de qualquer outro fluxo
       // ============================================================
@@ -5522,6 +5681,7 @@ Resolução desejada: Reembolso integral"
 - verify_otp_code: Valide códigos OTP de 6 dígitos
 - request_human_agent: Transfira para atendente humano quando: 1) Cliente disser que dados estão INCORRETOS, 2) Cliente pedir explicitamente atendente humano, 3) Situação muito complexa que você não consegue resolver.
 - check_tracking: Consulta rastreio de pedidos. Use quando cliente perguntar sobre entrega ou status de envio.
+- close_conversation: Encerre a conversa quando detectar que o assunto foi resolvido (cliente agradece, diz "era só isso", "obrigado, resolveu"). SEMPRE pergunte antes (customer_confirmed=false). Só use customer_confirmed=true após cliente confirmar "sim". Se cliente disser "não" ou tiver mais dúvidas, continue normalmente.
 
 ${knowledgeContext}${identityWallNote}
 
@@ -5684,6 +5844,22 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
               }
             },
             required: ['reason']
+          }
+        }
+      },
+      // 🆕 Tool: close_conversation - Encerramento autônomo com confirmação do cliente
+      {
+        type: 'function',
+        function: {
+          name: 'close_conversation',
+          description: 'Encerra a conversa. Use em 2 etapas: (1) Pergunte ao cliente se pode encerrar (customer_confirmed=false), (2) Após cliente confirmar "sim", execute com customer_confirmed=true. NUNCA encerre sem confirmação explícita.',
+          parameters: {
+            type: 'object',
+            properties: {
+              reason: { type: 'string', description: 'Motivo do encerramento (ex: "assunto_resolvido", "cliente_agradeceu")' },
+              customer_confirmed: { type: 'boolean', description: 'true SOMENTE após cliente confirmar explicitamente que pode encerrar' }
+            },
+            required: ['reason', 'customer_confirmed']
           }
         }
       }
@@ -6813,6 +6989,36 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
           } catch (error) {
             console.error('[ai-autopilot-chat] ❌ Erro ao executar handoff manual:', error);
             assistantMessage = 'Vou transferir você para um atendente humano. Por favor, aguarde um momento.';
+          }
+        }
+        // TOOL: close_conversation - Encerramento autônomo com confirmação
+        else if (toolCall.function.name === 'close_conversation') {
+          try {
+            const args = JSON.parse(toolCall.function.arguments);
+            console.log('[ai-autopilot-chat] 🔒 close_conversation chamado:', args);
+            
+            const currentMeta = conversation.customer_metadata || {};
+            
+            if (args.customer_confirmed === false || !currentMeta.awaiting_close_confirmation) {
+              // ETAPA 1: Perguntar confirmação (anti-pulo: sempre pedir se flag não existe)
+              await supabaseClient.from('conversations')
+                .update({
+                  customer_metadata: {
+                    ...currentMeta,
+                    awaiting_close_confirmation: true,
+                    close_reason: args.reason || 'assunto_resolvido'
+                  }
+                })
+                .eq('id', conversationId);
+              
+              assistantMessage = 'Fico feliz em ter ajudado! 😊 Posso encerrar seu atendimento?';
+              console.log('[ai-autopilot-chat] ⏳ Aguardando confirmação do cliente para encerrar');
+            }
+            // Se customer_confirmed=true, o detector de confirmação cuida na próxima mensagem
+            
+          } catch (error) {
+            console.error('[ai-autopilot-chat] ❌ Erro em close_conversation:', error);
+            assistantMessage = 'Ocorreu um erro. Posso ajudar com mais alguma coisa?';
           }
         }
       }

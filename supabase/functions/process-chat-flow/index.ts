@@ -368,7 +368,7 @@ serve(async (req) => {
     // waiting_human: Cliente na fila, aguardando humano
     // copilot: Humano atendendo com sugestões da IA
     // disabled: Atendimento 100% manual
-    if (currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled') {
+    if ((currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled') && !isTestMode) {
       console.log(`[process-chat-flow] 🛡️ PROTEÇÃO: ai_mode=${currentAiMode} - NÃO processar fluxo/IA`);
       console.log(`[process-chat-flow] 📋 assigned_to: ${convState?.assigned_to || 'null'}`);
       
@@ -381,6 +381,10 @@ serve(async (req) => {
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
+    }
+
+    if (isTestMode && (currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled')) {
+      console.log(`[process-chat-flow] 🧪 TEST MODE: Bypassing ai_mode=${currentAiMode} protection`);
     }
 
     // autopilot: IA ativa, processar normalmente

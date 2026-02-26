@@ -50,7 +50,7 @@ export function TestModeDropdown({
       // 1. Ativar test mode
       const { error: updateError } = await supabase
         .from("conversations")
-        .update({ is_test_mode: true })
+        .update({ is_test_mode: true, ai_mode: 'autopilot' })
         .eq("id", conversationId);
 
       if (updateError) throw updateError;

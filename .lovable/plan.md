@@ -1,41 +1,93 @@
 
 
-# Plano: Fase 1 + Fase 2 — Fluxo anterior cancela automaticamente + UI reativa
+# Diagnóstico: Fluxo principal chamado junto com o teste + mensagens não aparecem
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Diagnóstico Atualizado
+## Causa Raiz Identificada (com evidência dos logs e banco)
 
-Após analisar o backend, descobri que a **Fase 2 já está implementada no backend**. Na linha 662-673 de `process-chat-flow/index.ts`, o manual trigger já deleta todos os estados anteriores (`active`, `waiting_input`, `in_progress`, `cancelled`) antes de criar o novo. Ou seja, o banco já fica limpo.
+### Problema Principal: Mensagens do manual trigger NÃO são salvas no banco
 
-O problema real é **100% frontend/cache**:
+A função `deliverManualMessage` no `process-chat-flow/index.ts` (linha 747-755) insere mensagens com `status: 'pending'`. Porém, o enum `message_status` do banco aceita apenas: `{sending, sent, delivered, failed, read}`.
 
-1. **`hasActiveFlow` guard bloqueia** — o `FlowPickerButton` recusa iniciar se `hasActiveFlow=true`, mas o cache ainda mostra o fluxo antigo por causa do `staleTime: 10_000`
-2. **`staleTime: 10_000`** — mantém o dado "velho" por até 10 segundos, impedindo refetch mesmo com invalidação em certos cenários
+**`pending` não existe no enum.** O insert falha silenciosamente porque não há tratamento de erro.
+
+Resultado:
+- As mensagens do fluxo de teste SÃO enviadas ao WhatsApp (logs confirmam: "✅ Manual message sent via Meta WhatsApp")
+- Mas NÃO aparecem no chat da UI (não foram salvas no banco)
+- O usuário vê apenas as mensagens antigas do Fluxo Principal (que foram salvas corretamente pelo webhook)
+- Isso cria a ilusão de que "o fluxo principal está rodando junto com o teste"
+
+### Evidência
+
+```
+-- Enum válidos:
+{sending, sent, delivered, failed, read}
+
+-- Valor usado no deliverManualMessage:
+status: 'pending'  ← INVÁLIDO, insert falha silenciosamente
+```
+
+```
+-- Mensagens do manual trigger no banco (01:20:28 a 01:20:40):
+SELECT ... WHERE created_at BETWEEN '01:20:28' AND '01:20:40'
+→ ZERO resultados
+```
+
+```
+-- Logs confirmam envio ao WhatsApp:
+01:20:32 ✅ Manual message sent via Meta WhatsApp
+01:20:34 ✅ Manual message sent via Meta WhatsApp
+```
+
+### Estado real no banco
+
+- Apenas 1 flow state ativo: draft flow `20a05c59` em `waiting_input` ✅
+- O Fluxo Principal NÃO tem estado ativo — foi corretamente limpo pelo manual trigger ✅
+- O fluxo de teste ESTÁ respondendo corretamente (invalidOption para "Boa noite") ✅
 
 ## Mudanças Necessárias
 
-### 1. `useActiveFlowState.ts` — Reduzir `staleTime`
+### 1. `process-chat-flow/index.ts` — Corrigir status do insert de mensagem
 
-Alterar `staleTime` de `10_000` para `2_000` (2 segundos). Suficiente para evitar spam de requests, mas rápido o bastante para reagir a mudanças.
+**Linha 754:** Alterar `status: 'pending'` para `status: 'sent'`
 
-**Linha 53:** `staleTime: 10_000` → `staleTime: 2_000`
+### 2. `process-chat-flow/index.ts` — Adicionar tratamento de erro no insert
 
-### 2. `FlowPickerButton.tsx` — Remover guard `hasActiveFlow`
+Na função `deliverManualMessage`, capturar e logar erros do insert para evitar falhas silenciosas futuras:
 
-Como o backend já limpa estados anteriores automaticamente no manual trigger, o guard frontend é desnecessário e causa o bug. Remover o bloco das linhas 47-50 que impede iniciar novo fluxo quando `hasActiveFlow=true`.
+```typescript
+const { error: insertError } = await supabaseClient.from('messages').insert({
+  conversation_id: conversationId,
+  content: finalText,
+  sender_type: 'user',
+  sender_id: null,
+  is_ai_generated: true,
+  channel: convForDelivery?.channel || 'web_chat',
+  status: 'sent'  // FIX: 'pending' não existe no enum message_status
+});
 
-Isso é seguro porque:
-- O backend (linha 662-673) já faz `DELETE FROM chat_flow_states WHERE conversation_id = X AND status IN (...)` antes de criar o novo
-- Não há risco de múltiplos fluxos simultâneos
-- A prop `hasActiveFlow` pode ser mantida na interface mas ignorada (ou removida)
+if (insertError) {
+  console.error('[process-chat-flow] ❌ Error saving manual trigger message:', insertError);
+}
+```
 
-### Impacto
+| Arquivo | Linha | Mudança |
+|---|---|---|
+| `process-chat-flow/index.ts` | 747-755 | `status: 'pending'` → `status: 'sent'` + error handling |
+
+## Impacto
 
 | Regra | Status |
 |---|---|
-| Regressão zero | Sim — backend já protegia contra duplicação |
-| Upgrade | Sim — elimina bloqueio falso por cache |
+| Regressão zero | Sim — apenas corrige bug, não altera lógica |
+| Upgrade | Sim — mensagens do manual trigger passam a aparecer no chat |
 | Kill Switch | Não afetado |
-| Fluxo nunca mudo | Não afetado |
+| Fluxo nunca mudo | Corrigido — a mensagem de boas-vindas do fluxo agora aparece no chat |
+
+## Resultado esperado
+
+1. Iniciar fluxo de teste → mensagem de boas-vindas aparece no chat imediatamente ✅
+2. Indicador mostra o fluxo correto (já funciona) ✅
+3. Fluxo Principal NÃO interfere (já funciona, era ilusão visual) ✅
 

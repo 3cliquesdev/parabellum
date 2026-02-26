@@ -8,6 +8,13 @@ export interface SupportMetrics {
   totalRatings: number;
 }
 
+export interface SupportDashboardCounts {
+  tickets_open: number;
+  conversations_open: number;
+  conversations_closed: number;
+  sla_risk: number;
+}
+
 export function useSupportMetrics(startDate: Date, endDate: Date) {
   return useQuery({
     queryKey: ["support-metrics", startDate.toISOString(), endDate.toISOString()],
@@ -33,6 +40,35 @@ export function useSupportMetrics(startDate: Date, endDate: Date) {
         totalRatings: result?.totalRatings || 0,
       } as SupportMetrics;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSupportDashboardCounts(startDate: Date, endDate: Date) {
+  return useQuery({
+    queryKey: ["support-dashboard-counts", startDate.toISOString(), endDate.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc(
+        "get_support_dashboard_counts",
+        {
+          p_start: startDate.toISOString(),
+          p_end: endDate.toISOString()
+        }
+      );
+
+      if (error) {
+        console.error("❌ Error fetching dashboard counts:", error);
+        throw error;
+      }
+
+      const result = data as any;
+      return {
+        tickets_open: result?.tickets_open || 0,
+        conversations_open: result?.conversations_open || 0,
+        conversations_closed: result?.conversations_closed || 0,
+        sla_risk: result?.sla_risk || 0,
+      } as SupportDashboardCounts;
+    },
+    staleTime: 2 * 60 * 1000,
   });
 }

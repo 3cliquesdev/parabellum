@@ -6,9 +6,7 @@ import { KPICard } from "@/components/widgets/KPICard";
 import { useKiwifyFinancials } from "@/hooks/useKiwifyFinancials";
 import { usePipelineValue } from "@/hooks/usePipelineValue";
 import { useDealsConversionAnalysis } from "@/hooks/useDealsConversionAnalysis";
-import { useSLAAlerts } from "@/hooks/useSLAAlerts";
-import { useTicketCounts } from "@/hooks/useTicketCounts";
-import { useSupportMetrics } from "@/hooks/useSupportMetrics";
+import { useSupportMetrics, useSupportDashboardCounts } from "@/hooks/useSupportMetrics";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { useTeamOnlineCount } from "@/hooks/useTeamOnlineCount";
 import { useQuery } from "@tanstack/react-query";
@@ -45,15 +43,14 @@ export function OverviewDashboardTab({ dateRange }: OverviewDashboardTabProps) {
   const { data: kiwifyFinancials } = useKiwifyFinancials(dateRange?.from, dateRange?.to);
   const { totalPipelineValue, weightedValue } = usePipelineValue();
   const { data: conversionData } = useDealsConversionAnalysis(dateRange);
-  const { data: slaAlerts } = useSLAAlerts();
-  const { data: ticketCounts } = useTicketCounts();
+  const { data: dashCounts } = useSupportDashboardCounts(startDate, endDate);
   const { data: supportMetrics } = useSupportMetrics(startDate, endDate);
   const { data: whatsappInstances } = useWhatsAppInstances();
   const { data: convCounts } = useActiveConversationCounts();
   const { data: teamOnlineCount } = useTeamOnlineCount();
 
   // Perf log: mount → data ready
-  const dataReady = convCounts !== undefined && supportMetrics !== undefined && ticketCounts !== undefined;
+  const dataReady = convCounts !== undefined && supportMetrics !== undefined && dashCounts !== undefined;
   usePerformanceLog('DashboardOverview', dataReady);
 
   const formatCurrency = (value: number) => {
@@ -78,7 +75,7 @@ export function OverviewDashboardTab({ dateRange }: OverviewDashboardTabProps) {
     return `${Math.round(minutes * 60)}s`;
   };
 
-  const activeSlaAlerts = slaAlerts?.length || 0;
+  const activeSlaAlerts = dashCounts?.sla_risk || 0;
   const connectedInstances = whatsappInstances?.filter(i => i.status === 'connected').length || 0;
   const totalInstances = whatsappInstances?.length || 0;
   const activeConversations = convCounts?.total || 0;
@@ -145,15 +142,15 @@ export function OverviewDashboardTab({ dateRange }: OverviewDashboardTabProps) {
               />
               <KPICard 
                 title="Tickets Abertos" 
-                value={(ticketCounts?.total || 0).toString()}
+                value={(dashCounts?.tickets_open || 0).toString()}
                 icon={Headphones}
-                description="aguardando"
+                description="no período"
               />
               <KPICard 
-                title="FRT Médio" 
+                title="Resposta Humana" 
                 value={formatTime(supportMetrics?.avgFRT)}
                 icon={Clock}
-                description="first response"
+                description="tempo médio"
               />
               <KPICard 
                 title="CSAT" 

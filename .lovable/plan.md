@@ -1,50 +1,48 @@
 
 
-# Diagnóstico: Modo Teste Chamando 2 Fluxos
+# Seletor de Fluxo — Visibilidade no Header
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Problema
+## Situação Atual
 
-Existem **dois componentes separados** na interface que permitem iniciar fluxos na mesma conversa:
+A consolidação anterior removeu a lista de fluxos do **TestModeDropdown** (header) para evitar duplicação. Porém, o **FlowPickerButton** continua existindo no **compositor de mensagens** (área inferior) — ele ainda permite escolher e iniciar fluxos (ativos + rascunhos quando test mode está ligado).
 
-1. **TestModeDropdown** (header do chat) — lista rascunhos + ativos, permite iniciar qualquer um
-2. **FlowPickerButton** (área do compositor de mensagem) — lista ativos + rascunhos (quando test mode ativo), permite iniciar qualquer um
+O problema é que o botão no compositor (ícone de Workflow `⎇`) pode não estar visível ou óbvio para o usuário.
 
-Ambos estão visíveis ao mesmo tempo e mostram listas **sobrepostas** de fluxos. Quando o usuário inicia um fluxo pelo TestModeDropdown, o FlowPickerButton continua disponível para iniciar outro, criando **dois estados ativos simultâneos**.
+## Proposta
 
-Além disso, o `FlowPickerButton` verifica `hasActiveFlow` para bloquear, mas o `TestModeDropdown` **não faz essa verificação** — ele cancela o fluxo ativo e inicia um novo, mas se o cancelamento não completar antes do segundo clique, dois estados são criados.
-
-## Solução Proposta
-
-### Consolidar a funcionalidade em um único ponto
+Adicionar um **FlowPickerButton** também no header, ao lado do toggle de teste, mantendo a proteção de `hasActiveFlow` para evitar o bug anterior de dois fluxos simultâneos.
 
 | Mudança | Arquivo | Descrição |
 |---|---|---|
-| Remover lista de fluxos do TestModeDropdown | `TestModeDropdown.tsx` | Manter apenas o toggle de modo teste. Remover seções de "Rascunhos" e "Ativos" |
-| Centralizar início de fluxos no FlowPickerButton | `FlowPickerButton.tsx` | Já possui validação de `hasActiveFlow`. É o local correto |
-| Bloquear FlowPickerButton durante fluxo ativo | `FlowPickerButton.tsx` | Já implementado via prop `hasActiveFlow` |
+| Adicionar FlowPickerButton no header | `ChatWindow.tsx` | Renderizar o componente ao lado do TestModeDropdown, passando `hasActiveFlow` e `isTestMode` |
+| Nenhuma mudança | `FlowPickerButton.tsx` | Já possui toda a lógica necessária com validação |
+| Nenhuma mudança | `TestModeDropdown.tsx` | Permanece como toggle simples |
 
 ### Detalhamento
 
-**TestModeDropdown.tsx** — simplificar para apenas toggle:
-- Remover imports: `useChatFlows`, `useActiveFlowState`, `supabase`, `Workflow`, `Play`
-- Remover `handleStartFlow`, `draftFlows`, `activeFlows`
-- Manter apenas o `DropdownMenuItem` do toggle on/off
-- Resultado: componente limpo, sem sobreposição de funcionalidade
+**ChatWindow.tsx** — após o `<TestModeDropdown>`, adicionar:
 
-**FlowPickerButton.tsx** — já é o ponto correto:
-- Já lista ativos e rascunhos (quando `isTestMode`)
-- Já verifica `hasActiveFlow` antes de iniciar
-- Já mostra badges de "Rascunho"
-- Nenhuma mudança necessária
+```tsx
+<FlowPickerButton
+  conversationId={conversation.id}
+  contactId={conversation.contact_id}
+  isTestMode={isTestMode}
+  hasActiveFlow={!!activeFlow}
+/>
+```
+
+Isso garante:
+- Um **único componente** (`FlowPickerButton`) gerencia o início de fluxos
+- A proteção `hasActiveFlow` está centralizada — impede dois fluxos simultâneos
+- O botão fica visível no header, onde o usuário espera encontrá-lo
 
 ### Impacto
 
 | Regra | Status |
 |---|---|
-| Regressão zero | Sim — funcionalidade de iniciar fluxos permanece no FlowPickerButton |
-| Upgrade | Sim — elimina duplicação e fonte de bugs |
-| Kill Switch | Preservado |
-| Rollback | Restaurar o TestModeDropdown com as seções de fluxo |
+| Regressão zero | Sim — mesmo componente, mesma lógica, mesmo guard |
+| Upgrade | Sim — melhora discoverability sem duplicar lógica |
+| Bug anterior | Não retorna — proteção `hasActiveFlow` está no componente |
 

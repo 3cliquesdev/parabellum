@@ -1,74 +1,90 @@
 
 
-# Plano: Unificar Teste + Escolha de Fluxo em uma acao
+# Plano: Diagnóstico Final + Fix Visual para Modo Teste
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
+## Diagnóstico com EVIDÊNCIA DO BANCO
+
+O Fluxo Principal **NÃO ESTÁ rodando**. Evidência:
+
+```text
+chat_flow_states (agora):
+  flow_id: 20a05c59 (Rascunho) ← ÚNICO estado ativo
+  status: waiting_input
+  Nenhum estado do Fluxo Principal (3ea0d227) existe.
+
+Logs process-chat-flow:
+  02:18:01 → manualTrigger=true, flowId=20a05c59 (Rascunho) ✅
+  02:18:27 → manualTrigger=false, "Oi" → encontra estado ativo do Rascunho → invalidOption ✅
+  Nenhuma chamada ao Fluxo Principal.
+```
+
+O guard na linha 1332 (`isTestMode && !manualTrigger`) está funcionando. As mensagens que parecem do Principal são do **Rascunho** — que é uma cópia com conteúdo idêntico. Sem flow_id nas mensagens, é impossível distinguir visualmente.
+
 ## Problema Real
 
-O botao "Teste" e o seletor de fluxo sao SEPARADOS. O usuario ativa teste, depois precisa clicar em outro botao para escolher o fluxo. Isso causa:
-- Janela de tempo onde teste esta ativo mas nenhum fluxo foi escolhido
-- Se o contato envia mensagem nessa janela, o Master Flow pode ter rodado ANTES do teste
-- Confusao visual com mensagens antigas identicas
+As mensagens do fluxo não carregam identificação de qual fluxo as gerou. Quando o rascunho tem o mesmo conteúdo do Principal, parecem duplicadas/vindas do Principal.
 
-## Solucao: Unificar em um unico componente
+## Solução: Identificar cada mensagem com o nome do fluxo
 
-### Mudanca 1: `TestModeDropdown.tsx` — Transformar em dropdown com flow picker integrado
+### Mudança 1: `process-chat-flow/index.ts` — Adicionar flow_name no metadata de TODA mensagem do fluxo
 
-Quando clicar no botao "Teste":
-- Se teste esta **desativado**: abre dropdown com lista de fluxos (ativos + rascunhos). Ao escolher um fluxo, ativa `is_test_mode = true` E inicia o fluxo escolhido simultaneamente.
-- Se teste esta **ativado**: clique desativa `is_test_mode = false` e cancela o fluxo ativo.
+Em TODAS as respostas do process-chat-flow que incluem `flowId`, adicionar também `flowName` para o frontend exibir.
+
+Locais afetados:
+- Resposta do manual trigger (linhas ~911-920)
+- Resposta de invalidOption (linhas ~1034-1046)
+- Resposta de próximo nó (linhas ~1321-1329)
+- Resposta de ai_response (linhas ~1280-1304)
+
+Adicionar `flowName: flow.name || activeState.chat_flows?.name` em cada JSON de resposta.
+
+### Mudança 2: `meta-whatsapp-webhook/index.ts` — Salvar flow_name no metadata da mensagem
+
+Quando o webhook salva a resposta do fluxo no banco (via send-meta-whatsapp), incluir no metadata da mensagem o `flowData.flowName`. Assim cada mensagem fica rastreável.
+
+```typescript
+// Ao salvar mensagem de resposta do fluxo
+metadata: {
+  flow_id: flowData.flowId,
+  flow_name: flowData.flowName,
+}
+```
+
+### Mudança 3: `MessagesWithMedia.tsx` — Exibir badge com nome do fluxo
+
+Quando uma mensagem tem `metadata.flow_name`, exibir um badge pequeno abaixo do bubble:
 
 ```text
 ┌──────────────────────────────┐
-│  🧪 Escolha o fluxo de teste │
-├──────────────────────────────┤
-│  Ativos                      │
-│  📝 Master Flow + IA Entrada │
-│  📝 Fluxo de Vendas          │
-├──────────────────────────────┤
-│  🧪 Rascunhos                │
-│  📝 Master Flow (Rascunho)   │
-│  📝 Novo Fluxo Beta          │
+│ Seja bem-vindo à 3 Cliques!  │
+│ ...                          │
+│                   23:18 ✓    │
 └──────────────────────────────┘
+  🔧 Master Flow + IA (Rascunho)
 ```
 
-Ao selecionar:
-1. `supabase.update({ is_test_mode: true })` na conversa
-2. `supabase.functions.invoke('process-chat-flow', { manualTrigger: true, flowId, bypassActiveCheck: isDraft })` para iniciar
+Isso elimina 100% da confusão: cada mensagem mostra de qual fluxo veio.
 
-Tudo em uma acao atomica.
+### Mudança 4: Nenhuma mudança no guard de bloqueio
 
-### Mudanca 2: `ChatWindow.tsx` — Remover `FlowPickerButton` separado quando em modo teste
-
-O `FlowPickerButton` no header continua existindo para uso normal (fora do modo teste), mas quando `isTestMode = true`, o botao de fluxo fica desabilitado ou oculto (o fluxo ja foi escolhido no ato de ativar o teste).
-
-### Mudanca 3: `MessagesWithMedia.tsx` — Destacar mensagens apos separador de teste
-
-Apos detectar mensagem system com "TESTE DE FLUXO INICIADO", aplicar borda lateral amarela (`border-l-2 border-warning`) nas mensagens seguintes para distinguir visualmente do historico anterior.
-
-### Mudanca 4: Backend ja esta correto
-
-- Guard em `process-chat-flow` (linha 1332-1345): bloqueia auto-triggers em modo teste -- JA FUNCIONA
-- Guard em `meta-whatsapp-webhook` (linha 671-673): silencia mensagens em modo teste -- JA FUNCIONA  
-- Fluxo completo -> proximo "Boa noite" -> sem estado ativo + isTestMode -> guard bloqueia -- JA FUNCIONA
-
-Nenhuma mudanca no backend necessaria.
+O guard na linha 1332 já funciona corretamente. Não precisa de alteração.
 
 ## Resumo de arquivos
 
-| Arquivo | Mudanca |
+| Arquivo | Mudança |
 |---|---|
-| `src/components/inbox/TestModeDropdown.tsx` | Transformar em dropdown com lista de fluxos integrada |
-| `src/components/ChatWindow.tsx` | Ajustar props e logica de visibilidade do FlowPickerButton |
-| `src/components/inbox/MessagesWithMedia.tsx` | Borda lateral amarela apos separador de teste |
+| `supabase/functions/process-chat-flow/index.ts` | Adicionar `flowName` em todas as respostas JSON |
+| `supabase/functions/meta-whatsapp-webhook/index.ts` | Salvar `flow_name` no metadata da mensagem no banco |
+| `src/components/inbox/MessagesWithMedia.tsx` | Exibir badge com nome do fluxo quando disponível no metadata |
 
 ## Impacto
 
 | Regra | Status |
 |---|---|
-| Regressao zero | Sim — FlowPickerButton continua funcional fora do modo teste |
-| Upgrade | Sim — elimina janela de tempo entre ativar teste e escolher fluxo |
-| Kill Switch | Nao afetado |
-| Fluxo nunca mudo | Nao afetado — fluxo ja e iniciado no ato de ativar teste |
+| Regressão zero | Sim — apenas adiciona informação, não altera lógica |
+| Upgrade | Sim — elimina confusão visual entre fluxos |
+| Kill Switch | Não afetado |
+| Fluxo nunca mudo | Não afetado |
 

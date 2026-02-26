@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Workflow, MessageSquare, Loader2, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,7 @@ export function FlowPickerButton({
   hasActiveFlow = false,
 }: FlowPickerButtonProps) {
   const { data: flows, isLoading } = useChatFlows();
+  const queryClient = useQueryClient();
   const [isStarting, setIsStarting] = useState<string | null>(null);
 
   const activeFlows = flows?.filter(f => f.is_active) || [];
@@ -66,6 +68,8 @@ export function FlowPickerButton({
         toast.error(data.error);
       } else if (data?.flowStarted || !data?.error) {
         toast.success(`Fluxo "${flowName}" iniciado!`);
+        queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+        queryClient.invalidateQueries({ queryKey: ["active-flow-state", conversationId] });
       }
     } catch (error) {
       console.error("[FlowPickerButton] Error starting flow:", error);

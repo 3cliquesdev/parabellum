@@ -527,22 +527,26 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
 
               {/* Botões de ação - lado direito */}
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* 🧪 Dropdown de Modo de Teste + Seletor de Fluxos */}
+                {/* 🧪 Dropdown de Modo de Teste + Seletor de Fluxos (unificado) */}
                 {hasPermission('inbox.test_mode') && hasFullAccess(role) && (
                   <TestModeDropdown
                     isTestMode={isTestMode}
                     toggleTestMode={toggleTestMode}
                     isTestModePending={isTestModePending}
                     conversationId={conversation.id}
+                    contactId={conversation.contact_id}
                   />
                 )}
 
-                <FlowPickerButton
-                  conversationId={conversation.id}
-                  contactId={conversation.contact_id}
-                  isTestMode={isTestMode}
-                  hasActiveFlow={!!activeFlow}
-                />
+                {/* FlowPickerButton só aparece fora do modo teste */}
+                {!isTestMode && (
+                  <FlowPickerButton
+                    conversationId={conversation.id}
+                    contactId={conversation.contact_id}
+                    isTestMode={isTestMode}
+                    hasActiveFlow={!!activeFlow}
+                  />
+                )}
 
                 {canShowTakeControl && (
                   <Button

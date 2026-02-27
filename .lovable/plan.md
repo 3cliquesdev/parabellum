@@ -1,42 +1,29 @@
 
 
-# Fix: KPI "Conversas" deve mostrar total do período
+# Fix: RPC `get_support_dashboard_counts` quebrada - coluna inexistente
 
-## Problema
+## Causa Raiz
 
-O card "CONVERSAS" mostra apenas conversas **abertas** criadas no período (~47-50). O usuário espera ver o **total de conversas** no período (abertas + fechadas). Esta semana o total real é ~1378.
+A ultima migration (`20260227133023`) referencia a coluna `sla_deadline` na tabela `tickets`, mas essa coluna **nao existe**. O nome correto e `due_date`. Isso faz a RPC inteira crashar com erro SQL, retornando erro para todos os 4 KPIs. O frontend trata o erro como fallback silencioso = mostra 0, 0, 0.
 
-## Solução (1 migration)
-
-Atualizar `get_support_dashboard_counts` para retornar dois campos de conversas:
-- `conversations_total`: todas as conversas criadas no período (abertas + fechadas)
-- `conversations_closed`: conversas fechadas no período (já existe)
-
-E ajustar o frontend para mostrar o total no card principal, com "X encerradas" como subtexto.
-
-### 1. Migration: Atualizar RPC
-
-```sql
--- conversations_total: ALL conversations created in period
-SELECT COUNT(*) INTO v_conversations_total
-FROM conversations
-WHERE created_at >= p_start AND created_at < p_end;
-
--- Remove v_conversations_open, replace with v_conversations_total in return
+Confirmei executando a RPC diretamente no banco:
+```
+ERROR: 42703: column "sla_deadline" does not exist
 ```
 
-### 2. Frontend: `SupportDashboardTab.tsx`
+## Plano (2 passos)
 
-Alterar o card "Conversas" para usar `conversations_total` em vez de `conversations_open`:
-```tsx
-value={(counts?.conversations_total || 0).toString()}
-```
+### 1. Migration: Corrigir RPC (trocar `sla_deadline` por `due_date`)
 
-## Arquivos
+Recriar `get_support_dashboard_counts` identica a atual, apenas corrigindo `sla_deadline` -> `due_date` na query de SLA risk.
 
-| Arquivo | Ação |
-|---|---|
-| Migration SQL | Trocar `conversations_open` por `conversations_total` no RPC |
-| `SupportDashboardTab.tsx` | Usar `conversations_total` no card |
-| `useSupportMetrics.tsx` | Atualizar interface `SupportDashboardCounts` |
+### 2. Frontend: Mostrar erro explicito nos KPIs quando RPC falhar
+
+No `SupportDashboardTab.tsx` e `OverviewDashboardTab.tsx`, tratar o estado `isError` dos hooks para exibir indicador visual em vez de zeros enganosos.
+
+## Impacto
+
+- Zero risco de regressao: apenas corrige nome de coluna errado
+- Ambas as telas (Dashboard aba Suporte + Visao Geral) serao corrigidas
+- Nenhum widget existente e alterado alem do tratamento de erro
 

@@ -337,7 +337,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.auto-close-conversations.cron]
-schedule = "*/10 * * * *"
+schedule = "* * * * *"
 region = "us-east-1"
 
 [functions.process-pending-deal-closures]

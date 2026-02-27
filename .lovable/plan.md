@@ -1,19 +1,20 @@
 
 
-# Fix: RPC `get_inbox_time_report` — type mismatch
+# Fix: Relatório Inbox Time não carrega dados
 
-## Causa Raiz
+## Diagnóstico
 
-A RPC retorna erro 400: `"Returned type numeric does not match expected type double precision in column 14"`.
+A RPC `get_inbox_time_report` **funciona corretamente** quando executada diretamente no banco — retorna 432 conversas para o período, com todos os KPIs calculados.
 
-`EXTRACT(EPOCH FROM ...)` e `PERCENTILE_CONT(...)` retornam `numeric` no Postgres, mas o `RETURNS TABLE` declara essas colunas como `double precision`.
+O problema é que o PostgREST (camada que conecta o frontend ao banco) **não recarregou o cache do schema** após as migrations anteriores que recriaram a função. Ele ainda tenta usar a assinatura antiga da RPC, que falhava com type mismatch — resultando em erro silencioso no frontend.
 
-## Solução
+## Plano (2 passos)
 
-Uma migration para recriar a RPC com casts explícitos `::double precision` em todas as colunas numéricas calculadas:
+### 1. Migration: Forçar reload do schema cache do PostgREST
 
-- Linhas 136-141 (metrics): `m.ai_fr_sec::double precision`, etc.
-- Linhas 145-153 (aggregates): `a.avg_ai_fr::double precision`, `a.p50_ai_fr::double precision`, etc.
+Criar migration com `NOTIFY pgrst, 'reload schema'` para forçar o PostgREST a reconhecer a função atualizada. Também recriar a função novamente para garantir que está atualizada.
 
-Nenhuma mudança no frontend necessária — apenas o cast de tipo no SQL.
+### 2. Frontend: Mostrar erro explícito quando RPC falhar
+
+No `InboxTimeReport.tsx` e nos componentes `InboxTimeKPICards` / `InboxTimeTable`, propagar `isError` e `error` do hook para exibir mensagem de erro visível em vez de simplesmente mostrar "Nenhuma conversa encontrada" quando na verdade houve falha na chamada.
 

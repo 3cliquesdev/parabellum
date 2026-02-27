@@ -1,35 +1,35 @@
 
 
-# Fix: IA para de responder após exit keyword em nó de inatividade
+# Fix: forbidFinancial não está sendo passado no webhook + fluxo deve ser soberano
 
-## Recomendação
+## Problema Identificado
 
-**As duas coisas devem acontecer juntas:**
+Há **dois problemas**:
 
-1. Se `forbid_financial` está ativo no nó de IA, a IA já informa ao cliente que não resolve questões financeiras (isso já funciona — o guard financeiro envia a mensagem antes de sair do nó)
-2. Após sair do nó de IA (por exit keyword ou max_interactions), o fluxo **deve continuar para o próximo nó** normalmente
+1. **`forbidFinancial` não é passado no webhook**: No arquivo `meta-whatsapp-webhook/index.ts` linha 919-933, o `flow_context` construído no CASO 3 passa `forbidQuestions` e `forbidOptions` mas **nunca inclui `forbidFinancial`**. Resultado: a IA no `ai-autopilot-chat` recebe `forbidFinancial: false` (default) e responde normalmente sobre cancelamentos/reembolsos.
 
-O bug real é que, ao sair do nó de IA, se o próximo nó for uma **condição de inatividade**, o fluxo trava porque a lógica trata como "parar e esperar timeout" — mas o usuário acabou de enviar uma mensagem, então está **ativo** e deveria seguir pelo caminho "Não" (ativo) imediatamente.
+2. **Conceito mais amplo**: Quando o exit keyword é ativado (ex: "cancelar", "reembolso"), o `process-chat-flow` detecta o keyword e avança para o próximo nó. Porém, na **mesma interação** onde o keyword é detectado, o fluxo retorna `aiNodeActive: false` e o resultado deveria ser o conteúdo do próximo nó (mensagem, transfer, etc). Isso já funciona corretamente após a correção anterior de inatividade. O problema real é que a IA responde **antes** do exit keyword ser avaliado — porque o webhook chama a IA quando `aiNodeActive: true`, e o exit keyword só é checado no **próximo** ciclo.
 
-## Correções (1 arquivo)
+Porém, olhando o código com mais cuidado: o `process-chat-flow` é chamado **primeiro** (linha 637), e ele verifica exit keywords (linha 1162-1164). Se keyword match, ele NÃO retorna `aiNodeActive: true` — ele segue para `findNextNode`. Então o fluxo **deveria** avançar. O problema é exclusivamente que o `forbidFinancial` não chega na IA, então quando NÃO há exit keyword configurado (ou a palavra não bate exatamente), a IA responde sobre cancelamentos normalmente.
 
-### `supabase/functions/process-chat-flow/index.ts`
+## Correção (1 arquivo)
 
-**Correção 1 — Inatividade durante auto-traverse após mensagem do usuário (linhas 1273-1304)**
+### `supabase/functions/meta-whatsapp-webhook/index.ts` — Linha 932
 
-Quando a condição de inatividade é alcançada durante auto-traverse e existe uma mensagem do usuário no contexto (`userMessage` não é vazio e `inactivityTimeout` é false), o nó deve ser avaliado como "ativo" (path `false`) e continuar a travessia ao invés de parar com `waiting_input`.
+Adicionar `forbidFinancial` ao flow_context do CASO 3:
 
-Lógica: adicionar verificação `if (userMessage && userMessage.trim().length > 0)` antes do bloco de "stop and wait". Se o usuário acabou de enviar mensagem → seguir caminho "Não" (ativo). Só parar e esperar quando não há mensagem recente (cenário do cron/trigger automático).
+```typescript
+forbidOptions: (flowData as any).forbidOptions ?? true,
+forbidFinancial: (flowData as any).forbidFinancial ?? false,  // ← ADICIONAR
+```
 
-**Correção 2 — ReferenceError em `conversation` (linhas 1192 e 1211)**
+## Verificação adicional recomendada
 
-A variável `conversation` não existe neste escopo. Substituir por:
-- Linha 1192: `department_id: null` (ou buscar do `activeState` se disponível)
-- Linha 1211: `channel: 'web_chat'` (fallback seguro)
+Confirmar que os exit_keywords do nó de IA no fluxo "Master Flow + IA Entrada" incluem termos como "cancelar", "cancelamento", "reembolso" para que o fluxo avance ao invés da IA tentar resolver.
 
 ## Resultado esperado
 
-1. Usuário envia "reembolso" → IA reconhece exit keyword → sai do nó de IA
-2. Próximo nó é condição de inatividade → como o usuário acabou de enviar mensagem, segue caminho "Não" (ativo)
-3. Fluxo continua normalmente para o nó seguinte no caminho "ativo"
+1. Se exit keyword bate → fluxo avança para próximo nó (transfer, mensagem, etc.)
+2. Se exit keyword NÃO bate mas `forbidFinancial` está ativo → IA informa que não resolve financeiro e sugere falar com humano
+3. Em ambos os casos, o comportamento é controlado pelo fluxo
 

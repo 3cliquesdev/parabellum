@@ -1,20 +1,16 @@
 
 
-# Fix: Relatório Inbox Time não carrega dados
+# Busca por protocolo no Relatório Inbox Time
 
 ## Diagnóstico
 
-A RPC `get_inbox_time_report` **funciona corretamente** quando executada diretamente no banco — retorna 432 conversas para o período, com todos os KPIs calculados.
+A RPC `get_inbox_time_report` **já busca por protocolo** (short_id = primeiros 8 chars do UUID). Porém, se o usuário digitar com `#` na frente (ex: `#37E8C1C0`), o `#` é enviado junto ao banco e impede o match.
 
-O problema é que o PostgREST (camada que conecta o frontend ao banco) **não recarregou o cache do schema** após as migrations anteriores que recriaram a função. Ele ainda tenta usar a assinatura antiga da RPC, que falhava com type mismatch — resultando em erro silencioso no frontend.
+## Solução
 
-## Plano (2 passos)
+**Frontend** — No `InboxTimeReport.tsx`, sanitizar o valor de `search` antes de enviar ao hook: remover o prefixo `#` caso presente. Isso garante que `#37E8C1C0` seja convertido para `37E8C1C0` antes da query.
 
-### 1. Migration: Forçar reload do schema cache do PostgREST
+Alterar no hook `useInboxTimeReport.ts` (ou na página) para fazer `p_search.replace(/^#/, '')` antes de enviar à RPC.
 
-Criar migration com `NOTIFY pgrst, 'reload schema'` para forçar o PostgREST a reconhecer a função atualizada. Também recriar a função novamente para garantir que está atualizada.
-
-### 2. Frontend: Mostrar erro explícito quando RPC falhar
-
-No `InboxTimeReport.tsx` e nos componentes `InboxTimeKPICards` / `InboxTimeTable`, propagar `isError` e `error` do hook para exibir mensagem de erro visível em vez de simplesmente mostrar "Nenhuma conversa encontrada" quando na verdade houve falha na chamada.
+Arquivo: `src/hooks/useInboxTimeReport.ts` — adicionar sanitização do `p_search` removendo `#` inicial.
 

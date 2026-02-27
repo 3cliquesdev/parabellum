@@ -10341,6 +10341,8 @@ export type Database = {
         | "ticket_resolved"
         | "ticket_closed"
         | "internal_note"
+        | "email_delivered"
+        | "email_bounce"
       message_status: "sending" | "sent" | "delivered" | "failed" | "read"
       quote_status:
         | "draft"
@@ -10586,6 +10588,8 @@ export const Constants = {
         "ticket_resolved",
         "ticket_closed",
         "internal_note",
+        "email_delivered",
+        "email_bounce",
       ],
       message_status: ["sending", "sent", "delivered", "failed", "read"],
       quote_status: [

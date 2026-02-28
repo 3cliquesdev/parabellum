@@ -943,11 +943,95 @@ serve(async (req) => {
                       try {
                         const autopilotData = await autopilotResponse.json();
                         if (autopilotData?.financialBlocked) {
-                          console.log("[meta-whatsapp-webhook] 🔒 financialBlocked=true → enviando handoff msg imediatamente");
+                          // Se autopilot tem flow_context, re-invocar process-chat-flow para avançar ao próximo nó
+                          if (autopilotData?.hasFlowContext) {
+                            console.log("[meta-whatsapp-webhook] 🔒 financialBlocked + hasFlowContext → re-invocando process-chat-flow com forceFinancialExit");
+                            
+                            try {
+                              const flowResponse = await fetch(
+                                `${supabaseUrl}/functions/v1/process-chat-flow`,
+                                {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    Authorization: `Bearer ${supabaseServiceKey}`,
+                                  },
+                                  body: JSON.stringify({
+                                    conversationId: conversation.id,
+                                    userMessage: messageText,
+                                    forceFinancialExit: true,
+                                  }),
+                                }
+                              );
+                              
+                              if (flowResponse.ok) {
+                                const flowData = await flowResponse.json();
+                                console.log("[meta-whatsapp-webhook] ✅ process-chat-flow re-invoked (forceFinancialExit):", JSON.stringify({
+                                  action: flowData.action,
+                                  hasMessage: !!flowData.message,
+                                  nodeType: flowData.nodeType,
+                                }));
+                                
+                                // Se o flow retornou mensagem, enviar via Meta API
+                                if (flowData.message) {
+                                  const metaToken = instance.whatsapp_meta_token || Deno.env.get("WHATSAPP_META_TOKEN");
+                                  const phoneNumberId = instance.whatsapp_meta_phone_id || Deno.env.get("WHATSAPP_META_PHONE_NUMBER_ID");
+                                  
+                                  if (metaToken && phoneNumberId) {
+                                    await fetch(
+                                      `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
+                                      {
+                                        method: "POST",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                          Authorization: `Bearer ${metaToken}`,
+                                        },
+                                        body: JSON.stringify({
+                                          messaging_product: "whatsapp",
+                                          to: senderPhone,
+                                          type: "text",
+                                          text: { body: flowData.message },
+                                        }),
+                                      }
+                                    );
+                                    
+                                    await supabase.from("messages").insert({
+                                      conversation_id: conversation.id,
+                                      content: flowData.message,
+                                      sender_type: "system",
+                                      message_type: "text",
+                                    });
+                                    console.log("[meta-whatsapp-webhook] ✅ Flow next-node message sent (financial exit)");
+                                  }
+                                }
+                                
+                                // Se o flow retornou transfer, aplicar
+                                if (flowData.action === 'transfer' && flowData.department) {
+                                  await supabase
+                                    .from('conversations')
+                                    .update({
+                                      ai_mode: 'waiting_human',
+                                      department: flowData.department,
+                                      assigned_to: null,
+                                    })
+                                    .eq('id', conversation.id);
+                                  console.log("[meta-whatsapp-webhook] 🔄 Transfer applied from flow (financial exit) → dept:", flowData.department);
+                                }
+                                
+                                continue; // Flow handled it
+                              } else {
+                                console.error("[meta-whatsapp-webhook] ❌ process-chat-flow re-invoke failed:", await flowResponse.text());
+                              }
+                            } catch (flowErr) {
+                              console.error("[meta-whatsapp-webhook] ❌ Error re-invoking process-chat-flow:", flowErr);
+                            }
+                          }
+                          
+                          // Fallback: sem flow context OU flow re-invoke falhou → handoff genérico
+                          console.log("[meta-whatsapp-webhook] 🔒 financialBlocked=true → enviando handoff msg (fallback)");
                           
                           const handoffMsg = autopilotData.response || 'Entendi. Para assuntos financeiros, vou te encaminhar para um atendente humano agora.';
                           
-                          // Enviar mensagem de handoff via Meta API
                           try {
                             const metaToken = instance.whatsapp_meta_token || Deno.env.get("WHATSAPP_META_TOKEN");
                             const phoneNumberId = instance.whatsapp_meta_phone_id || Deno.env.get("WHATSAPP_META_PHONE_NUMBER_ID");
@@ -969,9 +1053,8 @@ serve(async (req) => {
                                   }),
                                 }
                               );
-                              console.log("[meta-whatsapp-webhook] ✅ Handoff message sent (financial block)");
+                              console.log("[meta-whatsapp-webhook] ✅ Handoff message sent (financial block fallback)");
                               
-                              // Salvar a mensagem no banco
                               await supabase.from("messages").insert({
                                 conversation_id: conversation.id,
                                 content: handoffMsg,
@@ -983,7 +1066,7 @@ serve(async (req) => {
                             console.error("[meta-whatsapp-webhook] ⚠️ Error sending handoff msg:", sendErr);
                           }
                           
-                          continue; // Não continuar processamento normal
+                          continue;
                         }
                       } catch {
                         // Se não conseguiu parsear JSON, segue normalmente

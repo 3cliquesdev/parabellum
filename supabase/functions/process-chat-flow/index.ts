@@ -316,7 +316,7 @@ serve(async (req) => {
     );
 
     const body = await req.json();
-    const { conversationId, userMessage, flowId, manualTrigger, contractViolation, violationReason, activateTransfer, bypassActiveCheck, inactivityTimeout } = body;
+    const { conversationId, userMessage, flowId, manualTrigger, contractViolation, violationReason, activateTransfer, bypassActiveCheck, inactivityTimeout, forceFinancialExit } = body;
     
     if (!conversationId) {
       return new Response(
@@ -1165,7 +1165,10 @@ serve(async (req) => {
 
         // 🔒 TRAVA FINANCEIRA: Detectar intenção financeira como exit do nó AI
         const financialIntentPattern = /saque|sacar|reembolso|estorno|devolu[çc][ãa]o|devolver|cancelar.*assinatura|meu dinheiro|saldo|pagamento|cobran[çc]a|retirar|retirada|caixa|carteira|pix|transferir\s*saldo|tirar\s*dinheiro|tirar\s*meu|valor\s*(que|da|do|em)|ressarcimento/i;
-        const financialIntentMatch = forbidFinancial && msgLower.length > 0 && financialIntentPattern.test(userMessage || '');
+        const financialIntentMatch = (forceFinancialExit && forbidFinancial) || (forbidFinancial && msgLower.length > 0 && financialIntentPattern.test(userMessage || ''));
+        if (forceFinancialExit) {
+          console.log('[process-chat-flow] 🔒 forceFinancialExit=true recebido do webhook, forçando exit do nó AI');
+        }
 
         if (financialIntentMatch) {
           console.log(`[process-chat-flow] 🔒 TRAVA FINANCEIRA: Intenção financeira detectada no nó AI, tratando como exit`);

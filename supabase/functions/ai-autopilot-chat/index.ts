@@ -1305,43 +1305,27 @@ serve(async (req) => {
       
       const fixedMessage = 'Entendi. Para assuntos financeiros (saque, reembolso, devolução), vou te encaminhar para um atendente humano agora.';
       
-      // 1) Atualizar conversa para waiting_human
-      try {
-        await supabaseClient
-          .from('conversations')
-          .update({ ai_mode: 'waiting_human', assigned_to: null })
-          .eq('id', conversationId);
-        console.log('[ai-autopilot-chat] 🔒 Conversa transferida para humano (trava financeira - entrada)');
-      } catch (transferErr) {
-        console.error('[ai-autopilot-chat] Erro ao transferir (trava financeira - entrada):', transferErr);
-      }
-
-      // 1.5) Finalizar flow state ativo para evitar fluxo órfão
-      try {
-        const { data: activeFlowState } = await supabaseClient
-          .from('chat_flow_states')
-          .select('id, flow_id, current_node_id')
-          .eq('conversation_id', conversationId)
-          .in('status', ['active', 'waiting_input', 'in_progress'])
-          .order('started_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (activeFlowState) {
+      // Se estamos dentro de um fluxo, NÃO fazer hard transfer.
+      // Deixar o webhook re-invocar process-chat-flow com forceFinancialExit
+      // para que o fluxo avance para o próximo nó (transfer, menu, etc.)
+      const hasFlowContext = !!(flow_context);
+      
+      if (!hasFlowContext) {
+        // SEM fluxo: hard transfer como antes
+        try {
           await supabaseClient
-            .from('chat_flow_states')
-            .update({
-              status: 'transferred',
-              completed_at: new Date().toISOString(),
-            })
-            .eq('id', activeFlowState.id);
-          console.log('[ai-autopilot-chat] 🔒 Flow state finalizado (trava financeira):', activeFlowState.id);
+            .from('conversations')
+            .update({ ai_mode: 'waiting_human', assigned_to: null })
+            .eq('id', conversationId);
+          console.log('[ai-autopilot-chat] 🔒 Conversa transferida para humano (trava financeira - entrada, sem fluxo)');
+        } catch (transferErr) {
+          console.error('[ai-autopilot-chat] Erro ao transferir (trava financeira - entrada):', transferErr);
         }
-      } catch (flowErr) {
-        console.error('[ai-autopilot-chat] ⚠️ Erro ao finalizar flow state (trava financeira):', flowErr);
+      } else {
+        console.log('[ai-autopilot-chat] 🔒 Flow context presente — delegando avanço ao process-chat-flow via forceFinancialExit');
       }
 
-      // 2) Registrar evento de auditoria
+      // Registrar evento de auditoria
       try {
         await supabaseClient
           .from('ai_events')
@@ -1355,6 +1339,7 @@ serve(async (req) => {
               pattern: 'financialIntentPattern',
               message_preview: customerMessage.substring(0, 200),
               forbid_financial: true,
+              has_flow_context: hasFlowContext,
             },
             input_summary: customerMessage.substring(0, 200),
           });
@@ -1362,11 +1347,12 @@ serve(async (req) => {
         console.error('[ai-autopilot-chat] ⚠️ Failed to log financial block event:', logErr);
       }
 
-      // 3) Retornar early — NÃO chamar o LLM
+      // Retornar early — NÃO chamar o LLM
       return new Response(JSON.stringify({
         ok: true,
         financialBlocked: true,
         exitKeywordDetected: true,
+        hasFlowContext,
         response: fixedMessage,
         message: fixedMessage,
         aiResponse: fixedMessage,

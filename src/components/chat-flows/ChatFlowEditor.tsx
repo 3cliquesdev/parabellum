@@ -49,6 +49,8 @@ import { cn } from "@/lib/utils";
 import { TransferPropertiesPanel } from "./TransferPropertiesPanel";
 import { AIResponsePropertiesPanel } from "./AIResponsePropertiesPanel";
 import { FetchOrderPropertiesPanel } from "./FetchOrderPropertiesPanel";
+import { VariableAutocomplete } from "./VariableAutocomplete";
+import { CONDITION_CONTACT_FIELDS, CONDITION_CONVERSATION_FIELDS, getAncestorNodeIds } from "./variableCatalog";
 
 // Tipos de nós para chat flows
 export const chatFlowNodeTypes = {
@@ -536,16 +538,18 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                 />
               </div>
 
-              {/* Mensagem (para a maioria dos nós) */}
+              {/* Mensagem (para a maioria dos nós) — com autocomplete de variáveis */}
               {["message", "ask_name", "ask_email", "ask_phone", "ask_cpf", "ask_options", "ask_text", "transfer", "end"].includes(selectedNode.type || "") && (
                 <div className="space-y-1.5">
                   <Label className="text-xs">Mensagem</Label>
-                  <Textarea
-                    onKeyDown={(e) => e.stopPropagation()}
+                  <VariableAutocomplete
                     value={selectedNode.data.message || ""}
-                    onChange={(e) => updateNodeData("message", e.target.value)}
-                    rows={3}
-                    className="resize-none"
+                    onChange={(v) => updateNodeData("message", v)}
+                    nodes={nodes}
+                    edges={edges}
+                    selectedNodeId={selectedNode.id}
+                    placeholder="Digite {{ para inserir variáveis"
+                    minHeight="80px"
                   />
                 </div>
               )}
@@ -604,9 +608,10 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
 
               {/* Condição */}
               {selectedNode.type === "condition" && (() => {
-                // Coletar variáveis save_as dos nós do fluxo
+                // Coletar variáveis save_as dos nós ancestrais no grafo (não array linear)
+                const ancestorIds = getAncestorNodeIds(selectedNode.id, edges);
                 const flowVariables = nodes
-                  .filter((n: Node) => n.data?.save_as)
+                  .filter((n: Node) => ancestorIds.has(n.id) && n.data?.save_as)
                   .map((n: Node) => ({
                     value: n.data.save_as as string,
                     label: `${n.data.save_as} (${n.data.label || n.type})`,
@@ -617,17 +622,14 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                   (v: { value: string }, i: number, arr: { value: string }[]) => arr.findIndex((x) => x.value === v.value) === i
                 );
 
-                const contactFields = [
-                  { value: "email", label: "Email" },
-                  { value: "name", label: "Nome" },
-                  { value: "phone", label: "Telefone" },
-                  { value: "cpf", label: "CPF" },
-                ];
+                const contactFields = CONDITION_CONTACT_FIELDS;
+                const conversationFields = CONDITION_CONVERSATION_FIELDS;
 
                 const currentField = selectedNode.data.condition_field || "";
                 const isCustomField = currentField && 
                   !uniqueFlowVars.some((v: { value: string }) => v.value === currentField) && 
                   !contactFields.some(f => f.value === currentField) && 
+                  !conversationFields.some(f => f.value === currentField) &&
                   currentField !== "__message__";
 
                 const conditionType = selectedNode.data.condition_type || "contains";
@@ -684,7 +686,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                         } else if (v === "__message__") {
                           updateNodeData("condition_field", "");
                         } else {
-                          updateNodeData("condition_field", v);
+                          updateNodeData("condition_field", v.trim());
                         }
                       }}
                     >
@@ -707,6 +709,14 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                           {contactFields.map(f => (
                             <SelectItem key={`contact-${f.value}`} value={f.value}>
                               👤 {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Campos da Conversa</SelectLabel>
+                          {conversationFields.map(f => (
+                            <SelectItem key={`conv-${f.value}`} value={f.value}>
+                              📡 {f.label}
                             </SelectItem>
                           ))}
                         </SelectGroup>

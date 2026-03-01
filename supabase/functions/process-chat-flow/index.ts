@@ -145,19 +145,65 @@ function findNextNode(flowDef: any, currentNode: any, path?: string): any {
   return flowDef.nodes.find((n: any) => n.id === edge.target);
 }
 
+// ============================================================
+// 🆕 HELPER: Construir contexto unificado de variáveis para templates
+// Merge: collectedData (prioridade) + contact_* + conversation_*
+// ============================================================
+function buildVariablesContext(
+  collectedData: Record<string, any>,
+  contactData: any,
+  conversationData: any
+): Record<string, any> {
+  const ctx: Record<string, any> = { ...collectedData };
+  if (contactData) {
+    for (const f of ['name','email','phone','cpf','city','state','tags','lead_score','kiwify_validated','source','company','document']) {
+      if (contactData[f] != null) ctx[`contact_${f}`] = contactData[f];
+    }
+    // Compose contact_name from first_name + last_name if not directly available
+    if (!contactData.name && (contactData.first_name || contactData.last_name)) {
+      ctx['contact_name'] = [contactData.first_name, contactData.last_name].filter(Boolean).join(' ');
+    }
+  }
+  if (conversationData) {
+    for (const f of ['channel','status','priority','protocol_number','queue','created_at','resolved_at']) {
+      if (conversationData[f] != null) ctx[`conversation_${f}`] = conversationData[f];
+    }
+  }
+  return ctx;
+}
+
+// ============================================================
+// 🆕 HELPER: Resolver unificado de variáveis para conditions
+// Fallback chain: collectedData → contactData → conversationData
+// ============================================================
+function getVar(
+  field: string,
+  collectedData: Record<string, any>,
+  contactData: any,
+  conversationData: any
+): any {
+  const f = field?.trim();
+  if (!f) return null;
+  // Aliases
+  if (f === 'is_validated_customer' || f === 'isValidatedCustomer') {
+    return contactData?.kiwify_validated ?? false;
+  }
+  return collectedData?.[f] ?? contactData?.[f] ?? conversationData?.[f] ?? null;
+}
+
 // Substituir variáveis no texto
-function replaceVariables(text: string, collectedData: Record<string, any>): string {
+function replaceVariables(text: string, variablesContext: Record<string, any>): string {
   let result = text;
-  for (const [key, value] of Object.entries(collectedData)) {
+  for (const [key, value] of Object.entries(variablesContext)) {
     result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
   }
   return result;
 }
 
 // Avaliar condição
-function evaluateCondition(condition: any, collectedData: Record<string, any>, userMessage: string, extraFlags?: { inactivityTimeout?: boolean }): boolean {
+function evaluateCondition(condition: any, collectedData: Record<string, any>, userMessage: string, extraFlags?: { inactivityTimeout?: boolean }, contactData?: any, conversationData?: any): boolean {
   const { condition_type, condition_field, condition_value } = condition;
-  const fieldValue = condition_field ? (collectedData[condition_field] || "") : userMessage;
+  const fieldValue = condition_field ? (getVar(condition_field, collectedData, contactData, conversationData) ?? "") : userMessage;
   
   switch (condition_type) {
     case "inactivity":
@@ -227,7 +273,7 @@ function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>
   }
   
   // Modo clássico: true/false
-  const result = evaluateCondition(nodeData, collectedData, userMessage, extraFlags);
+  const result = evaluateCondition(nodeData, collectedData, userMessage, extraFlags, undefined, undefined);
   return result ? 'true' : 'false';
 }
 async function handleFetchOrderNode(
@@ -567,7 +613,7 @@ serve(async (req) => {
       // Carregar dados de contato/conversa para avaliação de condições
       const { data: manualConversation } = await supabaseClient
         .from('conversations')
-        .select('id, contact_id')
+        .select('id, contact_id, channel, status, priority, protocol_number, queue, created_at, resolved_at')
         .eq('id', conversationId)
         .maybeSingle();
 
@@ -583,16 +629,12 @@ serve(async (req) => {
 
       const manualCollectedData: Record<string, any> = {};
 
-      // Função para avaliar condição no contexto manual
+      // Função para avaliar condição no contexto manual — usa getVar() centralizado
       function manualEvalCond(data: any): boolean {
         const { condition_type, condition_field, condition_value } = data || {};
         let fieldValue = condition_field
-          ? (manualCollectedData?.[condition_field] ?? (manualContactData ? manualContactData[condition_field] : null))
+          ? getVar(condition_field, manualCollectedData, manualContactData, manualConversation)
           : '';
-
-        if (condition_field === 'is_validated_customer' || condition_field === 'isValidatedCustomer') {
-          fieldValue = manualContactData?.kiwify_validated ?? false;
-        }
 
         console.log('[process-chat-flow] 🔍 Manual condition evaluation:', { condition_type, condition_field, condition_value, fieldValue });
 
@@ -1040,6 +1082,29 @@ serve(async (req) => {
 
       let collectedData = (activeState.collected_data || {}) as Record<string, any>;
 
+      // 🆕 Carregar contactData e conversationData para resolver variáveis de contato/conversa
+      let activeContactData: any = null;
+      let activeConversationData: any = null;
+      {
+        const { data: convData } = await supabaseClient
+          .from('conversations')
+          .select('id, contact_id, channel, status, priority, protocol_number, queue, created_at, resolved_at')
+          .eq('id', conversationId)
+          .maybeSingle();
+        activeConversationData = convData;
+        if (convData?.contact_id) {
+          const { data: ctData } = await supabaseClient
+            .from('contacts')
+            .select('*')
+            .eq('id', convData.contact_id)
+            .maybeSingle();
+          activeContactData = ctData;
+        }
+      }
+      // Helper para reconstruir variablesContext (chamado após cada mudança em collectedData)
+      const rebuildCtx = () => buildVariablesContext(collectedData, activeContactData, activeConversationData);
+      let variablesContext = rebuildCtx();
+
       console.log(`[process-chat-flow] 🔄 Processing node: type=${currentNode.type} id=${currentNode.id} msg="${(userMessage || '').slice(0, 60)}" collectedKeys=[${Object.keys(collectedData).filter(k => !k.startsWith('__')).join(',')}]`);
       
       // Validar resposta baseado no tipo de nó
@@ -1070,6 +1135,7 @@ serve(async (req) => {
       if (currentNode.data?.save_as) {
         console.log(`[process-chat-flow] 💾 Saving data: key="${currentNode.data.save_as}" value="${(userMessage || '').slice(0, 50)}" node=${currentNode.id}`);
         collectedData[currentNode.data.save_as] = userMessage;
+        variablesContext = rebuildCtx(); // Rebuild after collecting new data
       }
 
       // Determinar próximo nó
@@ -1426,7 +1492,7 @@ serve(async (req) => {
           .eq('id', activeState.id);
 
         const endMessage = nextNode?.data?.message 
-          ? replaceVariables(nextNode.data.message, collectedData)
+          ? replaceVariables(nextNode.data.message, variablesContext)
           : "Obrigado! Suas informações foram registradas.";
 
         // Executar ação final se configurada
@@ -1461,7 +1527,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             useAI: false,
-            response: replaceVariables(nextNode.data?.message || "Transferindo para um atendente...", collectedData),
+            response: replaceVariables(nextNode.data?.message || "Transferindo para um atendente...", variablesContext),
             transfer: true,
             transferType: nextNode.data?.transfer_type,
             departmentId: nextNode.data?.department_id,
@@ -1518,7 +1584,7 @@ serve(async (req) => {
       const extraMessages: string[] = [];
       
       while (nextNode && nextNode.type === 'message') {
-        const msgText = replaceVariables(nextNode.data?.message || "", collectedData);
+        const msgText = replaceVariables(nextNode.data?.message || "", variablesContext);
         extraMessages.push(msgText);
         console.log(`[process-chat-flow] 📨 Auto-advancing past message node ${nextNode.id}: "${msgText.substring(0, 50)}..."`);
         
@@ -1578,7 +1644,7 @@ serve(async (req) => {
           })
           .eq('id', activeState.id);
 
-        const endMsg = replaceVariables(nextNode.data?.message || '', collectedData);
+        const endMsg = replaceVariables(nextNode.data?.message || '', variablesContext);
         const allMessages = [...extraMessages, endMsg].filter(Boolean).join('\n\n');
         return new Response(
           JSON.stringify({
@@ -1604,7 +1670,7 @@ serve(async (req) => {
         })
         .eq('id', activeState.id);
 
-      const nextMessage = replaceVariables(nextNode.data?.message || "", collectedData);
+      const nextMessage = replaceVariables(nextNode.data?.message || "", variablesContext);
       const options = nextNode.type === 'ask_options' 
         ? (nextNode.data?.options || []).map((opt: any) => ({ label: opt.label, value: opt.value }))
         : null;
@@ -1882,7 +1948,7 @@ serve(async (req) => {
         // 2) Carregar contact/conversation uma vez
         const { data: conversation } = await supabaseClient
           .from('conversations')
-          .select('id, contact_id')
+          .select('id, contact_id, channel, status, priority, protocol_number, queue, created_at, resolved_at')
           .eq('id', conversationId)
           .maybeSingle();
 
@@ -1897,18 +1963,15 @@ serve(async (req) => {
         }
 
         let collectedData: Record<string, any> = {};
+        // 🆕 Build variablesContext for master flow replaceVariables calls
+        const masterVariablesContext = buildVariablesContext(collectedData, contactData, conversation);
 
-        // Função para avaliar condição com logs fortes
+        // Função para avaliar condição — usa getVar() centralizado
         function evalCond(data: any): boolean {
           const { condition_type, condition_field, condition_value } = data || {};
           let fieldValue = condition_field
-            ? (collectedData?.[condition_field] ?? (contactData ? contactData[condition_field] : null))
-            : userMessage; // Quando field vazio, comparar contra a mensagem do usuário
-
-          // Compatibilidade com campos comuns
-          if (condition_field === 'is_validated_customer' || condition_field === 'isValidatedCustomer') {
-            fieldValue = contactData?.kiwify_validated ?? false;
-          }
+            ? getVar(condition_field, collectedData, contactData, conversation)
+            : userMessage;
 
           console.log('[process-chat-flow] 🔍 Condition evaluation:', { 
             condition_type, 
@@ -2103,7 +2166,7 @@ serve(async (req) => {
             .update({ status: 'transferred' })
             .eq('id', stateId);
             
-          const transferMsg = replaceVariables(node.data?.message || 'Transferindo para um atendente...', collectedData);
+          const transferMsg = replaceVariables(node.data?.message || 'Transferindo para um atendente...', masterVariablesContext);
           const msg = (transferMsg || '').trim();
           return new Response(
             JSON.stringify({ 
@@ -2127,7 +2190,7 @@ serve(async (req) => {
             .update({ status: 'completed', completed_at: new Date().toISOString() })
             .eq('id', stateId);
             
-          const endMsg = replaceVariables(node.data?.message || '', collectedData);
+          const endMsg = replaceVariables(node.data?.message || '', masterVariablesContext);
           const msg = (endMsg || '').trim();
           return new Response(
             JSON.stringify({ 
@@ -2143,7 +2206,7 @@ serve(async (req) => {
         }
 
         // message / ask_options / ask_*
-        const contentMessage = replaceVariables(node.data?.message || '', collectedData);
+        const contentMessage = replaceVariables(node.data?.message || '', masterVariablesContext);
         const msg = (contentMessage || '').trim();  // ✅ CORREÇÃO #1
         const options = node.type === 'ask_options'
           ? (node.data?.options || []).map((opt: any) => ({ label: opt.label, value: opt.value, id: opt.id }))

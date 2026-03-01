@@ -1,61 +1,45 @@
 
 
-# Relatório de Tempo Médio — Campos Vazios (Atendente / Departamento)
+# Diagnóstico: Conversa não avançou para o próximo nó
 
-## Diagnóstico
+## Problema Identificado
 
-Consultei os dados diretamente no banco. As conversas com Atendente e Departamento vazios são conversas tratadas inteiramente pela **IA (autopilot/copilot)** — nunca foram atribuídas a um agente humano nem a um departamento. A RPC `get_inbox_time_report` retorna string vazia nesses casos, o que é tecnicamente correto mas visualmente parece "incompleto."
+A conversa do Ian ficou presa no nó `ia_entrada` (IA Suporte) após enviar "Quero reembolso". O fluxo detectou corretamente a intenção financeira, mas **falhou na entrega da resposta do próximo nó** devido a um bug de mismatch de campos.
+
+## Causa Raiz
+
+Quando o Autopilot detecta "reembolso" (trava financeira), ele retorna `financialBlocked: true` ao webhook. O webhook então **re-invoca** `process-chat-flow` com `forceFinancialExit: true`. O `process-chat-flow` avança corretamente para o próximo nó e retorna a resposta.
+
+**Porém**, o webhook espera campos que não existem na resposta:
+
+```text
+WEBHOOK ESPERA           | PROCESS-CHAT-FLOW RETORNA
+─────────────────────────┼──────────────────────────
+flowData.message         | flowData.response
+flowData.action='transfer' | flowData.transfer=true
+flowData.department      | flowData.departmentId
+```
+
+Resultado: nada é enviado ao cliente, nenhuma transferência é aplicada, mas o `continue` executa — a conversa fica "muda".
+
+**Bug adicional:** Na re-invocação (linha 961), o webhook usa `messageText` que é **indefinido** — deveria ser `messageContent`.
 
 ## Solução
 
-Alterar a RPC `get_inbox_time_report` para preencher esses campos com informação útil mesmo em conversas sem atribuição humana:
+### Alteração 1 — `meta-whatsapp-webhook/index.ts`
 
-- **Atendente**: quando `assigned_to IS NULL`, mostrar o `ai_mode` da conversa → `"IA (Autopilot)"`, `"IA (Copilot)"` ou `"Não atribuído"`
-- **Departamento**: quando `department IS NULL`, tentar buscar o departamento do fluxo de chat executado (`chat_flow_executions → chat_flows.department_id`). Se não existir, mostrar `"Sem departamento"`
+Corrigir 3 pontos no bloco `forceFinancialExit` (~linhas 960-1020):
 
-### Alteração 1 — Migration SQL
+1. **`messageText` → `messageContent`** (variável correta)
+2. **`flowData.message` → `flowData.response`** (campo correto da resposta)
+3. **`flowData.action === 'transfer'` → `flowData.transfer === true`** + usar `flowData.departmentId`
 
-Recriar a RPC alterando as linhas que calculam `aname` e `dname`:
+### Alteração 2 — Recuperar conversa atual
 
-```sql
--- aname (antes):
-COALESCE(p.full_name, '') AS aname
-
--- aname (depois):
-COALESCE(
-  p.full_name,
-  CASE c.ai_mode::text
-    WHEN 'autopilot' THEN 'IA (Autopilot)'
-    WHEN 'copilot' THEN 'IA (Copilot)'
-    ELSE 'Não atribuído'
-  END
-) AS aname
-
--- dname (antes):
-COALESCE(d.name, '') AS dname
-
--- dname (depois):
-COALESCE(
-  d.name,
-  (SELECT d2.name FROM chat_flow_executions cfe
-   JOIN chat_flows cf ON cf.id = cfe.flow_id
-   JOIN departments d2 ON d2.id = cf.department_id
-   WHERE cfe.conversation_id = c.id
-   ORDER BY cfe.started_at DESC LIMIT 1),
-  'Sem departamento'
-) AS dname
-```
-
-### Alteração 2 — Mesma lógica na RPC `get_commercial_conversations_report`
-
-Aplicar o mesmo padrão para `assigned_agent_name` e `department_name`, garantindo consistência entre os dois relatórios de exportação.
-
-### Nenhuma alteração no frontend
-
-O código de exportação (`useExportInboxTimeCSV.ts` e `useExportConversationsCSV.tsx`) já mapeia `assigned_agent_name` e `department_name` corretamente — basta a RPC retornar valores preenchidos.
+Executar uma query para avançar manualmente o estado da conversa do Ian, já que está presa.
 
 ## Impacto
 
-- **Zero regressão**: conversas com agente/departamento atribuídos continuam iguais (o `COALESCE` só atua quando o valor original é NULL)
-- **Upgrade**: relatório passa a ter 100% das linhas com informação útil
+- **Zero regressão**: corrige apenas o handler de re-invocação financeira
+- **Upgrade**: todas as conversas com intenção financeira dentro de fluxo passarão a avançar corretamente para o próximo nó
 

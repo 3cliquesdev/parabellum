@@ -1,63 +1,40 @@
 
 
-# Validação Automática de Cliente — Ambos (Nó AI Response + Autopilot Global)
+# Triagem Silenciosa Unificada — Sempre Validar pela Base Kiwify
 
-## Resumo
-
-Adicionar triagem silenciosa de cliente em dois níveis:
-1. **Autopilot Global**: validação por CPF (novo) que complementa telefone e email já existentes — acontece antes de qualquer fluxo
-2. **Painel do nó AI Response**: toggle para ativar/desativar validação automática dentro do nó, com controle granular
+## Problema Atual
+A validação por telefone/CPF no autopilot **só roda quando o contato NÃO tem email** (condição na linha 2267: `if (!contactHasEmailForKiwify)`). Isso significa que se o contato já tem email, a validação Kiwify por telefone e CPF é pulada. O correto é **sempre validar**, usando os 3 dados disponíveis (telefone, email, CPF), tudo contra a base `kiwify_events`.
 
 ## Mudanças
 
-### 1. Nova Edge Function: `validate-by-cpf/index.ts`
-- Recebe `cpf` e `contact_id`
-- Busca na tabela `contacts` por `document = cpf` (normalizado, apenas dígitos)
-- Fallback: busca em `kiwify_events` pelo campo `payload->Customer->document`
-- Se encontrar: retorna `found: true` + dados, atualiza contato para `kiwify_validated = true`
+### 1. `ai-autopilot-chat/index.ts` — Remover condição restritiva e unificar validação
+- **Remover** a condição `if (!contactHasEmailForKiwify)` que bloqueia a validação Kiwify
+- **Trocar** por: `if (!contact.kiwify_validated)` — só pula se já está validado
+- **Adicionar email** ao array de validationPromises (chamar `verify-customer-email` junto com phone e CPF)
+- Executar os 3 em paralelo: phone + email + CPF → se qualquer um retornar `found: true`, marcar como cliente
+- **Remover** a mensagem de boas-vindas verbosa (triagem silenciosa = sem perguntar, sem anunciar)
 
-### 2. Autopilot Global (`ai-autopilot-chat/index.ts`)
-- Na fase de carregamento do contato (onde já ocorre `validate-by-kiwify-phone`), adicionar chamada a `validate-by-cpf` quando `contact.document` existe mas `kiwify_validated` é falso
-- Executar em paralelo com validação por telefone (já existente)
-- Resultado: contato é promovido silenciosamente antes de qualquer interação
+### 2. `process-chat-flow/index.ts` — Mesma lógica no nó AI Response
+- Já está correto (linhas 1213-1261), executa phone/email/CPF conforme `validate_fields`
+- Sem mudanças necessárias
 
-### 3. Painel AI Response — Toggle de Validação (`BehaviorControlsSection.tsx`)
-- Nova seção "Validar Cliente Automaticamente" com switch
-- Quando ativo, o nó AI Response executa triagem (telefone + email + CPF) antes de responder
-- Campos configuráveis: quais dados usar (telefone/email/CPF) — checkboxes
-- Armazena: `auto_validate_customer: boolean`, `validate_fields: string[]` no `nodeData`
+### 3. `BehaviorControlsSection.tsx` — Sem mudanças
+- Toggle e checkboxes já estão corretos
 
-### 4. Motor de Execução (`process-chat-flow/index.ts`)
-- No handler de `ai_response`, se `auto_validate_customer === true`:
-  - Verificar se contato já é `kiwify_validated`
-  - Se não, executar validação por telefone/email/CPF conforme `validate_fields`
-  - Atualizar `contactData.kiwify_validated` e `contactData.is_customer` no contexto do fluxo
-  - Variável `{{is_customer}}` fica atualizada para nós seguintes (condições)
+### 4. `validate-by-cpf/index.ts` e `validate-by-kiwify-phone/index.ts` — Sem mudanças
+- Já buscam na base `kiwify_events` corretamente
 
-### 5. Catálogo de variáveis (`variableCatalog.ts`)
-- Adicionar `contact_cpf` / `contact_document` ao `CONTACT_VARS` (se não existir)
-- Garantir `cpf` no `CONDITION_CONTACT_FIELDS` para condições
+## Resumo das Mudanças
+- **1 arquivo**: `ai-autopilot-chat/index.ts`
+  - Condição `!contactHasEmailForKiwify` → `!contact.kiwify_validated`
+  - Adicionar `verify-customer-email` ao array de promises paralelas
+  - Remover mensagem de boas-vindas verbosa (silencioso = só marca como cliente e continua)
 
-### 6. `supabase/config.toml`
-- Registrar `validate-by-cpf` com `verify_jwt = false`
+## Resultado
+Todo contato que entra e **não está validado ainda** passa por triagem silenciosa:
+- Telefone → `validate-by-kiwify-phone` (busca compras pelo número)
+- Email → `verify-customer-email` (busca na base kiwify_events)
+- CPF → `validate-by-cpf` (busca documento na base kiwify_events)
 
-## Fluxo Resultante
-
-```text
-AUTOPILOT GLOBAL (antes de tudo):
-  Contato entra → telefone ✓ email ✓ CPF ✓ → kiwify_validated = true/false
-
-DENTRO DO FLUXO (nó AI Response com toggle ativo):
-  [AI Response node] → valida telefone/email/CPF → atualiza is_customer
-      ↓
-  [Condition: É Cliente?] → Yes / No
-```
-
-## Arquivos Afetados
-1. `supabase/functions/validate-by-cpf/index.ts` — **novo**
-2. `supabase/functions/ai-autopilot-chat/index.ts` — chamada validate-by-cpf na fase de triagem
-3. `supabase/functions/process-chat-flow/index.ts` — handler auto_validate no nó ai_response
-4. `src/components/chat-flows/panels/BehaviorControlsSection.tsx` — seção de toggle validação
-5. `src/components/chat-flows/variableCatalog.ts` — CPF/document vars
-6. `supabase/config.toml` — registrar nova function
+Se qualquer um encontrar, marca `kiwify_validated = true` e trata como cliente — sem perguntar nada.
 

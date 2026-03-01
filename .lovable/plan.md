@@ -1,28 +1,28 @@
 
 
-# Remover código PWA/Service Worker do projeto
+# Reprocessar fluxo da conversa F19FE7CE
 
-## O que será removido
+## Diagnóstico atualizado
 
-### 1. `index.html` — Bloco "PWA NUKER" (linhas 42-68)
-Remover o script inteiro que desregistra SWs e limpa CacheStorage, incluindo o comentário "Theme Color removido - evita PWA-lite".
+O `process-chat-flow` **NÃO verifica Shadow Mode** — ele processa fluxos normalmente. A causa real do travamento precisa ser investigada nos logs de execução, mas o reprocessamento é seguro.
 
-### 2. `src/main.tsx` — Bloco "Remove service workers residuais" (linhas 99-105)
-Remover o trecho que chama `navigator.serviceWorker.getRegistrations()` e desregistra workers.
+## Plano de execução
 
-### 3. `src/lib/build/ensureLatestBuild.ts` — Limpar referências a SW dentro de `clearAllCaches()`
-Remover o bloco que desregistra service workers (linhas 94-103). Manter limpeza de CacheStorage e IndexedDB pois são úteis para build updates. Atualizar comentários que mencionam "PWA".
+### 1. Limpar o estado atual do fluxo
+Deletar o registro em `chat_flow_states` (id: `6dde3546-7787-4292-a54a-b365af431ed3`) que está travado no nó `welcome_ia` com status `active`.
 
-### 4. `package.json` — Remover dependências
-- `vite-plugin-pwa`
-- `workbox-window`
+### 2. Invocar `process-chat-flow` com manualTrigger
+Chamar a edge function com:
+- `conversationId`: `f19fe7ce-6de8-4f9e-bd14-3bae72f98eca`
+- `flowId`: `e44da799-c404-4c86-abe0-4aea2ca0ea1f`
+- `manualTrigger`: `true`
+- `userMessage`: `"Oi"` (mensagem original do cliente)
 
-### 5. `src/components/UpdateAvailableBanner.tsx`
-Nenhuma mudança — não tem código PWA, apenas usa `checkForUpdate`/`forceUpdate` que permanecem.
+Isso reinicia o fluxo desde o início e executa a travessia de nós até chegar ao `welcome_ia` (nó de mensagem), que será enviado ao WhatsApp do cliente.
 
-## O que NÃO será afetado
-- Sistema de build versioning (continua funcionando)
-- `ensureLatestBuild` / `forceUpdate` / `checkForUpdate` (permanecem)
-- Schema versioning em `main.tsx` (permanece)
-- Chunk error handlers (permanecem)
+### 3. Verificar resultado
+Checar nos logs da edge function e na tabela `messages` se a mensagem de boas-vindas foi entregue.
+
+## Risco
+Nenhum downgrade. A conversa já está parada sem resposta — reprocessar é a ação correta. O Kill Switch está desligado (`ai_global_enabled = true`) e o fluxo está ativo.
 

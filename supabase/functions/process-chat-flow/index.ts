@@ -1285,8 +1285,10 @@ serve(async (req) => {
                   activeContactData.kiwify_validated = true;
                   activeContactData.is_customer = true;
                   activeContactData.status = 'customer';
-                  // Atualizar variablesContext
-                  if (typeof rebuildVariablesContext === 'function') rebuildVariablesContext();
+                  // Atualizar variablesContext após auto-validação
+                  if (typeof rebuildCtx === 'function') {
+                    variablesContext = rebuildCtx();
+                  }
                   break;
                 }
               }

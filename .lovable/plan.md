@@ -1,28 +1,20 @@
 
 
-# Reprocessar fluxo da conversa F19FE7CE
+# Desativar Shadow Mode (`ai_shadow_mode = false`)
 
-## Diagnóstico atualizado
+## O que será feito
 
-O `process-chat-flow` **NÃO verifica Shadow Mode** — ele processa fluxos normalmente. A causa real do travamento precisa ser investigada nos logs de execução, mas o reprocessamento é seguro.
+Atualizar o registro `ai_shadow_mode` na tabela `system_configurations` para `'false'`, garantindo que nenhuma função do sistema bloqueie envios automáticos da IA.
 
-## Plano de execução
+## Execução
 
-### 1. Limpar o estado atual do fluxo
-Deletar o registro em `chat_flow_states` (id: `6dde3546-7787-4292-a54a-b365af431ed3`) que está travado no nó `welcome_ia` com status `active`.
+1. **UPDATE** na tabela `system_configurations`: `SET value = 'false' WHERE key = 'ai_shadow_mode'`
+2. **Verificar** que o valor foi salvo corretamente com uma query de leitura
 
-### 2. Invocar `process-chat-flow` com manualTrigger
-Chamar a edge function com:
-- `conversationId`: `f19fe7ce-6de8-4f9e-bd14-3bae72f98eca`
-- `flowId`: `e44da799-c404-4c86-abe0-4aea2ca0ea1f`
-- `manualTrigger`: `true`
-- `userMessage`: `"Oi"` (mensagem original do cliente)
+## Impacto
 
-Isso reinicia o fluxo desde o início e executa a travessia de nós até chegar ao `welcome_ia` (nó de mensagem), que será enviado ao WhatsApp do cliente.
-
-### 3. Verificar resultado
-Checar nos logs da edge function e na tabela `messages` se a mensagem de boas-vindas foi entregue.
-
-## Risco
-Nenhum downgrade. A conversa já está parada sem resposta — reprocessar é a ação correta. O Kill Switch está desligado (`ai_global_enabled = true`) e o fluxo está ativo.
+- A IA passará a **executar ações** (enviar mensagens, aplicar mudanças) em vez de apenas sugerir
+- Funções que verificam `ai_shadow_mode` (como `ai-autopilot-chat`) retornarão status `applied` em vez de `suggested_only`
+- O `process-chat-flow` **não é afetado** (já não verifica Shadow Mode), mas outras edge functions que checam esse flag passarão a operar normalmente
+- Nenhum downgrade — é a configuração necessária para operação normal do autopilot
 

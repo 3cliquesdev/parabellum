@@ -1,68 +1,28 @@
 
 
-# Novo Nó Visual: "Validar Cliente" no Editor de Fluxos
+# Remover código PWA/Service Worker do projeto
 
-## Objetivo
-Criar um nó dedicado `validate_customer` no editor de fluxos, similar ao `fetch_order`, que permite ao montador de fluxo arrastar e usar a validação Kiwify visualmente — com saídas de variáveis e configuração no painel lateral.
+## O que será removido
 
-## Arquivos a Criar
+### 1. `index.html` — Bloco "PWA NUKER" (linhas 42-68)
+Remover o script inteiro que desregistra SWs e limpa CacheStorage, incluindo o comentário "Theme Color removido - evita PWA-lite".
 
-### 1. `src/components/chat-flows/nodes/ValidateCustomerNode.tsx`
-- Nó visual com ícone ShieldCheck, cor verde-esmeralda
-- Badges indicando quais campos estão ativos (Telefone, Email, CPF)
-- Subtitle mostrando "Validar por: Telefone, Email, CPF"
+### 2. `src/main.tsx` — Bloco "Remove service workers residuais" (linhas 99-105)
+Remover o trecho que chama `navigator.serviceWorker.getRegistrations()` e desregistra workers.
 
-### 2. `src/components/chat-flows/ValidateCustomerPropertiesPanel.tsx`
-- Painel de propriedades lateral (como FetchOrderPropertiesPanel)
-- Checkboxes: Telefone, Email, CPF (quais campos usar na validação)
-- Variáveis de saída configuráveis:
-  - `is_customer` → true/false
-  - `customer_name` → Nome encontrado
-  - `customer_email` → Email encontrado
-- Preview das variáveis disponíveis após execução
+### 3. `src/lib/build/ensureLatestBuild.ts` — Limpar referências a SW dentro de `clearAllCaches()`
+Remover o bloco que desregistra service workers (linhas 94-103). Manter limpeza de CacheStorage e IndexedDB pois são úteis para build updates. Atualizar comentários que mencionam "PWA".
 
-## Arquivos a Modificar
+### 4. `package.json` — Remover dependências
+- `vite-plugin-pwa`
+- `workbox-window`
 
-### 3. `src/components/chat-flows/nodes/index.ts`
-- Adicionar export do `ValidateCustomerNode`
+### 5. `src/components/UpdateAvailableBanner.tsx`
+Nenhuma mudança — não tem código PWA, apenas usa `checkForUpdate`/`forceUpdate` que permanecem.
 
-### 4. `src/components/chat-flows/ChatFlowNodeWrapper.tsx`
-- Adicionar tipo `validate_customer` ao `ChatFlowNodeType`
-- Adicionar cores (verde: `bg-green-700` / `border-green-500`)
-
-### 5. `src/components/chat-flows/ChatFlowEditor.tsx`
-- Importar `ValidateCustomerNode` e `ValidateCustomerPropertiesPanel`
-- Registrar em `chatFlowNodeTypes`, `blockColors`, `miniMapColors`
-- Adicionar defaults no `getDefaultData`
-- Adicionar `DraggableBlock` na sidebar (seção Lógica, ícone ShieldCheck, label "Validar Cliente")
-- Adicionar renderização do painel de propriedades quando selecionado
-
-### 6. `src/components/chat-flows/variableCatalog.ts`
-- Adicionar variáveis de validação (`customer_validated`, `customer_name_found`, `customer_email_found`) similar ao pattern de ORDER_VARS
-- Detectar presença de nó `validate_customer` nos ancestrais para disponibilizar variáveis
-
-### 7. `supabase/functions/process-chat-flow/index.ts`
-- Adicionar handler para tipo `validate_customer`
-- Executar validate-by-kiwify-phone, verify-customer-email, validate-by-cpf conforme campos configurados
-- Salvar resultados nas variáveis do fluxo
-
-## Resultado Visual
-
-```text
-Sidebar do Editor:
-  [Lógica]
-    Condição | IA | Pedido | Validar Cliente  ← NOVO
-
-Nó no canvas:
-  ┌─────────────────────────┐
-  │ 🛡️ Validar Cliente       │ (header verde)
-  │ Validar por: Tel, Email  │
-  │ [Tel] [Email] [CPF]      │ (badges)
-  └─────────────────────────┘
-
-Painel lateral:
-  - Campos a validar: ☑ Telefone ☑ Email ☑ CPF
-  - Variáveis de saída: is_customer, customer_name...
-  - Preview: {{is_customer}} → true/false
-```
+## O que NÃO será afetado
+- Sistema de build versioning (continua funcionando)
+- `ensureLatestBuild` / `forceUpdate` / `checkForUpdate` (permanecem)
+- Schema versioning em `main.tsx` (permanece)
+- Chunk error handlers (permanecem)
 

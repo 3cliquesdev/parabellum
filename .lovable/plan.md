@@ -1,29 +1,26 @@
 
-# Variáveis de Contato + Autocomplete + Warnings + Condition Expandido — ✅ IMPLEMENTADO
 
-## Status: COMPLETO
+# Adicionar campo "Tem Consultor?" ao condition selector dos fluxos
 
-### Backend (`process-chat-flow/index.ts`) ✅
-- `buildVariablesContext()` — merge collectedData + contact_* + conversation_* (inclui queue)
-- `getVar()` — resolver unificado com fallback chain + .trim() + aliases
-- Select expandido em 3 pontos (active flow, manual trigger, master flow)
-- `variablesContext` usado em todos os `replaceVariables()` calls
-- `evaluateCondition()` atualizada para aceitar contactData/conversationData
+## Problema
+O editor de fluxos não oferece a opção de verificar se um contato tem consultor atribuído (`consultant_id`). Isso impede criar lógica condicional tipo: "se tem consultor → copilot, senão → fila".
 
-### Frontend (`variableCatalog.ts`) ✅ NOVO
-- `getAvailableVariables()` com traversal backwards via `getAncestorNodeIds()`
-- `findOrphanVariables()` — detecta variáveis não definidas
-- Catálogo fixo: CONTACT_VARS, CONVERSATION_VARS, ORDER_VARS
-- Campos de condição expandidos: CONDITION_CONTACT_FIELDS (11), CONDITION_CONVERSATION_FIELDS (5)
+## Mudanças
 
-### Frontend (`VariableAutocomplete.tsx`) ✅ NOVO
-- Detecta `{{` e abre dropdown com variáveis filtráveis
-- Grupos: Fluxo, Contato, Conversa, Pedido
-- Inserção no cursor com `selectionStart/selectionEnd`
-- Warning de variáveis órfãs inline
+### 1. `src/components/chat-flows/variableCatalog.ts`
+- Adicionar `{ value: "consultant_id", label: "Tem Consultor?" }` ao `CONDITION_CONTACT_FIELDS`
+- Adicionar `{ value: "contact_consultant_id", label: "Consultor do Contato", group: "contact" }` ao `CONTACT_VARS`
 
-### Frontend (`ChatFlowEditor.tsx`) ✅
-- Campos de mensagem usam `VariableAutocomplete`
-- Condition selector expandido: 11 campos contato + 5 campos conversa
-- `.trim()` no `condition_field` ao salvar
-- Flow vars coletadas via graph backwards (não array linear)
+### 2. `supabase/functions/process-chat-flow/index.ts`
+- No `getVar()`, garantir que `consultant_id` resolve corretamente de `contactData.consultant_id`
+- No `buildVariablesContext()`, incluir `contact_consultant_id` no contexto
+- Na avaliação de condição com `has_data` + `consultant_id`: retorna `true` se `consultant_id` não é null/vazio
+
+### 3. `src/components/chat-flows/nodes/ConditionNode.tsx`
+- Adicionar `"consultant_id": "Tem Consultor?"` ao `friendlyFieldNames` para exibição visual no nó
+
+## Resultado
+O usuário poderá criar condições como:
+- **Campo:** "Tem Consultor?" / **Tipo:** "has_data" → rota Yes/No
+- Permitindo fluxos que direcionam clientes com consultor para copilot e sem consultor para fila/departamento
+

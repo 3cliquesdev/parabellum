@@ -958,7 +958,7 @@ serve(async (req) => {
                                   },
                                   body: JSON.stringify({
                                     conversationId: conversation.id,
-                                    userMessage: messageText,
+                                    userMessage: messageContent,
                                     forceFinancialExit: true,
                                   }),
                                 }
@@ -967,13 +967,15 @@ serve(async (req) => {
                               if (flowResponse.ok) {
                                 const flowData = await flowResponse.json();
                                 console.log("[meta-whatsapp-webhook] ✅ process-chat-flow re-invoked (forceFinancialExit):", JSON.stringify({
-                                  action: flowData.action,
-                                  hasMessage: !!flowData.message,
+                                  transfer: flowData.transfer,
+                                  hasResponse: !!flowData.response,
                                   nodeType: flowData.nodeType,
+                                  departmentId: flowData.departmentId,
                                 }));
                                 
                                 // Se o flow retornou mensagem, enviar via Meta API
-                                if (flowData.message) {
+                                const flowMessage = flowData.response || flowData.message;
+                                if (flowMessage) {
                                   const metaToken = instance.whatsapp_meta_token || Deno.env.get("WHATSAPP_META_TOKEN");
                                   const phoneNumberId = instance.whatsapp_meta_phone_id || Deno.env.get("WHATSAPP_META_PHONE_NUMBER_ID");
                                   
@@ -990,14 +992,14 @@ serve(async (req) => {
                                           messaging_product: "whatsapp",
                                           to: senderPhone,
                                           type: "text",
-                                          text: { body: flowData.message },
+                                          text: { body: flowMessage },
                                         }),
                                       }
                                     );
                                     
                                     await supabase.from("messages").insert({
                                       conversation_id: conversation.id,
-                                      content: flowData.message,
+                                      content: flowMessage,
                                       sender_type: "system",
                                       message_type: "text",
                                     });
@@ -1006,16 +1008,17 @@ serve(async (req) => {
                                 }
                                 
                                 // Se o flow retornou transfer, aplicar
-                                if (flowData.action === 'transfer' && flowData.department) {
+                                const transferDept = flowData.departmentId || flowData.department;
+                                if ((flowData.transfer === true || flowData.action === 'transfer') && transferDept) {
                                   await supabase
                                     .from('conversations')
                                     .update({
                                       ai_mode: 'waiting_human',
-                                      department: flowData.department,
+                                      department: transferDept,
                                       assigned_to: null,
                                     })
                                     .eq('id', conversation.id);
-                                  console.log("[meta-whatsapp-webhook] 🔄 Transfer applied from flow (financial exit) → dept:", flowData.department);
+                                  console.log("[meta-whatsapp-webhook] 🔄 Transfer applied from flow (financial exit) → dept:", transferDept);
                                 }
                                 
                                 continue; // Flow handled it

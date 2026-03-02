@@ -1,45 +1,52 @@
 
 
-# Diagnóstico: Conversa não avançou para o próximo nó
+# Roteamento Comercial: Detectar intenção de compra e transferir para Comercial - Nacional
 
-## Problema Identificado
+## Diagnóstico
 
-A conversa do Ian ficou presa no nó `ia_entrada` (IA Suporte) após enviar "Quero reembolso". O fluxo detectou corretamente a intenção financeira, mas **falhou na entrega da resposta do próximo nó** devido a um bug de mismatch de campos.
+Atualmente o sistema já tem uma **Trava Financeira** (`forbidFinancial`) que detecta intenções de saque/reembolso/estorno e bloqueia a IA, avançando para o próximo nó ou fazendo handoff direto. Porém, **não existe mecanismo equivalente para intenção comercial** (comprar, preço, proposta, etc.).
 
-## Causa Raiz
+O `pickDepartment` já reconhece keywords comerciais, mas isso só é usado para classificação interna — não dispara transferência automática.
 
-Quando o Autopilot detecta "reembolso" (trava financeira), ele retorna `financialBlocked: true` ao webhook. O webhook então **re-invoca** `process-chat-flow` com `forceFinancialExit: true`. O `process-chat-flow` avança corretamente para o próximo nó e retorna a resposta.
+O departamento destino é **Comercial - Nacional** (`f446e202-bdc3-4bb3-aeda-8c0aa04ee53c`), que já está hardcoded em vários pontos do autopilot.
 
-**Porém**, o webhook espera campos que não existem na resposta:
+## Solução: Criar "Trava Comercial" espelhando a Trava Financeira
+
+### Alteração 1 — `ai-autopilot-chat/index.ts`
+
+Adicionar interceptação de intenção comercial na entrada, similar à financeira:
 
 ```text
-WEBHOOK ESPERA           | PROCESS-CHAT-FLOW RETORNA
-─────────────────────────┼──────────────────────────
-flowData.message         | flowData.response
-flowData.action='transfer' | flowData.transfer=true
-flowData.department      | flowData.departmentId
+Regex: /comprar|quero comprar|quanto custa|pre[çc]o|proposta|or[çc]amento|cat[aá]logo|assinar|plano|tabela de pre[çc]o|conhecer.*produto|demonstra[çc][aã]o|demo|trial|teste gr[aá]tis|upgrade|downgrade|mudar.*plano/i
 ```
 
-Resultado: nada é enviado ao cliente, nenhuma transferência é aplicada, mas o `continue` executa — a conversa fica "muda".
+- **Com fluxo ativo**: retornar `commercialBlocked: true` + `hasFlowContext: true` para o webhook re-invocar `process-chat-flow` com `forceCommercialExit: true`
+- **Sem fluxo**: hard transfer direto para `DEPT_COMERCIAL_ID` (`f446e202-bdc3-4bb3-aeda-8c0aa04ee53c`) com `ai_mode: 'waiting_human'`
 
-**Bug adicional:** Na re-invocação (linha 961), o webhook usa `messageText` que é **indefinido** — deveria ser `messageContent`.
+Mensagem fixa: *"Ótimo! Vou te conectar com nosso time comercial para te ajudar com isso."*
 
-## Solução
+### Alteração 2 — `meta-whatsapp-webhook/index.ts`
 
-### Alteração 1 — `meta-whatsapp-webhook/index.ts`
+No bloco que processa a resposta do autopilot, adicionar tratamento para `commercialBlocked` idêntico ao `financialBlocked`:
 
-Corrigir 3 pontos no bloco `forceFinancialExit` (~linhas 960-1020):
+- Detectar `autopilotData.commercialBlocked`
+- Se `hasFlowContext`, re-invocar `process-chat-flow` com `forceCommercialExit: true`
+- Senão, enviar mensagem de handoff e atualizar conversa para `waiting_human` + departamento Comercial
 
-1. **`messageText` → `messageContent`** (variável correta)
-2. **`flowData.message` → `flowData.response`** (campo correto da resposta)
-3. **`flowData.action === 'transfer'` → `flowData.transfer === true`** + usar `flowData.departmentId`
+### Alteração 3 — `process-chat-flow/index.ts`
 
-### Alteração 2 — Recuperar conversa atual
+Adicionar suporte a `forceCommercialExit`:
 
-Executar uma query para avançar manualmente o estado da conversa do Ian, já que está presa.
+- Novo campo no nó AI: `forbid_commercial` (opcional, default `false`)
+- Quando `forceCommercialExit: true` recebido, avançar para o próximo nó (igual ao `forceFinancialExit`)
+- Propagar flag `forbidCommercial` para o autopilot
+
+### Alteração 4 — Frontend: Propriedades do nó AI Response
+
+Adicionar toggle "Bloquear intenção comercial (transferir)" nas propriedades do nó `ai_response`, similar ao toggle de trava financeira existente. Isso permite configurar por nó se a trava comercial está ativa.
 
 ## Impacto
 
-- **Zero regressão**: corrige apenas o handler de re-invocação financeira
-- **Upgrade**: todas as conversas com intenção financeira dentro de fluxo passarão a avançar corretamente para o próximo nó
+- **Zero regressão**: mesma arquitetura da trava financeira já validada
+- **Upgrade**: conversas com intenção de compra serão imediatamente direcionadas ao time Comercial - Nacional, tanto em fluxos quanto em conversas diretas com IA
 

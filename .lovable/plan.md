@@ -1,80 +1,37 @@
 
 
-# Diagnóstico: Conversa #54269D6E não foi transferida
+# Fix: Confirmação de encerramento ignorada quando conversa está em `waiting_human`
 
-## Causa Raiz
+## Problema
 
-O fluxo Master Flow seguiu este caminho:
-1. Usuário respondeu "4" (Outros) no menu
-2. Auto-avanço entregou a mensagem "Estou transferindo você agora..."
-3. Avaliou a condição de inatividade → `false` → próximo nó = **TransferNode** `1769460331172` (Suporte Sistema)
-4. **BUG**: O código de auto-avanço para nós `message` (linhas 1905-2014 do `process-chat-flow`) não trata o caso de o nó resultante ser um `transfer`. Ele simplesmente salva o `current_node_id` como o transfer node e retorna uma resposta genérica **sem** `transfer: true` nem `departmentId`
-5. O webhook não executa a transferência porque não recebe esses campos
-6. Conversa fica presa em `ai_mode: waiting_human`, `department: null`, `assigned_to: null`
+A IA (dentro do nó `ai_response` do fluxo) perguntou "Posso encerrar seu atendimento?" e setou `awaiting_close_confirmation: true` no metadata. O cliente respondeu "Sim".
 
-O tratamento de TransferNode só existe em dois lugares:
-- Na travessia manual (linha 945) 
-- Quando é o `nextNode` direto da resposta do usuário (linha 1838)
-
-Mas **não** existe após o loop de auto-avanço de message nodes (linha 1957+).
+Porém, a conversa está com `ai_mode: waiting_human`, e nesse modo:
+1. `process-chat-flow` retorna `skipAutoResponse: true` (linha 434)
+2. O webhook envia "💬 Sua conversa já está na fila de atendimento" 
+3. `ai-autopilot-chat` **nunca é chamado**
+4. O handler de `awaiting_close_confirmation` (linha 1755) nunca processa o "Sim"
 
 ## Solução
 
-### `supabase/functions/process-chat-flow/index.ts`
+### Adicionar check de `awaiting_close_confirmation` no webhook
 
-Após o loop de auto-avanço de message nodes (depois da linha 1957, antes da linha 1984), adicionar tratamento para `nextNode.type === 'transfer'`:
+No `meta-whatsapp-webhook/index.ts`, **antes** de processar o `skipAutoResponse`, verificar se a conversa tem `awaiting_close_confirmation: true` no `customer_metadata`. Se sim, chamar `ai-autopilot-chat` diretamente para processar a confirmação — ignorando o skip.
 
-```typescript
-// Se chegou a transfer após auto-avanço de messages, executar transferência
-if (nextNode.type === 'transfer') {
-  console.log(`[process-chat-flow] 🔄 Transfer node after message chain: ${nextNode.id}`);
-  
-  // Entregar mensagens intermediárias acumuladas
-  if (extraMessages.length > 0) {
-    for (const msg of extraMessages) {
-      await deliverFlowMessage(msg);
-    }
-  }
-  
-  // Entregar mensagem do transfer node
-  const transferMsg = replaceVariables(nextNode.data?.message || "Transferindo...", variablesContext);
-  await deliverFlowMessage(transferMsg);
-  
-  // Completar flow state como transferred
-  await supabaseClient
-    .from('chat_flow_states')
-    .update({
-      collected_data: collectedData,
-      current_node_id: nextNode.id,
-      status: 'transferred',
-      completed_at: new Date().toISOString(),
-    })
-    .eq('id', activeState.id);
+```text
+Fluxo atual:
+  message → process-chat-flow → skipAutoResponse → "fila de atendimento"
 
-  return new Response(JSON.stringify({
-    useAI: false,
-    transfer: true,
-    departmentId: nextNode.data?.department_id || null,
-    transferType: nextNode.data?.transfer_type,
-    collectedData,
-    flowId: activeState.flow_id,
-  }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-}
+Fluxo corrigido:
+  message → check awaiting_close_confirmation → se sim → ai-autopilot-chat → processa "Sim"/"Não"
+          → se não → process-chat-flow → skipAutoResponse → "fila de atendimento"
 ```
 
-Inserir este bloco entre o tratamento de `end` node (linha 1982) e o fallback genérico (linha 1984).
-
-### Fix imediato para a conversa #54269D6E
-
-Após o deploy, a conversa atual precisa ser corrigida manualmente no banco:
-- Setar `department = 'fd4fcc90-22e4-4127-ae23-9c9ecb6654b4'` (Suporte Sistema)
-- Setar `ai_mode = 'waiting_human'`
-- Atualizar `chat_flow_states` para `status = 'transferred'`
-
-### Arquivos alterados
-- `supabase/functions/process-chat-flow/index.ts` — adicionar handler de transfer após auto-avanço de messages
+### Arquivo editado
+- `supabase/functions/meta-whatsapp-webhook/index.ts` — inserir guard de `awaiting_close_confirmation` no bloco de `skipAutoResponse` (antes da linha 698), que chama `ai-autopilot-chat` para processar a resposta de confirmação
 
 ### Sem risco de regressão
-- O tratamento de transfer nos outros caminhos (manual trigger e nextNode direto) permanece intacto
-- Apenas adiciona um handler que estava faltando
+- Só ativa quando `awaiting_close_confirmation === true` no metadata
+- O handler existente em `ai-autopilot-chat` (linha 1755) já trata "sim"/"não" com toda a governança (kill switch, shadow mode, tags obrigatórias)
+- Conversas normais em `waiting_human` sem essa flag continuam com o comportamento atual
 

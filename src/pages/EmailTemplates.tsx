@@ -24,6 +24,7 @@ import {
   Sparkles,
   Layers,
   Copy,
+  Download,
 } from "lucide-react";
 import { EmailTemplateDialog } from "@/components/EmailTemplateDialog";
 import { useEmailTemplates, useDuplicateEmailTemplate } from "@/hooks/useEmailTemplates";
@@ -49,6 +50,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { EmailTemplatesV2List, CreateTemplateV2Dialog } from "@/components/email-builder-v2";
+import { EmailSendsExportDialog } from "@/components/email/EmailSendsExportDialog";
 
 export default function EmailTemplates() {
   const navigate = useNavigate();
@@ -58,6 +60,7 @@ export default function EmailTemplates() {
   const duplicateMutation = useDuplicateEmailTemplate();
 
   const [activeTab, setActiveTab] = useState("v2");
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [createV2DialogOpen, setCreateV2DialogOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<Tables<"email_templates"> | undefined>();
@@ -146,6 +149,10 @@ export default function EmailTemplates() {
               Crie e gerencie templates reutilizáveis para suas automações
             </p>
           </div>
+          <Button variant="outline" onClick={() => setExportDialogOpen(true)} className="gap-2">
+            <Download className="h-4 w-4" />
+            Exportar Relatório
+          </Button>
         </div>
 
         {/* Tabs V1/V2 */}
@@ -336,6 +343,11 @@ export default function EmailTemplates() {
       <CreateTemplateV2Dialog
         open={createV2DialogOpen}
         onOpenChange={setCreateV2DialogOpen}
+      />
+
+      <EmailSendsExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
       />
 
       <EmailTemplateDialog

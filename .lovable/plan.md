@@ -1,31 +1,32 @@
 
 
-# Vincular contatos existentes do Inbox com base Kiwify por telefone
+# Atualizar consultor de clientes via planilha (email + consultor)
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
 ## O que será feito
 
-Criar uma Edge Function **`batch-validate-kiwify-contacts`** que:
+Adicionar suporte ao campo "Consultor" no fluxo de importação existente (`/import-clients`), para que você possa subir uma planilha simples com **email** e **consultor**, e o sistema resolva automaticamente o nome do consultor para o `consultant_id` (UUID) correto.
 
-1. Busca todos os contatos com `kiwify_validated IS NULL OR kiwify_validated = false` que possuem `phone` ou `whatsapp_id` preenchido
-2. Para cada contato, compara os últimos 9 dígitos do telefone contra o campo `payload->Customer->>'mobile'` da tabela `kiwify_events` (eventos `paid`, `order_approved`, `subscription_renewed`)
-3. Se encontrar match, atualiza o contato: `kiwify_validated = true`, `status = 'customer'`, `kiwify_validated_at = now()`, e preenche email se disponível
-4. Retorna relatório: quantos validados, quantos não encontrados
+## Mudanças
 
-A lógica de matching já existe em `validate-by-kiwify-phone` — será reutilizada inline (mesma normalização de últimos 9 dígitos).
+### 1. Frontend — Auto-mapping + campo no ColumnMapper
+**Arquivos**: `src/pages/ImportClients.tsx`, `src/components/ColumnMapper.tsx`
 
-## Execução
+- Adicionar alias `'assigned_to': ['consultor', 'consultant', 'responsavel', 'responsável', 'assigned_to']` no mapeamento automático
+- Adicionar campo "Consultor" na lista `DB_FIELDS` do ColumnMapper
+- Incluir coluna `consultor` no template CSV de download
 
-Após deploy, será invocada uma única vez para processar o backlog. Resultado: todas as conversas no Inbox cujo telefone tem compra Kiwify receberão o selo "Cliente" automaticamente.
+### 2. Edge Function — Resolver nome → consultant_id
+**Arquivo**: `supabase/functions/bulk-import-contacts/index.ts`
 
-### Arquivos
-
-- **Criar**: `supabase/functions/batch-validate-kiwify-contacts/index.ts` — Edge Function que faz o batch processing
-- Nenhuma alteração em arquivos existentes
+- No início do processamento, buscar todos os consultores ativos (profiles com role `consultant`)
+- Quando `assigned_to` vier preenchido, fazer match case-insensitive (trim) contra a lista de nomes
+- Se encontrar: setar `consultant_id` no update/insert do contato
+- Se não encontrar: registrar warning no log, não bloqueia importação
 
 ### Sem risco de regressão
-- Função isolada, executada sob demanda
-- Usa a mesma lógica de matching já validada (`últimos 9 dígitos`)
-- Apenas atualiza contatos que ainda não são `kiwify_validated`
+- Contatos sem coluna consultor continuam importando normalmente
+- O campo `assigned_to` já existe no fluxo — apenas adicionamos resolução inteligente para `consultant_id`
+- Match por nome é tolerante (case-insensitive, trim)
 

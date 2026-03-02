@@ -1,33 +1,32 @@
 
 
-# Fix: Atribuir Eliane Freitas ao Consultor Luiz Henrique
+# Adicionar opção de Remover Cliente do Consultor
 
-## Situação Atual
+## Contexto
+Atualmente o `ConsultantClientsSheet` permite apenas **transferir** clientes entre consultores. O usuário quer poder **remover** o vínculo (setar `consultant_id = NULL`), disponível apenas para admins e gerentes.
 
-| Campo | Valor Atual | Valor Correto |
-|---|---|---|
-| `consultant_id` | Loriani (vendedora) `522d898d` | **Luiz Henrique** (consultor) `d76a5406` |
-| `assigned_to` | Loriani `522d898d` | **Luiz Henrique** `d76a5406` |
-| Conversa `395cd646` `assigned_to` | Loriani `522d898d` | **Luiz Henrique** `d76a5406` |
+## Mudanças
 
-**Luiz Henrique** tem 900 clientes (menor carga entre os 3 consultores ativos).
+### 1. UI — Botão "Remover do consultor" no `ConsultantClientsSheet`
+- Adicionar um terceiro modo de ação além de "transferir" e "round-robin": **Remover vínculo**
+- Quando clientes estão selecionados, mostrar botão "Desvincular" que seta `consultant_id = NULL` nos contatos selecionados
+- Botão visível apenas para roles com full access (admin, manager, general_manager, support_manager, cs_manager, financial_manager)
+- Usar `useUserRole()` + `hasFullAccess()` para controlar visibilidade
 
-## O que será feito
+### 2. Mutation de remoção no `ConsultantClientsSheet`
+- Nova mutation que faz `UPDATE contacts SET consultant_id = NULL WHERE id IN (selectedIds)`
+- Registra interação no histórico: "Consultor removido por [admin/gerente]"
+- Invalida queries relacionadas
 
-### 1. Criar edge function `admin-fix-contact`
-Uma função administrativa simples que:
-- Atualiza `consultant_id` e `assigned_to` do contato para o novo consultor
-- Reatribui conversas abertas desse contato ao novo consultor
-- Registra a mudança no histórico de interações
+### 3. Também na busca por email (página Consultants)
+- Quando o resultado mostra um contato com consultor, adicionar botão "Remover" ao lado de "Ver clientes"
+- Mesmo controle de acesso (full access only)
 
-### 2. Executar a correção
-Chamar a função para corrigir a Eliane:
-- Contact: `3baa1726` → `consultant_id` = Luiz Henrique (`d76a5406`)
-- Conversa: `395cd646` → `assigned_to` = Luiz Henrique, `ai_mode` = `copilot`
+### 4. RLS — Nenhuma mudança necessária
+- O update em `contacts` já é permitido por roles com full access via policies existentes. A operação é apenas setar `consultant_id = NULL`, que já está coberto pelas policies de UPDATE na tabela contacts.
 
-### 3. Remover a função após uso
-A edge function é temporária — será removida após a correção.
-
-## Nota sobre o trigger existente
-O trigger `sync_assigned_to_consultant_id` está correto: só preenche `consultant_id` quando está `NULL`. Ele **não** deve sobrescrever automaticamente quando já tem valor, porque são campos com propósitos diferentes (`assigned_to` = quem atende agora, `consultant_id` = quem é o dono do cliente).
+## Detalhes técnicos
+- Arquivos editados: `src/components/contacts/ConsultantClientsSheet.tsx`, `src/pages/Consultants.tsx`
+- Imports adicionados: `useUserRole` + `hasFullAccess` de `src/config/roles.ts`
+- Ícone: `UserMinus` do lucide-react para o botão de remoção
 

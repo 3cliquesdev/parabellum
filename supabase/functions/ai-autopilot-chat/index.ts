@@ -4056,8 +4056,17 @@ Responda APENAS: skip ou search`
     
     // ============================================================
     // 🆕 MODO RAG ESTRITO - Processamento exclusivo com GPT-4o
+    // Bypass: temas operacionais (pedidos/tracking) pulam o Strict RAG
+    // para que a IA possa usar CRM + Tracking lookup
     // ============================================================
-    if (isStrictRAGMode && OPENAI_API_KEY && knowledgeArticles.length > 0) {
+    const detectedDept = pickDepartment(customerMessage);
+    const isOperationalTopic = ['suporte_pedidos'].includes(detectedDept);
+    
+    if (isOperationalTopic && isStrictRAGMode) {
+      console.log('[ai-autopilot-chat] 📦 Tema operacional (pedidos/tracking) detectado - BYPASS do Strict RAG para usar CRM/Tracking');
+    }
+    
+    if (isStrictRAGMode && !isOperationalTopic && OPENAI_API_KEY && knowledgeArticles.length > 0) {
       console.log('[ai-autopilot-chat] 🎯 STRICT RAG MODE ATIVO - Usando GPT-4o exclusivo');
       
       const strictResult = await callStrictRAG(

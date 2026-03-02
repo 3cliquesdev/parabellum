@@ -14,7 +14,7 @@ async function getConfiguredAIModel(): Promise<string> {
     // Se as envs não existirem, não tentar inicializar client (evita falha no boot)
     if (!supabaseUrl || !serviceRoleKey) {
       console.warn('[analyze-ticket] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY; using default model');
-      return 'openai/gpt-5-mini';
+      return 'google/gemini-2.5-flash-lite';
     }
 
     const supabaseClient = createClient(supabaseUrl, serviceRoleKey);
@@ -25,10 +25,10 @@ async function getConfiguredAIModel(): Promise<string> {
       .eq('key', 'ai_default_model')
       .maybeSingle();
     
-    return data?.value || 'openai/gpt-5-mini';
+    return data?.value || 'google/gemini-2.5-flash-lite';
   } catch (error) {
     console.error('[analyze-ticket] Error fetching AI model config:', error);
-    return 'openai/gpt-5-mini';
+    return 'google/gemini-2.5-flash-lite';
   }
 }
 

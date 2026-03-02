@@ -1,39 +1,40 @@
 
 
-# Diagnóstico: Conversa #4168E4DC parou no meio do Master Flow
+# Diagnóstico: Mensagens de inatividade não enviadas ao WhatsApp
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## O que aconteceu
+## Causa raiz
 
-A conversa seguiu o Master Flow corretamente até o nó "Múltipla Escolha" (Pedidos/Sistema/Acesso/Outros). O cliente respondeu "1" (Pedidos), mas o fluxo travou e a conversa caiu em `waiting_human` sem avançar.
-
-**Causa raiz**: o crash do `deliverFlowMessage is not defined` que já corrigimos na sessão anterior. Esta conversa foi afetada **antes** do fix ser deployado.
-
-## Problema adicional: edges duplicadas no fluxo
-
-Ao analisar o `flow_definition`, cada opção do nó `ask_options` tem **duas edges** saindo do mesmo handle — uma para um nó `message` ("Trava") e outra para um nó `condition`. Exemplo da opção 1:
+A função `sendWhatsAppMessages` em `auto-close-conversations/index.ts` (linha 620) passa parâmetros com nomes **errados** para `send-meta-whatsapp`:
 
 ```text
-opt_1769459784782 → 1772136527156 (message "Trava")
-opt_1769459784782 → 1772196913050 (condition)
+Enviado:                     Esperado:
+─────────                    ─────────
+instanceId                → instance_id
+to                        → phone_number
+message                   → message ✅
+is_bot_message            → (não existe no schema)
 ```
 
-O `findNextNode` usa `edges.find()` que retorna apenas a primeira match. O comportamento depende da ordem dos edges no JSON — isso é frágil e pode causar caminhos inesperados.
+O `send-meta-whatsapp` valida `instance_id` e `phone_number` na linha 255 — ambos são `undefined`, retorna 400. O erro é engolido pelo `catch` silencioso na linha 661.
 
-## Plano de correção
+**Resultado**: mensagens são salvas no banco (aparecem na UI) mas nunca chegam ao WhatsApp do cliente.
 
-### 1. Resetar conversa #4168E4DC
-SQL para devolver ao nó de IA (`ai_response`) com `ai_mode: autopilot` e `status: active`, para que a próxima mensagem do cliente seja processada pela IA normalmente via Master Flow.
+## Correção
 
-### 2. Proteger `findNextNode` contra edges duplicadas
-No `process-chat-flow/index.ts`, quando `ask_options` encontra múltiplas edges do mesmo `sourceHandle`, priorizar nós de conteúdo (`message`, `transfer`, `ai_response`) sobre nós lógicos (`condition`, `input`, `start`). Isso garante comportamento determinístico independente da ordem no JSON.
+Alterar a função `sendWhatsAppMessages` em `auto-close-conversations/index.ts` para usar os nomes corretos dos parâmetros:
 
-### Arquivos editados
-- `supabase/functions/process-chat-flow/index.ts` — hardening do `findNextNode`
-- Migration SQL — reset da conversa #4168E4DC
+- `instanceId` → `instance_id`
+- `to` → `phone_number`
+- Adicionar `skip_db_save: true` (mensagem já foi salva antes)
+- Adicionar `conversation_id` para tracking
+- Melhorar log de erro para não ser silencioso
+
+### Arquivo editado
+- `supabase/functions/auto-close-conversations/index.ts` — função `sendWhatsAppMessages` (linhas 620-663)
 
 ### Sem risco de regressão
-- O fix do `findNextNode` apenas adiciona priorização quando existem edges duplicadas. Fluxos com edges únicas (o caso normal) não são afetados.
-- O reset da conversa restaura o estado para que o Master Flow reassuma controle.
+- Apenas corrige nomes de parâmetros para alinhar com o contrato existente do `send-meta-whatsapp`
+- Adiciona `skip_db_save: true` que é o padrão correto (mensagem já inserida antes)
 

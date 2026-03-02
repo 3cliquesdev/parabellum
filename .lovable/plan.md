@@ -1,45 +1,44 @@
 
 
-# Diagnóstico: IA não ajudou com pedidos — transferiu direto
+# Relatório de Envios de Email por Template — Export Excel
 
-## Causa Raiz
+## O que será construído
 
-A conversa foi interceptada pelo **Modo RAG Estrito** (`ai_strict_rag_mode = true`), não pela trava comercial ou financeira.
+Botão "Exportar Relatório" na página de Email Templates que baixa um Excel com todos os envios (`email_sends`), filtráveis por período e template, com as colunas:
 
-O fluxo foi:
-1. Cliente enviou "Solicito prioridade de envio nos pedidos abaixo: 16466201, 16468408..."
-2. O Autopilot buscou artigos na KB com ≥80% de confiança
-3. Nenhum artigo de KB cobria "prioridade de envio" → `shouldHandoff: true`
-4. Strict RAG disparou handoff automático com a mensagem fixa: *"Para te ajudar da melhor forma com essa questão específica, vou te conectar com um de nossos especialistas."*
+| Coluna | Fonte |
+|--------|-------|
+| Template | `email_templates_v2.name` via `template_id` |
+| Destinatário | `recipient_email` |
+| Assunto | `subject` |
+| Data/Hora Envio | `sent_at` (DD/MM/YYYY HH:mm) |
+| Status | Derivado: Bounce / Clicado / Aberto / Enviado / Erro / Pendente |
+| Clicado | `clicked_at` (DD/MM/YYYY HH:mm ou vazio) |
+| Aberto | `opened_at` (DD/MM/YYYY HH:mm ou vazio) |
+| Bounce | `bounced_at` (DD/MM/YYYY HH:mm ou vazio) |
+| Contato | `contacts.first_name + last_name` via `contact_id` |
 
-**O problema**: O Strict RAG trata QUALQUER pergunta sem artigo KB como "IA não sabe → transferir humano". Isso inclui pedidos/logística, que a IA **poderia** resolver se tivesse acesso ao tracking/CRM, mas o Strict RAG nem tenta — faz handoff antes de consultar outras fontes.
+## Implementação
 
-## Opções de Solução
+### 1. Hook `useExportEmailSendsReport.tsx` (novo)
+- Recebe filtros: `dateRange` (opcional), `templateId` (opcional)
+- Query na tabela `email_sends` com join em `contacts` e `email_templates_v2` (nome do template)
+- Paginação automática (mesma lógica do `fetchAllRpcPages` mas direto no client, pois a tabela já tem RLS)
+- Gera Excel via `xlsx` com auto-width, seguindo o padrão do `useExportPlaybookEmailSequence`
+- Colunas: Template, Contato, Email, Assunto, Data/Hora Envio, Status, Clicado, Aberto, Bounce
 
-### Opção A — Excluir temas de pedidos/tracking do Strict RAG
-Quando a mensagem é detectada como `tracking` (pelo `classifyTopic`), pular o Strict RAG e deixar o autopilot normal processar com acesso a KB + CRM + Tracking.
+### 2. Componente `EmailSendsExportDialog.tsx` (novo)
+- Dialog com:
+  - Date range picker (filtro período)
+  - Select de template (opcional, "Todos" por padrão) — lista de `email_templates_v2`
+  - Botão "Exportar Excel"
+- Ao clicar, chama o hook que busca dados e gera o arquivo
 
-**Alteração**: No bloco do Strict RAG (~linha 4060), adicionar condição:
-```
-const topic = classifyTopic(customerMessage);
-const skipStrictForTracking = ['tracking'].includes(topic);
+### 3. Integração na página `EmailTemplates.tsx`
+- Adicionar botão "Exportar Relatório" (ícone Download) no header da página, ao lado do título
+- Abre o `EmailSendsExportDialog`
 
-if (isStrictRAGMode && !skipStrictForTracking && OPENAI_API_KEY && knowledgeArticles.length > 0) {
-  // Strict RAG normal
-}
-```
-
-### Opção B — Adicionar artigos de KB sobre pedidos/envio
-Criar artigos na base de conhecimento cobrindo "prioridade de envio", "rastreio de pedido", etc. O Strict RAG passaria a encontrar artigos relevantes e responderia sem handoff.
-
-**Sem alteração de código** — apenas conteúdo na KB.
-
-### Opção C — Desativar Strict RAG globalmente
-Voltar ao modo normal onde a IA tenta responder com todas as fontes disponíveis (KB + CRM + Tracking) e só faz handoff se o cliente pedir explicitamente.
-
-**Sem alteração de código** — apenas mudar `ai_strict_rag_mode` para `false` na tabela `system_configurations`.
-
-## Recomendação
-
-**Opção A** é o melhor upgrade: mantém o Strict RAG para perguntas gerais (evita alucinação) mas permite que pedidos/tracking sejam processados normalmente com acesso às fontes de dados operacionais.
+### Impacto
+- Zero regressão: apenas adiciona botão e dialog novos
+- Usa padrões existentes (xlsx, date utils, supabase client)
 

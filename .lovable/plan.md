@@ -1,46 +1,37 @@
 
 
-# Fix: Trava financeira deve avançar para o próximo nó do fluxo, não fazer handoff hardcoded
+# Fix: Falso positivo financeiro + `deliverFlowMessage` não definida
 
-## Problema
+## Problemas encontrados
 
-Conversa #6FE96859: cliente enviou "Sacar saldo" no nó AI (`ia_entrada`). O nó tem `forbid_financial: true` e TEM um próximo nó no fluxo (condição de inatividade → ask_options "Você já é nosso cliente?"). Mas o sistema fez handoff hardcoded para o departamento Financeiro em vez de avançar no fluxo.
+### 1. Falso positivo na trava financeira (#FA3955F6)
+O cliente enviou: *"Já conclui alteração do endereço de coleta e de **devolução** na Shopee. Gostaria de saber qual o próximo passo?"*
 
-**Evidência**: `ai_events` mostra apenas um evento de `ai-autopilot-chat` (não de `process-chat-flow`), significando que o `process-chat-flow` retornou `aiNodeActive: true` (ficou no nó AI) e delegou ao autopilot, que detectou a intenção financeira e disparou o fallback de handoff no webhook.
+A regex `financialIntentPattern` fez match em `devolução` — mas aqui "devolução" se refere a **endereço de devolução** (logística), não a reembolso/estorno. A IA bloqueou a mensagem sem sequer tentar responder.
 
-## Causa raiz
+### 2. Erro crítico: `deliverFlowMessage is not defined`
+Nos logs, outra conversa (#4168e4dc) crashou com `ReferenceError: deliverFlowMessage is not defined` no `process-chat-flow` (linha 1998). Quando o auto-avanço de nós `message` chega a um nó `transfer`, o código tenta chamar `deliverFlowMessage()` que **nunca foi declarada**. Isso causa crash no flow engine e a conversa cai em `waiting_human` sem resposta.
 
-Dois problemas encadeados:
+## Soluções
 
-1. **`process-chat-flow`**: Quando detecta financial intent no nó AI e encontra o próximo nó, funciona. Mas se por algum motivo NÃO detecta (race condition, estado do fluxo), retorna `aiNodeActive: true` e o autopilot assume.
+### 1. Refinar regex financeira (ambos os arquivos)
+Tornar `devolução` mais contextual — exigir que NÃO esteja precedido de "endereço de" ou "local de". Adicionar negative lookbehind:
+- `devolu[çc][ãa]o` → `(?<!endere[çc]o\s+de\s+)devolu[çc][ãa]o` (ou simplesmente remover `devolução` da trava de entrada e manter apenas na trava pós-resposta, já que "pedir devolução" é diferente de "endereço de devolução")
 
-2. **Webhook fallback (linhas 1133-1208)**: Quando o `process-chat-flow` é re-invocado com `forceFinancialExit` e retorna uma resposta estática (ask_options) SEM `transfer: true`, o webhook envia a mensagem e faz `continue` (linha 1124). MAS se a re-invocação falha OU se o `hasFlowContext` no autopilot retorna `false`, o fallback faz handoff hardcoded para Financeiro — ignorando completamente o fluxo.
+**Abordagem escolhida**: usar word boundary + negative lookbehind simples. Trocar para pattern que exija contexto de ação financeira (ex: "pedir/quero/solicitar devolução") em vez de match solto.
 
-## Solução
+### 2. Corrigir `deliverFlowMessage` no `process-chat-flow`
+A função não existe. No bloco de transfer após auto-avanço (linhas 1996-2004), substituir `deliverFlowMessage` por retornar as mensagens intermediárias junto com a resposta de transfer para o webhook entregar.
 
-### 1. `process-chat-flow/index.ts` — Garantir detecção robusta
+### 3. Resetar conversa #FA3955F6
+SQL para devolver ao nó AI (`ia_entrada`) com status `active` para que o próximo envio do cliente seja processado pela IA normalmente.
 
-Adicionar log explícito quando `forbid_financial=true` mas financial intent NÃO é detectado, para diagnóstico futuro. Garantir que o `userMessage` está sendo testado corretamente.
-
-### 2. `meta-whatsapp-webhook/index.ts` — Remover fallback hardcoded de Financeiro
-
-O fallback nas linhas 1133-1208 faz handoff hardcoded para Financeiro mesmo quando o fluxo tem um próximo nó. Deve ser alterado para:
-
-- Se `hasFlowContext === true` e a re-invocação do `process-chat-flow` retornou 200: confiar na resposta do flow (já faz `continue` na linha 1124)
-- Se `hasFlowContext === true` e a re-invocação FALHOU: tentar uma segunda vez com retry, e só fazer fallback se falhar duas vezes
-- Se `hasFlowContext === false`: manter o handoff hardcoded (não há fluxo para avançar)
-- **Crítico**: Mover o bloco de fallback (linhas 1133-1208) para dentro de um `if (!autopilotData?.hasFlowContext)`, evitando que conversas COM fluxo ativo recebam handoff hardcoded
-
-### 3. Corrigir conversa #6FE96859
-
-SQL para resetar a conversa: devolver ao nó AI ou avançar para o ask_options correto no fluxo.
-
-### Arquivos alterados
-- `supabase/functions/meta-whatsapp-webhook/index.ts` — reestruturar fallback financeiro para respeitar fluxo
-- `supabase/functions/process-chat-flow/index.ts` — adicionar logs de diagnóstico
+### Arquivos editados
+- `supabase/functions/process-chat-flow/index.ts` — fix `deliverFlowMessage` + refinar regex
+- `supabase/functions/ai-autopilot-chat/index.ts` — refinar regex financeira de entrada
+- Migration SQL — resetar conversa #FA3955F6
 
 ### Sem risco de regressão
-- Conversas SEM fluxo ativo continuam com handoff hardcoded para Financeiro (comportamento atual)
-- Conversas COM fluxo ativo passam a respeitar o próximo nó do fluxo
-- O `continue` na linha 1124 já funciona quando a re-invocação sucede
+- A regex refinada continua detectando "quero devolução", "pedir devolução", "reembolso" — apenas ignora "endereço de devolução"
+- O fix de `deliverFlowMessage` usa o mesmo pattern de retorno já existente (retornar `response` + `transfer: true` para o webhook entregar)
 

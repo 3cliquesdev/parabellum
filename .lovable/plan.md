@@ -1,32 +1,56 @@
 
 
-# Adicionar opção de Remover Cliente do Consultor
+# Fix: Handoff da IA não avança o fluxo para o próximo nó
 
-## Contexto
-Atualmente o `ConsultantClientsSheet` permite apenas **transferir** clientes entre consultores. O usuário quer poder **remover** o vínculo (setar `consultant_id = NULL`), disponível apenas para admins e gerentes.
+## Problema
 
-## Mudanças
+Quando a IA executa um handoff (transferência para humano) dentro do `ai-autopilot-chat`, ela muda `ai_mode` para `waiting_human` e envia a mensagem de transferência, mas **não finaliza o `chat_flow_states`**. O fluxo fica "preso" no nó atual, mesmo após o handoff.
 
-### 1. UI — Botão "Remover do consultor" no `ConsultantClientsSheet`
-- Adicionar um terceiro modo de ação além de "transferir" e "round-robin": **Remover vínculo**
-- Quando clientes estão selecionados, mostrar botão "Desvincular" que seta `consultant_id = NULL` nos contatos selecionados
-- Botão visível apenas para roles com full access (admin, manager, general_manager, support_manager, cs_manager, financial_manager)
-- Usar `useUserRole()` + `hasFullAccess()` para controlar visibilidade
+Na screenshot: a IA disse "vou te conectar com um de nossos especialistas" mas o fluxo continua mostrando como "Ativo" no banner.
 
-### 2. Mutation de remoção no `ConsultantClientsSheet`
-- Nova mutation que faz `UPDATE contacts SET consultant_id = NULL WHERE id IN (selectedIds)`
-- Registra interação no histórico: "Consultor removido por [admin/gerente]"
-- Invalida queries relacionadas
+## Causa Raiz
 
-### 3. Também na busca por email (página Consultants)
-- Quando o resultado mostra um contato com consultor, adicionar botão "Remover" ao lado de "Ver clientes"
-- Mesmo controle de acesso (full access only)
+Existem **3 caminhos de handoff** no `ai-autopilot-chat/index.ts`:
 
-### 4. RLS — Nenhuma mudança necessária
-- O update em `contacts` já é permitido por roles com full access via policies existentes. A operação é apenas setar `consultant_id = NULL`, que já está coberto pelas policies de UPDATE na tabela contacts.
+| Caminho | Linha | Finaliza flow state? |
+|---|---|---|
+| Financial tool-call block | ~6736 | ✅ Sim |
+| Strict RAG handoff | ~4100 | ❌ **Não** |
+| Confidence handoff | ~4740 | ❌ **Não** |
 
-## Detalhes técnicos
-- Arquivos editados: `src/components/contacts/ConsultantClientsSheet.tsx`, `src/pages/Consultants.tsx`
-- Imports adicionados: `useUserRole` + `hasFullAccess` de `src/config/roles.ts`
-- Ícone: `UserMinus` do lucide-react para o botão de remoção
+Os dois caminhos sem finalização deixam o `chat_flow_states` com status `waiting_input` ou `active`, o que faz o banner do fluxo continuar aparecendo como ativo.
+
+## Correção
+
+Adicionar bloco de finalização do `chat_flow_states` nos 2 caminhos que estão faltando, usando o mesmo padrão já existente no financial tool-call block:
+
+```typescript
+// Finalizar flow state ativo (se existir)
+try {
+  const { data: activeFS } = await supabaseClient
+    .from('chat_flow_states')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .in('status', ['active', 'waiting_input', 'in_progress'])
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (activeFS) {
+    await supabaseClient
+      .from('chat_flow_states')
+      .update({ status: 'transferred', completed_at: new Date().toISOString() })
+      .eq('id', activeFS.id);
+  }
+} catch {}
+```
+
+### Arquivos editados
+- `supabase/functions/ai-autopilot-chat/index.ts` — 2 inserções do bloco acima:
+  1. No **Strict RAG handoff** (após `route-conversation`, antes de salvar mensagem ~linha 4114)
+  2. No **Confidence handoff** (após `route-conversation`, antes de salvar mensagem ~linha 4768)
+
+### Sem impacto em features existentes
+- O bloco usa `maybeSingle()` e `try/catch` — se não houver flow state ativo, não faz nada
+- Padrão idêntico ao já usado no financial guard (linha 6736)
+- Não altera lógica de fluxo, apenas marca como `transferred` o que já deveria estar finalizado
 

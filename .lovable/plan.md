@@ -1,34 +1,47 @@
 
 
-# Diagnóstico: Consultora Daniela vê versão antiga mesmo com Ctrl+Shift+R
+# Fix: Conversa fica presa em "waiting_human" após remoção do consultor — Master Flow ignorado
 
-## Causa Provável
+## Problema
 
-O `index.html` publicado está sendo cacheado pelo CDN. O Vite já gera nomes de chunks com hash (ex: `vendor-react.abc123.js`), então os JS/CSS são sempre únicos por build. Porém, se o **HTML** em si estiver cacheado, ele aponta para os chunks antigos.
+Quando você remove o consultor de um contato, a **conversa** continua com `ai_mode = 'waiting_human'`. Na próxima mensagem do cliente:
 
-O sistema `ensureLatestBuild` existente detecta nova versão mas **não faz reload automático** (desativado intencionalmente na linha 312-314). Ou seja, mesmo que detecte versão nova, não atualiza.
+1. `process-chat-flow` vê `ai_mode=waiting_human` → retorna `skipAutoResponse: true`
+2. Webhook envia "💬 Sua conversa já está na fila de atendimento"
+3. **Master Flow nunca é consultado** porque a proteção bloqueia tudo
+
+O problema: **remover consultor só limpa `consultant_id` no contato, mas não reseta o `ai_mode` das conversas ativas**.
 
 ## Solução
 
-### 1. Ativar notificação de atualização obrigatória
-- No `ensureLatestBuild.ts`, quando detectar versão diferente, disparar um **toast persistente** com botão "Atualizar agora" que chama `forceUpdate()`
-- Isso garante que qualquer usuário veja a notificação e possa atualizar com 1 clique
+### 1. Resetar `ai_mode` ao desvincular consultor (`src/pages/Consultants.tsx`)
 
-### 2. Auto-update na navegação entre páginas
-- No `App.tsx` (ou layout principal), adicionar listener de `popstate` / route change que chama `checkForUpdate()` 
-- Se houver update disponível, mostrar o toast
-- Assim, ao navegar entre páginas, o sistema verifica e notifica
+Na `unlinkMutation`, após setar `consultant_id: null`, também:
+- Buscar conversas **abertas** desse contato que estejam em `waiting_human` ou `copilot`
+- Atualizar para `ai_mode: 'autopilot'` e `assigned_to: null`
 
-### 3. Verificação periódica silenciosa (a cada 5 minutos)
-- `setInterval` no layout principal que chama `checkForUpdate()`
-- Se retornar `true`, mostra toast com botão de atualizar
+Isso libera o Master Flow para processar a próxima mensagem.
+
+### 2. Mesmo fix em `src/components/contacts/ConsultantClientsSheet.tsx`
+
+Aplicar a mesma lógica na mutation de unlink do sheet de clientes do consultor.
+
+### 3. Adicionar flag `consultant_manually_removed` (migration SQL)
+
+Coluna `consultant_manually_removed boolean DEFAULT false` na tabela `contacts` para que o webhook não re-atribua automaticamente (conforme plano anterior aprovado).
+
+### 4. Proteger TRANSFER-PERSIST-LOCK no webhook
+
+No `meta-whatsapp-webhook/index.ts`, antes de re-persistir `consultant_id` (~linha 824), verificar `consultant_manually_removed = true` e pular se sim.
 
 ### Arquivos editados
-- `src/lib/build/ensureLatestBuild.ts` — exportar função `showUpdateToast()`
-- `src/App.tsx` ou layout principal — adicionar verificação periódica + toast de atualização
-- Sem mudanças no banco
+- **Migration SQL**: nova coluna `consultant_manually_removed`
+- `src/pages/Consultants.tsx`: unlinkMutation reseta conversas ativas para autopilot + seta flag
+- `src/components/contacts/ConsultantClientsSheet.tsx`: mesma lógica
+- `supabase/functions/meta-whatsapp-webhook/index.ts`: guard no TRANSFER-PERSIST-LOCK
 
-### Ação imediata para a Daniela
-- Pedir para ela acessar **Configurações → Manutenção → Limpar Cache** (botão já existe no `SystemMaintenanceCard`)
-- Ou acessar o link publicado com `?_force=1` no final da URL
+### Sem risco de regressão
+- Só afeta conversas do contato desvinculado
+- Conversas já fechadas não são tocadas
+- Flag `consultant_manually_removed` é defensivo (default false)
 

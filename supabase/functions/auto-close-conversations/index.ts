@@ -619,20 +619,22 @@ async function sendWhatsAppMessages(
       // Meta WhatsApp API
       await supabase.functions.invoke('send-meta-whatsapp', {
         body: {
-          instanceId: conversation.whatsapp_meta_instance_id,
-          to: phoneNumber,
+          instance_id: conversation.whatsapp_meta_instance_id,
+          phone_number: phoneNumber,
           message: closeMessage,
-          is_bot_message: true,
+          conversation_id: conversation.id,
+          skip_db_save: true,
         }
       });
       
       if (csatMessage) {
         await supabase.functions.invoke('send-meta-whatsapp', {
           body: {
-            instanceId: conversation.whatsapp_meta_instance_id,
-            to: phoneNumber,
+            instance_id: conversation.whatsapp_meta_instance_id,
+            phone_number: phoneNumber,
             message: csatMessage,
-            is_bot_message: true,
+            conversation_id: conversation.id,
+            skip_db_save: true,
           }
         });
       }
@@ -659,6 +661,6 @@ async function sendWhatsAppMessages(
       }
     }
   } catch (whatsappError) {
-    console.error(`[Auto-Close] WhatsApp send error for ${conversation.id}:`, whatsappError);
+    console.error(`[Auto-Close] ❌ WhatsApp send FAILED for conversation ${conversation.id}, provider=${conversation.whatsapp_provider}:`, whatsappError);
   }
 }

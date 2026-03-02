@@ -1,48 +1,37 @@
 
 
-# Fix: Trava Financeira — Fallback sem Handoff
+# Fix: Contato Duplicado + Distribuição da Eliane Freitas
 
-## Problema Raiz
+## Diagnóstico
 
-Quando a IA detecta intenção financeira ("devolução") na conversa #67FC6573, três falhas em cascata deixam o cliente sem resposta:
+```text
+Contato 1 (email): 3baa1726 → email: elianefreitas.vendas@gmail.com, assigned_to: Loriani, consultant_id: NULL
+Contato 2 (whatsapp): 2210a745 → phone: 554399951354, consultant_id: NULL, email: NULL
+Conversa: 395cd646 → contact_id: 2210a745, ai_mode: waiting_human, assigned_to: NULL, dept: Customer Success
+```
 
-1. **`ai-autopilot-chat`** (linha 1310): Como `hasFlowContext=true`, NÃO faz `waiting_human` — delega ao webhook
-2. **`meta-whatsapp-webhook`** (linha 948): Re-invoca `process-chat-flow` com `forceFinancialExit=true`, mas o motor avança ao próximo nó que pode não existir ou não ter transfer
-3. **Fallback do webhook** (linhas 1034-1073): Envia mensagem de handoff ao WhatsApp, mas **nunca atualiza `ai_mode` para `waiting_human`** nem define `department`
+Dois problemas: (A) deduplicação de contatos não aconteceu, (B) mesmo o contato original não tem `consultant_id` preenchido.
 
-Resultado: conversa fica em `autopilot` sem agente, sem departamento, cliente recebe silêncio.
+## Solução Imediata (dados)
 
-## Solução
+### 1. Unificar contatos — Mesclar o contato WhatsApp no contato com email
+- Atualizar contato `3baa1726`: preencher `phone` com `554399951354`, definir `consultant_id` = Loriani (`522d898d`)
+- Atualizar conversa `395cd646`: `contact_id` = `3baa1726`, `assigned_to` = `522d898d`, `ai_mode` = `copilot`
+- Migrar mensagens do contato antigo para o novo
+- Remover contato duplicado `2210a745`
 
-### 1. `meta-whatsapp-webhook/index.ts` — Fallback financeiro com handoff real
+### 2. Corrigir assigned_to → consultant_id
 
-No bloco fallback (após linha 1060), adicionar:
-- Update da conversa: `ai_mode = 'waiting_human'`, `assigned_to = null`, `department = DEPT_FINANCEIRO_ID`
-- Buscar o ID do departamento "Financeiro" via query (com fallback para `waiting_human` sem departamento se não encontrar)
-- Completar o flow state como `transferred` para não ficar em loop
+O contato original tem `assigned_to = Loriani` mas `consultant_id = null`. Definir `consultant_id = 522d898d` (Loriani) para que o returning-client routing funcione nas próximas conversas.
 
-### 2. `ai-autopilot-chat/index.ts` — Autopilot global (sem flow) já funciona
+## Solução Estrutural (código) — Prevenir futuras duplicações
 
-A linha 1311-1316 já faz `waiting_human` quando `!hasFlowContext`. Porém, falta definir o departamento financeiro. Adicionar `department` ao update.
+### 3. Melhorar deduplicação no webhook de WhatsApp
+No `meta-whatsapp-webhook`, quando um novo contato é criado por número de telefone, adicionar uma verificação cruzada:
+- Buscar contatos existentes onde `phone` contenha o número (normalizado)
+- Se encontrar match, vincular a conversa ao contato existente em vez de criar novo
+- Isso evita duplicações futuras
 
-### 3. `ai-autopilot-chat/index.ts` — Com flow context, garantir mensagem é enviada
-
-Quando `hasFlowContext=true`, o autopilot retorna `financialBlocked` mas NÃO envia mensagem ao cliente (delega ao webhook). Se o webhook falhar no re-invoke, o fallback precisa ser robusto — já coberto pela correção #1.
-
-### 4. `process-chat-flow/index.ts` — Financial exit sem próximo nó
-
-Quando `financialIntentMatch=true` e `findNextNode` retorna `null`, forçar:
-- Mensagem de fallback ao cliente: "Vou te encaminhar para o setor financeiro"
-- Update da conversa para `waiting_human` com departamento financeiro
-- Completar flow state como `transferred`
-- Retornar `{ transfer: true, departmentId: DEPT_FINANCEIRO }` para o webhook
-
-## Departamento Financeiro
-
-Buscar dinamicamente: `SELECT id FROM departments WHERE name ILIKE '%financ%' LIMIT 1`. Se não existir, fazer handoff genérico (sem departamento, `waiting_human`).
-
-## Impacto
-- Zero regressão: travas financeiras existentes (flow com próximo nó, sem flow) continuam funcionando
-- Cobre o caso não tratado: financial exit + flow sem próximo nó + fallback do webhook
-- Cliente SEMPRE recebe mensagem + conversa SEMPRE vai para humano
+### 4. Garantir `consultant_id` sincronizado com `assigned_to`
+Quando um contato é criado/atualizado com `assigned_to` mas sem `consultant_id`, preencher automaticamente o `consultant_id` com o mesmo valor — para que o returning-client routing funcione.
 

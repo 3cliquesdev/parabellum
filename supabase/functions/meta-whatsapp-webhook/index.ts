@@ -1083,7 +1083,7 @@ serve(async (req) => {
                                     await supabase.functions.invoke("send-meta-whatsapp", {
                                       body: {
                                         instance_id: instance.id,
-                                        phone: senderPhone,
+                                        phone_number: senderPhone,
                                         message: flowMessage,
                                         conversation_id: conversation.id,
                                         skip_db_save: true,
@@ -1144,7 +1144,7 @@ serve(async (req) => {
                                       await supabase.functions.invoke("send-meta-whatsapp", {
                                         body: {
                                           instance_id: instance.id,
-                                          phone: senderPhone,
+                                          phone_number: senderPhone,
                                           message: retryMessage,
                                           conversation_id: conversation.id,
                                           skip_db_save: true,
@@ -1191,7 +1191,7 @@ serve(async (req) => {
                               await supabase.functions.invoke("send-meta-whatsapp", {
                                 body: {
                                   instance_id: instance.id,
-                                  phone: senderPhone,
+                                  phone_number: senderPhone,
                                   message: handoffMsg,
                                   conversation_id: conversation.id,
                                   skip_db_save: true,
@@ -1287,22 +1287,15 @@ serve(async (req) => {
                                   const phoneNumberId = instance.whatsapp_meta_phone_id || Deno.env.get("WHATSAPP_META_PHONE_NUMBER_ID");
                                   
                                   if (metaToken && phoneNumberId) {
-                                    await fetch(
-                                      `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
-                                      {
-                                        method: "POST",
-                                        headers: {
-                                          "Content-Type": "application/json",
-                                          Authorization: `Bearer ${metaToken}`,
-                                        },
-                                        body: JSON.stringify({
-                                          messaging_product: "whatsapp",
-                                          to: senderPhone,
-                                          type: "text",
-                                          text: { body: flowMessage },
-                                        }),
-                                      }
-                                    );
+                                    await supabase.functions.invoke("send-meta-whatsapp", {
+                                      body: {
+                                        instance_id: instance.id,
+                                        phone_number: senderPhone,
+                                        message: flowMessage,
+                                        conversation_id: conversation.id,
+                                        skip_db_save: true,
+                                      },
+                                    });
                                     
                                     await supabase.from("messages").insert({
                                       conversation_id: conversation.id,
@@ -1357,7 +1350,7 @@ serve(async (req) => {
                                       await supabase.functions.invoke("send-meta-whatsapp", {
                                         body: {
                                           instance_id: instance.id,
-                                          phone: senderPhone,
+                                          phone_number: senderPhone,
                                           message: retryMessage,
                                           conversation_id: conversation.id,
                                           skip_db_save: true,
@@ -1398,22 +1391,15 @@ serve(async (req) => {
                             const phoneNumberId = instance.whatsapp_meta_phone_id || Deno.env.get("WHATSAPP_META_PHONE_NUMBER_ID");
                             
                             if (metaToken && phoneNumberId) {
-                              await fetch(
-                                `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                    Authorization: `Bearer ${metaToken}`,
-                                  },
-                                  body: JSON.stringify({
-                                    messaging_product: "whatsapp",
-                                    to: senderPhone,
-                                    type: "text",
-                                    text: { body: commercialHandoffMsg },
-                                  }),
-                                }
-                              );
+                              await supabase.functions.invoke("send-meta-whatsapp", {
+                                body: {
+                                  instance_id: instance.id,
+                                  phone_number: senderPhone,
+                                  message: commercialHandoffMsg,
+                                  conversation_id: conversation.id,
+                                  skip_db_save: true,
+                                },
+                              });
                               console.log("[meta-whatsapp-webhook] ✅ Handoff message sent (commercial block)");
                               
                               await supabase.from("messages").insert({

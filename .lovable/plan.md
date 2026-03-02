@@ -1,47 +1,80 @@
 
 
-# Fix: Conversa fica presa em "waiting_human" após remoção do consultor — Master Flow ignorado
+# Diagnóstico: Conversa #54269D6E não foi transferida
 
-## Problema
+## Causa Raiz
 
-Quando você remove o consultor de um contato, a **conversa** continua com `ai_mode = 'waiting_human'`. Na próxima mensagem do cliente:
+O fluxo Master Flow seguiu este caminho:
+1. Usuário respondeu "4" (Outros) no menu
+2. Auto-avanço entregou a mensagem "Estou transferindo você agora..."
+3. Avaliou a condição de inatividade → `false` → próximo nó = **TransferNode** `1769460331172` (Suporte Sistema)
+4. **BUG**: O código de auto-avanço para nós `message` (linhas 1905-2014 do `process-chat-flow`) não trata o caso de o nó resultante ser um `transfer`. Ele simplesmente salva o `current_node_id` como o transfer node e retorna uma resposta genérica **sem** `transfer: true` nem `departmentId`
+5. O webhook não executa a transferência porque não recebe esses campos
+6. Conversa fica presa em `ai_mode: waiting_human`, `department: null`, `assigned_to: null`
 
-1. `process-chat-flow` vê `ai_mode=waiting_human` → retorna `skipAutoResponse: true`
-2. Webhook envia "💬 Sua conversa já está na fila de atendimento"
-3. **Master Flow nunca é consultado** porque a proteção bloqueia tudo
+O tratamento de TransferNode só existe em dois lugares:
+- Na travessia manual (linha 945) 
+- Quando é o `nextNode` direto da resposta do usuário (linha 1838)
 
-O problema: **remover consultor só limpa `consultant_id` no contato, mas não reseta o `ai_mode` das conversas ativas**.
+Mas **não** existe após o loop de auto-avanço de message nodes (linha 1957+).
 
 ## Solução
 
-### 1. Resetar `ai_mode` ao desvincular consultor (`src/pages/Consultants.tsx`)
+### `supabase/functions/process-chat-flow/index.ts`
 
-Na `unlinkMutation`, após setar `consultant_id: null`, também:
-- Buscar conversas **abertas** desse contato que estejam em `waiting_human` ou `copilot`
-- Atualizar para `ai_mode: 'autopilot'` e `assigned_to: null`
+Após o loop de auto-avanço de message nodes (depois da linha 1957, antes da linha 1984), adicionar tratamento para `nextNode.type === 'transfer'`:
 
-Isso libera o Master Flow para processar a próxima mensagem.
+```typescript
+// Se chegou a transfer após auto-avanço de messages, executar transferência
+if (nextNode.type === 'transfer') {
+  console.log(`[process-chat-flow] 🔄 Transfer node after message chain: ${nextNode.id}`);
+  
+  // Entregar mensagens intermediárias acumuladas
+  if (extraMessages.length > 0) {
+    for (const msg of extraMessages) {
+      await deliverFlowMessage(msg);
+    }
+  }
+  
+  // Entregar mensagem do transfer node
+  const transferMsg = replaceVariables(nextNode.data?.message || "Transferindo...", variablesContext);
+  await deliverFlowMessage(transferMsg);
+  
+  // Completar flow state como transferred
+  await supabaseClient
+    .from('chat_flow_states')
+    .update({
+      collected_data: collectedData,
+      current_node_id: nextNode.id,
+      status: 'transferred',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', activeState.id);
 
-### 2. Mesmo fix em `src/components/contacts/ConsultantClientsSheet.tsx`
+  return new Response(JSON.stringify({
+    useAI: false,
+    transfer: true,
+    departmentId: nextNode.data?.department_id || null,
+    transferType: nextNode.data?.transfer_type,
+    collectedData,
+    flowId: activeState.flow_id,
+  }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+}
+```
 
-Aplicar a mesma lógica na mutation de unlink do sheet de clientes do consultor.
+Inserir este bloco entre o tratamento de `end` node (linha 1982) e o fallback genérico (linha 1984).
 
-### 3. Adicionar flag `consultant_manually_removed` (migration SQL)
+### Fix imediato para a conversa #54269D6E
 
-Coluna `consultant_manually_removed boolean DEFAULT false` na tabela `contacts` para que o webhook não re-atribua automaticamente (conforme plano anterior aprovado).
+Após o deploy, a conversa atual precisa ser corrigida manualmente no banco:
+- Setar `department = 'fd4fcc90-22e4-4127-ae23-9c9ecb6654b4'` (Suporte Sistema)
+- Setar `ai_mode = 'waiting_human'`
+- Atualizar `chat_flow_states` para `status = 'transferred'`
 
-### 4. Proteger TRANSFER-PERSIST-LOCK no webhook
-
-No `meta-whatsapp-webhook/index.ts`, antes de re-persistir `consultant_id` (~linha 824), verificar `consultant_manually_removed = true` e pular se sim.
-
-### Arquivos editados
-- **Migration SQL**: nova coluna `consultant_manually_removed`
-- `src/pages/Consultants.tsx`: unlinkMutation reseta conversas ativas para autopilot + seta flag
-- `src/components/contacts/ConsultantClientsSheet.tsx`: mesma lógica
-- `supabase/functions/meta-whatsapp-webhook/index.ts`: guard no TRANSFER-PERSIST-LOCK
+### Arquivos alterados
+- `supabase/functions/process-chat-flow/index.ts` — adicionar handler de transfer após auto-avanço de messages
 
 ### Sem risco de regressão
-- Só afeta conversas do contato desvinculado
-- Conversas já fechadas não são tocadas
-- Flag `consultant_manually_removed` é defensivo (default false)
+- O tratamento de transfer nos outros caminhos (manual trigger e nextNode direto) permanece intacto
+- Apenas adiciona um handler que estava faltando
 

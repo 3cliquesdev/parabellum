@@ -1,31 +1,27 @@
 
 
-# Adicionar suporte a ID do consultor na importação
+# Exibir ID dos consultores na página de Consultores
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## O que muda
+## Situação atual
 
-Atualmente a importação só aceita o **nome** do consultor (coluna `consultor`) e resolve para UUID internamente. O upgrade adiciona uma coluna **`id_consultor`** que aceita o UUID diretamente — se fornecido, tem prioridade sobre o nome.
+A página `/consultants` (Consultores) lista os consultores com nome, cargo, clientes e valor da carteira — mas **não mostra o UUID (ID)** deles. Para preencher a planilha de importação com `id_consultor`, você precisa ver esses IDs.
 
-## Alterações
+## Alteração
 
-### 1. Frontend — `ImportClients.tsx`
-- Adicionar `consultant_id` ao mapeamento automático com aliases: `id_consultor`, `consultant_id`, `id consultor`
-- Atualizar template de download para incluir coluna `id_consultor`
+### `src/pages/Consultants.tsx`
+Adicionar o ID do consultor no card, logo abaixo do cargo, com um botão de copiar para facilitar:
 
-### 2. Hook — `useImportContacts.tsx`
-- Adicionar `consultant_id` à interface `ContactRow`
-
-### 3. Edge Function — `bulk-import-contacts/index.ts`
-- Adicionar `consultant_id` à interface `ContactRow`
-- Em `prepareContactData`: se `consultant_id` vier preenchido (UUID válido + tem role consultant), usar diretamente sem resolver por nome
-- Fallback: se `consultant_id` inválido, tentar resolver por `assigned_to` (nome) como hoje
-
-### Fluxo de prioridade
-```text
-consultant_id (UUID direto) → assigned_to (nome) → null
+```
+Consultor: João Silva
+Consultor de CS
+ID: 3f8a1b2c-... [📋 copiar]
 ```
 
-Sem impacto em funcionalidades existentes — é um upgrade puro com fallback mantido.
+- Exibir UUID truncado (primeiros 8 caracteres + `...`) para não poluir o card
+- Botão de copiar que copia o UUID completo para a área de transferência
+- Toast de confirmação ao copiar
+
+Upgrade puro — sem impacto em funcionalidades existentes.
 

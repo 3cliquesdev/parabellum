@@ -1,30 +1,38 @@
 
 
-# Corrigir: validar role ao atribuir consultant_id e limpar dados incorretos
+# Auditoria: Limpar consultant_id de não-consultores
 
-## Problema identificado
+Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-- **Camila de Farias** (`de03d434...`) tem role `sales_rep`, mas possui clientes com `consultant_id` apontando para ela
-- O sistema de roteamento trata qualquer `consultant_id` preenchido como roteamento direto, sem validar o role
-- Resultado: conversas sendo roteadas para quem não é consultor
+## Situação atual
 
-## Correção em 3 partes
+| Usuário | Role | Contatos vinculados | Ação |
+|---------|------|----:|------|
+| Fernanda | sales_rep | 1.424 | **LIMPAR** |
+| Loriani Vitoria | sales_rep | 1.178 | **LIMPAR** |
+| Paulo Lopes | consultant | 906 | Manter |
+| Danielle Martins | consultant | 905 | Manter |
+| Luiz Henrique | consultant | 902 | Manter |
+| Thaynara Cruz | sales_rep | 789 | **LIMPAR** |
+| Bruno | sales_rep | 743 | **LIMPAR** |
+| Ronildo | consultant | 356 | Manter |
+| Camila de Farias | sales_rep | 340 | **LIMPAR** |
+| Ronildo Oliveira | admin | 2 | **LIMPAR** |
 
-### 1. Limpar dados — migração SQL
-- Atualizar `contacts` onde `consultant_id` aponta para usuários que **não** possuem role `consultant` em `user_roles`
-- Setar `consultant_id = NULL` nesses registros para que o fluxo de IA reassuma o controle
-- Registrar quantos contatos foram afetados via log
+**Total a limpar: 4.476 contatos** (6 usuários não-consultores)
 
-### 2. Validação no backend — Edge Functions
-**`bulk-import-contacts`**: já resolve nome → consultant_id, mas não valida se o usuário tem role `consultant`. Adicionar checagem: só aceitar IDs de usuários com role `consultant`.
+## Plano
 
-**`update-user`**: quando o role de um usuário muda **de** `consultant` para outro role, limpar automaticamente o `consultant_id` dos contatos vinculados a ele (evita dados órfãos).
+Executar um UPDATE via insert tool para setar `consultant_id = NULL` em todos os contatos cujo `consultant_id` aponta para usuários que **não** têm role `consultant`:
 
-### 3. Validação no frontend — atribuição manual
-Nos componentes que permitem selecionar consultor para um contato (dropdowns de atribuição), garantir que apenas usuários com role `consultant` apareçam — o hook `useConsultants` já faz isso corretamente, mas verificar se todos os pontos de atribuição usam esse hook.
+- Fernanda (`c190047a...`) — 1.424 contatos
+- Loriani (`522d898d...`) — 1.178 contatos
+- Thaynara (`6e8c3566...`) — 789 contatos
+- Bruno (`dfc475f0...`) — 743 contatos
+- Camila (`de03d434...`) — 340 contatos
+- Ronildo Oliveira (`697a5d4e...`) — 2 contatos
 
-## Sem risco de regressão
-- Contatos com consultores válidos não são afetados
-- Apenas contatos com `consultant_id` inválido (role ≠ consultant) são limpos
-- Roteamento continua funcionando normalmente para consultores reais
+Após a limpeza, esses contatos passarão pelo fluxo normal de IA/Chat Flow na próxima interação, em vez de serem roteados diretamente para pessoas que não são consultoras.
+
+As validações no backend (`update-user` e `bulk-import-contacts`) já foram implementadas na mensagem anterior para impedir que isso ocorra novamente.
 

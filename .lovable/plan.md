@@ -1,58 +1,55 @@
 
 
-# Status do Plano P0→P2 e Implementação Pendente
+# P1.1 — Upgrades pendentes no create_ticket
 
-## Status atual
+Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-| Item | Status | Observação |
-|------|--------|-----------|
-| **P0.1** Message Buffer cron | ✅ Concluído | setTimeout removido, cron ativo, lock implementado, mensagens desbloqueadas |
-| **P0.2** Trava Financeira fallback | ✅ Já implementado | Retry 2x com re-invoke do flow, fallback para `waiting_human` + dept Financeiro, flow state `transferred`, mensagem enviada. Gap intencional: hasFlowContext=true + 2x falha → mantém no fluxo (soberania) |
-| **P1.1** Nó create_ticket | ⚠️ **Parcialmente feito** | Frontend do EndNode tem opção `create_ticket` no select, mas `process-chat-flow` **não tem handler** (linhas 2329-2333 tratam apenas `create_lead` com TODO). Nó mid-flow `CreateTicketNode` **não existe** |
-| **P1.2** Variáveis/Autocomplete/Warnings | ✅ Já implementado | `variableCatalog.ts` completo: 14 contact vars, 7 conversation vars, order vars, graph traversal, `findOrphanVariables`, `evaluateCondition` com `getVar` fallback chain, 13 condition contact fields + 5 conversation fields |
-| **P2.1** Relatório Inbox | ✅ Já implementado | RPC `get_inbox_time_report` com SLA, CSAT, tags, p50/p90, filtros. `InboxTimeTable` + `useInboxTimeReport` funcionais |
+## Status: P1.1 já está 85% implementado
 
-## Trabalho restante: P1.1 — Nó create_ticket completo
+O trabalho anterior já entregou:
+- ✅ `createTicketFromFlow()` com idempotência (`idempotency_key` unique)
+- ✅ EndNode `end_action === 'create_ticket'` handler (2 locais: pós-input e pós-auto-advance)
+- ✅ Mid-flow `create_ticket` node no auto-advance loop
+- ✅ Frontend: `CreateTicketNode.tsx`, properties panel, registro no editor
+- ✅ `ai_events` log com `flow_create_ticket`
+- ✅ Migration com coluna `idempotency_key` na tabela tickets
 
-### 1. Backend: Handler no `process-chat-flow/index.ts`
+## Gaps identificados (upgrades do checklist do usuário)
 
-**EndNode action** (linhas 2329-2333): Adicionar handler para `end_action === 'create_ticket'`:
-- Resolver variáveis do `action_data` (subject, description) via `replaceVariables`
-- Inserir ticket na tabela `tickets` com: subject, description, category (do action_data), priority default `medium`, status `open`, `source_conversation_id`, `contact_id`
-- Idempotency key: `conversation_id + flow_state_id + node_id` para evitar duplicação em retries
-- Logar evento no `ai_events`
+### 1. Backend: `createTicketFromFlow` falta campos extras
+A função aceita apenas: subject, description, category, priority, contactId, conversationId.
+**Faltam**: `department_id`, `internal_note`, `use_collected_data` (snapshot em metadata).
 
-**Mid-flow CreateTicketNode**: Adicionar novo tipo de nó `create_ticket` no motor:
-- Handler no switch principal de tipos de nó
-- Cria ticket com campos configuráveis (subject template, description template, category, priority)
-- Auto-avança para próximo nó (igual `message`)
-- Mesma lógica de idempotência
+**Ação**: Expandir opts e insert para incluir:
+- `department_id` (nullable)
+- `internal_note` (template resolvido via replaceVariables)
+- `metadata` JSON com `flow_state_id`, `node_id`, `idempotency_key`, e `collected_data` snapshot quando `use_collected_data=true`
+- Salvar `collectedData.__last_ticket_id = ticket.id` após criação
 
-### 2. Frontend: Componente `CreateTicketNode`
+### 2. Frontend: Properties panel falta campos extras
+O panel do `create_ticket` node tem: subject, description, category, priority.
+**Faltam**: `department_id` (select), `internal_note` (VariableAutocomplete), `use_collected_data` (checkbox).
 
-**Novo arquivo**: `src/components/chat-flows/nodes/CreateTicketNode.tsx`
-- Visual: ícone Ticket, campos subject/description com suporte a `{{variáveis}}`
-- Select de category (enum existente: financeiro, tecnico, bug, outro, devolucao, reclamacao, saque)
-- Select de priority (low, medium, high, urgent)
-- Badge visual indicando "Criar Ticket"
+Mesma lacuna no EndNode `create_ticket` config (linhas 900-961).
 
-**Properties panel** no `ChatFlowEditor.tsx`:
-- Campos editáveis: subject (com VariableAutocomplete), description (com VariableAutocomplete), category, priority
-- Preview das variáveis disponíveis
+**Ação**: Adicionar 3 campos em ambos os painéis (mid-flow node + EndNode action).
 
-### 3. Registro do nó
+### 3. Anti-duplicidade: Flow ativo bloqueia tool call
+`classify_and_resolve_ticket` no `ai-autopilot-chat` não verifica se existe flow ativo. Guards atuais: kill switch, shadow mode, `ai_can_classify_ticket` flag. Mas se flow está ativo com nó `create_ticket`, a IA pode criar ticket duplicado via tool call.
 
-- Adicionar `CreateTicketNode` ao `nodeTypes` no `ChatFlowEditor`
-- Adicionar ao index de exports (`nodes/index.ts`)
-- Adicionar opção "Criar Ticket" no menu de adição de nós
-- Adicionar ao `nodeConfig` com ícone e cor
+**Ação**: Adicionar guard no handler de `classify_and_resolve_ticket`:
+- Query `chat_flow_states` para flow ativo da conversa
+- Se existe flow ativo → bloquear tool call com log em `ai_events`
+- Regra simples: "flow ativo = não cria ticket por tool call" (soberania do fluxo)
 
-### 4. Proteção contra duplicidade
+## Resumo de alterações
 
-Quando autopilot está ativo COM flow ativo, bloquear a tool call `classify_and_resolve_ticket` se o fluxo tem um nó `create_ticket` no caminho. Isso evita que a IA crie ticket duplicado via tool call enquanto o flow já vai criar via nó.
+| Arquivo | Mudança |
+|---------|---------|
+| `process-chat-flow/index.ts` | Expandir `createTicketFromFlow` com department_id, internal_note, metadata/collected_data, __last_ticket_id |
+| `process-chat-flow/index.ts` | Atualizar 3 call sites para passar novos campos |
+| `ChatFlowEditor.tsx` | Adicionar department_id, internal_note, use_collected_data nos 2 painéis |
+| `ai-autopilot-chat/index.ts` | Guard em classify_and_resolve_ticket: bloquear se flow ativo |
 
-### Impacto
-- **Upgrade puro**: Não altera nenhum comportamento existente
-- **Sem regressão**: EndNode sem `create_ticket` continua funcionando normalmente
-- **Idempotência**: Key composta previne duplicação em retries do cron/buffer
+Sem migration necessária (department_id e internal_note já existem na tabela tickets; metadata é jsonb existente).
 

@@ -1,89 +1,78 @@
 
 
-# Nó "Verificar Cliente + OTP" para o Master Flow
+# Corrigir: Guard de ai_mode bloqueia fluxo ativo (conversa #735C859A)
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Fluxo desejado
+## Problema raiz
 
-```text
-[Ask Email] → [Verify Customer + OTP] 
-                 ├─ É cliente (OTP verificado) → [Create Ticket] → ...
-                 ├─ Email não encontrado → [AI: "Email correto? Não encontramos..."] → loop ou comercial
-                 └─ Não é cliente → [Message: "Vou passar para o time comercial"] → [Transfer: Comercial]
+A conversa #735C859A está com fluxo ativo no nó `ask_options` (status `waiting_input`), mas o `ai_mode` foi mudado para `copilot` durante o processamento do nó AI anterior. Quando o cliente respondeu "Sim", o `process-chat-flow` bloqueou com a mensagem: `🛡️ PROTEÇÃO: ai_mode=copilot - NÃO processar fluxo/IA`.
+
+**Cadeia do bug:**
+1. Cliente diz "Estou aguardando o retorno do setor logistico"
+2. Nó `ai_response` (ia_entrada) processa → IA executa tool call `handoff_to_human` → **seta `ai_mode = copilot`** (linha 7312 do ai-autopilot-chat)
+3. Fallback/exit keyword detectado → retorna `flow_advance_needed`
+4. Webhook re-invoca `process-chat-flow` com `forceAIExit` → fluxo avança ao nó `ask_options` e envia "Você já é nosso cliente?"
+5. Cliente responde "Sim" → webhook chama `process-chat-flow`
+6. **Guard bloqueia**: `ai_mode=copilot` → resposta ignorada, fluxo trava
+
+O `ai_mode` foi corrompido pelo handoff tool call da IA DENTRO do nó do fluxo, mas o fluxo continuou avançando. O guard não verifica se existe um fluxo ativo.
+
+## Correção
+
+**Arquivo:** `supabase/functions/process-chat-flow/index.ts` (linhas 442-454)
+
+Adicionar verificação de fluxo ativo ANTES de bloquear. Se existe um `chat_flow_state` ativo (`waiting_input`, `active`, `in_progress`) para essa conversa, o fluxo tem soberania e deve continuar processando — independente do `ai_mode`. Adicionalmente, restaurar `ai_mode = autopilot` para garantir consistência.
+
+```typescript
+// ANTES (bug):
+if ((currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled') && !isTestMode) {
+  // bloqueia sempre
+}
+
+// DEPOIS (fix):
+if ((currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled') && !isTestMode) {
+  // Verificar se existe fluxo ativo — fluxo tem soberania
+  const { data: activeFlowCheck } = await supabaseClient
+    .from('chat_flow_states')
+    .select('id, status')
+    .eq('conversation_id', conversationId)
+    .in('status', ['waiting_input', 'active', 'in_progress'])
+    .limit(1)
+    .maybeSingle();
+  
+  if (activeFlowCheck) {
+    console.log(`[process-chat-flow] 🔓 SOBERANIA DO FLUXO: ai_mode=${currentAiMode} mas fluxo ativo (${activeFlowCheck.status}) → processando`);
+    // Restaurar ai_mode para autopilot (foi corrompido)
+    await supabaseClient.from('conversations')
+      .update({ ai_mode: 'autopilot' })
+      .eq('id', conversationId);
+  } else {
+    // Sem fluxo ativo → bloquear (comportamento existente)
+    console.log(`[process-chat-flow] 🛡️ PROTEÇÃO: ai_mode=${currentAiMode} - NÃO processar fluxo/IA`);
+    return ...;
+  }
+}
 ```
 
-## O que já existe
+## Correção secundária (preventiva)
 
-- **`validate_customer`**: Valida por phone/email/CPF na Kiwify silenciosamente, sem OTP
-- **`send-verification-code`**: Edge function que envia OTP por email (6 dígitos)
-- **`verify-code`**: Edge function que valida o código digitado
-- **`verify-customer-email`**: Edge function que verifica se email existe como customer
+**Arquivo:** `supabase/functions/ai-autopilot-chat/index.ts` (linhas 7311-7315)
 
-O nó `validate_customer` atual faz validação silenciosa (sem interação). Precisamos de um **novo nó** que combine verificação de identidade + OTP interativo dentro do fluxo.
+Quando o handoff tool call é executado e `flow_context` existe, NÃO mudar `ai_mode` para copilot — pois o fluxo controlará a transição.
 
-## Plano de implementação
-
-### 1. Novo nó visual: `verify_customer_otp`
-
-**Novo arquivo:** `src/components/chat-flows/nodes/VerifyCustomerOTPNode.tsx`
-- Ícone ShieldCheck (roxo/azul)
-- Propriedades configuráveis:
-  - `message_ask_email`: mensagem pedindo email (default: "Para verificar sua identidade, me informe seu email cadastrado")
-  - `message_otp_sent`: mensagem quando OTP enviado (default: "Enviamos um código de 6 dígitos para {{email}}. Digite o código:")
-  - `message_not_found`: mensagem quando email não encontrado (default: "Não encontramos este email em nossa base. O email está correto?")
-  - `message_not_customer`: mensagem quando não é cliente (default: "Vou encaminhar para nosso time comercial")
-  - `save_verified_as`: variável (default: `customer_verified`)
-  - `max_attempts`: máximo de tentativas OTP (default: 3)
-
-**Novo arquivo:** `src/components/chat-flows/VerifyCustomerOTPPropertiesPanel.tsx`
-
-### 2. Registrar no editor e exports
-
-- Adicionar em `src/components/chat-flows/nodes/index.ts`
-- Registrar em `ChatFlowEditor.tsx` no `chatFlowNodeTypes` e na sidebar
-- Adicionar em `ChatFlowNodeWrapper.tsx` no type union
-
-### 3. Backend: Handler no `process-chat-flow`
-
-O nó opera como uma **máquina de estados interna** com sub-estados salvos no `collectedData`:
-
-```text
-Sub-estados (__otp_step):
-1. "ask_email"     → Pede email, aguarda resposta
-2. "check_email"   → Verifica email no banco (verify-customer-email)
-   - found → envia OTP (send-verification-code), vai para "wait_code"
-   - not_found → envia msg "email correto?", vai para "confirm_email"
-3. "confirm_email"  → Usuário confirma ou corrige email
-   - se parece email novo → volta para "check_email"
-   - se confirma que não é cliente → seta resultado "not_customer", avança
-4. "wait_code"     → Aguarda código OTP
-   - correto → seta resultado "verified", avança
-   - incorreto → retry ou falha
+```typescript
+// Antes de setar ai_mode = copilot, verificar se há fluxo ativo
+if (!flow_context) {
+  await supabaseClient.from('conversations')
+    .update({ ai_mode: 'copilot' })
+    .eq('id', conversationId);
+}
 ```
-
-**Variáveis salvas no `collectedData`:**
-- `__otp_step`: sub-estado atual
-- `__otp_email`: email informado
-- `__otp_attempts`: tentativas
-- `customer_verified`: resultado final (`true`/`false`)
-- `customer_verified_email`: email verificado
-- `customer_verified_name`: nome do cliente
-
-**Saídas para condition node:**
-- `customer_verified = true` → cliente autenticado via OTP
-- `customer_verified = false` + `__otp_result = not_customer` → não é cliente
-- `customer_verified = false` + `__otp_result = failed` → falhou OTP
-
-### 4. Integração com Create Ticket (próximo passo)
-
-Após este nó, o fluxo pode ramificar:
-- **Verificado** → nó `create_ticket` (a implementar depois)
-- **Não é cliente** → nó `transfer` para departamento Comercial
-- **Email incorreto** → loop de retry
 
 ## Sem risco de regressão
-- Nó `validate_customer` existente continua funcionando (validação silenciosa)
-- Edge functions `send-verification-code` e `verify-code` já existem e são reutilizadas
-- Nenhum código existente é alterado, apenas adições
+- Conversas sem fluxo ativo mantêm o guard exatamente como antes
+- Fluxos ativos ganham soberania sobre o ai_mode
+- O ai_mode é restaurado para autopilot automaticamente quando o fluxo precisa continuar
+- Test mode continua com bypass independente
 

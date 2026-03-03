@@ -39,11 +39,17 @@ export const TransferNode = memo(({ data, selected }: NodeProps<TransferNodeData
       selected={selected}
       showSourceHandle={false}
     >
-      <div className="flex items-center gap-2 mt-1">
+      <div className="flex flex-col gap-1 mt-1">
         <Badge variant="outline" className="text-xs flex items-center gap-1">
           <TargetIcon className="h-3 w-3" />
           {targetLabel}
         </Badge>
+        {transferType === "consultant" && data.department_name && (
+          <Badge variant="outline" className="text-[10px] flex items-center gap-1 text-muted-foreground">
+            <Building2 className="h-2.5 w-2.5" />
+            Fallback: {data.department_name}
+          </Badge>
+        )}
       </div>
     </ChatFlowNodeWrapper>
   );

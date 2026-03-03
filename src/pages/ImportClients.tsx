@@ -14,6 +14,7 @@ export default function ImportClients() {
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [importResult, setImportResult] = useState<any>(null);
   const [detectedHeaderRow, setDetectedHeaderRow] = useState<number | null>(null);
+  const [detectedSheetName, setDetectedSheetName] = useState<string | null>(null);
   
   const importMutation = useImportContacts();
 
@@ -106,10 +107,11 @@ export default function ImportClients() {
     }
   }, [csvHeaders]);
 
-  const handleDataParsed = (data: any[], headers: string[], headerRowIndex?: number) => {
+  const handleDataParsed = (data: any[], headers: string[], headerRowIndex?: number, sheetName?: string) => {
     setCsvData(data);
     setCsvHeaders(headers);
     setDetectedHeaderRow(headerRowIndex ?? null);
+    setDetectedSheetName(sheetName ?? null);
     setImportResult(null);
   };
 
@@ -248,6 +250,9 @@ export default function ImportClients() {
             <div className="text-xs border rounded-md p-2 bg-muted/20 space-y-1">
               <p className="font-medium text-muted-foreground">
                 📋 Headers detectados ({csvHeaders.length})
+                {detectedSheetName && (
+                  <span className="ml-2 text-xs opacity-70">— aba '{detectedSheetName}'</span>
+                )}
                 {detectedHeaderRow !== null && (
                   <span className="ml-2 text-xs opacity-70">— linha {detectedHeaderRow + 1} da planilha</span>
                 )}
@@ -331,6 +336,7 @@ export default function ImportClients() {
                   setMapping({});
                   setImportResult(null);
                   setDetectedHeaderRow(null);
+                  setDetectedSheetName(null);
                 }}
               >
                 Limpar

@@ -1,12 +1,19 @@
 import { useCallback, useState } from "react";
-import { Upload, FileText, X } from "lucide-react";
+import { Upload, FileText, X, Layers } from "lucide-react";
 import Papa from "papaparse";
-import readXlsxFile from "read-excel-file";
+import readXlsxFile, { readSheetNames } from "read-excel-file";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CSVUploaderProps {
-  onDataParsed: (data: any[], headers: string[], headerRowIndex?: number) => void;
+  onDataParsed: (data: any[], headers: string[], headerRowIndex?: number, sheetName?: string) => void;
 }
 
 /**
@@ -14,14 +21,11 @@ interface CSVUploaderProps {
  */
 function sanitizeHeader(raw: string): string {
   return raw
-    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '') // zero-width chars, BOM, NBSP
+    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/**
- * Garante unicidade dos headers (adiciona sufixo _2, _3 em duplicados)
- */
 function ensureUniqueHeaders(headers: string[]): string[] {
   const seen: Record<string, number> = {};
   return headers.map((h) => {
@@ -36,7 +40,6 @@ function ensureUniqueHeaders(headers: string[]): string[] {
   });
 }
 
-// Aliases conhecidos para scoring de header
 const KNOWN_HEADER_ALIASES = new Set([
   'id', 'nome', 'name', 'first_name', 'last_name', 'sobrenome',
   'email', 'e-mail', 'mail',
@@ -64,67 +67,36 @@ const KNOWN_HEADER_ALIASES = new Set([
   'id_consultor', 'consultant_id', 'id consultor', 'uuid_consultor',
 ]);
 
-// Padrão UUID
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * Calcula score de "cara de cabeçalho" para uma linha.
- * Quanto maior, mais provável ser header.
- */
 function scoreHeaderRow(row: any[]): number {
   if (!row || row.length === 0) return -1;
-
   let score = 0;
   let filledCount = 0;
-
   for (const cell of row) {
     const val = String(cell ?? '').trim();
     if (!val) continue;
     filledCount++;
-
-    // Texto curto (< 40 chars) = parece nome de coluna
     if (val.length <= 40) score += 1;
-    // Texto muito curto (< 20 chars) = bonus
     if (val.length <= 20) score += 1;
-
-    // Match com alias conhecido = forte indicador
     const normalized = val.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    if (KNOWN_HEADER_ALIASES.has(normalized)) {
-      score += 5;
-    }
-
-    // Penalizar se parece dado numérico puro
+    if (KNOWN_HEADER_ALIASES.has(normalized)) score += 5;
     if (/^\d+([.,]\d+)?$/.test(val)) score -= 2;
-    // Penalizar UUID
     if (UUID_RE.test(val)) score -= 3;
-    // Penalizar datas (dd/mm/yy, mm/dd/yy, yyyy-mm-dd)
     if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(val) || /^\d{4}-\d{2}-\d{2}/.test(val)) score -= 2;
-    // Penalizar telefones
     if (/^\(\d{2}\)\s?\d{4,5}-\d{4}$/.test(val)) score -= 2;
-    // Penalizar CPF/CNPJ formatados (valores, não headers)
     if (/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(val) || /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(val)) score -= 2;
-    // Penalizar emails (valores)
-    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) score -= 2;
-    // Penalizar textos longos (> 50 chars) = parece dado
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val)) score -= 2;
     if (val.length > 50) score -= 2;
   }
-
-  // Penalizar linhas com poucas células preenchidas
   if (filledCount < 3) score -= 5;
-
   return score;
 }
 
-/**
- * Dado um array de linhas, encontra a melhor linha de cabeçalho
- * usando scoring semântico. Escaneia até 100 linhas.
- * Em empate, prefere a linha mais acima.
- */
 function findBestHeaderRow(rows: any[][], maxScan = 100): number {
   let bestIdx = 0;
   let bestScore = -Infinity;
   const candidates: { idx: number; score: number; preview: string }[] = [];
-
   const limit = Math.min(rows.length, maxScan);
   for (let i = 0; i < limit; i++) {
     const row = rows[i];
@@ -140,31 +112,19 @@ function findBestHeaderRow(rows: any[][], maxScan = 100): number {
       bestIdx = i;
     }
   }
-
-  // Log top 3 candidatas
   candidates.sort((a, b) => b.score - a.score);
   console.log('[CSVUploader] Header detection — top 3 candidates:',
-    candidates.slice(0, 3).map(c => `row ${c.idx} (score ${c.score}): "${c.preview}"`)
+    candidates.slice(0, 3).map(c => `row ${c.idx} (score ${c.score}): \"${c.preview}\"`)
   );
   console.log('[CSVUploader] Header row chosen: index', bestIdx, '| score:', bestScore);
-
   return bestIdx;
 }
 
-/**
- * Processa headers brutos:
- * 1. Sanitiza
- * 2. Gera fallback para vazios (coluna_1, coluna_2…)
- * 3. Remove colunas totalmente vazias nos dados
- * 4. Garante unicidade
- */
 function processHeaders(rawHeaders: string[], dataRows?: Record<string, string>[]): string[] {
   let headers = rawHeaders.map((h, i) => {
     const clean = sanitizeHeader(String(h ?? ''));
     return clean || `coluna_${i + 1}`;
   });
-
-  // Remover colunas que são todas vazias nos dados (se temos dados)
   if (dataRows && dataRows.length > 0) {
     headers = headers.filter(h => {
       return dataRows.some(row => {
@@ -173,25 +133,47 @@ function processHeaders(rawHeaders: string[], dataRows?: Record<string, string>[
       });
     });
   }
-
   return ensureUniqueHeaders(headers);
+}
+
+/**
+ * Parse a single sheet's rows into headers + data
+ */
+function parseSheetRows(rows: any[][]): { headers: string[]; data: Record<string, string>[]; headerIdx: number } | null {
+  if (rows.length < 2) return null;
+  const headerIdx = findBestHeaderRow(rows);
+  const rawHeaders = rows[headerIdx].map(cell => String(cell ?? ''));
+  const sanitizedHeaders = rawHeaders.map(h => sanitizeHeader(h));
+  const headerKeys = sanitizedHeaders.map((h, i) => h || `coluna_${i + 1}`);
+  const dataRows = rows.slice(headerIdx + 1);
+  const data = dataRows.map(row => {
+    const obj: Record<string, string> = {};
+    headerKeys.forEach((key, index) => {
+      obj[key] = row[index] != null ? String(row[index]) : '';
+    });
+    return obj;
+  });
+  const finalHeaders = processHeaders(headerKeys, data);
+  if (finalHeaders.length === 0) return null;
+  return { headers: finalHeaders, data, headerIdx };
 }
 
 export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Multi-sheet state
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<number>(1); // 1-indexed
+  const [isParsingSheet, setIsParsingSheet] = useState(false);
 
   const parseCSV = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       let content = e.target?.result as string;
-      
-      // Remover BOM se existir
       if (content.charCodeAt(0) === 0xFEFF) {
         content = content.slice(1);
       }
-
-      // Primeiro parse sem header para detectar melhor linha
       Papa.parse(content, {
         header: false,
         skipEmptyLines: true,
@@ -203,33 +185,14 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
             setFile(null);
             return;
           }
-
-          const headerIdx = findBestHeaderRow(allRows);
-          const rawHeaders = allRows[headerIdx].map(cell => String(cell ?? ''));
-          const sanitizedHeaders = rawHeaders.map(h => sanitizeHeader(h));
-          const headerKeys = sanitizedHeaders.map((h, i) => h || `coluna_${i + 1}`);
-
-          // Data = tudo após header row
-          const dataRows = allRows.slice(headerIdx + 1);
-          const data = dataRows.map(row => {
-            const obj: Record<string, string> = {};
-            headerKeys.forEach((key, i) => {
-              obj[key] = row[i] != null ? String(row[i]) : '';
-            });
-            return obj;
-          });
-
-          const finalHeaders = processHeaders(headerKeys, data);
-          
-          console.log('[CSVUploader] CSV parsed headers:', finalHeaders, '| header row:', headerIdx, '| total linhas:', data.length);
-          
-          if (finalHeaders.length === 0) {
-            alert('Não encontramos cabeçalhos válidos no CSV. Verifique se há uma linha com nomes de colunas.');
+          const result = parseSheetRows(allRows);
+          if (!result) {
+            alert('Não encontramos cabeçalhos válidos no CSV.');
             setFile(null);
             return;
           }
-
-          onDataParsed(data, finalHeaders, headerIdx);
+          console.log('[CSVUploader] CSV parsed headers:', result.headers, '| header row:', result.headerIdx, '| total linhas:', result.data.length);
+          onDataParsed(result.data, result.headers, result.headerIdx);
         },
         error: (error) => {
           console.error('Erro ao processar CSV:', error);
@@ -245,55 +208,87 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
     reader.readAsText(file, 'UTF-8');
   }, [onDataParsed]);
 
-  const parseExcel = useCallback(async (file: File) => {
+  const parseExcelSheet = useCallback(async (file: File, sheetNumber: number, sheetName?: string) => {
     try {
-      const rows = await readXlsxFile(file);
-      if (rows.length < 2) {
-        alert('Planilha vazia ou sem dados.');
-        setFile(null);
+      setIsParsingSheet(true);
+      console.log(`[CSVUploader] Parsing sheet #${sheetNumber} (${sheetName || 'unknown'})`);
+      const rows = await readXlsxFile(file, { sheet: sheetNumber });
+      const result = parseSheetRows(rows);
+      if (!result) {
+        alert(`Aba "${sheetName || sheetNumber}" não possui cabeçalhos válidos.`);
+        setIsParsingSheet(false);
         return;
       }
-
-      // Detectar melhor linha de header com scoring semântico
-      const headerIdx = findBestHeaderRow(rows);
-
-      const rawHeaders = rows[headerIdx].map(cell => String(cell ?? ''));
-      const sanitizedHeaders = rawHeaders.map(h => sanitizeHeader(h));
-      const headerKeys = sanitizedHeaders.map((h, i) => h || `coluna_${i + 1}`);
-
-      // Dados = tudo após a linha de header
-      const dataRows = rows.slice(headerIdx + 1);
-
-      const data = dataRows.map(row => {
-        const obj: Record<string, string> = {};
-        headerKeys.forEach((key, index) => {
-          obj[key] = row[index] != null ? String(row[index]) : '';
-        });
-        return obj;
-      });
-
-      const finalHeaders = processHeaders(headerKeys, data);
-
-      console.log('[CSVUploader] Excel parsed headers:', finalHeaders, '| header row:', headerIdx, '| total linhas:', data.length);
-
-      if (finalHeaders.length === 0) {
-        alert('Não encontramos cabeçalhos válidos na planilha. Verifique se há uma linha com nomes de colunas.');
-        setFile(null);
-        return;
-      }
-
-      onDataParsed(data, finalHeaders, headerIdx);
+      console.log('[CSVUploader] Excel parsed headers:', result.headers, '| sheet:', sheetName, '| header row:', result.headerIdx, '| total linhas:', result.data.length);
+      onDataParsed(result.data, result.headers, result.headerIdx, sheetName);
+      setIsParsingSheet(false);
     } catch (error: any) {
       console.error('Erro ao processar Excel:', error);
-      
       if (error?.message?.includes('invalid zip') || error?.code === 13) {
         alert('Formato .xls (Excel 97-2003) não suportado.\n\nPor favor, abra o arquivo no Excel e salve como:\n• .xlsx (Excel moderno)\n• .csv (separado por ponto-e-vírgula)');
       } else {
         alert('Erro ao processar planilha Excel. Verifique se o arquivo não está corrompido.');
       }
       setFile(null);
+      setIsParsingSheet(false);
     }
   }, [onDataParsed]);
+
+  const parseExcel = useCallback(async (file: File) => {
+    try {
+      // 1. Get all sheet names
+      const names = await readSheetNames(file);
+      console.log('[CSVUploader] Sheet names found:', names);
+      setSheetNames(names);
+
+      if (names.length <= 1) {
+        // Single sheet — parse directly (sheet 1)
+        setSelectedSheet(1);
+        await parseExcelSheet(file, 1, names[0]);
+        return;
+      }
+
+      // 2. Multi-sheet: score each sheet to find best one
+      let bestSheetIdx = 0; // 0-based index into names array
+      let bestScore = -Infinity;
+
+      for (let i = 0; i < names.length; i++) {
+        try {
+          const rows = await readXlsxFile(file, { sheet: i + 1 });
+          if (rows.length < 2) continue;
+          const headerIdx = findBestHeaderRow(rows);
+          const score = scoreHeaderRow(rows[headerIdx]);
+          console.log(`[CSVUploader] Sheet "${names[i]}" (${i + 1}): best header score = ${score}`);
+          if (score > bestScore) {
+            bestScore = score;
+            bestSheetIdx = i;
+          }
+        } catch (e) {
+          console.warn(`[CSVUploader] Could not read sheet "${names[i]}":`, e);
+        }
+      }
+
+      const bestSheetNumber = bestSheetIdx + 1;
+      console.log(`[CSVUploader] Auto-selected sheet: "${names[bestSheetIdx]}" (#${bestSheetNumber}) with score ${bestScore}`);
+      setSelectedSheet(bestSheetNumber);
+      await parseExcelSheet(file, bestSheetNumber, names[bestSheetIdx]);
+    } catch (error: any) {
+      console.error('Erro ao processar Excel:', error);
+      if (error?.message?.includes('invalid zip') || error?.code === 13) {
+        alert('Formato .xls (Excel 97-2003) não suportado.\n\nPor favor, abra o arquivo no Excel e salve como:\n• .xlsx (Excel moderno)\n• .csv (separado por ponto-e-vírgula)');
+      } else {
+        alert('Erro ao processar planilha Excel.');
+      }
+      setFile(null);
+    }
+  }, [parseExcelSheet]);
+
+  const handleSheetChange = useCallback((value: string) => {
+    const sheetNum = parseInt(value, 10);
+    if (!file || isNaN(sheetNum)) return;
+    setSelectedSheet(sheetNum);
+    parseExcelSheet(file, sheetNum, sheetNames[sheetNum - 1]);
+  }, [file, sheetNames, parseExcelSheet]);
 
   const handleFile = useCallback((selectedFile: File) => {
     const fileName = selectedFile.name.toLowerCase();
@@ -304,13 +299,14 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
       alert('Por favor, selecione um arquivo CSV ou Excel (.xlsx)');
       return;
     }
-
     if (fileName.endsWith('.xls') && !fileName.endsWith('.xlsx')) {
       alert('Formato .xls (Excel 97-2003) não suportado.\n\nPor favor, abra o arquivo no Excel e salve como:\n• .xlsx (Excel moderno)\n• .csv (separado por ponto-e-vírgula)');
       return;
     }
 
     setFile(selectedFile);
+    setSheetNames([]);
+    setSelectedSheet(1);
 
     if (isExcel) {
       parseExcel(selectedFile);
@@ -322,11 +318,8 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
     const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      handleFile(droppedFile);
-    }
+    if (droppedFile) handleFile(droppedFile);
   }, [handleFile]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -340,13 +333,13 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      handleFile(selectedFile);
-    }
+    if (selectedFile) handleFile(selectedFile);
   }, [handleFile]);
 
   const clearFile = useCallback(() => {
     setFile(null);
+    setSheetNames([]);
+    setSelectedSheet(1);
     onDataParsed([], []);
   }, [onDataParsed]);
 
@@ -382,24 +375,59 @@ export function CSVUploader({ onDataParsed }: CSVUploaderProps) {
           />
         </div>
       ) : (
-        <div className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="flex items-center gap-3">
-            <FileText className="w-8 h-8 text-primary" />
-            <div>
-              <p className="font-medium">{file.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {(file.size / 1024).toFixed(2)} KB
-              </p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <FileText className="w-8 h-8 text-primary" />
+              <div>
+                <p className="font-medium">{file.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {(file.size / 1024).toFixed(2)} KB
+                </p>
+              </div>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={clearFile}
+              className="text-destructive hover:text-destructive"
+            >
+              <X className="w-4 h-4" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={clearFile}
-            className="text-destructive hover:text-destructive"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+
+          {/* Sheet selector for multi-sheet XLSX */}
+          {sheetNames.length > 1 && (
+            <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+              <Layers className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium text-muted-foreground shrink-0">Aba:</span>
+              <Select
+                value={String(selectedSheet)}
+                onValueChange={handleSheetChange}
+                disabled={isParsingSheet}
+              >
+                <SelectTrigger className="h-8 text-sm max-w-[280px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sheetNames.map((name, i) => (
+                    <SelectItem key={i} value={String(i + 1)}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">
+                {sheetNames.length} abas encontradas
+              </span>
+            </div>
+          )}
+
+          {isParsingSheet && (
+            <p className="text-sm text-muted-foreground animate-pulse text-center">
+              Analisando aba...
+            </p>
+          )}
         </div>
       )}
     </Card>

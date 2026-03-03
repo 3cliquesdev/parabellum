@@ -9574,6 +9574,11 @@ export type Database = {
         }
       }
       cleanup_expired_insights_cache: { Args: never; Returns: number }
+      cleanup_invalid_consultant_ids: { Args: never; Returns: number }
+      cleanup_single_contact_test: {
+        Args: { p_contact_id: string }
+        Returns: Json
+      }
       distribute_client_to_consultant: {
         Args: { p_contact_id: string }
         Returns: Json

@@ -157,8 +157,15 @@ export function TransferPropertiesPanel({ selectedNode, updateNodeData }: Transf
 
       {/* Mensagem de info para Consultor */}
       {transferType === "consultant" && (
-        <div className="text-xs text-muted-foreground bg-muted/50 p-2.5 rounded-lg">
-          A conversa será direcionada ao consultor vinculado ao contato. Se não houver consultor, vai para o pool do departamento selecionado acima.
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground bg-muted/50 p-2.5 rounded-lg">
+            A conversa será direcionada ao consultor vinculado ao contato. Se não houver consultor (ou foi removido manualmente), cai no departamento fallback.
+          </div>
+          {!selectedNode.data.department_id && (
+            <div className="text-xs text-warning bg-warning/10 border border-warning/20 p-2.5 rounded-lg font-medium">
+              ⚠ Selecione um departamento fallback obrigatório acima.
+            </div>
+          )}
         </div>
       )}
 

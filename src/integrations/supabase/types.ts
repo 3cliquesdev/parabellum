@@ -8907,6 +8907,7 @@ export type Database = {
           internal_note: string | null
           last_email_message_id: string | null
           merged_to_ticket_id: string | null
+          metadata: Json | null
           operation_id: string | null
           origin_id: string | null
           priority: Database["public"]["Enums"]["ticket_priority"]
@@ -8940,6 +8941,7 @@ export type Database = {
           internal_note?: string | null
           last_email_message_id?: string | null
           merged_to_ticket_id?: string | null
+          metadata?: Json | null
           operation_id?: string | null
           origin_id?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]
@@ -8973,6 +8975,7 @@ export type Database = {
           internal_note?: string | null
           last_email_message_id?: string | null
           merged_to_ticket_id?: string | null
+          metadata?: Json | null
           operation_id?: string | null
           origin_id?: string | null
           priority?: Database["public"]["Enums"]["ticket_priority"]

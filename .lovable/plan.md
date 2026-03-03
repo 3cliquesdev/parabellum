@@ -1,66 +1,52 @@
 
 
-# Correção Crítica: Message Buffer — Substituir setTimeout por Cron Persistente
+# Resposta ao Checklist — Status Atual do Deploy
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Diagnóstico confirmado
+## Checklist de Deploy
 
-O `setTimeout` na linha 49-82 de `meta-whatsapp-webhook/index.ts` nunca executa porque o isolate Deno encerra após a resposta HTTP. Mensagens ficam presas em `message_buffer` com `processed=false` indefinidamente.
+| # | Item | Status |
+|---|------|--------|
+| 1 | **setTimeout removido** do webhook | ✅ Confirmado. `bufferAndSchedule()` faz apenas `insert` + metadata. Nenhum `setTimeout` no código. |
+| 2 | **Migration aplicada** — colunas novas | ✅ Confirmado. Colunas existem: `contact_id`, `instance_id`, `from_number`, `flow_context`, `flow_data`. Obs: `processed_at` **NÃO existe** (não foi incluída na migration). |
+| 3 | **RPC de lock criada** | ✅ Confirmado. Ambas funções existem: `try_lock_conversation_buffer` e `get_ready_buffer_conversations`. |
+| 4 | **Cron configurado** | ✅ Confirmado no `config.toml`: `schedule = "* * * * *"` (1/min). Logs confirmam execução contínua. |
+| 5 | **Modo scan implementado** | ✅ Confirmado. Lógica de CRON/SCAN presente com advisory lock, re-verificação de idade, e retry em erro. |
 
-## Alterações (6 passos)
+## Checklist de "Destravar as 6 mensagens"
 
-### 1. Remover setTimeout do webhook
-**Arquivo:** `supabase/functions/meta-whatsapp-webhook/index.ts`
-- Função `bufferAndSchedule()`: manter apenas o `insert` no `message_buffer` + salvar metadata (contactId, instanceId, fromNumber, flowContext, flowData) em colunas novas da tabela
-- Remover todo o bloco `setTimeout` (linhas 44-82)
+| Item | Status |
+|------|--------|
+| Mensagens antigas processadas | ✅ **5 das 6 foram processadas** pelo CRON às 17:27. Logs confirmam: `CRON complete: 5 processed, 0 errors` + `1 processed, 0 errors`. |
+| `processed=false` restantes | ⚠️ **1 mensagem pendente** — conversa `ceedcb3f` ("Falar com atendente"), criada 17:28, `ai_mode=autopilot`. Deve ser processada no próximo ciclo do cron. |
+| `stuck > 5min` | ✅ **0** (zero mensagens presas há mais de 5 minutos). |
 
-### 2. Adicionar colunas de metadata ao message_buffer
-**Migration SQL:**
-- Adicionar colunas: `contact_id`, `instance_id`, `from_number`, `flow_context (jsonb)`, `flow_data (jsonb)` — todas nullable
-- Isso permite que o cron processor tenha contexto suficiente para chamar o pipeline sem depender de parâmetros passados pelo setTimeout
+## Checklist de Validação
 
-### 3. Reescrever process-buffered-messages com "batch scan"
-**Arquivo:** `supabase/functions/process-buffered-messages/index.ts`
-- Adicionar handler para chamadas sem `conversationId` (modo cron/scan):
-  - Buscar conversas distintas com mensagens `processed=false`
-  - Para cada conversa, verificar se `now() - max(created_at) >= batchDelaySeconds`
-  - Se sim, processar (concatenar, chamar pipeline, marcar processed)
-  - Se não, pular (mensagens ainda estão no período de espera)
-- Usar `pg_advisory_xact_lock(hashtext(conversation_id))` via RPC para evitar processamento paralelo
-- Manter o handler existente (com `conversationId`) para compatibilidade
-- Em caso de erro no pipeline: logar mas NÃO marcar como processed (retry no próximo ciclo)
+| Teste | Status |
+|-------|--------|
+| **A — Batching básico** | ✅ Funcionando. Logs mostram concatenação e processamento. |
+| **B — Nada fica preso** | ✅ `stuck_count = 0`. Nenhuma conversa com pendência antiga. |
+| **C — Idempotência** | ✅ Advisory lock + double-check pós-lock + mark-only-on-success implementados. |
 
-### 4. Registrar cron no config.toml
-**Arquivo:** `supabase/config.toml`
-```toml
-[functions.process-buffered-messages]
-verify_jwt = false
+## Checklist de Monitoramento
 
-[functions.process-buffered-messages.cron]
-schedule = "*/1 * * * *"
-region = "us-east-1"
-```
-Executa a cada 1 minuto (menor granularidade suportada). Com batchDelay de 8s, a latência máxima será ~68s no pior caso.
+| Item | Status |
+|------|--------|
+| Monitor de stuck > 5min | ❌ **Não implementado**. Não existe alerta automático. A query funciona manualmente. |
+| Health check do cron | ✅ Logs confirmam execuções constantes (~1/min). Não há tabela `cron_runs` dedicada. |
+| `processed_at` timestamp | ❌ **Coluna não existe**. Pode ser adicionada como upgrade futuro para auditoria. |
 
-### 5. Criar RPC para advisory lock
-**Migration SQL:**
-```sql
-CREATE OR REPLACE FUNCTION public.try_lock_conversation_buffer(conv_id uuid)
-RETURNS boolean
-LANGUAGE plpgsql AS $$
-BEGIN
-  RETURN pg_try_advisory_xact_lock(hashtext(conv_id::text));
-END;
-$$;
-```
+## Informações técnicas
 
-### 6. Reprocessar mensagens presas
-Após deploy, invocar `process-buffered-messages` manualmente (via curl tool) para destravar as mensagens pendentes.
+- `conversation_id` é **uuid** (não text)
+- `processed_at` **não existe** na tabela atual
+- A 1 mensagem pendente (`ceedcb3f`) está em conversa `autopilot` ativa — o cron vai processá-la no próximo ciclo
 
-## Impactos
-- **Upgrade puro**: mensagens nunca mais ficam presas
-- **Sem regressão**: fluxo direto (batchDelay=0) não é alterado — só usa buffer quando delay > 0
-- **Latência**: máximo ~68s (8s delay + até 60s do cron). Aceitável para batching
-- **Idempotência**: advisory lock + check `processed=false` garante zero duplicação
+## Recomendações (upgrades opcionais)
+
+1. **Adicionar coluna `processed_at`** para auditoria temporal
+2. **Criar alerta automático** para `stuck > 5min` (pode ser uma query no cron que loga warning)
+3. Ambos são upgrades puros, sem impacto no existente
 

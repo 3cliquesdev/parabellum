@@ -1,78 +1,55 @@
 
 
-# Corrigir: Guard de ai_mode bloqueia fluxo ativo (conversa #735C859A)
+# Resultado do Teste End-to-End: Fix de Soberania do Fluxo
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Problema raiz
+## Descoberta crítica
 
-A conversa #735C859A está com fluxo ativo no nó `ask_options` (status `waiting_input`), mas o `ai_mode` foi mudado para `copilot` durante o processamento do nó AI anterior. Quando o cliente respondeu "Sim", o `process-chat-flow` bloqueou com a mensagem: `🛡️ PROTEÇÃO: ai_mode=copilot - NÃO processar fluxo/IA`.
+O fix de soberania que implementamos **estava no código mas NÃO estava deployed**. A edge function `process-chat-flow` ainda rodava a versão antiga. Os logs confirmam: nenhuma mensagem "SOBERANIA" aparece, apenas o bloqueio antigo `🛡️ PROTEÇÃO: ai_mode=copilot`.
 
-**Cadeia do bug:**
-1. Cliente diz "Estou aguardando o retorno do setor logistico"
-2. Nó `ai_response` (ia_entrada) processa → IA executa tool call `handoff_to_human` → **seta `ai_mode = copilot`** (linha 7312 do ai-autopilot-chat)
-3. Fallback/exit keyword detectado → retorna `flow_advance_needed`
-4. Webhook re-invoca `process-chat-flow` com `forceAIExit` → fluxo avança ao nó `ask_options` e envia "Você já é nosso cliente?"
-5. Cliente responde "Sim" → webhook chama `process-chat-flow`
-6. **Guard bloqueia**: `ai_mode=copilot` → resposta ignorada, fluxo trava
+**Ação já tomada**: Redeploy da `process-chat-flow` realizado agora. Novas mensagens já passarão pelo check de soberania.
 
-O `ai_mode` foi corrompido pelo handoff tool call da IA DENTRO do nó do fluxo, mas o fluxo continuou avançando. O guard não verifica se existe um fluxo ativo.
+## Dados do problema em produção
 
-## Correção
+| Métrica | Valor |
+|---|---|
+| Conversas travadas em `waiting_input` no nó `1769459318164` | **97** |
+| Conversas ativas no mesmo nó | 7 |
+| Todas com `ai_mode = copilot` | Sim |
+| Fluxo afetado | Master Flow (is_master_flow = true) |
+| Conversa #14908342 | `ai_mode=copilot`, fluxo `waiting_input` — exatamente o bug |
 
-**Arquivo:** `supabase/functions/process-chat-flow/index.ts` (linhas 442-454)
+## O que o fix resolve (a partir de agora)
 
-Adicionar verificação de fluxo ativo ANTES de bloquear. Se existe um `chat_flow_state` ativo (`waiting_input`, `active`, `in_progress`) para essa conversa, o fluxo tem soberania e deve continuar processando — independente do `ai_mode`. Adicionalmente, restaurar `ai_mode = autopilot` para garantir consistência.
+Quando o cliente responder ao `ask_options`, o `process-chat-flow` vai:
+1. Detectar `ai_mode=copilot`
+2. Verificar `chat_flow_states` → encontrar fluxo ativo
+3. Logar `🔓 SOBERANIA DO FLUXO` → continuar processando
+4. Restaurar `ai_mode=autopilot`
 
-```typescript
-// ANTES (bug):
-if ((currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled') && !isTestMode) {
-  // bloqueia sempre
-}
+## Próximo passo necessário: Remediar as 97 conversas travadas
 
-// DEPOIS (fix):
-if ((currentAiMode === 'waiting_human' || currentAiMode === 'copilot' || currentAiMode === 'disabled') && !isTestMode) {
-  // Verificar se existe fluxo ativo — fluxo tem soberania
-  const { data: activeFlowCheck } = await supabaseClient
-    .from('chat_flow_states')
-    .select('id, status')
-    .eq('conversation_id', conversationId)
-    .in('status', ['waiting_input', 'active', 'in_progress'])
-    .limit(1)
-    .maybeSingle();
-  
-  if (activeFlowCheck) {
-    console.log(`[process-chat-flow] 🔓 SOBERANIA DO FLUXO: ai_mode=${currentAiMode} mas fluxo ativo (${activeFlowCheck.status}) → processando`);
-    // Restaurar ai_mode para autopilot (foi corrompido)
-    await supabaseClient.from('conversations')
-      .update({ ai_mode: 'autopilot' })
-      .eq('id', conversationId);
-  } else {
-    // Sem fluxo ativo → bloquear (comportamento existente)
-    console.log(`[process-chat-flow] 🛡️ PROTEÇÃO: ai_mode=${currentAiMode} - NÃO processar fluxo/IA`);
-    return ...;
-  }
-}
+As 97 conversas travadas precisam de uma ação de remediação, pois o cliente já respondeu e a mensagem foi ignorada. Duas opções:
+
+### Opção A: Script de correção em massa (recomendado)
+Restaurar `ai_mode=autopilot` em todas as conversas que têm fluxo ativo + `ai_mode=copilot`. Isso permitirá que a próxima mensagem do cliente seja processada normalmente.
+
+```sql
+UPDATE conversations 
+SET ai_mode = 'autopilot'
+WHERE id IN (
+  SELECT c.id FROM conversations c
+  JOIN chat_flow_states cfs ON cfs.conversation_id = c.id
+  WHERE cfs.status IN ('waiting_input', 'active', 'in_progress')
+  AND c.ai_mode IN ('copilot', 'disabled')
+)
 ```
 
-## Correção secundária (preventiva)
+### Opção B: Cancelar fluxos travados
+Se preferir, cancelar os fluxos e deixar os agentes humanos atenderem manualmente.
 
-**Arquivo:** `supabase/functions/ai-autopilot-chat/index.ts` (linhas 7311-7315)
+## Também necessário: Redeploy do `ai-autopilot-chat`
 
-Quando o handoff tool call é executado e `flow_context` existe, NÃO mudar `ai_mode` para copilot — pois o fluxo controlará a transição.
-
-```typescript
-// Antes de setar ai_mode = copilot, verificar se há fluxo ativo
-if (!flow_context) {
-  await supabaseClient.from('conversations')
-    .update({ ai_mode: 'copilot' })
-    .eq('id', conversationId);
-}
-```
-
-## Sem risco de regressão
-- Conversas sem fluxo ativo mantêm o guard exatamente como antes
-- Fluxos ativos ganham soberania sobre o ai_mode
-- O ai_mode é restaurado para autopilot automaticamente quando o fluxo precisa continuar
-- Test mode continua com bypass independente
+O fix preventivo (não setar `ai_mode=copilot` quando `flow_context` existe) também precisa ser redeployed para evitar novas ocorrências.
 

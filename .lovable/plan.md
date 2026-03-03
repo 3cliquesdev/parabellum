@@ -1,54 +1,56 @@
 
 
-# Por que o UPDATE de consultant_id não funciona
+# Corrigir contagem de clientes dos consultores (limite de 1000)
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Causa raiz: Trigger `sync_assigned_to_consultant_id`
+## Problema
 
-Existe um trigger **BEFORE INSERT OR UPDATE** na tabela `contacts` com esta lógica:
+No hook `useConsultantPerformance`, a contagem de clientes é feita com `portfolio?.length` — ou seja, busca **todas as linhas** e conta no JS. O problema é que o Supabase tem limite padrão de **1000 linhas por query**. Consultores com mais de 1000 clientes sempre mostram "1000".
 
-```sql
-IF NEW.assigned_to IS NOT NULL AND NEW.consultant_id IS NULL THEN
-  NEW.consultant_id := NEW.assigned_to;
-END IF;
+## Correção
+
+Substituir a query que busca todos os contatos por **duas queries otimizadas** por consultor:
+
+1. **Contagem exata** — usar `select("id", { count: "exact", head: true })` para obter o número real sem trazer dados
+2. **Dados para cálculo de health/value** — manter a query de `subscription_plan` e `last_contact_date`, mas paginando se necessário (ou usando a contagem separada)
+
+### Mudança no `useConsultantPerformance.tsx`
+
+Para cada consultor, trocar:
+```ts
+// ANTES: traz no máximo 1000 linhas
+const { data: portfolio } = await supabase
+  .from("contacts")
+  .select("subscription_plan, last_contact_date")
+  .eq("consultant_id", consultant.id)
+  .eq("status", "customer");
+const portfolio_count = portfolio?.length || 0;
 ```
 
-**O que acontece:**
-1. Fazemos `UPDATE contacts SET consultant_id = NULL WHERE ...`
-2. O trigger BEFORE dispara **antes** do UPDATE ser salvo
-3. Como `assigned_to` ainda tem valor (ex: ID da Camila), o trigger imediatamente seta `consultant_id = assigned_to`
-4. O valor volta ao que era antes — parece que o UPDATE "não funcionou"
+Por:
+```ts
+// DEPOIS: contagem exata via header
+const { count } = await supabase
+  .from("contacts")
+  .select("id", { count: "exact", head: true })
+  .eq("consultant_id", consultant.id)
+  .eq("status", "customer");
+const portfolio_count = count || 0;
 
-É por isso que todas as tentativas (migração, edge function, RPC) reportaram sucesso mas o valor nunca mudou.
-
-## Plano de correção
-
-### 1. Corrigir o trigger para validar role
-Alterar `sync_assigned_to_consultant_id` para só sincronizar se `assigned_to` apontar para um usuário com role `consultant`:
-
-```sql
-CREATE OR REPLACE FUNCTION sync_assigned_to_consultant_id()
-RETURNS trigger AS $$
-BEGIN
-  IF NEW.assigned_to IS NOT NULL AND NEW.consultant_id IS NULL THEN
-    -- Só sincroniza se o assigned_to for um consultant real
-    IF EXISTS (
-      SELECT 1 FROM user_roles 
-      WHERE user_id = NEW.assigned_to AND role = 'consultant'
-    ) THEN
-      NEW.consultant_id := NEW.assigned_to;
-    END IF;
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+// Buscar dados para cálculos (value/health) — pode manter a query existente
+// pois os cálculos são aproximações e 1000 amostras é aceitável
+const { data: portfolio } = await supabase
+  .from("contacts")
+  .select("subscription_plan, last_contact_date")
+  .eq("consultant_id", consultant.id)
+  .eq("status", "customer");
 ```
 
-### 2. Executar a limpeza dos dados
-Após corrigir o trigger, rodar o UPDATE para limpar os 4.499 contatos com `consultant_id` inválido. Desta vez o trigger não vai reverter porque a validação de role vai impedir a re-sincronização.
+Isso garante que `portfolio_count` reflete o número **real** de clientes, sem o teto de 1000.
 
 ### Sem risco de regressão
-- Contatos com consultores reais (role = consultant) continuam sincronizando normalmente
-- Apenas impede que não-consultores sejam auto-atribuídos via trigger
+- A contagem passa a ser exata
+- Os cálculos de health score e portfolio value continuam funcionando com os dados disponíveis
+- Nenhuma outra parte do sistema é afetada
 

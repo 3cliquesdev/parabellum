@@ -1,31 +1,88 @@
 
+
+# Auditoria do Fluxo — Diagnóstico Completo
+
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Objetivo
+---
 
-Permitir que ao clicar no nome/linha de um atendente na sidebar do Inbox, as conversas sejam filtradas para mostrar apenas as daquele agente. Atualmente a seção "Por Atendente" exibe stats e ações (redistribuir, mudar status), mas **não filtra a lista de conversas**.
+## Erro Crítico Encontrado: Conversas Reabertas NÃO Resetam `ai_mode`
 
-## Plano
+### O Problema
 
-### 1. Adicionar filtro por agente na URL (`InboxSidebar.tsx`)
+O ROUTING-LOCK v2.0 (implementado na mensagem anterior) corrigiu a criação de **novas** conversas — agora sempre iniciam em `autopilot`. Porém, **conversas existentes que são reabertas** (cliente retornante com conversa anterior) **mantêm o `ai_mode` antigo**.
 
-- Adicionar parâmetro `agent` nos search params (similar a `dept` e `tag`).
-- Tornar a linha do agente clicável para ativar/desativar o filtro `?agent=<agentId>`.
-- Highlight visual quando o agente está selecionado (mesmo padrão de departamento/tag).
+**Fluxo atual (bugado):**
 
-### 2. Aplicar filtro na query de conversas
+```text
+Cliente retornante manda mensagem
+  → Conversa EXISTENTE encontrada (status: closed, ai_mode: copilot)
+  → Webhook atualiza: status=open, whatsapp_provider=meta
+  → NÃO reseta ai_mode (continua "copilot")
+  → process-chat-flow vê ai_mode=copilot → retorna skipAutoResponse
+  → Webhook não chama IA nem fluxo → conversa fica muda
+```
 
-- No hook/componente que busca conversas do inbox, ler o param `agent` e adicionar `.eq("assigned_to", agentId)` na query.
-- Arquivo provável: o componente que consome a lista de conversas (preciso verificar qual hook é usado).
+**Onde está o bug:** `meta-whatsapp-webhook/index.ts` linhas 598-613. Quando reabre uma conversa existente, atualiza apenas `whatsapp_provider`, `last_message_at` e `status`, mas **não toca em `ai_mode`**.
 
-### 3. Exibir indicador de filtro ativo
+### A Correção
 
-- Quando filtro por agente está ativo, mostrar o nome do agente no topo da lista ou como breadcrumb para facilitar a remoção do filtro.
+Na seção de reopen de conversa existente (linhas 598-613), adicionar lógica para:
 
-### Arquivos a editar
-- `src/components/inbox/InboxSidebar.tsx` — tornar agentes clicáveis com filtro URL
-- Hook/componente de listagem do inbox — aplicar filtro `assigned_to`
+1. **Se conversa estava `closed`**: resetar `ai_mode` para `autopilot`
+2. **Manter `assigned_to`** se consultor vinculado (mesma lógica do ROUTING-LOCK v2.0)
+3. **NÃO resetar** se conversa está `open` com agente ativo (conversa em andamento)
 
-### Impacto
-- Sem regressão: filtros existentes (dept, tag, status) continuam funcionando.
-- Apenas frontend, sem mudança em backend.
+```typescript
+// ANTES (bugado):
+await supabase.from("conversations").update({ 
+  whatsapp_provider: "meta",
+  whatsapp_meta_instance_id: instance.id,
+  whatsapp_instance_id: null,
+  last_message_at: new Date().toISOString(),
+  status: "open"
+}).eq("id", conversation.id);
+
+// DEPOIS (corrigido):
+const reopenUpdate: Record<string, any> = {
+  whatsapp_provider: "meta",
+  whatsapp_meta_instance_id: instance.id,
+  whatsapp_instance_id: null,
+  last_message_at: new Date().toISOString(),
+  status: "open",
+};
+
+// Se conversa estava fechada, resetar ai_mode para autopilot
+// para que Master Flow/IA possa assumir novamente
+if (conversation.status === "closed") {
+  reopenUpdate.ai_mode = "autopilot";
+  console.log("[meta-whatsapp-webhook] 🔄 Conversa reaberta: ai_mode resetado para autopilot");
+}
+
+await supabase.from("conversations")
+  .update(reopenUpdate)
+  .eq("id", conversation.id);
+```
+
+### Impacto da Correção
+- **Zero regressão**: conversas abertas em andamento não são afetadas
+- **Resolve o bug principal**: conversas reabertas passam pelo Master Flow normalmente
+- **Compatível com ROUTING-LOCK v2.0**: consultor pré-atribuído continua intacto
+- **Rollback**: reverter 1 bloco de código no webhook
+
+---
+
+## Outros Achados (Não-Críticos)
+
+| Item | Severidade | Status |
+|---|---|---|
+| `analyze-ticket` retornando 429 (rate limited) | Média | Limitação do plano Lovable — fallback para "neutral" está funcionando corretamente |
+| `email_sends` faltando coluna `delivered_at` | Baixa | Afeta apenas tracking de email, não o fluxo de conversas |
+| `useMyPendingCounts.tsx` usando `id` ao invés de `conversation_id` | Média | Causa erro 400 nos contadores do inbox (já diagnosticado anteriormente) |
+
+---
+
+## Resumo
+
+O fluxo do motor está **íntegro** — `process-chat-flow`, Master Flow, soberania, anti-duplicação, exit keywords, tudo funciona. O problema é que conversas reabertas chegam ao motor com `ai_mode` errado (`copilot`/`waiting_human` da sessão anterior), e o motor corretamente bloqueia a automação nesses modos. A correção é resetar o `ai_mode` para `autopilot` no momento da reabertura.
+

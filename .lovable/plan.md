@@ -1,49 +1,30 @@
 
 
-# Plano: Transferência direta para Consultor no Chat Flow
+# Ajustes finos: Transferência para Consultor
 
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Situação Atual
+## Estado Atual
 
-O webhook **já possui** lógica de atribuição ao consultor durante transferências (linhas 919-1022 do `meta-whatsapp-webhook`). Ele busca o `consultant_id` do contato e atribui automaticamente. Porém, isso acontece de forma implícita em qualquer transferência — não há uma opção explícita "Transferir para Consultor" no editor de fluxos.
+A implementação core já está feita (TransferPropertiesPanel, TransferNode, webhook, process-chat-flow). Faltam apenas **2 refinamentos de UI** que o usuário pediu:
 
-## O que será feito
+## Mudanças
 
-Adicionar um novo tipo de transferência **"consultant"** ao nó Transfer do Chat Flow, permitindo que o editor visual tenha a opção clara de "Meu Consultor".
+### 1. TransferNode.tsx — Mostrar fallback dept abaixo do badge "Meu Consultor"
 
-### Mudanças
+Quando `transfer_type === "consultant"` e `department_name` existe, exibir um segundo badge menor: `"Fallback: {department_name}"`. Ajuda na leitura do canvas.
 
-**1. UI — TransferPropertiesPanel.tsx**
-- Adicionar opção `"consultant"` no Select de tipo de transferência com label "Consultor do cliente"
-- Quando selecionado, mostrar mensagem explicativa: "A conversa será direcionada ao consultor vinculado ao contato. Se não houver consultor, vai para o pool do departamento selecionado."
-- Manter seletor de departamento como fallback obrigatório
+### 2. TransferPropertiesPanel.tsx — Warning se dept fallback não selecionado
 
-**2. UI — TransferNode.tsx**
-- Adicionar renderização do tipo "consultant" com ícone e label "Meu Consultor"
+Quando `transfer_type === "consultant"` e `department_id` está vazio, mostrar um aviso visual (texto vermelho/amber) pedindo para selecionar o departamento fallback. Isso reforça a obrigatoriedade sem bloquear o canvas (validação visual).
 
-**3. Backend — meta-whatsapp-webhook/index.ts**
-- Quando `transferType === "consultant"`, **priorizar** a busca pelo consultor antes de qualquer distribuição
-- Se não encontrar consultor: usar departamento configurado no nó como fallback
-- A lógica existente (linhas 926-1022) já faz isso — apenas garantir que `transfer_type=consultant` force essa priorização mesmo quando `consultant_manually_removed` está ativo (neste caso, ir para pool)
+## O que NÃO precisa mudar
 
-**4. Backend — process-chat-flow/index.ts**
-- Passar `transferType: "consultant"` quando o nó tem esse tipo configurado (já funciona pois passa `node.data.transfer_type`)
-
-### Fluxo no Canvas
-
-```text
-[IA Entrada] 
-    → exit_keyword "consultor" 
-    → [Nó Transfer: tipo=consultant, fallback=dept Suporte]
-        → Webhook detecta transfer_type=consultant
-        → Busca consultant_id do contato
-        → Se tem: assigned_to=consultor, ai_mode=copilot ✅
-        → Se não tem: pool do departamento fallback
-```
+- **Webhook** (`meta-whatsapp-webhook`): já trata `consultant_manually_removed` corretamente (linhas 930-936) — se removido manualmente E não é transfer consultant, pula; se é transfer consultant, tenta consultor mas respeita removed → pool.
+- **process-chat-flow**: já passa `transferType: node.data?.transfer_type` em todos os pontos de saída.
+- **Lógica de fallback**: já usa `DEPT_SUPORTE_FALLBACK` quando `departmentId` não vem do flow.
 
 ## Impacto
-- Zero regressão — os tipos existentes (department, agent, queue) não são alterados
-- A lógica de consultor no webhook já existe, apenas será ativada de forma explícita
-- Exit keywords "consultor" (do plano anterior) + este nó = fluxo completo
+- Zero regressão — apenas ajustes visuais no canvas
+- Tipos department/agent/queue não são afetados
 

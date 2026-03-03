@@ -1,55 +1,55 @@
 
-
-# Fix: Mapeamento de Colunas não funciona
-
 Analisei o projeto atual e sigo as regras da base de conhecimento.
 
-## Causa Raiz
+## Diagnóstico (causa raiz provável do seu caso)
+Pelo código atual, o bug antigo do `Select value=""` já foi corrigido.  
+O sintoma que você descreveu agora (“só aparece Não mapear”) indica outro problema: os cabeçalhos (`csvHeaders`) estão chegando vazios no `ColumnMapper`.
 
-Dois problemas combinados:
+Hoje o parser de Excel usa sempre `rows[0]` como header:
+- se a planilha tiver linha de título, linha em branco, célula mesclada, ou header fora da 1ª linha, os headers ficam vazios;
+- como o mapper filtra headers vazios, sobra apenas o item fixo “Não mapear”.
 
-### 1. `Select value=""` quebra o Radix UI
-Na linha 54 do `ColumnMapper.tsx`:
-```tsx
-value={mapping[field.value] || ''}
-```
-Quando não há mapeamento, `value` vira `''` (string vazia). O Radix Select controlado com `value=""` **não tem nenhum `SelectItem` correspondente** (o item "Não mapear" tem value `__none__`, não `""`). Isso faz o Select travar — não mostra placeholder e não permite interação.
+## Plano de correção (upgrade, sem regressão)
 
-### 2. Auto-mapeamento frágil
-O auto-mapping usa `lowerHeader.includes(name)` sem normalizar acentos. Headers como `"Endereço"`, `"Inscrição Estadual"`, `"Número"` podem não bater se a normalização de acentos falhar dependendo da codificação do arquivo.
+1) Fortalecer leitura de cabeçalho no `CSVUploader` (Excel e CSV)
+- Detectar automaticamente a melhor linha de cabeçalho nas primeiras linhas (ex.: a com maior número de células preenchidas).
+- Não assumir mais que header está em `rows[0]`.
+- Ignorar colunas totalmente vazias.
 
-## Correção
+2) Sanitizar e estabilizar nomes de colunas
+- `trim` + normalização de espaços invisíveis.
+- Se header vier vazio, gerar fallback técnico (`coluna_1`, `coluna_2`, etc.) para nunca quebrar o Select.
+- Garantir unicidade de headers (sufixo em duplicados) para evitar colisões no mapeamento.
 
-### Fix 1: Corrigir valor do Select (resolve o "não deixa mapear")
-Trocar `value={mapping[field.value] || ''}` por `value={mapping[field.value] ?? undefined}`. Quando `undefined`, o Radix Select mostra o placeholder e funciona normalmente.
+3) Garantir consistência entre header e dados
+- Construir os objetos de linha usando os headers finais já saneados.
+- Validar que `headers.length > 0` e pelo menos 1 coluna utilizável antes de liberar mapeamento.
 
-```tsx
-<Select
-  value={mapping[field.value] ?? undefined}
-  onValueChange={(value) => onMappingChange(field.value, value)}
->
-```
+4) UX defensiva no `ImportClients`
+- Se nenhum header utilizável for detectado, mostrar aviso claro:
+  “Não encontramos cabeçalhos válidos. Verifique se a planilha tem linha de títulos.”
+- Exibir prévia dos headers detectados para diagnóstico rápido.
 
-### Fix 2: Normalizar headers no auto-mapping (resolve o "não mapeou")
-Adicionar função de normalização que remove acentos antes de comparar:
+5) Observabilidade de debug (temporária)
+- Logar: linha escolhida como header, headers finais e quantidade de colunas válidas.
+- Isso acelera troubleshooting sem alterar regra de negócio.
 
-```tsx
-function normalize(str: string): string {
-  return str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[_\s]+/g, " ")
-    .trim();
-}
-```
+## Arquivos a ajustar
+- `src/components/CSVUploader.tsx` (principal)
+- `src/pages/ImportClients.tsx` (mensagens/guardrails)
+- (manter `ColumnMapper.tsx` como está, pois já está correto para Radix)
 
-E usar `normalize(header).includes(normalize(name))` na comparação.
+## Impacto, mitigação e rollback
+- Impacto: melhora robustez de importação, sem alterar fluxo de import final.
+- Mitigação: fallback de headers evita travamento mesmo com planilha imperfeita.
+- Rollback rápido: reversão isolada em `CSVUploader.tsx` caso necessário.
 
-### Fix 3: Adicionar log de debug
-Console.log dos headers parseados para diagnosticar problemas futuros.
-
-## Impacto
-- Zero regressão — mesma UI, mesmos campos, mesmo fluxo
-- Arquivos alterados: `ColumnMapper.tsx` (value fix) e `ImportClients.tsx` (normalização no auto-map)
-
+## Testes obrigatórios
+1. XLSX com header na 1ª linha (cenário normal).  
+2. XLSX com 1ª linha vazia/título e header na 2ª/3ª linha.  
+3. XLSX com colunas vazias no fim.  
+4. XLSX com headers duplicados.  
+5. CSV com `;` e com `,`.  
+6. Verificar que dropdown mostra colunas reais e permite mapear manualmente.  
+7. Importar em `update_mapped` e confirmar inserts/updates no backend.  
+8. Regressão: fluxo atual continua funcionando igual no preview e publicado.

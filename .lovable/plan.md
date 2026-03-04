@@ -1,132 +1,60 @@
 
 
-# Plano: Impedir "Transferência Falsa" com Token [[FLOW_EXIT]] e Avanço Automático
+# Plano: Ajustes Finais — [[FLOW_EXIT]] Robusto + Anti-Loop
 
-## Problema raiz
+## Estado atual vs. ajustes necessários
 
-A IA gera texto como "Vou te direcionar para nosso menu de atendimento" — promete transferência mas não executa nada. Dois gaps:
+| Componente | Status | Gap |
+|---|---|---|
+| ESCAPE_PATTERNS + [[FLOW_EXIT]] | ✅ Implementado | Falta pattern `1) ... 2) ...` (menus textuais sem emoji) |
+| System prompt flow_context | ✅ Implementado | OK |
+| flowExit/contractViolation retorno | ✅ Retorna flag | ⚠️ Ainda retorna `original_response` no contractViolation — webhook pode vazar |
+| Webhook intercepta e re-invoca | ✅ Implementado | ⚠️ Falta anti-loop guard |
+| Webhook trata retorno como CASO 2 | ✅ Já faz (formatOptions + send-meta + transfer) | OK |
+| process-chat-flow forceAIExit | ✅ Avança pelo findNextNode normal | ⚠️ Não tem handle `ai_exit` específico, mas `findNextNode` pega qualquer edge — funcional |
 
-1. **Prompt**: não dá à IA uma saída válida quando ela "quer transferir"
-2. **ESCAPE_PATTERNS**: padrões incompletos e emoji 1️⃣ gera falso positivo
-3. **Webhook WhatsApp**: não intercepta `contractViolation` — só o `message-listener` faz isso
+## Alterações (2 arquivos)
 
-## Solução em 3 frentes
+### 1. `ai-autopilot-chat/index.ts`
 
-### 1. System Prompt: Token `[[FLOW_EXIT]]`
-
-**Arquivo:** `supabase/functions/ai-autopilot-chat/index.ts` (~linha 5757)
-
-Substituir `flowAntiTransferInstruction` por:
-
-```
-VOCÊ ESTÁ EM UM FLUXO AUTOMATIZADO.
-PROIBIDO dizer que vai transferir/direcionar/encaminhar/conectar/passar.
-PROIBIDO mencionar atendente/especialista/consultor/menu/departamento/setor.
-PROIBIDO criar opções numeradas (1️⃣ 2️⃣).
-Se você conseguir resolver, responda normalmente.
-Se NÃO conseguir resolver, responda SOMENTE: [[FLOW_EXIT]]
-Nenhum texto antes ou depois de [[FLOW_EXIT]].
-```
-
-### 2. ESCAPE_PATTERNS: Refinar com semântica + detectar `[[FLOW_EXIT]]`
-
-**Arquivo:** `supabase/functions/ai-autopilot-chat/index.ts` (~linha 1199)
-
-Substituir a lista atual por padrões agrupados por intenção:
-
+**A) Adicionar pattern de menu textual sem emoji** (~linha 1216):
 ```typescript
-const ESCAPE_PATTERNS = [
-  // Token explícito de saída
-  /\[\[FLOW_EXIT\]\]/i,
-  // Promessa de ação de transferência
-  /(vou|irei|posso)\s+(te\s+)?(direcionar|redirecionar|transferir|encaminhar|conectar|passar)/i,
-  /(estou|estarei)\s+(te\s+)?(direcionando|redirecionando|transferindo|encaminhando|conectando)/i,
-  // Menção a humano/atendente
-  /\b(aguarde|só um instante).*(atendente|especialista|consultor)\b/i,
-  /\b(chamar|acionar).*(atendente|especialista|consultor)\b/i,
-  // Menu de atendimento (caso específico)
-  /menu\s+de\s+atendimento/i,
-  // Opções numeradas (2+ emojis para evitar falso positivo)
-  /[1-9]️⃣.*[1-9]️⃣/s,
-  // Menus textuais
-  /escolha uma das op[çc][õo]es/i,
-  /selecione uma op[çc][ãa]o/i,
-];
+// Menus textuais com numeração (1) ... 2) ...)
+/\b1[\)\.\-].*\b2[\)\.\-]/s,
 ```
 
-**Mudanças vs. atual:**
-- Consolida ~26 patterns em ~10 semânticos (menos falso positivo)
-- Emoji: exige **2 ou mais** ocorrências (não bloqueia "1️⃣" isolado)
-- Adiciona `[[FLOW_EXIT]]` como padrão reconhecido
-
-### 3. Handler de `contractViolation`: Distinguir `[[FLOW_EXIT]]` vs. escape genérico
-
-**Arquivo:** `supabase/functions/ai-autopilot-chat/index.ts` (~linha 8143)
-
-Quando detectar escape dentro de `flow_context`:
-
-- Se a resposta é exatamente `[[FLOW_EXIT]]` → retornar `flowExit: true` (sinal limpo para o motor avançar)
-- Se é escape genérico (texto enganoso) → retornar `contractViolation: true` como hoje
-
+**B) contractViolation: NÃO retornar `original_response`** (~linha 8161):
+Remover `original_response` do payload para garantir que nenhum texto de transferência falsa vaze para o webhook. O payload fica:
 ```typescript
-if (escapeAttempt) {
-  const isCleanExit = /^\s*\[\[FLOW_EXIT\]\]\s*$/.test(assistantMessage);
-  
-  if (isCleanExit) {
-    // IA pediu saída educadamente via token
-    return { flowExit: true, reason: 'ai_requested_exit' };
-  } else {
-    // IA tentou fabricar transferência
-    return { contractViolation: true, reason: 'ai_contract_violation' };
-  }
+return { contractViolation: true, flowExit: true, reason: 'ai_contract_violation', hasFlowContext: true, flow_context: { flow_id, node_id } }
+```
+
+**C) flowExit: confirmar que NÃO retorna `message`** — já está OK, retorna só flags.
+
+### 2. `meta-whatsapp-webhook/index.ts`
+
+**Anti-loop guard** (~linha 1525): Antes do bloco `if (flowExit || contractViolation)`, adicionar uma flag para evitar re-invocação duplicada na mesma execução do webhook. Simples:
+```typescript
+let flowExitHandled = false; // declarar no início do loop de mensagens
+// ...
+if ((autopilotData?.flowExit || autopilotData?.contractViolation) && autopilotData?.hasFlowContext && !flowExitHandled) {
+  flowExitHandled = true;
+  // ... lógica existente ...
 }
 ```
 
-### 4. Webhook WhatsApp: Interceptar `contractViolation` e `flowExit`
+Isso previne loop se o próximo nó chamar autopilot de novo na mesma mensagem.
 
-**Arquivo:** `supabase/functions/meta-whatsapp-webhook/index.ts` (~linha 1137)
+## Arquivos impactados (2)
 
-Após `autopilotResponse.json()`, adicionar handler (igual ao que `message-listener` já faz):
+1. `supabase/functions/ai-autopilot-chat/index.ts` — +1 pattern textual, remover `original_response` do contractViolation
+2. `supabase/functions/meta-whatsapp-webhook/index.ts` — anti-loop guard
 
-```typescript
-// Após: const autopilotData = await autopilotResponse.json();
+## Resultado esperado
 
-if (autopilotData?.flowExit || autopilotData?.contractViolation) {
-  // Re-invocar process-chat-flow com forceAIExit para avançar ao próximo nó
-  await fetch(process-chat-flow, { 
-    body: { conversationId, userMessage, forceAIExit: true }
-  });
-  // Enviar mensagem do próximo nó se houver + aplicar transfer se retornado
-  continue;
-}
-```
-
-Isso fecha o gap: hoje o webhook ignora `contractViolation` e a conversa fica "muda".
-
-### 5. Process-chat-flow: Handler `forceAIExit`
-
-**Arquivo:** `supabase/functions/process-chat-flow/index.ts`
-
-Verificar se `forceAIExit` já está implementado (o param é recebido na linha 518). Se não estiver, adicionar handler que:
-- Busca o flow state ativo
-- Avança do nó `ai_response` atual para o próximo nó (edge `ai_exit` ou default)
-- Retorna mensagem/transfer do próximo nó
-
-## Arquivos impactados (3-4)
-
-1. `supabase/functions/ai-autopilot-chat/index.ts` — prompt + ESCAPE_PATTERNS + handler
-2. `supabase/functions/meta-whatsapp-webhook/index.ts` — interceptar contractViolation/flowExit
-3. `supabase/functions/process-chat-flow/index.ts` — garantir handler forceAIExit funciona
-4. (se necessário) `supabase/functions/message-listener/index.ts` — alinhar com novo sinal `flowExit`
-
-## Resultado
-
-```text
-Cliente: "quero falar com alguém"
-IA (antes): "Vou te direcionar para nosso menu de atendimento" ← FALSO
-IA (agora): [[FLOW_EXIT]] ← token silencioso
-Engine: detecta flowExit → avança para TransferNode no canvas → executa transferência real
-```
-
-Zero transferência falsa. A IA nunca mais promete o que não pode cumprir.
+- `[[FLOW_EXIT]]` nunca aparece no WhatsApp (já garantido, confirmado)
+- `contractViolation` não vaza texto original (ajuste B)
+- Menus textuais `1) ... 2) ...` agora detectados (ajuste A)
+- Sem loop de re-invocação (ajuste anti-loop)
+- Tudo que já funciona continua funcionando (zero regressão)
 

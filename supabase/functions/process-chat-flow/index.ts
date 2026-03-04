@@ -1511,7 +1511,7 @@ serve(async (req) => {
                   }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
                 }
 
-                variablesContext = rebuildCtx();
+                variablesContext = await rebuildCtx();
                 const nextMsg = replaceVariables(resolvedNode.data?.message || '', variablesContext);
                 return new Response(JSON.stringify({
                   useAI: resolvedNode.type === 'ai_response',
@@ -1609,7 +1609,7 @@ serve(async (req) => {
                   status: nextStatus,
                 }).eq('id', activeState.id);
 
-                variablesContext = rebuildCtx();
+                variablesContext = await rebuildCtx();
                 const nextMsg = replaceVariables(resolvedNode.data?.message || '', variablesContext);
 
                 if (resolvedNode.type === 'transfer') {
@@ -1694,7 +1694,7 @@ serve(async (req) => {
                     status: nextStatus,
                   }).eq('id', activeState.id);
 
-                  variablesContext = rebuildCtx();
+                  variablesContext = await rebuildCtx();
                   const nextMsg = replaceVariables(resolvedNode.data?.message || '', variablesContext);
                   return new Response(JSON.stringify({
                     useAI: resolvedNode.type === 'ai_response',
@@ -1777,7 +1777,7 @@ serve(async (req) => {
       if (currentNode.data?.save_as) {
         console.log(`[process-chat-flow] 💾 Saving data: key="${currentNode.data.save_as}" value="${(userMessage || '').slice(0, 50)}" node=${currentNode.id}`);
         collectedData[currentNode.data.save_as] = userMessage;
-        variablesContext = rebuildCtx(); // Rebuild after collecting new data
+        variablesContext = await rebuildCtx(); // Rebuild after collecting new data
       }
 
       // Determinar próximo nó
@@ -1884,7 +1884,7 @@ serve(async (req) => {
                   activeContactData.status = 'customer';
                   // Atualizar variablesContext após auto-validação
                   if (typeof rebuildCtx === 'function') {
-                    variablesContext = rebuildCtx();
+                    variablesContext = await rebuildCtx();
                   }
                   break;
                 }

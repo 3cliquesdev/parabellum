@@ -263,11 +263,12 @@ function enrichContactIsCustomer(contactData: any): void {
 // 🆕 HELPER: Construir contexto unificado de variáveis para templates
 // Merge: collectedData (prioridade) + contact_* + conversation_*
 // ============================================================
-function buildVariablesContext(
+async function buildVariablesContext(
   collectedData: Record<string, any>,
   contactData: any,
-  conversationData: any
-): Record<string, any> {
+  conversationData: any,
+  supabaseClient?: any
+): Promise<Record<string, any>> {
   const ctx: Record<string, any> = { ...collectedData };
   if (contactData) {
     for (const f of ['name','email','phone','cpf','city','state','tags','lead_score','kiwify_validated','source','company','document','consultant_id','is_customer']) {
@@ -283,6 +284,36 @@ function buildVariablesContext(
       if (conversationData[f] != null) ctx[`conversation_${f}`] = conversationData[f];
     }
   }
+
+  // Business hours variables
+  if (supabaseClient) {
+    try {
+      const bh = await getBusinessHoursInfo(supabaseClient);
+      ctx['business_within_hours'] = bh.within_hours;
+      ctx['business_schedule_summary'] = bh.schedule_summary;
+      ctx['business_next_open_text'] = bh.next_open_text;
+    } catch (e) {
+      console.warn('[process-chat-flow] ⚠️ Failed to get business hours:', e);
+      ctx['business_within_hours'] = true; // Safe default
+      ctx['business_schedule_summary'] = '';
+      ctx['business_next_open_text'] = '';
+    }
+  }
+
+  // SLA first response met
+  if (conversationData) {
+    const SLA_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour default
+    if (conversationData.first_response_at && conversationData.created_at) {
+      const created = new Date(conversationData.created_at).getTime();
+      const firstResp = new Date(conversationData.first_response_at).getTime();
+      ctx['sla_first_response_met'] = (firstResp - created) <= SLA_THRESHOLD_MS;
+    } else if (conversationData.first_response_at) {
+      ctx['sla_first_response_met'] = true; // Has response, assume met
+    } else {
+      ctx['sla_first_response_met'] = false; // No first response yet
+    }
+  }
+
   return ctx;
 }
 

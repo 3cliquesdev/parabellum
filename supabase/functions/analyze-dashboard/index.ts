@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +17,37 @@ serve(async (req) => {
 
     console.log(`[analyze-dashboard] Context: ${context}, Period: ${startDate} to ${endDate}`);
 
+    // Enrich data from DB when context is 'support'
+    let enrichedData = { ...metricsData };
+
+    if (context === 'support') {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const sb = createClient(supabaseUrl, supabaseKey);
+
+      const [metricsRes, countsRes] = await Promise.all([
+        sb.rpc('get_support_metrics_consolidated', { p_start: startDate, p_end: endDate }),
+        sb.rpc('get_support_dashboard_counts', { p_start: startDate, p_end: endDate }),
+      ]);
+
+      if (metricsRes.data) {
+        const m = metricsRes.data as any;
+        enrichedData.avgFRT = m.avgFRT ?? m.avgfrt ?? 0;
+        enrichedData.avgMTTR = m.avgMTTR ?? m.avgmttr ?? 0;
+        enrichedData.avgCSAT = m.avgCSAT ?? m.avgcsat ?? 0;
+        enrichedData.totalRatings = m.totalRatings ?? m.totalratings ?? 0;
+      }
+      if (countsRes.data) {
+        const c = countsRes.data as any;
+        enrichedData.tickets_open = c.tickets_open ?? 0;
+        enrichedData.conversations_total = c.conversations_total ?? 0;
+        enrichedData.conversations_closed = c.conversations_closed ?? 0;
+        enrichedData.sla_risk = c.sla_risk ?? 0;
+      }
+
+      console.log('[analyze-dashboard] Enriched support data:', JSON.stringify(enrichedData));
+    }
+
     const systemPrompts: Record<string, string> = {
       support: `Você é um Diretor de Operações de Suporte experiente com expertise em SLA, atendimento ao cliente e eficiência operacional. Analise os dados de suporte e forneça insights acionáveis sobre gargalos, tendências e oportunidades de melhoria.`,
       sales: `Você é um Diretor Comercial experiente com expertise em funis de vendas, conversão e performance de equipes. Analise os dados de vendas e identifique oportunidades de crescimento, gargalos no pipeline e estratégias para aumentar a conversão.`,
@@ -31,7 +63,7 @@ serve(async (req) => {
 # Dados do Dashboard (Período: ${new Date(startDate).toLocaleDateString('pt-BR')} a ${new Date(endDate).toLocaleDateString('pt-BR')})
 
 \`\`\`json
-${JSON.stringify(metricsData, null, 2)}
+${JSON.stringify(enrichedData, null, 2)}
 \`\`\`
 
 ---

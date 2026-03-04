@@ -1195,33 +1195,25 @@ function validateResponseRestrictions(
   return { valid: true };
 }
 
-// 🆕 ESCAPE PATTERNS: Detectar quando IA tenta sair do contrato
+// 🆕 ESCAPE PATTERNS: Detectar quando IA tenta sair do contrato (semântico, agrupado por intenção)
 const ESCAPE_PATTERNS = [
-  /vou te transferir/i,
-  /vou transferir voc[êe]/i,
-  /vou encaminhar/i,
-  /vou te direcionar/i,
-  /vou direcionar voc[êe]/i,
-  /vou te redirecionar/i,
-  /vou te conectar/i,
-  /vou conectar voc[êe]/i,
-  /aguarde.*atendente/i,
-  /estou.*transferindo/i,
-  /estou.*direcionando/i,
-  /estou.*encaminhando/i,
-  /estou.*redirecionando/i,
-  /vou chamar.*especialista/i,
-  /vou chamar.*atendente/i,
+  // Token explícito de saída (IA pediu exit limpo)
+  /\[\[FLOW_EXIT\]\]/i,
+  // Promessa de ação de transferência (vou/irei/posso + verbo)
+  /(vou|irei|posso)\s+(te\s+)?(direcionar|redirecionar|transferir|encaminhar|conectar|passar)/i,
+  // Ação em andamento (estou/estarei + gerúndio)
+  /(estou|estarei)\s+(te\s+)?(direcionando|redirecionando|transferindo|encaminhando|conectando)/i,
+  // Menção a humano/atendente com contexto de espera
+  /\b(aguarde|só um instante).*(atendente|especialista|consultor)\b/i,
+  // Chamar/acionar humano
+  /\b(chamar|acionar).*(atendente|especialista|consultor)\b/i,
+  // Menu de atendimento (caso específico)
+  /menu\s+de\s+atendimento/i,
+  // Opções numeradas (2+ emojis para evitar falso positivo com emoji isolado)
+  /[1-9]️⃣.*[1-9]️⃣/s,
+  // Menus textuais
   /escolha uma das op[çc][õo]es/i,
   /selecione uma op[çc][ãa]o/i,
-  /1️⃣|2️⃣|3️⃣|4️⃣|5️⃣/,
-  /qual.*prefere\?/i,
-  /menu de atendimento/i,
-  /encontrar.*especialista/i,
-  /vou te passar/i,
-  /passar.*para.*atendente/i,
-  /encaminhar.*departamento/i,
-  /direcionar.*setor/i,
 ];
 
 interface AutopilotChatRequest {
@@ -5753,16 +5745,17 @@ SE você não tiver informação sobre o assunto:
 - Abandonar cliente sem tentar ajudar
 `;
 
-    // 🆕 INSTRUÇÃO ANTI-FABRICAÇÃO DE TRANSFERÊNCIA (quando dentro de fluxo)
+    // 🆕 INSTRUÇÃO ANTI-FABRICAÇÃO DE TRANSFERÊNCIA + TOKEN [[FLOW_EXIT]] (quando dentro de fluxo)
     const flowAntiTransferInstruction = flow_context ? `
 
 **🚫 REGRA ABSOLUTA — VOCÊ ESTÁ DENTRO DE UM FLUXO AUTOMATIZADO:**
-PROIBIDO: Você NÃO pode dizer que vai transferir, direcionar, encaminhar, redirecionar, passar ou conectar o cliente com ninguém.
-Você NÃO pode mencionar "menu de atendimento", "especialista", "atendente", "departamento", "setor" ou "time".
-Você NÃO pode criar opções numeradas (1️⃣ 2️⃣ 3️⃣) nem menus de escolha.
-Você SÓ responde com informação baseada na base de conhecimento.
+PROIBIDO dizer que vai transferir/direcionar/encaminhar/conectar/passar.
+PROIBIDO mencionar atendente/especialista/consultor/menu/departamento/setor.
+PROIBIDO criar opções numeradas (1️⃣ 2️⃣).
+Se você conseguir resolver, responda normalmente com informação da base de conhecimento.
+Se NÃO conseguir resolver, responda SOMENTE: [[FLOW_EXIT]]
+Nenhum texto antes ou depois de [[FLOW_EXIT]].
 Quem decide transferências, menus e direcionamentos é o FLUXO, não você.
-Se não souber a resposta, diga apenas que não encontrou a informação. NUNCA sugira transferência.
 
 ` : '';
 
@@ -8144,23 +8137,42 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
       const escapeAttempt = ESCAPE_PATTERNS.some(pattern => pattern.test(assistantMessage));
       
       if (escapeAttempt) {
-        console.warn('[ai-autopilot-chat] ⚠️ ESCAPE DETECTADO! IA tentou sair do contrato');
-        console.warn('[ai-autopilot-chat] Resposta original:', assistantMessage.substring(0, 100));
+        // 🆕 Distinguir [[FLOW_EXIT]] (saída limpa) vs escape genérico (texto enganoso)
+        const isCleanExit = /^\s*\[\[FLOW_EXIT\]\]\s*$/.test(assistantMessage);
         
-        // 🆕 AJUSTE ANTI-ESCAPE: IA apenas sinaliza erro, fluxo decide transferência
-        // Retornar sinal de violação de contrato (NÃO decidir transferência aqui!)
-        return new Response(JSON.stringify({
-          contractViolation: true,  // ✅ IA só sinaliza erro
-          reason: 'ai_contract_violation',
-          violationType: 'escape_attempt',
-          original_response: assistantMessage.substring(0, 200),
-          flow_context: {
-            flow_id: flow_context.flow_id,
-            node_id: flow_context.node_id
-          }
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        if (isCleanExit) {
+          console.log('[ai-autopilot-chat] ✅ [[FLOW_EXIT]] detectado — IA pediu saída limpa do nó');
+          return new Response(JSON.stringify({
+            flowExit: true,
+            reason: 'ai_requested_exit',
+            hasFlowContext: true,
+            flow_context: {
+              flow_id: flow_context.flow_id,
+              node_id: flow_context.node_id
+            }
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        } else {
+          console.warn('[ai-autopilot-chat] ⚠️ ESCAPE DETECTADO! IA tentou fabricar transferência');
+          console.warn('[ai-autopilot-chat] Resposta original:', assistantMessage.substring(0, 100));
+          
+          // IA fabricou linguagem de transferência — sinalizar violação + forçar exit
+          return new Response(JSON.stringify({
+            contractViolation: true,
+            flowExit: true,  // 🆕 Também sinalizar flowExit para que webhook avance o fluxo
+            reason: 'ai_contract_violation',
+            violationType: 'escape_attempt',
+            hasFlowContext: true,
+            original_response: assistantMessage.substring(0, 200),
+            flow_context: {
+              flow_id: flow_context.flow_id,
+              node_id: flow_context.node_id
+            }
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
       }
       
       // 🆕 FASE 1: Validação de restrições de comportamento (forbidQuestions, forbidOptions)

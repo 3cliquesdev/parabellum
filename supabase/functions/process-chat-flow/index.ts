@@ -238,6 +238,17 @@ function findNextNode(flowDef: any, currentNode: any, path?: string): any {
     // Fallback: buscar edge sem handle específico
   }
   
+  // 🆕 FIX: Para ai_response com path (ex: 'ai_exit'), priorizar edge com sourceHandle
+  if (currentNode.type === 'ai_response' && path) {
+    const handleEdge = edges.find((e: any) => e.source === currentNode.id && e.sourceHandle === path);
+    if (handleEdge) {
+      console.log(`[findNextNode] ✅ ai_response: found edge with handle "${path}" → ${handleEdge.target}`);
+      return flowDef.nodes.find((n: any) => n.id === handleEdge.target);
+    }
+    console.log(`[findNextNode] ⚠️ ai_response: no edge with handle "${path}", falling back to default`);
+    // Se não achou edge com handle, cai no fallback abaixo
+  }
+
   // Para outros nós, buscar edge simples
   const edge = edges.find((e: any) => e.source === currentNode.id && !e.sourceHandle);
   if (!edge) {
@@ -2065,6 +2076,12 @@ serve(async (req) => {
               }
             }
             console.log(`[process-chat-flow] 🔄 AI exit: reason=${aiExitForced ? 'ai_handoff_exit' : 'max_interactions'} (${aiCount}/${maxInteractions}) - advancing to next node`);
+          }
+
+          // 🆕 FIX: Quando aiExitForced, setar path='ai_exit' para findNextNode priorizar edge com handle ai_exit
+          if (aiExitForced) {
+            path = 'ai_exit';
+            console.log('[process-chat-flow] 🎯 aiExitForced → path set to "ai_exit" for findNextNode');
           }
 
           // Em ambos os casos (keyword ou max), limpa __ai e deixa o fluxo seguir

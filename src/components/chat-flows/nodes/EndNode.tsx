@@ -11,6 +11,7 @@ interface EndNodeData {
   action_data?: {
     tag_id?: string;
     tag_name?: string;
+    tag_scope?: "contact" | "conversation";
     ticket_category?: string;
     department_id?: string;
   };

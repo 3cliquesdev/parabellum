@@ -1522,6 +1522,123 @@ serve(async (req) => {
                           continue;
                         }
                         
+                        // 🆕 CONTRACT VIOLATION / FLOW EXIT: IA fabricou transferência ou pediu [[FLOW_EXIT]]
+                        // Re-invocar process-chat-flow para avançar ao próximo nó do fluxo
+                        if ((autopilotData?.flowExit || autopilotData?.contractViolation) && autopilotData?.hasFlowContext) {
+                          console.log("[meta-whatsapp-webhook] 🔄 flowExit/contractViolation → re-invocando process-chat-flow com forceAIExit", {
+                            flowExit: autopilotData.flowExit,
+                            contractViolation: autopilotData.contractViolation,
+                            reason: autopilotData.reason,
+                          });
+                          
+                          try {
+                            const cvFlowResponse = await fetch(
+                              `${Deno.env.get("SUPABASE_URL")}/functions/v1/process-chat-flow`,
+                              {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                                },
+                                body: JSON.stringify({
+                                  conversationId: conversation.id,
+                                  userMessage: messageContent,
+                                  forceAIExit: true,
+                                }),
+                              }
+                            );
+                            
+                            if (cvFlowResponse.ok) {
+                              const cvFlowResult = await cvFlowResponse.json();
+                              console.log("[meta-whatsapp-webhook] ✅ process-chat-flow re-invoked (flowExit/contractViolation):", JSON.stringify({
+                                transfer: cvFlowResult.transfer,
+                                hasResponse: !!cvFlowResult.response,
+                                nodeType: cvFlowResult.nodeType,
+                                departmentId: cvFlowResult.departmentId,
+                              }));
+                              
+                              const cvFlowMessage = (cvFlowResult.response || cvFlowResult.message)
+                                ? (cvFlowResult.response || cvFlowResult.message) + formatOptionsAsText(cvFlowResult.options)
+                                : null;
+                              
+                              if (cvFlowMessage) {
+                                await supabase.functions.invoke("send-meta-whatsapp", {
+                                  body: {
+                                    instance_id: instance.id,
+                                    phone_number: fromNumber,
+                                    message: cvFlowMessage,
+                                    conversation_id: conversation.id,
+                                    skip_db_save: false,
+                                    is_bot_message: true,
+                                  },
+                                });
+                                console.log("[meta-whatsapp-webhook] ✅ Flow next-node message sent (flowExit/contractViolation)");
+                              }
+                              
+                              // Transfer handling (reusing forceAIExit pattern)
+                              const DEPT_SUPORTE_FALLBACK_CV = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a';
+                              const cvTransferDept = cvFlowResult.departmentId || cvFlowResult.department;
+                              if (cvFlowResult.transfer === true || cvFlowResult.action === 'transfer') {
+                                const cvDeptToUse = cvTransferDept || DEPT_SUPORTE_FALLBACK_CV;
+                                const cvUpdateData: Record<string, unknown> = {
+                                  ai_mode: 'waiting_human',
+                                  handoff_executed_at: new Date().toISOString(),
+                                  department: cvDeptToUse,
+                                };
+                                
+                                const isConsultantTransferCV = cvFlowResult.transferType === 'consultant';
+                                const { data: contactConsultantCV } = await supabase
+                                  .from('contacts')
+                                  .select('consultant_id, consultant_manually_removed')
+                                  .eq('id', contact.id)
+                                  .maybeSingle();
+                                
+                                let consultantIdCV = (contactConsultantCV?.consultant_manually_removed && !isConsultantTransferCV)
+                                  ? null
+                                  : (contactConsultantCV?.consultant_id || null);
+                                
+                                if (consultantIdCV) {
+                                  cvUpdateData.assigned_to = consultantIdCV;
+                                  cvUpdateData.ai_mode = 'copilot';
+                                  console.log("[meta-whatsapp-webhook] 👤 Consultor atribuído (flowExit/contractViolation):", consultantIdCV);
+                                  await supabase.from('contacts').update({ consultant_id: consultantIdCV }).eq('id', contact.id);
+                                }
+                                
+                                await supabase.from('conversations').update(cvUpdateData).eq('id', conversation.id);
+                                console.log("[meta-whatsapp-webhook] ✅ Transfer (flowExit/contractViolation) → dept:", cvDeptToUse);
+                                
+                                if (!consultantIdCV) {
+                                  try {
+                                    await fetch(
+                                      `${Deno.env.get("SUPABASE_URL")}/functions/v1/route-conversation`,
+                                      {
+                                        method: "POST",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                                        },
+                                        body: JSON.stringify({ conversationId: conversation.id }),
+                                      }
+                                    );
+                                  } catch (routeErr) {
+                                    console.error("[meta-whatsapp-webhook] ⚠️ route-conversation exception (flowExit/contractViolation):", routeErr);
+                                  }
+                                }
+                              }
+                              
+                              continue;
+                            } else {
+                              console.error("[meta-whatsapp-webhook] ❌ process-chat-flow re-invoke failed (flowExit/contractViolation):", await cvFlowResponse.text());
+                            }
+                          } catch (cvFlowErr) {
+                            console.error("[meta-whatsapp-webhook] ❌ Error re-invoking process-chat-flow (flowExit/contractViolation):", cvFlowErr);
+                          }
+                          
+                          // Fallback: manter no fluxo
+                          console.log("[meta-whatsapp-webhook] ⚠️ flowExit/contractViolation mas re-invoke falhou. Mantendo no fluxo.");
+                          continue;
+                        }
+
                         // 🆕 FLOW ADVANCE: IA quer sair do nó (strict RAG ou confidence handoff)
                         // Re-invocar process-chat-flow para avançar ao próximo nó do fluxo
                         if (autopilotData?.status === 'flow_advance_needed' && autopilotData?.hasFlowContext) {

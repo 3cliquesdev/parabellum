@@ -7843,6 +7843,95 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
     // FASE 5: Verificação de duplicata JÁ REALIZADA no início (linha ~325)
     // ============================================================
 
+    // ============================================================
+    // 🆕 VALIDAÇÃO ANTI-ESCAPE: ANTES de salvar/enviar
+    // Se flow_context existe, IA só pode retornar texto puro
+    // Detectar escape ANTES do banco + WhatsApp = zero vazamento
+    // ============================================================
+    if (flow_context && flow_context.response_format === 'text_only') {
+      const escapeAttempt = ESCAPE_PATTERNS.some(pattern => pattern.test(assistantMessage));
+      
+      if (escapeAttempt) {
+        const isCleanExit = /^\s*\[\[FLOW_EXIT\]\]\s*$/.test(assistantMessage);
+        
+        if (isCleanExit) {
+          console.log('[ai-autopilot-chat] ✅ [[FLOW_EXIT]] detectado ANTES de salvar — saída limpa');
+          return new Response(JSON.stringify({
+            flowExit: true,
+            reason: 'ai_requested_exit',
+            hasFlowContext: true,
+            flow_context: {
+              flow_id: flow_context.flow_id,
+              node_id: flow_context.node_id
+            }
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        } else {
+          console.warn('[ai-autopilot-chat] ⚠️ ESCAPE DETECTADO ANTES de salvar! IA tentou fabricar transferência');
+          console.warn('[ai-autopilot-chat] Resposta bloqueada:', assistantMessage.substring(0, 100));
+          
+          return new Response(JSON.stringify({
+            contractViolation: true,
+            flowExit: true,
+            reason: 'ai_contract_violation',
+            violationType: 'escape_attempt',
+            hasFlowContext: true,
+            flow_context: {
+              flow_id: flow_context.flow_id,
+              node_id: flow_context.node_id
+            }
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+      
+      // Validação de restrições (forbidQuestions, forbidOptions, forbidFinancial)
+      const forbidQuestions = flow_context.forbidQuestions ?? true;
+      const forbidOptions = flow_context.forbidOptions ?? true;
+      const forbidFinancial = flow_context.forbidFinancial ?? false;
+      const restrictionCheck = validateResponseRestrictions(assistantMessage, forbidQuestions, forbidOptions);
+      
+      if (!restrictionCheck.valid) {
+        console.warn('[ai-autopilot-chat] ⚠️ VIOLAÇÃO DE RESTRIÇÃO (pré-save):', restrictionCheck.violation);
+        const fallbackMessage = flow_context.fallbackMessage || 'No momento não tenho essa informação.';
+        assistantMessage = fallbackMessage;
+        console.log('[ai-autopilot-chat] ✅ Resposta substituída por fallback ANTES de salvar');
+      } else if (forbidFinancial) {
+        const financialResolutionPattern = /(j[áa] processei|foi estornado|solicitei reembolso|vou reembolsar|pode sacar|liberei o saque|reembolso aprovado|estorno realizado|cancelamento confirmado|pagamento devolvido|já estornei|processando.*reembolso|aprovei.*devolu[çc][ãa]o|cancelar.*assinatura|sacar.*saldo|saque.*(realizado|solicitado)|op[çc][ãa]o.*(saque|reembolso|estorno)|para\s+prosseguir\s+com\s+o\s+(saque|reembolso|estorno)|confirmar.*dados.*(saque|reembolso|estorno)|devolver.*dinheiro)/i;
+        if (financialResolutionPattern.test(assistantMessage)) {
+          console.warn('[ai-autopilot-chat] 🔒 TRAVA FINANCEIRA (pré-save): IA tentou resolver assunto financeiro');
+          assistantMessage = 'Esse tipo de solicitação precisa ser tratada por um atendente. Vou te transferir agora!';
+          try {
+            await supabaseClient
+              .from('conversations')
+              .update({ ai_mode: 'waiting_human', assigned_to: null })
+              .eq('id', conversationId);
+            console.log('[ai-autopilot-chat] 🔒 Conversa transferida para humano (trava financeira)');
+          } catch (transferErr) {
+            console.error('[ai-autopilot-chat] Erro ao transferir (trava financeira):', transferErr);
+          }
+        }
+      } else {
+        const maxSentences = flow_context.maxSentences ?? 3;
+        assistantMessage = limitSentences(assistantMessage, maxSentences);
+        
+        const kbUsed = knowledgeArticles && knowledgeArticles.length > 0;
+        const crmUsed = false;
+        const trackingUsed = false;
+        logSourceViolationIfAny(
+          assistantMessage, 
+          flow_context.allowed_sources || ['kb', 'crm', 'tracking'],
+          kbUsed,
+          crmUsed,
+          trackingUsed
+        );
+        
+        console.log('[ai-autopilot-chat] ✅ Resposta passou validação anti-escape (pré-save)');
+      }
+    }
+
     // 7. Salvar resposta da IA como mensagem (PRIMEIRO salvar para visibilidade interna)
     const { data: savedMessage, error: saveError } = await supabaseClient
       .from('messages')
@@ -8130,104 +8219,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
     console.log('[ai-autopilot-chat] ✅ Resposta processada com sucesso!');
 
     // FASE 2: Salvar resposta no cache para futuras consultas (TTL 1h)
-    // 🆕 Verificar se NÃO é fallback antes de cachear (usa constante global)
-    // ============================================================
-    // 🆕 VALIDAÇÃO ANTI-ESCAPE: Detectar se IA tentou sair do contrato
-    // Se flow_context existe, IA só pode retornar texto puro
-    // ============================================================
-    if (flow_context && flow_context.response_format === 'text_only') {
-      const escapeAttempt = ESCAPE_PATTERNS.some(pattern => pattern.test(assistantMessage));
-      
-      if (escapeAttempt) {
-        // 🆕 Distinguir [[FLOW_EXIT]] (saída limpa) vs escape genérico (texto enganoso)
-        const isCleanExit = /^\s*\[\[FLOW_EXIT\]\]\s*$/.test(assistantMessage);
-        
-        if (isCleanExit) {
-          console.log('[ai-autopilot-chat] ✅ [[FLOW_EXIT]] detectado — IA pediu saída limpa do nó');
-          return new Response(JSON.stringify({
-            flowExit: true,
-            reason: 'ai_requested_exit',
-            hasFlowContext: true,
-            flow_context: {
-              flow_id: flow_context.flow_id,
-              node_id: flow_context.node_id
-            }
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        } else {
-          console.warn('[ai-autopilot-chat] ⚠️ ESCAPE DETECTADO! IA tentou fabricar transferência');
-          console.warn('[ai-autopilot-chat] Resposta original:', assistantMessage.substring(0, 100));
-          
-          // IA fabricou linguagem de transferência — sinalizar violação + forçar exit
-           return new Response(JSON.stringify({
-            contractViolation: true,
-            flowExit: true,
-            reason: 'ai_contract_violation',
-            violationType: 'escape_attempt',
-            hasFlowContext: true,
-            flow_context: {
-              flow_id: flow_context.flow_id,
-              node_id: flow_context.node_id
-            }
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-      }
-      
-      // 🆕 FASE 1: Validação de restrições de comportamento (forbidQuestions, forbidOptions)
-      const forbidQuestions = flow_context.forbidQuestions ?? true;
-      const forbidOptions = flow_context.forbidOptions ?? true;
-      const forbidFinancial = flow_context.forbidFinancial ?? false;
-      const restrictionCheck = validateResponseRestrictions(assistantMessage, forbidQuestions, forbidOptions);
-      
-      if (!restrictionCheck.valid) {
-        console.warn('[ai-autopilot-chat] ⚠️ VIOLAÇÃO DE RESTRIÇÃO:', restrictionCheck.violation);
-        console.warn('[ai-autopilot-chat] Resposta original:', assistantMessage.substring(0, 100));
-        
-        // Usar fallback ao invés da resposta que violou restrições
-        const fallbackMessage = flow_context.fallbackMessage || 'No momento não tenho essa informação.';
-        assistantMessage = fallbackMessage;
-        
-        console.log('[ai-autopilot-chat] ✅ Resposta substituída por fallback');
-      } else if (forbidFinancial) {
-        // 🔒 Validação pós-resposta: Trava Financeira
-        const financialResolutionPattern = /(j[áa] processei|foi estornado|solicitei reembolso|vou reembolsar|pode sacar|liberei o saque|reembolso aprovado|estorno realizado|cancelamento confirmado|pagamento devolvido|já estornei|processando.*reembolso|aprovei.*devolu[çc][ãa]o|cancelar.*assinatura|sacar.*saldo|saque.*(realizado|solicitado)|op[çc][ãa]o.*(saque|reembolso|estorno)|para\s+prosseguir\s+com\s+o\s+(saque|reembolso|estorno)|confirmar.*dados.*(saque|reembolso|estorno)|devolver.*dinheiro)/i;
-        if (financialResolutionPattern.test(assistantMessage)) {
-          console.warn('[ai-autopilot-chat] 🔒 TRAVA FINANCEIRA: IA tentou resolver assunto financeiro, substituindo resposta');
-          assistantMessage = 'Esse tipo de solicitação precisa ser tratada por um atendente. Vou te transferir agora!';
-          // Forçar transferência para humano
-          try {
-            await supabaseClient
-              .from('conversations')
-              .update({ ai_mode: 'waiting_human', assigned_to: null })
-              .eq('id', conversationId);
-            console.log('[ai-autopilot-chat] 🔒 Conversa transferida para humano (trava financeira)');
-          } catch (transferErr) {
-            console.error('[ai-autopilot-chat] Erro ao transferir (trava financeira):', transferErr);
-          }
-        }
-      } else {
-        // 🆕 FASE 1: Enforce limite de frases no pós-processamento
-        const maxSentences = flow_context.maxSentences ?? 3;
-        assistantMessage = limitSentences(assistantMessage, maxSentences);
-        
-        // 🆕 FASE 1: Log de violação de allowed_sources (não bloqueante, apenas auditoria)
-        const kbUsed = knowledgeArticles && knowledgeArticles.length > 0;
-        const crmUsed = false; // TODO: Implementar detecção de uso de CRM
-        const trackingUsed = false; // TODO: Implementar detecção de uso de tracking
-        logSourceViolationIfAny(
-          assistantMessage, 
-          flow_context.allowed_sources || ['kb', 'crm', 'tracking'],
-          kbUsed,
-          crmUsed,
-          trackingUsed
-        );
-        
-        console.log('[ai-autopilot-chat] ✅ Resposta passou na validação anti-escape e de restrições');
-      }
-    }
+    // (Escape detection já foi movido para ANTES do save/send — linhas ~7842)
 
     const shouldSkipCache = FALLBACK_PHRASES.some(phrase => 
       assistantMessage.toLowerCase().includes(phrase)

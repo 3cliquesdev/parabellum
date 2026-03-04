@@ -29,6 +29,14 @@ export const CONTACT_VARS: VariableItem[] = [
   { value: "contact_is_customer", label: "É Cliente? (Kiwify Validado)", group: "contact" },
 ];
 
+// Business hours & SLA variables (injected by engine at runtime)
+export const BUSINESS_VARS: VariableItem[] = [
+  { value: "business_within_hours", label: "Dentro do Horário Comercial", group: "conversation" },
+  { value: "business_schedule_summary", label: "Horário de Atendimento", group: "conversation" },
+  { value: "business_next_open_text", label: "Próxima Abertura", group: "conversation" },
+  { value: "sla_first_response_met", label: "SLA Primeira Resposta Cumprido", group: "conversation" },
+];
+
 // Fixed conversation variables
 export const CONVERSATION_VARS: VariableItem[] = [
   { value: "conversation_channel", label: "Canal", group: "conversation" },

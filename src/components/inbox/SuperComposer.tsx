@@ -320,6 +320,20 @@ export function SuperComposer({
       return;
     }
 
+    // =========================================================================
+    // 🛡️ REGRA DE SEGURANÇA: Bloquear envio em autopilot (exceto nota interna)
+    // Agente precisa clicar "Assumir Controle" antes de enviar ao cliente
+    // =========================================================================
+    if (aiMode === 'autopilot' && messageMode !== 'internal') {
+      console.warn('[SuperComposer] ⛔ Bloqueado: aiMode é autopilot - agente precisa assumir controle');
+      toast({
+        title: "IA no controle",
+        description: "Você precisa assumir a conversa antes de enviar mensagens. Clique em 'Assumir Controle'.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const hasContent = message.trim() || pendingAttachments.some((a) => a.uploadedMedia);
     if (!hasContent || !conversationId) return;
 
@@ -572,6 +586,14 @@ export function SuperComposer({
           </TabsList>
         </Tabs>
       </div>
+
+      {/* 🛡️ Autopilot Warning Banner */}
+      {aiMode === 'autopilot' && !isInternal && (
+        <div className="mx-4 mt-2 flex items-center gap-2 text-xs text-destructive bg-destructive/10 px-3 py-1.5 rounded-md">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>IA está no controle. Para enviar mensagens, clique em <strong>"Assumir Controle"</strong>.</span>
+        </div>
+      )}
 
       {/* Internal Note Warning */}
       {isInternal && (

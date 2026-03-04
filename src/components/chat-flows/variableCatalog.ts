@@ -161,7 +161,7 @@ export function getAvailableVariables(
 
   const customerValidationVars = hasValidateNode ? CUSTOMER_VALIDATION_VARS : [];
 
-  const all = [...flowVars, ...CONTACT_VARS, ...CONVERSATION_VARS, ...orderVars, ...customerValidationVars];
+  const all = [...flowVars, ...CONTACT_VARS, ...CONVERSATION_VARS, ...BUSINESS_VARS, ...orderVars, ...customerValidationVars];
 
   return {
     flowVars,
@@ -178,7 +178,7 @@ export function getAvailableVariables(
 export function isKnownSystemVariable(varName: string): boolean {
   const trimmed = varName.trim();
   if (trimmed.startsWith("__")) return true; // internal vars
-  const allSystem = [...CONTACT_VARS, ...CONVERSATION_VARS, ...ORDER_VARS];
+  const allSystem = [...CONTACT_VARS, ...CONVERSATION_VARS, ...ORDER_VARS, ...BUSINESS_VARS];
   return allSystem.some(v => v.value === trimmed);
 }
 

@@ -1,53 +1,38 @@
 
 
-# Plan: Normalizar Dados de Sentimento e Corrigir Viés Neutro
-
-Analisei o projeto atual e sigo as regras da base de conhecimento.
+# Plan: Incluir Senha Temporária no Email de Criação de Usuário
 
 ## Diagnóstico
 
-**Dados atuais no banco:**
-- `neutro`: 947,209 (99.6%) -- massivamente inflado
-- `critico`: 2,999
-- `promotor`: 459
-- `crítico` (com acento): 21 -- duplicata
-- `neutra`: 1 -- espúrio
-- `crucial`: 1 -- espúrio
+- **`create-user`**: Recebe `password` do body, cria o usuário, mas o email **não inclui a senha** — mostra apenas "Utilize o link abaixo" com link para `/setup-password` (que exige autenticação prévia → falha).
+- **`resend-welcome-email`**: Já funciona corretamente — gera nova senha e a inclui no email, com link para `/auth`.
 
-**Causa raiz do viés neutro:** Todas as chamadas atuais ao `analyze-ticket` estão retornando `fallback: true, reason: "rate_limit"` com resultado default `"neutro"`. Ou seja, ~99% dos registros de sentimento NÃO são análises reais -- são fallbacks de rate limit sendo gravados como se fossem dados reais.
+## Solução
 
-## Plano (3 partes)
+Alterar apenas **`supabase/functions/create-user/index.ts`** — o template HTML do email:
 
-### 1. Migração SQL: Limpar dados existentes + Atualizar RPC
+1. **Adicionar a senha temporária** no card de credenciais (variável `password` já está disponível no escopo)
+2. **Mudar o link** do botão de `/setup-password` → `/auth`
+3. **Ajustar o texto** do botão para "Acessar o Sistema" e o aviso para indicar que a troca de senha será solicitada automaticamente no primeiro login
 
-- **UPDATE** `ai_usage_logs` SET `result_data = '{"sentiment":"critico"}'` WHERE sentiment = `'crítico'`
-- **DELETE** registros com sentimentos espúrios (`neutra`, `crucial`)
-- **UPDATE** a RPC `get_ai_usage_metrics` para normalizar na query (merge `critico`/`crítico`, ignorar valores fora do set válido)
-- Adicionar filtro para excluir registros com `result_data->>'fallback' = 'true'` ou onde o sentimento foi gerado por fallback (não é análise real)
+## Mudança específica (linhas ~303-320)
 
-### 2. Edge Function `analyze-ticket`: Parar de gravar fallbacks como dados reais
+```html
+<!-- Card de credenciais: adicionar senha -->
+<p><strong>Sistema:</strong> https://parabellum.work</p>
+<p><strong>Login:</strong> ${email}</p>
+<p><strong>Senha Temporária:</strong> ${password}</p>
+<p style="color: #dc2626;">(Troca obrigatória no primeiro login)</p>
 
-No frontend (`useSentimentAnalysis.tsx`):
-- Quando a resposta vier com `fallback: true`, **NAO gravar** no `ai_usage_logs` -- pois não é uma análise real
-- Manter o retorno de `"neutro"` como fallback para a UI (badge), mas sem poluir os logs de métricas
+<!-- Botão: mudar link e texto -->
+<a href="https://parabellum.work/auth">Acessar o Sistema</a>
 
-### 3. Prompt de sentimento mais calibrado
-
-Atualizar o prompt no `analyze-ticket` para:
-- Ser mais assertivo na classificação (menos viés para neutro)
-- Dar exemplos concretos de cada categoria
-- Instruir que mensagens curtas como "Ok", "1", "Sim" devem ser classificadas pelo contexto geral, não individualmente
-- Manter a normalização no `useSentimentAnalysis.tsx` como safety net
-
-## Arquivos modificados
-
-1. **Nova migração SQL** -- limpeza de dados + upgrade da RPC
-2. **`src/hooks/useSentimentAnalysis.tsx`** -- não gravar fallbacks no log
-3. **`supabase/functions/analyze-ticket/index.ts`** -- prompt de sentimento melhorado
+<!-- Aviso: atualizar instrução -->
+"No primeiro acesso, você será solicitado a definir uma nova senha por segurança."
+```
 
 ## Impacto
-
-- Zero regressão: widget de sentimento continua funcionando, agora com dados limpos
-- Dashboard passa a mostrar distribuição real (sem inflação de neutros por rate limit)
-- Dados futuros ficam precisos (só análises reais são gravadas)
+- Zero regressão: fluxo de `must_change_password` continua intacto
+- `resend-welcome-email` não precisa de alteração (já está correto)
+- 1 arquivo modificado: `supabase/functions/create-user/index.ts`
 

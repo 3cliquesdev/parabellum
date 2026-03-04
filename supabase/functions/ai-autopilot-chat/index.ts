@@ -1214,6 +1214,8 @@ const ESCAPE_PATTERNS = [
   // Menus textuais
   /escolha uma das op[çc][õo]es/i,
   /selecione uma op[çc][ãa]o/i,
+  // Menus textuais com numeração (1) ... 2) ...)
+  /\b1[\)\.\-].*\b2[\)\.\-]/s,
 ];
 
 interface AutopilotChatRequest {
@@ -8158,13 +8160,12 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
           console.warn('[ai-autopilot-chat] Resposta original:', assistantMessage.substring(0, 100));
           
           // IA fabricou linguagem de transferência — sinalizar violação + forçar exit
-          return new Response(JSON.stringify({
+           return new Response(JSON.stringify({
             contractViolation: true,
-            flowExit: true,  // 🆕 Também sinalizar flowExit para que webhook avance o fluxo
+            flowExit: true,
             reason: 'ai_contract_violation',
             violationType: 'escape_attempt',
             hasFlowContext: true,
-            original_response: assistantMessage.substring(0, 200),
             flow_context: {
               flow_id: flow_context.flow_id,
               node_id: flow_context.node_id

@@ -1,60 +1,40 @@
 
 
-# Plano: Ajustes Finais — [[FLOW_EXIT]] Robusto + Anti-Loop
+# Plano: Refinamentos Finais — Regex Non-Greedy + Anti-Loop por Conversation
 
-## Estado atual vs. ajustes necessários
+## 3 ajustes pontuais (2 arquivos)
 
-| Componente | Status | Gap |
-|---|---|---|
-| ESCAPE_PATTERNS + [[FLOW_EXIT]] | ✅ Implementado | Falta pattern `1) ... 2) ...` (menus textuais sem emoji) |
-| System prompt flow_context | ✅ Implementado | OK |
-| flowExit/contractViolation retorno | ✅ Retorna flag | ⚠️ Ainda retorna `original_response` no contractViolation — webhook pode vazar |
-| Webhook intercepta e re-invoca | ✅ Implementado | ⚠️ Falta anti-loop guard |
-| Webhook trata retorno como CASO 2 | ✅ Já faz (formatOptions + send-meta + transfer) | OK |
-| process-chat-flow forceAIExit | ✅ Avança pelo findNextNode normal | ⚠️ Não tem handle `ai_exit` específico, mas `findNextNode` pega qualquer edge — funcional |
+### 1. `ai-autopilot-chat/index.ts` — Regex non-greedy (linha 1218)
 
-## Alterações (2 arquivos)
+Trocar `.*` por `[\s\S]*?` no pattern de menu textual para evitar match guloso:
 
-### 1. `ai-autopilot-chat/index.ts`
-
-**A) Adicionar pattern de menu textual sem emoji** (~linha 1216):
 ```typescript
-// Menus textuais com numeração (1) ... 2) ...)
+// De:
 /\b1[\)\.\-].*\b2[\)\.\-]/s,
+// Para:
+/\b1[\)\.\-][\s\S]*?\b2[\)\.\-]/i,
 ```
 
-**B) contractViolation: NÃO retornar `original_response`** (~linha 8161):
-Remover `original_response` do payload para garantir que nenhum texto de transferência falsa vaze para o webhook. O payload fica:
+### 2. `ai-autopilot-chat/index.ts` — Confirmar payloads limpos
+
+Ambos os retornos (flowExit e contractViolation, linhas 8147-8175) já estão limpos — sem `message`, `response`, `assistantMessage` ou `original_response`. Nenhuma alteração necessária.
+
+### 3. `meta-whatsapp-webhook/index.ts` — Anti-loop por conversationId (linha 297)
+
+Trocar `let flowExitHandled = false` por um `Set<string>` no nível do batch, para suportar múltiplas conversas no mesmo request:
+
 ```typescript
-return { contractViolation: true, flowExit: true, reason: 'ai_contract_violation', hasFlowContext: true, flow_context: { flow_id, node_id } }
+// Antes do loop de mensagens (fora do for):
+const flowExitHandledByConversation = new Set<string>();
+
+// No check (linha 1528):
+if (...&& !flowExitHandledByConversation.has(conversation.id)) {
+  flowExitHandledByConversation.add(conversation.id);
 ```
 
-**C) flowExit: confirmar que NÃO retorna `message`** — já está OK, retorna só flags.
+## Resultado
 
-### 2. `meta-whatsapp-webhook/index.ts`
-
-**Anti-loop guard** (~linha 1525): Antes do bloco `if (flowExit || contractViolation)`, adicionar uma flag para evitar re-invocação duplicada na mesma execução do webhook. Simples:
-```typescript
-let flowExitHandled = false; // declarar no início do loop de mensagens
-// ...
-if ((autopilotData?.flowExit || autopilotData?.contractViolation) && autopilotData?.hasFlowContext && !flowExitHandled) {
-  flowExitHandled = true;
-  // ... lógica existente ...
-}
-```
-
-Isso previne loop se o próximo nó chamar autopilot de novo na mesma mensagem.
-
-## Arquivos impactados (2)
-
-1. `supabase/functions/ai-autopilot-chat/index.ts` — +1 pattern textual, remover `original_response` do contractViolation
-2. `supabase/functions/meta-whatsapp-webhook/index.ts` — anti-loop guard
-
-## Resultado esperado
-
-- `[[FLOW_EXIT]]` nunca aparece no WhatsApp (já garantido, confirmado)
-- `contractViolation` não vaza texto original (ajuste B)
-- Menus textuais `1) ... 2) ...` agora detectados (ajuste A)
-- Sem loop de re-invocação (ajuste anti-loop)
-- Tudo que já funciona continua funcionando (zero regressão)
+- Regex mais previsível no runtime Deno
+- Payloads confirmados sem vazamento de texto
+- Anti-loop robusto para batches multi-conversa
 

@@ -17,17 +17,17 @@ export default function SalesChannelsSettingsPage() {
 
   const [showDialog, setShowDialog] = useState(false);
   const [editing, setEditing] = useState<SalesChannel | null>(null);
-  const [form, setForm] = useState({ name: "", slug: "", icon: "💳", requires_order_id: false });
+  const [form, setForm] = useState({ name: "", slug: "", icon: "💳", requires_order_id: false, description: "", sort_order: 0 });
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", slug: "", icon: "💳", requires_order_id: false });
+    setForm({ name: "", slug: "", icon: "💳", requires_order_id: false, description: "", sort_order: 0 });
     setShowDialog(true);
   };
 
   const openEdit = (ch: SalesChannel) => {
     setEditing(ch);
-    setForm({ name: ch.name, slug: ch.slug, icon: ch.icon, requires_order_id: ch.requires_order_id });
+    setForm({ name: ch.name, slug: ch.slug, icon: ch.icon, requires_order_id: ch.requires_order_id, description: ch.description || "", sort_order: ch.sort_order || 0 });
     setShowDialog(true);
   };
 
@@ -86,6 +86,7 @@ export default function SalesChannelsSettingsPage() {
                   <TableHead>Ícone</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>Slug</TableHead>
+                  <TableHead>Ordem</TableHead>
                   <TableHead>Exige ID</TableHead>
                   <TableHead>Ativo</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -95,8 +96,14 @@ export default function SalesChannelsSettingsPage() {
                 {channels?.map((ch) => (
                   <TableRow key={ch.id}>
                     <TableCell className="text-xl">{ch.icon}</TableCell>
-                    <TableCell className="font-medium">{ch.name}</TableCell>
+                    <TableCell>
+                      <div>
+                        <span className="font-medium">{ch.name}</span>
+                        {ch.description && <p className="text-xs text-muted-foreground">{ch.description}</p>}
+                      </div>
+                    </TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground">{ch.slug}</TableCell>
+                    <TableCell className="text-muted-foreground">{ch.sort_order}</TableCell>
                     <TableCell>
                       <Switch
                         checked={ch.requires_order_id}
@@ -126,7 +133,7 @@ export default function SalesChannelsSettingsPage() {
                 ))}
                 {!channels?.length && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                       Nenhum canal cadastrado
                     </TableCell>
                   </TableRow>

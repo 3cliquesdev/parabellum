@@ -1,96 +1,85 @@
 
 
-# Auditoria Completa — Fix "Vazamento + Nó Errado no forceAIExit"
+# Plano: Canais de Venda Dinâmicos + FForder
 
-## Resultado: ✅ Todos os 5 itens do checklist estão implementados corretamente
+## Contexto
+Hoje o dialog "Confirmar Venda" tem apenas 2 opções fixas (Kiwify / Venda Externa). O usuário quer:
+1. Adicionar FForder como canal
+2. Permitir que gerentes criem/gerenciem canais sem depender de dev
+3. Melhorar o formulário "Venda Externa" com: seleção de canal, ID opcional, cadastro de empresa
 
----
+## Arquitetura
 
-### 1) ai-autopilot-chat: Escape check ANTES de salvar/enviar — ✅ CORRETO
+### 1. Nova tabela `sales_channels` (migration)
+```sql
+CREATE TABLE public.sales_channels (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  slug text NOT NULL UNIQUE, -- ex: 'fforder', 'pix_direto'
+  icon text DEFAULT '💳',
+  requires_order_id boolean DEFAULT false,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  created_by uuid REFERENCES auth.users(id)
+);
 
-**Ordem verificada (linhas 7847-7933 → 7936):**
+-- Seed com canais iniciais
+INSERT INTO sales_channels (name, slug, icon, requires_order_id) VALUES
+  ('FForder', 'fforder', '📦', true),
+  ('PIX Direto', 'pix_direto', '💰', false),
+  ('Boleto', 'boleto', '🏦', false),
+  ('Cartão Direto', 'cartao_direto', '💳', false),
+  ('Transferência', 'transferencia', '🔄', false);
 
-```text
-gerar assistantMessage
-  → linha 7851: validar ESCAPE_PATTERNS (se flow_context + text_only)
-    → escape detectado? → return flowExit/contractViolation SEM salvar, SEM enviar
-    → restriction violation? → substituir assistantMessage por fallback ANTES
-    → trava financeira? → substituir mensagem + transferir
-  → linha 7936: SÓ ENTÃO salvar no DB (insert messages)
-  → linha ~8020+: SÓ ENTÃO enviar WhatsApp (send-meta-whatsapp)
+-- RLS: managers podem CRUD, todos authenticated podem ler
+ALTER TABLE public.sales_channels ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated can read sales_channels"
+  ON public.sales_channels FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Managers can manage sales_channels"
+  ON public.sales_channels FOR ALL TO authenticated
+  USING (public.is_manager_or_admin(auth.uid()))
+  WITH CHECK (public.is_manager_or_admin(auth.uid()));
 ```
 
-**Payloads limpos confirmados:**
-- `flowExit` (linha 7859): retorna apenas `{ flowExit, reason, hasFlowContext, flow_context }` — zero campos de mensagem
-- `contractViolation` (linha 7874): retorna apenas `{ contractViolation, flowExit, reason, violationType, hasFlowContext, flow_context }` — zero campos de mensagem
+### 2. Refatorar `ValidateWonDealDialog.tsx`
+- Manter tab **Kiwify** como está (validação automática)
+- Renomear tab "Venda Externa" → "Outros Canais"
+- No tab "Outros Canais", adicionar:
+  - **Select "Canal de Venda"** — busca da tabela `sales_channels` (hook `useSalesChannels`)
+  - **Campo "ID da Venda"** — opcional por padrão, obrigatório se o canal tem `requires_order_id=true`
+  - **Campo "Empresa"** — input com autocomplete dos contatos tipo empresa, ou botão "Cadastrar nova empresa" inline
+  - Manter campos existentes: Valor da Venda, Observação
 
-**Cache (linha 8224):** continua DEPOIS do envio e NÃO cacheia mensagens bloqueadas (retorna antes de chegar lá)
+### 3. Hook `useSalesChannels`
+- Query simples: `select * from sales_channels where is_active=true order by name`
+- Usado no dialog e na página de configuração
 
-### 2) process-chat-flow: forceAIExit → path='ai_exit' — ✅ CORRETO
+### 4. Atualizar `onManualSuccess` (Deals.tsx)
+- Expandir o payload para incluir `sales_channel_id`, `sales_channel_name`, `external_order_id`, `company_name`
+- Salvar esses dados no deal (metadata ou campos dedicados) e no log de interação
 
-- Linha 2082: `if (aiExitForced) { path = 'ai_exit'; }` — setado ANTES de findNextNode
-- Linha 2085: log de diagnóstico incluído
+### 5. Página de gestão de canais (Settings)
+- Nova rota `/settings/sales-channels`
+- CRUD simples: nome, ícone (emoji picker ou input), toggle "Exige ID de venda", ativar/desativar
+- Acessível apenas para managers (já protegido por RLS + ProtectedRoute)
+- Link na página de Settings existente
 
-### 3) findNextNode: priorizar handle 'ai_exit' — ✅ CORRETO
+## Arquivos a criar/alterar
 
-- Linhas 241-250: bloco dedicado para `ai_response` com `path`
-- Prioriza edge com `sourceHandle === path` (ex: `ai_exit`)
-- Se não achar, cai no fallback genérico (qualquer edge) — resiliência garantida
-
-### 4) Webhook: anti-loop + continue — ✅ CORRETO
-
-- Linha 295: `flowExitHandledByConversation = new Set<string>()` no nível do batch
-- Linha 1528: check com `!flowExitHandledByConversation.has(conversation.id)`
-- Linha 1631: `continue` após sucesso — não cai no fluxo normal
-- Linha 1641: `continue` mesmo no fallback de erro — não vaza
-
-### 5) ESCAPE_PATTERNS — ✅ CORRETO
-
-- Linha 1218: `/\b1[\)\.\-][\s\S]*?\b2[\)\.\-]/i` — non-greedy, sem flag `s`
-- Emojis: exige 2+ (`/[1-9]️⃣.*[1-9]️⃣/s`) — isolado não bloqueia
-- `[[FLOW_EXIT]]` (linha 1201): detectado como saída limpa
-
----
-
-## Gap encontrado: Auditoria/rastreabilidade (item 1.2 do checklist)
-
-Quando escape/contractViolation é detectado e a mensagem é bloqueada, **não existe registro em `ai_events`** do texto bloqueado. A telemetria (linha 8182) só roda DEPOIS do save/send, e os retornos de escape saem antes disso.
-
-**Recomendação:** Adicionar um insert em `ai_events` dentro dos blocos de escape (linhas 7854-7887) para rastreabilidade:
-
-```typescript
-// Dentro do bloco escapeAttempt (antes do return), adicionar:
-await supabaseClient.from('ai_events').insert({
-  entity_type: 'conversation',
-  entity_id: conversationId,
-  event_type: isCleanExit ? 'flow_exit_clean' : 'contract_violation_blocked',
-  model: configuredAIModel || 'openai/gpt-5-mini',
-  output_json: {
-    blocked_preview: assistantMessage.substring(0, 150),
-    flow_id: flow_context.flow_id,
-    node_id: flow_context.node_id,
-    reason: isCleanExit ? 'ai_requested_exit' : 'ai_contract_violation',
-  },
-  input_summary: customerMessage?.substring(0, 200) || '',
-}).catch(err => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
-```
-
-Isso é o único ajuste pendente. Sem ele, escapes bloqueados "desaparecem" dos diagnósticos.
-
-## Arquivos a alterar
-
-1. `supabase/functions/ai-autopilot-chat/index.ts` — adicionar 2 inserts em `ai_events` (um no bloco `isCleanExit`, outro no bloco `contractViolation`), ambos non-blocking com `.catch()`
-
-## Resumo
-
-| Checklist | Status |
+| Arquivo | Ação |
 |---|---|
-| 1) Escape check antes de salvar/enviar | ✅ Implementado |
-| 1.2) Logs/auditoria de bloqueios | ⚠️ Falta insert em ai_events |
-| 2) path='ai_exit' no forceAIExit | ✅ Implementado |
-| 2.2) findNextNode prioriza handle | ✅ Implementado |
-| 3) Webhook intercepta + anti-loop | ✅ Implementado |
-| 4.1) Conversas sem flow_context | ✅ Não afetadas (if flow_context guard) |
-| 4.2) Números comuns | ✅ Não bloqueados (patterns exigem contexto) |
-| 4.3) Menus textuais/emoji | ✅ Detectados corretamente |
+| Migration SQL | Criar tabela `sales_channels` + seed + RLS |
+| `src/hooks/useSalesChannels.tsx` | Criar hook |
+| `src/components/deals/ValidateWonDealDialog.tsx` | Refatorar tab "manual" com canal, ID, empresa |
+| `src/pages/Deals.tsx` | Expandir `handleManualWonSuccess` com novos campos |
+| `src/pages/SalesChannelsSettingsPage.tsx` | Criar CRUD de canais |
+| `src/App.tsx` | Adicionar rota `/settings/sales-channels` |
+| `src/pages/Settings.tsx` (ou equivalente) | Adicionar link para nova página |
+
+## Resultado
+- Gerente cria "FForder" (ou qualquer canal) via Settings sem depender de dev
+- Vendedor ao fechar deal escolhe canal → preenche ID se necessário → registra empresa → fecha
+- Auditoria completa no log de interação com canal + ID + empresa
 

@@ -1,85 +1,63 @@
 
 
-# Plano: Canais de Venda Dinâmicos + FForder
+# Plano: Trigger de Validação no Postgres + Reuso de `update_updated_at_column()`
 
 ## Contexto
-Hoje o dialog "Confirmar Venda" tem apenas 2 opções fixas (Kiwify / Venda Externa). O usuário quer:
-1. Adicionar FForder como canal
-2. Permitir que gerentes criem/gerenciem canais sem depender de dev
-3. Melhorar o formulário "Venda Externa" com: seleção de canal, ID opcional, cadastro de empresa
 
-## Arquitetura
+Dois ajustes pendentes identificados na auditoria:
 
-### 1. Nova tabela `sales_channels` (migration)
+1. **Trigger `updated_at` em `sales_channels`** criou uma função redundante (`update_sales_channels_updated_at`). O projeto já tem `public.update_updated_at_column()` usada em 20+ tabelas. Devemos reusar.
+
+2. **Validação `requires_order_id` só existe no frontend** (dialog + re-check no handler). Um `UPDATE` direto via API/client bypassa. Precisamos de um trigger no Postgres na tabela `deals`.
+
+## Alterações
+
+### 1. Migration SQL
+
 ```sql
-CREATE TABLE public.sales_channels (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  slug text NOT NULL UNIQUE, -- ex: 'fforder', 'pix_direto'
-  icon text DEFAULT '💳',
-  requires_order_id boolean DEFAULT false,
-  is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now(),
-  created_by uuid REFERENCES auth.users(id)
-);
+-- A) Remover trigger/função redundante e reusar a padrão
+DROP TRIGGER IF EXISTS trg_sales_channels_updated_at ON public.sales_channels;
+DROP FUNCTION IF EXISTS public.update_sales_channels_updated_at();
 
--- Seed com canais iniciais
-INSERT INTO sales_channels (name, slug, icon, requires_order_id) VALUES
-  ('FForder', 'fforder', '📦', true),
-  ('PIX Direto', 'pix_direto', '💰', false),
-  ('Boleto', 'boleto', '🏦', false),
-  ('Cartão Direto', 'cartao_direto', '💳', false),
-  ('Transferência', 'transferencia', '🔄', false);
+CREATE TRIGGER update_sales_channels_updated_at
+  BEFORE UPDATE ON public.sales_channels
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_updated_at_column();
 
--- RLS: managers podem CRUD, todos authenticated podem ler
-ALTER TABLE public.sales_channels ENABLE ROW LEVEL SECURITY;
+-- B) Trigger de validação: deals.external_order_id obrigatório quando canal exige
+CREATE OR REPLACE FUNCTION public.validate_deal_sales_channel()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.sales_channel_id IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM public.sales_channels
+      WHERE id = NEW.sales_channel_id AND requires_order_id = true
+    ) AND (NEW.external_order_id IS NULL OR trim(NEW.external_order_id) = '') THEN
+      RAISE EXCEPTION 'O canal de venda selecionado exige um ID de venda (external_order_id)';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public;
 
-CREATE POLICY "Authenticated can read sales_channels"
-  ON public.sales_channels FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Managers can manage sales_channels"
-  ON public.sales_channels FOR ALL TO authenticated
-  USING (public.is_manager_or_admin(auth.uid()))
-  WITH CHECK (public.is_manager_or_admin(auth.uid()));
+CREATE TRIGGER trg_validate_deal_sales_channel
+  BEFORE INSERT OR UPDATE ON public.deals
+  FOR EACH ROW
+  EXECUTE FUNCTION public.validate_deal_sales_channel();
 ```
 
-### 2. Refatorar `ValidateWonDealDialog.tsx`
-- Manter tab **Kiwify** como está (validação automática)
-- Renomear tab "Venda Externa" → "Outros Canais"
-- No tab "Outros Canais", adicionar:
-  - **Select "Canal de Venda"** — busca da tabela `sales_channels` (hook `useSalesChannels`)
-  - **Campo "ID da Venda"** — opcional por padrão, obrigatório se o canal tem `requires_order_id=true`
-  - **Campo "Empresa"** — input com autocomplete dos contatos tipo empresa, ou botão "Cadastrar nova empresa" inline
-  - Manter campos existentes: Valor da Venda, Observação
+### 2. Nenhuma alteração de código frontend
 
-### 3. Hook `useSalesChannels`
-- Query simples: `select * from sales_channels where is_active=true order by name`
-- Usado no dialog e na página de configuração
+A validação frontend continua como está (UX). O trigger é a camada de segurança real que impede bypass.
 
-### 4. Atualizar `onManualSuccess` (Deals.tsx)
-- Expandir o payload para incluir `sales_channel_id`, `sales_channel_name`, `external_order_id`, `company_name`
-- Salvar esses dados no deal (metadata ou campos dedicados) e no log de interação
+## Arquivos
 
-### 5. Página de gestão de canais (Settings)
-- Nova rota `/settings/sales-channels`
-- CRUD simples: nome, ícone (emoji picker ou input), toggle "Exige ID de venda", ativar/desativar
-- Acessível apenas para managers (já protegido por RLS + ProtectedRoute)
-- Link na página de Settings existente
-
-## Arquivos a criar/alterar
-
-| Arquivo | Ação |
+| Arquivo | Acao |
 |---|---|
-| Migration SQL | Criar tabela `sales_channels` + seed + RLS |
-| `src/hooks/useSalesChannels.tsx` | Criar hook |
-| `src/components/deals/ValidateWonDealDialog.tsx` | Refatorar tab "manual" com canal, ID, empresa |
-| `src/pages/Deals.tsx` | Expandir `handleManualWonSuccess` com novos campos |
-| `src/pages/SalesChannelsSettingsPage.tsx` | Criar CRUD de canais |
-| `src/App.tsx` | Adicionar rota `/settings/sales-channels` |
-| `src/pages/Settings.tsx` (ou equivalente) | Adicionar link para nova página |
+| Migration SQL | Reusar trigger updated_at + criar trigger validacao deals |
 
 ## Resultado
-- Gerente cria "FForder" (ou qualquer canal) via Settings sem depender de dev
-- Vendedor ao fechar deal escolhe canal → preenche ID se necessário → registra empresa → fecha
-- Auditoria completa no log de interação com canal + ID + empresa
+
+- `updated_at` em `sales_channels` usa a mesma função padrao do projeto
+- Tentar salvar deal com FForder (requires_order_id=true) sem external_order_id falha no banco, independente de como o request chegou
 

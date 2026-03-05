@@ -52,15 +52,16 @@ export function TransferPropertiesPanel({ selectedNode, updateNodeData }: Transf
             <SelectItem value="queue">Fila de atendimento</SelectItem>
             <SelectItem value="agent">Agente específico</SelectItem>
             <SelectItem value="consultant">Consultor do cliente</SelectItem>
+            <SelectItem value="preferred">Preferência do Contato</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {/* Selecionar Departamento - aparece para "department", "agent" e "consultant" (fallback) */}
-      {(transferType === "department" || transferType === "agent" || transferType === "consultant") && (
+      {(transferType === "department" || transferType === "agent" || transferType === "consultant" || transferType === "preferred") && (
         <div className="space-y-1.5">
           <Label className="text-xs">
-            {transferType === "agent" ? "Departamento do agente" : transferType === "consultant" ? "Departamento fallback" : "Departamento destino"}
+            {transferType === "agent" ? "Departamento do agente" : (transferType === "consultant" || transferType === "preferred") ? "Departamento fallback" : "Departamento destino"}
           </Label>
           <Select
             value={selectedNode.data.department_id || ""}

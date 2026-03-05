@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Edit, Trash2, Loader2, Clock, MessageSquare, Timer } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, Clock, MessageSquare, Timer, Tag } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDepartments, type Department } from "@/hooks/useDepartments";
 import { useDeleteDepartment } from "@/hooks/useDeleteDepartment";
@@ -29,6 +30,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 
 export default function Departments() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("departments");
 
   // Department state
@@ -130,13 +132,25 @@ export default function Departments() {
         )}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+      <Tabs value={activeTab} onValueChange={(val) => {
+        if (val === "business-hours") { navigate("/settings/sla"); return; }
+        if (val === "tags") { navigate("/settings/tags"); return; }
+        setActiveTab(val);
+      }}>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="departments">Departamentos</TabsTrigger>
           <TabsTrigger value="operations">Operações</TabsTrigger>
           <TabsTrigger value="categories">Categorias</TabsTrigger>
           <TabsTrigger value="origins">Origens</TabsTrigger>
           <TabsTrigger value="fields">Campos</TabsTrigger>
+          <TabsTrigger value="business-hours">
+            <Clock className="mr-1.5 h-4 w-4" />
+            Horário Comercial
+          </TabsTrigger>
+          <TabsTrigger value="tags">
+            <Tag className="mr-1.5 h-4 w-4" />
+            Tags
+          </TabsTrigger>
         </TabsList>
 
         {/* === DEPARTAMENTOS === */}

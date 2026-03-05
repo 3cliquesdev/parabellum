@@ -1,72 +1,96 @@
 
 
-# Plano: Fix Vazamento de Mensagem + Nó Errado no forceAIExit
+# Auditoria Completa — Fix "Vazamento + Nó Errado no forceAIExit"
 
-## Problema 1: Mensagem "fake transfer" enviada ao WhatsApp
+## Resultado: ✅ Todos os 5 itens do checklist estão implementados corretamente
 
-**Root cause**: Em `ai-autopilot-chat/index.ts`, a sequência é:
-1. Linha 7847: Salva `assistantMessage` no banco
-2. Linha 7991: **ENVIA para WhatsApp** via `send-meta-whatsapp`
-3. Linha 8138: Só DEPOIS roda ESCAPE_PATTERNS
+---
 
-A mensagem "Vou te direcionar para nosso menu de atendimento..." já foi enviada e salva ANTES do escape check rodar. O check detecta, retorna `flowExit`, o webhook avança o flow — mas o texto já foi entregue ao cliente.
+### 1) ai-autopilot-chat: Escape check ANTES de salvar/enviar — ✅ CORRETO
 
-**Fix**: Mover o bloco de escape detection (linhas 8138-8229) para ANTES da inserção no banco (antes da linha 7847). A lógica fica:
+**Ordem verificada (linhas 7847-7933 → 7936):**
 
 ```text
-IA gera assistantMessage
-  → ESCAPE CHECK (antes de salvar/enviar)
-    → Se escape detectado: return flowExit/contractViolation (sem salvar, sem enviar)
-    → Se ok: continua para salvar no banco + enviar WhatsApp
+gerar assistantMessage
+  → linha 7851: validar ESCAPE_PATTERNS (se flow_context + text_only)
+    → escape detectado? → return flowExit/contractViolation SEM salvar, SEM enviar
+    → restriction violation? → substituir assistantMessage por fallback ANTES
+    → trava financeira? → substituir mensagem + transferir
+  → linha 7936: SÓ ENTÃO salvar no DB (insert messages)
+  → linha ~8020+: SÓ ENTÃO enviar WhatsApp (send-meta-whatsapp)
 ```
 
-## Problema 2: Avança para o nó errado
+**Payloads limpos confirmados:**
+- `flowExit` (linha 7859): retorna apenas `{ flowExit, reason, hasFlowContext, flow_context }` — zero campos de mensagem
+- `contractViolation` (linha 7874): retorna apenas `{ contractViolation, flowExit, reason, violationType, hasFlowContext, flow_context }` — zero campos de mensagem
 
-Quando `forceAIExit=true`, o `path` fica `undefined`. Em `findNextNode`, isso faz com que pegue a edge sem `sourceHandle` (default), ignorando edges com handle `ai_exit`.
+**Cache (linha 8224):** continua DEPOIS do envio e NÃO cacheia mensagens bloqueadas (retorna antes de chegar lá)
 
-**Fix**: No `process-chat-flow`, quando `aiExitForced=true`, setar `path = 'ai_exit'` para que `findNextNode` procure primeiro uma edge com `sourceHandle='ai_exit'`. Se não existir, cairá no fallback (qualquer edge).
+### 2) process-chat-flow: forceAIExit → path='ai_exit' — ✅ CORRETO
+
+- Linha 2082: `if (aiExitForced) { path = 'ai_exit'; }` — setado ANTES de findNextNode
+- Linha 2085: log de diagnóstico incluído
+
+### 3) findNextNode: priorizar handle 'ai_exit' — ✅ CORRETO
+
+- Linhas 241-250: bloco dedicado para `ai_response` com `path`
+- Prioriza edge com `sourceHandle === path` (ex: `ai_exit`)
+- Se não achar, cai no fallback genérico (qualquer edge) — resiliência garantida
+
+### 4) Webhook: anti-loop + continue — ✅ CORRETO
+
+- Linha 295: `flowExitHandledByConversation = new Set<string>()` no nível do batch
+- Linha 1528: check com `!flowExitHandledByConversation.has(conversation.id)`
+- Linha 1631: `continue` após sucesso — não cai no fluxo normal
+- Linha 1641: `continue` mesmo no fallback de erro — não vaza
+
+### 5) ESCAPE_PATTERNS — ✅ CORRETO
+
+- Linha 1218: `/\b1[\)\.\-][\s\S]*?\b2[\)\.\-]/i` — non-greedy, sem flag `s`
+- Emojis: exige 2+ (`/[1-9]️⃣.*[1-9]️⃣/s`) — isolado não bloqueia
+- `[[FLOW_EXIT]]` (linha 1201): detectado como saída limpa
+
+---
+
+## Gap encontrado: Auditoria/rastreabilidade (item 1.2 do checklist)
+
+Quando escape/contractViolation é detectado e a mensagem é bloqueada, **não existe registro em `ai_events`** do texto bloqueado. A telemetria (linha 8182) só roda DEPOIS do save/send, e os retornos de escape saem antes disso.
+
+**Recomendação:** Adicionar um insert em `ai_events` dentro dos blocos de escape (linhas 7854-7887) para rastreabilidade:
 
 ```typescript
-// Linha ~2067, após o bloco de fallback_message:
-if (aiExitForced) {
-  path = 'ai_exit';
-}
+// Dentro do bloco escapeAttempt (antes do return), adicionar:
+await supabaseClient.from('ai_events').insert({
+  entity_type: 'conversation',
+  entity_id: conversationId,
+  event_type: isCleanExit ? 'flow_exit_clean' : 'contract_violation_blocked',
+  model: configuredAIModel || 'openai/gpt-5-mini',
+  output_json: {
+    blocked_preview: assistantMessage.substring(0, 150),
+    flow_id: flow_context.flow_id,
+    node_id: flow_context.node_id,
+    reason: isCleanExit ? 'ai_requested_exit' : 'ai_contract_violation',
+  },
+  input_summary: customerMessage?.substring(0, 200) || '',
+}).catch(err => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
 ```
 
-E ajustar `findNextNode` para tratar `ai_response` com path da mesma forma que trata edges com handle:
+Isso é o único ajuste pendente. Sem ele, escapes bloqueados "desaparecem" dos diagnósticos.
 
-```typescript
-// Na função findNextNode, antes do fallback genérico:
-if (currentNode.type === 'ai_response' && path) {
-  const handleEdge = edges.find(e => e.source === currentNode.id && e.sourceHandle === path);
-  if (handleEdge) return flowDef.nodes.find(n => n.id === handleEdge.target);
-  // Se não achou edge com handle, cai no fallback abaixo
-}
-```
+## Arquivos a alterar
 
-## Arquivos impactados (2)
+1. `supabase/functions/ai-autopilot-chat/index.ts` — adicionar 2 inserts em `ai_events` (um no bloco `isCleanExit`, outro no bloco `contractViolation`), ambos non-blocking com `.catch()`
 
-### 1. `ai-autopilot-chat/index.ts`
-- **Mover** bloco escape detection + restriction validation (linhas 8138-8229) para ANTES da linha 7847 (salvar no banco)
-- Quando escape detectado, retornar `flowExit`/`contractViolation` imediatamente — sem salvar mensagem, sem enviar WhatsApp
-- Quando restriction violation detectada, substituir `assistantMessage` pelo fallback ANTES de salvar/enviar
-- A mensagem de cache (linha 8232) precisa continuar DEPOIS do envio
+## Resumo
 
-### 2. `process-chat-flow/index.ts`
-- Setar `path = 'ai_exit'` quando `aiExitForced=true` (linha ~2067)
-- Adicionar bloco em `findNextNode` para `ai_response` com path (priorizar edge com handle `ai_exit`)
-
-## Resultado
-
-```text
-Caso 1 (fake transfer):
-  IA gera "Vou te direcionar..." → escape check ANTES de enviar → detecta → retorna flowExit
-  → Webhook avança flow → cliente recebe menu REAL → zero vazamento
-
-Caso 2 (nó errado):
-  forceAIExit → path='ai_exit' → findNextNode pega edge com handle ai_exit → nó correto (transfer/menu)
-
-Caso 3 ([[FLOW_EXIT]]):
-  IA gera "[[FLOW_EXIT]]" → escape check detecta → retorna flowExit limpo → mesmo resultado
-```
+| Checklist | Status |
+|---|---|
+| 1) Escape check antes de salvar/enviar | ✅ Implementado |
+| 1.2) Logs/auditoria de bloqueios | ⚠️ Falta insert em ai_events |
+| 2) path='ai_exit' no forceAIExit | ✅ Implementado |
+| 2.2) findNextNode prioriza handle | ✅ Implementado |
+| 3) Webhook intercepta + anti-loop | ✅ Implementado |
+| 4.1) Conversas sem flow_context | ✅ Não afetadas (if flow_context guard) |
+| 4.2) Números comuns | ✅ Não bloqueados (patterns exigem contexto) |
+| 4.3) Menus textuais/emoji | ✅ Detectados corretamente |
 

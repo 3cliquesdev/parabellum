@@ -170,6 +170,26 @@ export function TransferPropertiesPanel({ selectedNode, updateNodeData }: Transf
         </div>
       )}
 
+      {/* Mensagem de info para Preferência do Contato */}
+      {transferType === "preferred" && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground bg-muted/50 p-2.5 rounded-lg">
+            <p className="font-medium mb-1">Cadeia de prioridade:</p>
+            <ol className="list-decimal list-inside space-y-0.5">
+              <li>Atendente preferido do contato</li>
+              <li>Departamento preferido do contato</li>
+              <li>Departamento padrão da organização</li>
+              <li>Departamento fallback (configurado acima)</li>
+            </ol>
+          </div>
+          {!selectedNode.data.department_id && (
+            <div className="text-xs text-warning bg-warning/10 border border-warning/20 p-2.5 rounded-lg font-medium">
+              ⚠ Selecione um departamento fallback obrigatório acima.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Mensagem de info para Fila */}
       {transferType === "queue" && (
         <div className="text-xs text-muted-foreground bg-muted/50 p-2.5 rounded-lg">

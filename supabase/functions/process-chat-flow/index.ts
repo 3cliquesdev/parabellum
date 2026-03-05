@@ -296,6 +296,22 @@ async function buildVariablesContext(
     }
   }
 
+  // Org default department
+  if (supabaseClient && contactData?.organization_id) {
+    try {
+      const { data: orgData } = await supabaseClient
+        .from('organizations')
+        .select('default_department_id')
+        .eq('id', contactData.organization_id)
+        .maybeSingle();
+      if (orgData?.default_department_id) {
+        ctx['org_default_department_id'] = orgData.default_department_id;
+      }
+    } catch (e) {
+      console.warn('[process-chat-flow] ⚠️ Failed to get org default dept:', e);
+    }
+  }
+
   // Business hours variables
   if (supabaseClient) {
     try {

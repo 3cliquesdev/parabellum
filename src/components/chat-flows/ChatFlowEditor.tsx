@@ -345,7 +345,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
 
     // Sanitizar e validar regras de condição antes de salvar
     const sanitizedNodes = nodes.map(node => {
-      if (node.type !== 'condition' || !node.data.condition_rules?.length) return node;
+      if ((node.type !== 'condition' && node.type !== 'condition_v2') || !node.data.condition_rules?.length) return node;
       
       const rules = node.data.condition_rules.map((rule: any) => {
         // Auto-clear: se keywords === label, limpar keywords (motor usa label como fallback)
@@ -435,10 +435,10 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
     const removed = rules[idx];
     rules.splice(idx, 1);
     updateNodeData('condition_rules', rules);
-    // Remover edges conectadas ao handle dessa regra
+    // Remover edges conectadas ao handle dessa regra (incluindo _false para V2)
     if (removed?.id) {
       setEdges((eds) => eds.filter(
-        (e) => !(e.source === selectedNode.id && e.sourceHandle === removed.id)
+        (e) => !(e.source === selectedNode.id && (e.sourceHandle === removed.id || e.sourceHandle === `${removed.id}_false`))
       ));
     }
   };

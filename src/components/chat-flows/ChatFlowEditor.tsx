@@ -922,7 +922,97 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                 );
               })()}
 
-              {/* IA Response */}
+              {/* Condição V2 (Sim/Não por regra) */}
+              {selectedNode.type === "condition_v2" && (
+                <div className="space-y-3">
+                  <div className="border-b pb-2">
+                    <p className="text-[10px] text-muted-foreground">
+                      Cada regra tem saída <span className="text-success font-semibold">✓ Sim</span> e <span className="text-destructive font-semibold">✗ Não</span>. Se nenhuma bater, segue por "Outros".
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Regras</Label>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={addConditionRule}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Regra
+                    </Button>
+                  </div>
+                  {(selectedNode.data.condition_rules || []).map((rule: any, idx: number) => (
+                    <div key={rule.id} className="border rounded-md p-2 space-y-1.5 bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'][idx % 8] }}
+                        />
+                        <Input
+                          value={rule.label || ""}
+                          onChange={(e) => updateConditionRule(idx, "label", e.target.value)}
+                          placeholder={`Regra ${idx + 1} (ex: Tem Consultor?)`}
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => removeConditionRule(idx)}
+                          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <Select
+                        value={rule.field || "__keywords__"}
+                        onValueChange={(val) => {
+                          const fieldVal = val === "__keywords__" ? "" : val;
+                          updateConditionRule(idx, "field", fieldVal);
+                          if (fieldVal) {
+                            const catalogItem = [...CONDITION_CONTACT_FIELDS, ...CONDITION_CONVERSATION_FIELDS].find(f => f.value === fieldVal);
+                            if (catalogItem && !rule.label) {
+                              updateConditionRule(idx, "label", catalogItem.label);
+                            }
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue placeholder="Modo da regra" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__keywords__">🔤 Keywords (texto do usuário)</SelectItem>
+                          <SelectGroup>
+                            <SelectLabel>Verificar dado do contato</SelectLabel>
+                            {CONDITION_CONTACT_FIELDS.map(f => (
+                              <SelectItem key={f.value} value={f.value}>🔍 {f.label}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Verificar dado da conversa</SelectLabel>
+                            {CONDITION_CONVERSATION_FIELDS.map(f => (
+                              <SelectItem key={f.value} value={f.value}>🔍 {f.label}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {!rule.field && (
+                        <Textarea
+                          onKeyDown={(e) => e.stopPropagation()}
+                          value={rule.keywords || ""}
+                          onChange={(e) => updateConditionRule(idx, "keywords", e.target.value)}
+                          placeholder="Opcional: frases extras (1 por linha)."
+                          className="min-h-[40px] text-xs"
+                        />
+                      )}
+                      {rule.field && (
+                        <p className="text-[10px] text-muted-foreground italic">
+                          ✅ Verifica se o campo tem dado — saída Sim/Não
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {selectedNode.type === "ai_response" && (
                 <AIResponsePropertiesPanel
                   selectedNode={selectedNode}

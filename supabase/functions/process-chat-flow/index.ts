@@ -427,7 +427,7 @@ function evaluateCondition(condition: any, collectedData: Record<string, any>, u
 // 🆕 Avaliar condição com suporte a multi-regra (condition_rules)
 // Retorna: para multi-regra, o ID da regra que bateu ou "else"
 //          para modo clássico, "true" ou "false"
-function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>, userMessage: string, extraFlags?: { inactivityTimeout?: boolean }): string {
+function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>, userMessage: string, extraFlags?: { inactivityTimeout?: boolean }, contactData?: any, conversationData?: any): string {
   const rules = nodeData.condition_rules;
   
   // Multi-regra: iterar cada regra e retornar a primeira que bater
@@ -436,7 +436,21 @@ function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>
     console.log(`[process-chat-flow] 🔍 Evaluating ${rules.length} condition rules. User message (normalized): "${msg}"`);
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
-      // Usar keywords se preenchido, senao usar label como fallback
+
+      // 🆕 Field-based rule: verificar dado do contato/conversa via getVar
+      if (rule.field) {
+        const fieldValue = getVar(rule.field, collectedData, contactData, conversationData);
+        const checkType = rule.check_type || 'has_data';
+        const hasValue = fieldValue !== null && fieldValue !== undefined && fieldValue !== false && String(fieldValue).trim().length > 0;
+        console.log(`[process-chat-flow] 📋 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: ${checkType} | value: ${fieldValue} | has: ${hasValue}`);
+        if (checkType === 'has_data' && hasValue) {
+          console.log(`[process-chat-flow] 🎯 MATCH on Rule ${i + 1}: "${rule.label}" — field "${rule.field}" has data`);
+          return rule.id;
+        }
+        continue;
+      }
+
+      // Keyword-based rule (comportamento existente)
       const rawKw = (rule.keywords || "").trim() || (rule.label || "").trim();
       const terms = rawKw.includes("\n")
         ? rawKw.split("\n").map((t: string) => t.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).filter(Boolean)

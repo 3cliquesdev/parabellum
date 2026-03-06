@@ -8,6 +8,8 @@ interface ConditionRule {
   id: string;
   label: string;
   keywords: string;
+  field?: string;
+  check_type?: string;
 }
 
 interface ConditionNodeData {

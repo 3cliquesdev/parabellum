@@ -1722,7 +1722,7 @@ serve(async (req) => {
                 let resolvedNode = nextAfterOtp;
                 while (resolvedNode && ['condition', 'input', 'start'].includes(resolvedNode.type)) {
                   if (resolvedNode.type === 'condition') {
-                    const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage);
+                    const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
                     const afterCond = findNextNode(flowDef, resolvedNode, condPath);
                     if (!afterCond || !['condition', 'input', 'start'].includes(afterCond.type)) {
                       resolvedNode = afterCond;

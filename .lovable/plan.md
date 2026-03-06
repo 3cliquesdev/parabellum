@@ -1,25 +1,32 @@
 
-# Plano: Roteamento por Preferência do Contato (Overrides) ✅
+# Plano: Condição V2 — Nó separado com Sim/Não por regra ✅
 
-## Status: IMPLEMENTADO E VALIDADO
+## Status: IMPLEMENTADO
 
 ## Resumo
 
-Camada de roteamento baseada em overrides configuráveis por contato e organização. O sistema resolve o destino na transferência usando a cadeia: **Atendente preferido → Departamento preferido → Departamento padrão da Organização → Fallback do nó**.
+Novo tipo de nó `condition_v2` no editor de fluxos. Cada regra tem saídas explícitas **Sim** (verde) e **Não** (vermelho), permitindo definir caminhos para ambos os resultados. O nó `condition` original permanece 100% intocado.
 
-## Validação Completa
+## Arquivos alterados
 
-| Camada | Status |
-|---|---|
-| Migration SQL (3 colunas) | ✅ |
-| Frontend (TransferNode + Panel) | ✅ |
-| Frontend (ContactDialog + OrgDialog) | ✅ |
-| Backend (process-chat-flow passthrough) | ✅ |
-| Backend (webhook resolução preferred) | ✅ |
-| Variáveis de contexto | ✅ |
-| Isolamento consultor vs preferred | ✅ |
-| Teste E2E com dados reais | ⏳ Pendente |
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/chat-flows/nodes/ConditionV2Node.tsx` | **Novo** — Visual com handles Sim/Não por regra |
+| `src/components/chat-flows/nodes/index.ts` | Export do novo nó |
+| `src/components/chat-flows/ChatFlowNodeWrapper.tsx` | Tipo `condition_v2` adicionado |
+| `src/components/chat-flows/ChatFlowEditor.tsx` | nodeType, menu, painel de config, edge cleanup |
+| `supabase/functions/process-chat-flow/index.ts` | `evaluateConditionV2Path()` + todos os pontos de travessia |
 
-## Próximo passo
+## Lógica V2 (engine)
 
-Testar E2E: preencher contatos de teste com overrides e enviar mensagens WhatsApp para validar os 4 cenários de roteamento nos logs.
+Para cada regra em ordem:
+1. **TRUE** → segue handle `rule.id` (Sim)
+2. **FALSE** → se existe edge no handle `rule.id_false` (Não), segue por ela
+3. **FALSE sem edge Não** → continua para próxima regra (fallthrough)
+4. Se nenhuma regra bater → segue "Outros" (`else`)
+
+## Garantias
+
+- Nó `condition` original: **zero alteração na lógica**
+- Master Flow e fluxos existentes: **sem impacto**
+- Pode testar V2 em fluxo de teste antes de usar em produção

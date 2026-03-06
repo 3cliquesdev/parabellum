@@ -8,6 +8,8 @@ interface ConditionRule {
   id: string;
   label: string;
   keywords: string;
+  field?: string;
+  check_type?: string;
 }
 
 interface ConditionNodeData {
@@ -118,7 +120,9 @@ export const ChatFlowConditionNode = memo(({ data, selected }: NodeProps<Conditi
                 className="font-medium truncate"
                 style={{ color: ruleColors[idx % ruleColors.length] }}
               >
-                {rule.label || "Sem rótulo"}
+                {rule.field
+                  ? `🔍 ${friendlyFieldNames[rule.field] || rule.field}`
+                  : (rule.label || "Sem rótulo")}
               </span>
             </div>
           ))}

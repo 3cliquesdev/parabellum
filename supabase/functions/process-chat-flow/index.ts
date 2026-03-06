@@ -427,7 +427,7 @@ function evaluateCondition(condition: any, collectedData: Record<string, any>, u
 // 🆕 Avaliar condição com suporte a multi-regra (condition_rules)
 // Retorna: para multi-regra, o ID da regra que bateu ou "else"
 //          para modo clássico, "true" ou "false"
-function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>, userMessage: string, extraFlags?: { inactivityTimeout?: boolean }): string {
+function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>, userMessage: string, extraFlags?: { inactivityTimeout?: boolean }, contactData?: any, conversationData?: any): string {
   const rules = nodeData.condition_rules;
   
   // Multi-regra: iterar cada regra e retornar a primeira que bater
@@ -436,7 +436,21 @@ function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>
     console.log(`[process-chat-flow] 🔍 Evaluating ${rules.length} condition rules. User message (normalized): "${msg}"`);
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
-      // Usar keywords se preenchido, senao usar label como fallback
+
+      // 🆕 Field-based rule: verificar dado do contato/conversa via getVar
+      if (rule.field) {
+        const fieldValue = getVar(rule.field, collectedData, contactData, conversationData);
+        const checkType = rule.check_type || 'has_data';
+        const hasValue = fieldValue !== null && fieldValue !== undefined && fieldValue !== false && String(fieldValue).trim().length > 0;
+        console.log(`[process-chat-flow] 📋 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: ${checkType} | value: ${fieldValue} | has: ${hasValue}`);
+        if (checkType === 'has_data' && hasValue) {
+          console.log(`[process-chat-flow] 🎯 MATCH on Rule ${i + 1}: "${rule.label}" — field "${rule.field}" has data`);
+          return rule.id;
+        }
+        continue;
+      }
+
+      // Keyword-based rule (comportamento existente)
       const rawKw = (rule.keywords || "").trim() || (rule.label || "").trim();
       const terms = rawKw.includes("\n")
         ? rawKw.split("\n").map((t: string) => t.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).filter(Boolean)
@@ -1508,7 +1522,7 @@ serve(async (req) => {
               let resolvedNode = nextAfterOtp;
               while (resolvedNode && ['condition', 'input', 'start'].includes(resolvedNode.type)) {
                 if (resolvedNode.type === 'condition') {
-                  const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage);
+                  const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
                   const afterCond = findNextNode(flowDef, resolvedNode, condPath);
                   if (!afterCond || !['condition', 'input', 'start'].includes(afterCond.type)) {
                     resolvedNode = afterCond;
@@ -1623,7 +1637,7 @@ serve(async (req) => {
               let resolvedNode = nextAfterOtp;
               while (resolvedNode && ['condition', 'input', 'start'].includes(resolvedNode.type)) {
                 if (resolvedNode.type === 'condition') {
-                  const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage);
+                  const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
                   const afterCond = findNextNode(flowDef, resolvedNode, condPath);
                   if (!afterCond || !['condition', 'input', 'start'].includes(afterCond.type)) {
                     resolvedNode = afterCond;
@@ -1708,7 +1722,7 @@ serve(async (req) => {
                 let resolvedNode = nextAfterOtp;
                 while (resolvedNode && ['condition', 'input', 'start'].includes(resolvedNode.type)) {
                   if (resolvedNode.type === 'condition') {
-                    const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage);
+                    const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
                     const afterCond = findNextNode(flowDef, resolvedNode, condPath);
                     if (!afterCond || !['condition', 'input', 'start'].includes(afterCond.type)) {
                       resolvedNode = afterCond;
@@ -1868,7 +1882,7 @@ serve(async (req) => {
           console.log(`[process-chat-flow] ⏱ condition: type=inactivity node=${currentNode.id} → client responded → path=false`);
           path = 'false';
         } else {
-          path = evaluateConditionPath(currentNode.data, collectedData, userMessage, { inactivityTimeout });
+          path = evaluateConditionPath(currentNode.data, collectedData, userMessage, { inactivityTimeout }, activeContactData, activeConversationData);
           console.log(`[process-chat-flow] 🔀 condition: type=${currentNode.data?.condition_type} node=${currentNode.id} → path="${path}"`);
         }
       } else if (currentNode.type === 'ai_response') {
@@ -2263,7 +2277,7 @@ serve(async (req) => {
             );
           }
 
-          const condPath = evaluateConditionPath(nextNode.data, collectedData, userMessage, { inactivityTimeout });
+          const condPath = evaluateConditionPath(nextNode.data, collectedData, userMessage, { inactivityTimeout }, activeContactData, activeConversationData);
           console.log(`[process-chat-flow] 🔀 Condition ${nextNode.id}: → path ${condPath}`);
           nextNode = findNextNode(flowDef, nextNode, condPath);
         } else {
@@ -2293,7 +2307,7 @@ serve(async (req) => {
         // Loop de auto-traverse: atravessar condition, input, start até conteúdo
         while (afterFetchNode && ['condition', 'input', 'start'].includes(afterFetchNode.type)) {
           if (afterFetchNode.type === 'condition') {
-            const condPath = evaluateConditionPath(afterFetchNode.data, collectedData, userMessage);
+            const condPath = evaluateConditionPath(afterFetchNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
             const resolved = findNextNode(flowDef, afterFetchNode, condPath);
             if (!resolved || !['condition', 'input', 'start'].includes(resolved.type)) {
               afterFetchNode = resolved;
@@ -2429,7 +2443,7 @@ serve(async (req) => {
         let afterValidateNode = findNextNode(flowDef, nextNode);
         while (afterValidateNode && ['condition', 'input', 'start'].includes(afterValidateNode.type)) {
           if (afterValidateNode.type === 'condition') {
-            const condPath = evaluateConditionPath(afterValidateNode.data, collectedData, userMessage);
+            const condPath = evaluateConditionPath(afterValidateNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
             const resolved = findNextNode(flowDef, afterValidateNode, condPath);
             if (!resolved || !['condition', 'input', 'start'].includes(resolved.type)) {
               afterValidateNode = resolved;
@@ -2684,7 +2698,7 @@ serve(async (req) => {
         
         // Se próximo é condition, avaliar e continuar
         if (afterMessage.type === 'condition') {
-          const condPath = evaluateConditionPath(afterMessage.data, collectedData, userMessage);
+          const condPath = evaluateConditionPath(afterMessage.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
           const afterCond = findNextNode(flowDef, afterMessage, condPath);
           nextNode = afterCond || null;
         } else if (afterMessage.type === 'input' || afterMessage.type === 'start') {
@@ -3160,13 +3174,14 @@ serve(async (req) => {
             let next: any = null;
 
           if (hasMultiRules) {
-              // 🆕 FIX: Se não há userMessage real, parar na condição e aguardar input
-              if (!userMessage || userMessage.trim().length === 0) {
-                console.log('[process-chat-flow] 🛑 Master flow: multi-rule condition without userMessage — stopping as waiting_input');
+              // 🆕 FIX: Se não há userMessage real E as regras são keyword-based, parar e aguardar input
+              const hasFieldRules = node.data.condition_rules.some((r: any) => !!r.field);
+              if (!hasFieldRules && (!userMessage || userMessage.trim().length === 0)) {
+                console.log('[process-chat-flow] 🛑 Master flow: multi-rule keyword condition without userMessage — stopping as waiting_input');
                 break;
               }
               // Multi-regra: usar evaluateConditionPath que retorna rule.id ou "else"
-              const path = evaluateConditionPath(node.data, collectedData, userMessage);
+              const path = evaluateConditionPath(node.data, collectedData, userMessage, undefined, contactData, conversation);
               console.log(`[process-chat-flow] 🔀 Multi-rule condition path: "${path}"`);
               next = findNextNode(flowDef, node, path);
               if (next) {
@@ -3414,8 +3429,9 @@ serve(async (req) => {
       if (currentNode.type === 'condition') {
         // 🆕 FIX: Multi-regra com keywords precisa de mensagem real
         const hasMultiRules = currentNode.data?.condition_rules?.length > 0;
-        if (hasMultiRules && (!userMessage || userMessage.trim().length === 0)) {
-          console.log('[process-chat-flow] 🛑 New flow: multi-rule condition without userMessage — stopping as waiting_input');
+        const hasFieldRules = hasMultiRules && currentNode.data.condition_rules.some((r: any) => !!r.field);
+        if (hasMultiRules && !hasFieldRules && (!userMessage || userMessage.trim().length === 0)) {
+          console.log('[process-chat-flow] 🛑 New flow: multi-rule keyword condition without userMessage — stopping as waiting_input');
           break;
         }
         const path = evaluateConditionPath(currentNode.data, {}, userMessage);

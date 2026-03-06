@@ -1264,11 +1264,14 @@ serve(async (req) => {
             break;
           }
 
-          if (nextNode.type === 'condition') {
+          if (nextNode.type === 'condition' || nextNode.type === 'condition_v2') {
             // Avaliar condição e seguir caminho
             const hasMultiRules = nextNode.data?.condition_rules?.length > 0;
             let condNext: any = null;
-            if (hasMultiRules) {
+            if (nextNode.type === 'condition_v2' && hasMultiRules) {
+              const v2Path = evaluateConditionV2Path(nextNode.data, manualCollectedData, '', undefined, manualContactData, manualConversation, flowDef.edges || []);
+              condNext = findNextNode(flowDef, nextNode, v2Path);
+            } else if (hasMultiRules) {
               const path = evaluateConditionPath(nextNode.data, manualCollectedData, '');
               condNext = findNextNode(flowDef, nextNode, path);
             } else {
@@ -1282,7 +1285,7 @@ serve(async (req) => {
             if (!condNext) break;
             advanceNode = condNext;
             // Se alcançou um nó de conteúdo via condição, parar aqui
-            if (!['condition', 'input', 'start'].includes(advanceNode.type)) break;
+            if (!['condition', 'condition_v2', 'input', 'start'].includes(advanceNode.type)) break;
           } else if (nextNode.type === 'input' || nextNode.type === 'start') {
             advanceNode = nextNode;
           } else {
@@ -1293,7 +1296,7 @@ serve(async (req) => {
         }
 
         if (advanceNode.id !== contentNode.id) {
-          const advanceStatus = advanceNode.type.startsWith('ask_') || advanceNode.type === 'condition'
+          const advanceStatus = advanceNode.type.startsWith('ask_') || advanceNode.type === 'condition' || advanceNode.type === 'condition_v2'
             ? 'waiting_input' : 'active';
 
           const { error: advErr } = await supabaseClient

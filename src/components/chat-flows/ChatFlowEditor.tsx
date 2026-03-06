@@ -310,6 +310,17 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
         ));
       }
     }
+
+    // Auto-clean orphan edges for condition_v2
+    if (selectedNode.type === 'condition_v2' && field === 'condition_rules') {
+      const rules = value as Array<{ id: string }> | undefined;
+      if (rules && rules.length > 0) {
+        const validHandles = new Set([...rules.map(r => r.id), ...rules.map(r => `${r.id}_false`), 'else']);
+        setEdges((eds) => eds.filter(
+          (e) => e.source !== selectedNode.id || !e.sourceHandle || validHandles.has(e.sourceHandle)
+        ));
+      }
+    }
   };
 
   const deleteNode = () => {

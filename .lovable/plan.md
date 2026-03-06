@@ -1,39 +1,32 @@
 
+# Plano: Condição V2 — Nó separado com Sim/Não por regra ✅
 
-# Condição V2 — Novo tipo de nó, zero impacto no existente
+## Status: IMPLEMENTADO
 
-## Análise da preocupação
+## Resumo
 
-A preocupação é válida. Modificar o `ConditionNode` existente e o motor de fluxos impacta **todos os fluxos ativos** imediatamente — inclusive o Master Flow em produção. Qualquer bug na lógica de avaliação poderia causar roteamento incorreto.
+Novo tipo de nó `condition_v2` no editor de fluxos. Cada regra tem saídas explícitas **Sim** (verde) e **Não** (vermelho), permitindo definir caminhos para ambos os resultados. O nó `condition` original permanece 100% intocado.
 
-## Decisão: Criar `condition_v2` como tipo separado
+## Arquivos alterados
 
-O nó atual (`condition`) permanece **100% intocado** — visual, motor, edges, tudo. Um novo tipo `condition_v2` é adicionado ao canvas com o comportamento de Sim/Não por regra.
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/chat-flows/nodes/ConditionV2Node.tsx` | **Novo** — Visual com handles Sim/Não por regra |
+| `src/components/chat-flows/nodes/index.ts` | Export do novo nó |
+| `src/components/chat-flows/ChatFlowNodeWrapper.tsx` | Tipo `condition_v2` adicionado |
+| `src/components/chat-flows/ChatFlowEditor.tsx` | nodeType, menu, painel de config, edge cleanup |
+| `supabase/functions/process-chat-flow/index.ts` | `evaluateConditionV2Path()` + todos os pontos de travessia |
 
-### O que muda
+## Lógica V2 (engine)
 
-**1. Novo tipo de nó no editor**
-- Registrar `condition_v2` em `nodeTypes` do ReactFlow
-- Criar `ConditionV2Node.tsx` com handles Sim (verde) + Não (vermelho) por regra + "Outros" (cinza)
-- Adicionar ao menu de inserção de nós como "Condição V2 (Sim/Não)"
+Para cada regra em ordem:
+1. **TRUE** → segue handle `rule.id` (Sim)
+2. **FALSE** → se existe edge no handle `rule.id_false` (Não), segue por ela
+3. **FALSE sem edge Não** → continua para próxima regra (fallthrough)
+4. Se nenhuma regra bater → segue "Outros" (`else`)
 
-**2. Painel de configuração**
-- Reutilizar a lógica existente do painel de condição multi-regra (mesmos campos, check_type, etc.)
-- Diferença: o preview mostra os pares Sim/Não
+## Garantias
 
-**3. Motor (edge function)**
-- Adicionar bloco `case 'condition_v2':` no `process-chat-flow`
-- Lógica: para cada regra, se TRUE → handle `rule.id`, se FALSE → handle `rule.id_false`, se nenhum match → `else`
-- O bloco `case 'condition':` existente **não é tocado**
-
-**4. Arquivos afetados**
-- `src/components/chat-flows/nodes/ConditionV2Node.tsx` (novo)
-- `src/components/chat-flows/ChatFlowEditor.tsx` (registrar nodeType + menu)
-- `src/components/chat-flows/panels/` (painel de config, reutilizar existente)
-- `supabase/functions/process-chat-flow/index.ts` (novo case block)
-
-### Garantias
-- Master Flow e todos os fluxos atuais: **zero alteração**
-- Pode testar o V2 em um fluxo de teste antes de usar em produção
-- Se quiser, depois migra os nós condition para condition_v2 manualmente no canvas
-
+- Nó `condition` original: **zero alteração na lógica**
+- Master Flow e fluxos existentes: **sem impacto**
+- Pode testar V2 em fluxo de teste antes de usar em produção

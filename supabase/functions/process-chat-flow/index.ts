@@ -204,8 +204,8 @@ async function createTicketFromFlow(
 function findNextNode(flowDef: any, currentNode: any, path?: string): any {
   const edges = flowDef.edges || [];
   
-  // Para nós de condição, usar o path (true/false ou rule ID / else)
-  if (currentNode.type === 'condition' && path) {
+  // Para nós de condição (v1 e v2), usar o path (true/false ou rule ID / else)
+  if ((currentNode.type === 'condition' || currentNode.type === 'condition_v2') && path) {
     const edge = edges.find((e: any) => 
       e.source === currentNode.id && e.sourceHandle === path
     );
@@ -469,6 +469,61 @@ function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>
   // Modo clássico: true/false
   const result = evaluateCondition(nodeData, collectedData, userMessage, extraFlags, undefined, undefined);
   return result ? 'true' : 'false';
+}
+
+// 🆕 Avaliar condição V2 (Sim/Não por regra)
+// Retorna: rule.id (Sim), rule.id_false (Não), ou "else" (nenhuma regra bateu)
+// Diferença do V1: cada regra retorna explicitamente Sim ou Não
+function evaluateConditionV2Path(nodeData: any, collectedData: Record<string, any>, userMessage: string, extraFlags?: { inactivityTimeout?: boolean }, contactData?: any, conversationData?: any, flowEdges?: any[]): string {
+  const rules = nodeData.condition_rules;
+  
+  if (!rules || !Array.isArray(rules) || rules.length === 0) {
+    console.log('[process-chat-flow] ⚠️ condition_v2: No rules configured → else');
+    return "else";
+  }
+
+  const msg = userMessage.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  console.log(`[process-chat-flow] 🔍 V2 Evaluating ${rules.length} condition rules (Sim/Não). User message: "${msg}"`);
+
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i];
+    let isMatch = false;
+
+    // Field-based rule
+    if (rule.field) {
+      const fieldValue = getVar(rule.field, collectedData, contactData, conversationData);
+      const checkType = rule.check_type || 'has_data';
+      const hasValue = fieldValue !== null && fieldValue !== undefined && fieldValue !== false && String(fieldValue).trim().length > 0;
+      isMatch = checkType === 'has_data' ? hasValue : !hasValue;
+      console.log(`[process-chat-flow] 📋 V2 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: ${checkType} | value: ${fieldValue} | match: ${isMatch}`);
+    } else {
+      // Keyword-based rule
+      const rawKw = (rule.keywords || "").trim() || (rule.label || "").trim();
+      const terms = rawKw.includes("\n")
+        ? rawKw.split("\n").map((t: string) => t.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).filter(Boolean)
+        : [rawKw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')].filter(Boolean);
+      isMatch = terms.length > 0 && terms.some((term: string) => msg.includes(term));
+      console.log(`[process-chat-flow] 📋 V2 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | keywords: [${terms.join(', ')}] | match: ${isMatch}`);
+    }
+
+    if (isMatch) {
+      console.log(`[process-chat-flow] 🎯 V2 MATCH Rule ${i + 1}: "${rule.label}" → handle "${rule.id}" (Sim)`);
+      return rule.id;
+    } else {
+      // Check if there's a "Não" edge connected
+      const falseHandle = `${rule.id}_false`;
+      const hasFalseEdge = flowEdges?.some((e: any) => e.sourceHandle === falseHandle);
+      if (hasFalseEdge) {
+        console.log(`[process-chat-flow] ✗ V2 NO MATCH Rule ${i + 1}: "${rule.label}" → handle "${falseHandle}" (Não)`);
+        return falseHandle;
+      }
+      // No "Não" edge connected — continue to next rule (fallthrough, same as V1)
+      console.log(`[process-chat-flow] ✗ V2 NO MATCH Rule ${i + 1}: "${rule.label}" — no Não edge, continuing...`);
+    }
+  }
+
+  console.log('[process-chat-flow] 🔀 V2 No rule matched → else');
+  return "else";
 }
 async function handleFetchOrderNode(
   node: any, 
@@ -818,7 +873,7 @@ serve(async (req) => {
       // até encontrar o primeiro nó executável (message/ask_options/ai_response/transfer)
       // Reutiliza a mesma lógica do Master Flow para consistência
       // ============================================================
-      const NO_CONTENT_MANUAL = new Set(['input', 'start', 'condition']);
+      const NO_CONTENT_MANUAL = new Set(['input', 'start', 'condition', 'condition_v2']);
       const MAX_TRAVERSAL_MANUAL = 12;
 
       // Carregar dados de contato/conversa para avaliação de condições
@@ -881,7 +936,7 @@ serve(async (req) => {
         traversalSteps++;
         console.log(`[process-chat-flow] ⏩ Manual Traversing[${traversalSteps}] ${contentNode.type} (${contentNode.id})`);
 
-        if (contentNode.type === 'condition') {
+        if (contentNode.type === 'condition' || contentNode.type === 'condition_v2') {
           const hasMultiRules = contentNode.data?.condition_rules?.length > 0;
           let next: any = null;
 
@@ -891,7 +946,22 @@ serve(async (req) => {
             break;
           }
 
-        if (hasMultiRules) {
+          if (contentNode.type === 'condition_v2' && hasMultiRules) {
+            // V2: usar avaliador dedicado com Sim/Não
+            const hasFieldRules = contentNode.data.condition_rules.some((r: any) => !!r.field);
+            if (!hasFieldRules && (!userMessage || userMessage.trim().length === 0)) {
+              console.log('[process-chat-flow] 🛑 Manual traversal: V2 keyword condition without userMessage — stopping');
+              break;
+            }
+            const v2Path = evaluateConditionV2Path(contentNode.data, manualCollectedData, userMessage || '', undefined, manualContactData, manualConversation, flowDef.edges || []);
+            const v2Next = findNextNode(flowDef, contentNode, v2Path);
+            if (v2Next) {
+              contentNode = v2Next;
+              continue;
+            }
+            console.log('[process-chat-flow] ⚠️ Manual traversal: V2 no next node for path:', v2Path);
+            break;
+          } else if (hasMultiRules) {
             // Multi-regra com keywords precisa de mensagem real do usuário
             if (!userMessage || userMessage.trim().length === 0) {
               console.log('[process-chat-flow] 🛑 Manual traversal: multi-rule condition without userMessage — stopping as waiting_input');
@@ -960,7 +1030,7 @@ serve(async (req) => {
 
       // Determinar status inicial baseado no tipo do nó
       // 🆕 condition (multi-regra) também fica como waiting_input quando parou sem mensagem
-      const initialStatus = (contentNode.type.startsWith('ask_') || contentNode.type === 'condition' || contentNode.type === 'verify_customer_otp')
+      const initialStatus = (contentNode.type.startsWith('ask_') || contentNode.type === 'condition' || contentNode.type === 'condition_v2' || contentNode.type === 'verify_customer_otp')
         ? 'waiting_input'
         : 'active';
 
@@ -1208,11 +1278,14 @@ serve(async (req) => {
             break;
           }
 
-          if (nextNode.type === 'condition') {
+          if (nextNode.type === 'condition' || nextNode.type === 'condition_v2') {
             // Avaliar condição e seguir caminho
             const hasMultiRules = nextNode.data?.condition_rules?.length > 0;
             let condNext: any = null;
-            if (hasMultiRules) {
+            if (nextNode.type === 'condition_v2' && hasMultiRules) {
+              const v2Path = evaluateConditionV2Path(nextNode.data, manualCollectedData, '', undefined, manualContactData, manualConversation, flowDef.edges || []);
+              condNext = findNextNode(flowDef, nextNode, v2Path);
+            } else if (hasMultiRules) {
               const path = evaluateConditionPath(nextNode.data, manualCollectedData, '');
               condNext = findNextNode(flowDef, nextNode, path);
             } else {
@@ -1226,7 +1299,7 @@ serve(async (req) => {
             if (!condNext) break;
             advanceNode = condNext;
             // Se alcançou um nó de conteúdo via condição, parar aqui
-            if (!['condition', 'input', 'start'].includes(advanceNode.type)) break;
+            if (!['condition', 'condition_v2', 'input', 'start'].includes(advanceNode.type)) break;
           } else if (nextNode.type === 'input' || nextNode.type === 'start') {
             advanceNode = nextNode;
           } else {
@@ -1237,7 +1310,7 @@ serve(async (req) => {
         }
 
         if (advanceNode.id !== contentNode.id) {
-          const advanceStatus = advanceNode.type.startsWith('ask_') || advanceNode.type === 'condition'
+          const advanceStatus = advanceNode.type.startsWith('ask_') || advanceNode.type === 'condition' || advanceNode.type === 'condition_v2'
             ? 'waiting_input' : 'active';
 
           const { error: advErr } = await supabaseClient
@@ -1635,11 +1708,19 @@ serve(async (req) => {
               // Avançar para próximo nó
               const nextAfterOtp = findNextNode(flowDef, currentNode);
               let resolvedNode = nextAfterOtp;
-              while (resolvedNode && ['condition', 'input', 'start'].includes(resolvedNode.type)) {
+              while (resolvedNode && ['condition', 'condition_v2', 'input', 'start'].includes(resolvedNode.type)) {
                 if (resolvedNode.type === 'condition') {
                   const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
                   const afterCond = findNextNode(flowDef, resolvedNode, condPath);
-                  if (!afterCond || !['condition', 'input', 'start'].includes(afterCond.type)) {
+                  if (!afterCond || !['condition', 'condition_v2', 'input', 'start'].includes(afterCond.type)) {
+                    resolvedNode = afterCond;
+                    break;
+                  }
+                  resolvedNode = afterCond;
+                } else if (resolvedNode.type === 'condition_v2') {
+                  const v2Path = evaluateConditionV2Path(resolvedNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData, flowDef.edges || []);
+                  const afterCond = findNextNode(flowDef, resolvedNode, v2Path);
+                  if (!afterCond || !['condition', 'condition_v2', 'input', 'start'].includes(afterCond.type)) {
                     resolvedNode = afterCond;
                     break;
                   }
@@ -1650,7 +1731,7 @@ serve(async (req) => {
               }
 
               if (resolvedNode) {
-                const nextStatus = resolvedNode.type.startsWith('ask_') || resolvedNode.type === 'condition' || resolvedNode.type === 'verify_customer_otp'
+                const nextStatus = resolvedNode.type.startsWith('ask_') || resolvedNode.type === 'condition' || resolvedNode.type === 'condition_v2' || resolvedNode.type === 'verify_customer_otp'
                   ? 'waiting_input' : 'active';
                 await supabaseClient.from('chat_flow_states').update({
                   collected_data: collectedData,
@@ -1885,6 +1966,11 @@ serve(async (req) => {
           path = evaluateConditionPath(currentNode.data, collectedData, userMessage, { inactivityTimeout }, activeContactData, activeConversationData);
           console.log(`[process-chat-flow] 🔀 condition: type=${currentNode.data?.condition_type} node=${currentNode.id} → path="${path}"`);
         }
+      } else if (currentNode.type === 'condition_v2') {
+        // Condition V2: Sim/Não por regra
+        const flowEdgesV2 = flowDef.edges || [];
+        path = evaluateConditionV2Path(currentNode.data, collectedData, userMessage, { inactivityTimeout }, activeContactData, activeConversationData, flowEdgesV2);
+        console.log(`[process-chat-flow] 🔀 condition_v2: node=${currentNode.id} → path="${path}"`);
       } else if (currentNode.type === 'ai_response') {
         // ============================================================
         // 🆕 MODO PERSISTENTE: IA responde múltiplas perguntas
@@ -2231,7 +2317,7 @@ serve(async (req) => {
       let traversalSteps = 0;
       const MAX_TRAVERSAL = 20;
 
-      while (nextNode && ['condition', 'input', 'start'].includes(nextNode.type) && traversalSteps < MAX_TRAVERSAL) {
+      while (nextNode && ['condition', 'condition_v2', 'input', 'start'].includes(nextNode.type) && traversalSteps < MAX_TRAVERSAL) {
         traversalSteps++;
         console.log(`[process-chat-flow] ⏩ Auto-traverse[${traversalSteps}] ${nextNode.type} (${nextNode.id})`);
         
@@ -2239,11 +2325,10 @@ serve(async (req) => {
           // ⏱ Inactivity condition: stop and wait (save metadata)
           if (nextNode.data?.condition_type === 'inactivity' && !inactivityTimeout) {
             // 🔧 FIX: Se o usuário ACABOU de enviar mensagem, ele está ATIVO
-            // Seguir caminho "Não" (ativo) imediatamente em vez de parar e esperar
             if (userMessage && userMessage.trim().length > 0) {
               console.log(`[process-chat-flow] ⏱ Inactivity condition reached but user just sent a message — treating as ACTIVE (path false)`);
               nextNode = findNextNode(flowDef, nextNode, 'false');
-              continue; // continua o while de auto-traverse
+              continue;
             }
 
             console.log(`[process-chat-flow] ⏱ Inactivity condition reached during traversal — saving waiting_input with timeout metadata`);
@@ -2280,6 +2365,11 @@ serve(async (req) => {
           const condPath = evaluateConditionPath(nextNode.data, collectedData, userMessage, { inactivityTimeout }, activeContactData, activeConversationData);
           console.log(`[process-chat-flow] 🔀 Condition ${nextNode.id}: → path ${condPath}`);
           nextNode = findNextNode(flowDef, nextNode, condPath);
+        } else if (nextNode.type === 'condition_v2') {
+          const v2Edges = flowDef.edges || [];
+          const condV2Path = evaluateConditionV2Path(nextNode.data, collectedData, userMessage, { inactivityTimeout }, activeContactData, activeConversationData, v2Edges);
+          console.log(`[process-chat-flow] 🔀 ConditionV2 ${nextNode.id}: → path ${condV2Path}`);
+          nextNode = findNextNode(flowDef, nextNode, condV2Path);
         } else {
           nextNode = findNextNode(flowDef, nextNode);
         }
@@ -3091,7 +3181,7 @@ serve(async (req) => {
         // 4. Logs fortes para diagnóstico
         // ============================================================
         
-        const NO_CONTENT = new Set(['input', 'start', 'condition']);
+        const NO_CONTENT = new Set(['input', 'start', 'condition', 'condition_v2']);
         const MAX_TRAVERSAL = 12;
 
         // 1) Descobrir startNode
@@ -3168,12 +3258,17 @@ serve(async (req) => {
           steps++;
           console.log(`[process-chat-flow] ⏩ Traversing[${steps}] ${node.type} (${node.id})`);
 
-          if (node.type === 'condition') {
+          if (node.type === 'condition' || node.type === 'condition_v2') {
             // Detectar multi-regra vs clássico
             const hasMultiRules = node.data?.condition_rules?.length > 0;
             let next: any = null;
 
-          if (hasMultiRules) {
+            if (node.type === 'condition_v2' && hasMultiRules) {
+              // V2: Sim/Não por regra
+              const v2Path = evaluateConditionV2Path(node.data, collectedData, userMessage, undefined, contactData, conversation, flowDef.edges || []);
+              console.log(`[process-chat-flow] 🔀 V2 condition path: "${v2Path}"`);
+              next = findNextNode(flowDef, node, v2Path);
+            } else if (hasMultiRules) {
               // 🆕 FIX: Se não há userMessage real E as regras são keyword-based, parar e aguardar input
               const hasFieldRules = node.data.condition_rules.some((r: any) => !!r.field);
               if (!hasFieldRules && (!userMessage || userMessage.trim().length === 0)) {

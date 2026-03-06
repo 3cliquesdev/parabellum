@@ -24,7 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MessageSquare, User, Mail, Phone, CreditCard, ListChecks, 
   MessageCircle, GitBranch, Sparkles, UserPlus, CheckCircle,
-  Save, X, Trash2, Plus, Play, Bot, BookOpen, Package, ShieldCheck, KeyRound, Ticket
+  Save, X, Trash2, Plus, Play, Bot, BookOpen, Package, ShieldCheck, KeyRound, Ticket, GitMerge
 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,6 +43,7 @@ import {
   EndNode,
   AIResponseNode,
   ChatFlowConditionNode,
+  ConditionV2Node,
   FetchOrderNode,
   ValidateCustomerNode,
   VerifyCustomerOTPNode,
@@ -67,6 +68,7 @@ export const chatFlowNodeTypes = {
   ask_options: AskOptionsNode,
   ask_text: AskTextNode,
   condition: ChatFlowConditionNode,
+  condition_v2: ConditionV2Node,
   ai_response: AIResponseNode,
   transfer: TransferNode,
   end: EndNode,
@@ -90,6 +92,7 @@ const blockColors: Record<string, string> = {
   ask_options: "bg-violet-500",
   ask_text: "bg-indigo-500",
   condition: "bg-purple-500",
+  condition_v2: "bg-fuchsia-500",
   ai_response: "bg-pink-500",
   transfer: "bg-orange-500",
   end: "bg-emerald-500",
@@ -109,6 +112,7 @@ const miniMapColors: Record<string, string> = {
   ask_options: '#8b5cf6',
   ask_text: '#6366f1',
   condition: '#a855f7',
+  condition_v2: '#d946ef',
   ai_response: '#ec4899',
   transfer: '#f97316',
   end: '#10b981',
@@ -191,6 +195,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
       ask_options: { label: "Múltipla Escolha", message: "Selecione uma opção:", save_as: "choice", options: [] },
       ask_text: { label: "Pergunta Aberta", message: "Digite sua resposta:", save_as: "response", required: false },
       condition: { label: "Condição", condition_type: "contains", condition_field: "", condition_value: "" },
+      condition_v2: { label: "Condição V2", condition_rules: [] },
       ai_response: { 
         label: "Resposta IA", 
         context_prompt: "", 
@@ -305,6 +310,17 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
         ));
       }
     }
+
+    // Auto-clean orphan edges for condition_v2
+    if (selectedNode.type === 'condition_v2' && field === 'condition_rules') {
+      const rules = value as Array<{ id: string }> | undefined;
+      if (rules && rules.length > 0) {
+        const validHandles = new Set([...rules.map(r => r.id), ...rules.map(r => `${r.id}_false`), 'else']);
+        setEdges((eds) => eds.filter(
+          (e) => e.source !== selectedNode.id || !e.sourceHandle || validHandles.has(e.sourceHandle)
+        ));
+      }
+    }
   };
 
   const deleteNode = () => {
@@ -329,7 +345,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
 
     // Sanitizar e validar regras de condição antes de salvar
     const sanitizedNodes = nodes.map(node => {
-      if (node.type !== 'condition' || !node.data.condition_rules?.length) return node;
+      if ((node.type !== 'condition' && node.type !== 'condition_v2') || !node.data.condition_rules?.length) return node;
       
       const rules = node.data.condition_rules.map((rule: any) => {
         // Auto-clear: se keywords === label, limpar keywords (motor usa label como fallback)
@@ -419,10 +435,10 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
     const removed = rules[idx];
     rules.splice(idx, 1);
     updateNodeData('condition_rules', rules);
-    // Remover edges conectadas ao handle dessa regra
+    // Remover edges conectadas ao handle dessa regra (incluindo _false para V2)
     if (removed?.id) {
       setEdges((eds) => eds.filter(
-        (e) => !(e.source === selectedNode.id && e.sourceHandle === removed.id)
+        (e) => !(e.source === selectedNode.id && (e.sourceHandle === removed.id || e.sourceHandle === `${removed.id}_false`))
       ));
     }
   };
@@ -479,6 +495,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
               </h4>
               <div className="grid grid-cols-2 gap-2">
                 <DraggableBlock type="condition" icon={GitBranch} label="Condição" color={blockColors.condition} />
+                <DraggableBlock type="condition_v2" icon={GitMerge} label="Condição V2" color={blockColors.condition_v2} />
                 <DraggableBlock type="ai_response" icon={Sparkles} label="IA" color={blockColors.ai_response} />
                 <DraggableBlock type="fetch_order" icon={Package} label="Pedido" color={blockColors.fetch_order} />
                 <DraggableBlock type="validate_customer" icon={ShieldCheck} label="Validar Cliente" color={blockColors.validate_customer} />
@@ -905,7 +922,97 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                 );
               })()}
 
-              {/* IA Response */}
+              {/* Condição V2 (Sim/Não por regra) */}
+              {selectedNode.type === "condition_v2" && (
+                <div className="space-y-3">
+                  <div className="border-b pb-2">
+                    <p className="text-[10px] text-muted-foreground">
+                      Cada regra tem saída <span className="text-success font-semibold">✓ Sim</span> e <span className="text-destructive font-semibold">✗ Não</span>. Se nenhuma bater, segue por "Outros".
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Regras</Label>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={addConditionRule}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Regra
+                    </Button>
+                  </div>
+                  {(selectedNode.data.condition_rules || []).map((rule: any, idx: number) => (
+                    <div key={rule.id} className="border rounded-md p-2 space-y-1.5 bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'][idx % 8] }}
+                        />
+                        <Input
+                          value={rule.label || ""}
+                          onChange={(e) => updateConditionRule(idx, "label", e.target.value)}
+                          placeholder={`Regra ${idx + 1} (ex: Tem Consultor?)`}
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => removeConditionRule(idx)}
+                          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <Select
+                        value={rule.field || "__keywords__"}
+                        onValueChange={(val) => {
+                          const fieldVal = val === "__keywords__" ? "" : val;
+                          updateConditionRule(idx, "field", fieldVal);
+                          if (fieldVal) {
+                            const catalogItem = [...CONDITION_CONTACT_FIELDS, ...CONDITION_CONVERSATION_FIELDS].find(f => f.value === fieldVal);
+                            if (catalogItem && !rule.label) {
+                              updateConditionRule(idx, "label", catalogItem.label);
+                            }
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue placeholder="Modo da regra" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__keywords__">🔤 Keywords (texto do usuário)</SelectItem>
+                          <SelectGroup>
+                            <SelectLabel>Verificar dado do contato</SelectLabel>
+                            {CONDITION_CONTACT_FIELDS.map(f => (
+                              <SelectItem key={f.value} value={f.value}>🔍 {f.label}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Verificar dado da conversa</SelectLabel>
+                            {CONDITION_CONVERSATION_FIELDS.map(f => (
+                              <SelectItem key={f.value} value={f.value}>🔍 {f.label}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {!rule.field && (
+                        <Textarea
+                          onKeyDown={(e) => e.stopPropagation()}
+                          value={rule.keywords || ""}
+                          onChange={(e) => updateConditionRule(idx, "keywords", e.target.value)}
+                          placeholder="Opcional: frases extras (1 por linha)."
+                          className="min-h-[40px] text-xs"
+                        />
+                      )}
+                      {rule.field && (
+                        <p className="text-[10px] text-muted-foreground italic">
+                          ✅ Verifica se o campo tem dado — saída Sim/Não
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {selectedNode.type === "ai_response" && (
                 <AIResponsePropertiesPanel
                   selectedNode={selectedNode}

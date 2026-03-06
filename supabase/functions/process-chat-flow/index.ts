@@ -1882,7 +1882,7 @@ serve(async (req) => {
           console.log(`[process-chat-flow] ⏱ condition: type=inactivity node=${currentNode.id} → client responded → path=false`);
           path = 'false';
         } else {
-          path = evaluateConditionPath(currentNode.data, collectedData, userMessage, { inactivityTimeout });
+          path = evaluateConditionPath(currentNode.data, collectedData, userMessage, { inactivityTimeout }, activeContactData, activeConversationData);
           console.log(`[process-chat-flow] 🔀 condition: type=${currentNode.data?.condition_type} node=${currentNode.id} → path="${path}"`);
         }
       } else if (currentNode.type === 'ai_response') {
@@ -2277,7 +2277,7 @@ serve(async (req) => {
             );
           }
 
-          const condPath = evaluateConditionPath(nextNode.data, collectedData, userMessage, { inactivityTimeout });
+          const condPath = evaluateConditionPath(nextNode.data, collectedData, userMessage, { inactivityTimeout }, activeContactData, activeConversationData);
           console.log(`[process-chat-flow] 🔀 Condition ${nextNode.id}: → path ${condPath}`);
           nextNode = findNextNode(flowDef, nextNode, condPath);
         } else {
@@ -3180,7 +3180,7 @@ serve(async (req) => {
                 break;
               }
               // Multi-regra: usar evaluateConditionPath que retorna rule.id ou "else"
-              const path = evaluateConditionPath(node.data, collectedData, userMessage);
+              const path = evaluateConditionPath(node.data, collectedData, userMessage, undefined, contactData, conversation);
               console.log(`[process-chat-flow] 🔀 Multi-rule condition path: "${path}"`);
               next = findNextNode(flowDef, node, path);
               if (next) {

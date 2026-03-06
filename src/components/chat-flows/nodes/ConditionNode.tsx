@@ -116,12 +116,14 @@ export const ChatFlowConditionNode = memo(({ data, selected }: NodeProps<Conditi
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: ruleColors[idx % ruleColors.length] }}
               />
-              <span
-                className="font-medium truncate"
-                style={{ color: ruleColors[idx % ruleColors.length] }}
-              >
-                {rule.label || "Sem rótulo"}
-              </span>
+               <span
+118:                 className="font-medium truncate"
+119:                 style={{ color: ruleColors[idx % ruleColors.length] }}
+120:               >
+121:                 {rule.field
+122:                   ? `🔍 ${friendlyFieldNames[rule.field] || rule.field}`
+123:                   : (rule.label || "Sem rótulo")}
+124:               </span>
             </div>
           ))}
           {/* Else */}

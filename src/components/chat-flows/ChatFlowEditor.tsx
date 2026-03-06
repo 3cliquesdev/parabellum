@@ -24,7 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MessageSquare, User, Mail, Phone, CreditCard, ListChecks, 
   MessageCircle, GitBranch, Sparkles, UserPlus, CheckCircle,
-  Save, X, Trash2, Plus, Play, Bot, BookOpen, Package, ShieldCheck, KeyRound, Ticket
+  Save, X, Trash2, Plus, Play, Bot, BookOpen, Package, ShieldCheck, KeyRound, Ticket, GitMerge
 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,6 +43,7 @@ import {
   EndNode,
   AIResponseNode,
   ChatFlowConditionNode,
+  ConditionV2Node,
   FetchOrderNode,
   ValidateCustomerNode,
   VerifyCustomerOTPNode,
@@ -67,6 +68,7 @@ export const chatFlowNodeTypes = {
   ask_options: AskOptionsNode,
   ask_text: AskTextNode,
   condition: ChatFlowConditionNode,
+  condition_v2: ConditionV2Node,
   ai_response: AIResponseNode,
   transfer: TransferNode,
   end: EndNode,
@@ -90,6 +92,7 @@ const blockColors: Record<string, string> = {
   ask_options: "bg-violet-500",
   ask_text: "bg-indigo-500",
   condition: "bg-purple-500",
+  condition_v2: "bg-fuchsia-500",
   ai_response: "bg-pink-500",
   transfer: "bg-orange-500",
   end: "bg-emerald-500",
@@ -109,6 +112,7 @@ const miniMapColors: Record<string, string> = {
   ask_options: '#8b5cf6',
   ask_text: '#6366f1',
   condition: '#a855f7',
+  condition_v2: '#d946ef',
   ai_response: '#ec4899',
   transfer: '#f97316',
   end: '#10b981',
@@ -191,6 +195,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
       ask_options: { label: "Múltipla Escolha", message: "Selecione uma opção:", save_as: "choice", options: [] },
       ask_text: { label: "Pergunta Aberta", message: "Digite sua resposta:", save_as: "response", required: false },
       condition: { label: "Condição", condition_type: "contains", condition_field: "", condition_value: "" },
+      condition_v2: { label: "Condição V2", condition_rules: [] },
       ai_response: { 
         label: "Resposta IA", 
         context_prompt: "", 
@@ -479,6 +484,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
               </h4>
               <div className="grid grid-cols-2 gap-2">
                 <DraggableBlock type="condition" icon={GitBranch} label="Condição" color={blockColors.condition} />
+                <DraggableBlock type="condition_v2" icon={GitMerge} label="Condição V2" color={blockColors.condition_v2} />
                 <DraggableBlock type="ai_response" icon={Sparkles} label="IA" color={blockColors.ai_response} />
                 <DraggableBlock type="fetch_order" icon={Package} label="Pedido" color={blockColors.fetch_order} />
                 <DraggableBlock type="validate_customer" icon={ShieldCheck} label="Validar Cliente" color={blockColors.validate_customer} />

@@ -2307,7 +2307,7 @@ serve(async (req) => {
         // Loop de auto-traverse: atravessar condition, input, start até conteúdo
         while (afterFetchNode && ['condition', 'input', 'start'].includes(afterFetchNode.type)) {
           if (afterFetchNode.type === 'condition') {
-            const condPath = evaluateConditionPath(afterFetchNode.data, collectedData, userMessage);
+            const condPath = evaluateConditionPath(afterFetchNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
             const resolved = findNextNode(flowDef, afterFetchNode, condPath);
             if (!resolved || !['condition', 'input', 'start'].includes(resolved.type)) {
               afterFetchNode = resolved;
@@ -2443,7 +2443,7 @@ serve(async (req) => {
         let afterValidateNode = findNextNode(flowDef, nextNode);
         while (afterValidateNode && ['condition', 'input', 'start'].includes(afterValidateNode.type)) {
           if (afterValidateNode.type === 'condition') {
-            const condPath = evaluateConditionPath(afterValidateNode.data, collectedData, userMessage);
+            const condPath = evaluateConditionPath(afterValidateNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
             const resolved = findNextNode(flowDef, afterValidateNode, condPath);
             if (!resolved || !['condition', 'input', 'start'].includes(resolved.type)) {
               afterValidateNode = resolved;
@@ -2698,7 +2698,7 @@ serve(async (req) => {
         
         // Se próximo é condition, avaliar e continuar
         if (afterMessage.type === 'condition') {
-          const condPath = evaluateConditionPath(afterMessage.data, collectedData, userMessage);
+          const condPath = evaluateConditionPath(afterMessage.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
           const afterCond = findNextNode(flowDef, afterMessage, condPath);
           nextNode = afterCond || null;
         } else if (afterMessage.type === 'input' || afterMessage.type === 'start') {

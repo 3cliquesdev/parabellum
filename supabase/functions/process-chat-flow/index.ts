@@ -1033,7 +1033,6 @@ serve(async (req) => {
       const initialStatus = (contentNode.type.startsWith('ask_') || contentNode.type === 'condition' || contentNode.type === 'condition_v2' || contentNode.type === 'verify_customer_otp')
         ? 'waiting_input'
         : 'active';
-        : 'active';
 
       // ✅ FIX: Limpar TODOS os estados da conversa (incluindo cancelled antigos que podem colidir com unique_active_flow)
       const { error: deleteError } = await supabaseClient

@@ -1,31 +1,50 @@
 
-# Plano: Mensagens Configuráveis de Fora do Horário ✅
 
-## Status: IMPLEMENTADO (com ajustes finos aplicados)
+# Checklist business_messages_config — Resultado da Auditoria
 
-## Resumo
+## A) Migration — Trigger `updated_at`
 
-As mensagens automáticas enviadas fora do horário comercial (handoff e redistribuição) agora são editáveis via UI na página de SLA Settings. Templates armazenados na tabela `business_messages_config` com fallback para mensagens padrão.
+| Item | Status | Detalhe |
+|------|--------|---------|
+| Tabela existe | ✅ | 2 registros presentes |
+| Função `update_updated_at_column()` existe | ✅ | Confirmada |
+| **Trigger criada** | ❌ | **Não existe no banco** — migration não foi aplicada |
 
-## Ajustes Finos Aplicados
+**Ação necessária:** Criar nova migration para aplicar o trigger. O arquivo da migration anterior existe no código mas não foi executado no banco.
 
-- ✅ Trigger `updated_at` reutilizando `public.update_updated_at_column()`
-- ✅ Validação: botão salvar desabilitado se template vazio
-- ✅ Warning visual se placeholders `{schedule}` / `{next_open}` removidos
-- ✅ Botão "Restaurar Padrão" para resetar mensagens
+```sql
+DROP TRIGGER IF EXISTS update_business_messages_config_updated_at ON public.business_messages_config;
+CREATE TRIGGER update_business_messages_config_updated_at
+  BEFORE UPDATE ON public.business_messages_config
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+```
 
-## Arquivos Alterados
+## B) UI — BusinessMessagesSection
 
-| Arquivo | Mudança |
-|---------|---------|
-| SQL Migrations | Tabela `business_messages_config` + seeds + RLS + trigger updated_at |
-| `src/hooks/useBusinessMessages.ts` | Hook (query + mutation) |
-| `src/pages/SLASettings.tsx` | Seção "Mensagens de Fora do Horário" com validação + restaurar padrão |
-| `supabase/functions/ai-autopilot-chat/index.ts` | Busca template `after_hours_handoff` com fallback |
-| `supabase/functions/redistribute-after-hours/index.ts` | Busca template `business_hours_reopened` com fallback |
+| Item | Status | Detalhe |
+|------|--------|---------|
+| Bloquear salvar vazio | ✅ | `disabled={!isDirty \|\| isEmpty}` (linha 653) |
+| Warning placeholders | ✅ | Alert aparece quando `{schedule}` ou `{next_open}` ausentes (linhas 625-648) |
+| Restaurar Padrão | ✅ | Botão com defaults hardcoded corretos, desabilitado quando draft == default (linhas 658-666) |
+| Persistência/refresh | ✅ | `useEffect` carrega do banco quando `messages` muda (linhas 567-573) |
 
-## Garantias
+## C) Edge Functions
 
-- Fallback hardcoded se tabela vazia ou inacessível
-- Kill Switch, Shadow Mode, Fluxos: não afetados
-- RLS: leitura authenticated, escrita managers/admins
+| Item | Status | Detalhe |
+|------|--------|---------|
+| `ai-autopilot-chat` busca template | ✅ | `maybeSingle()` + fallback hardcoded (linhas 7454-7470) |
+| Substituição `{schedule}` / `{next_open}` | ✅ | `.replace(/\{schedule\}/g, ...)` (linhas 7462-7464) |
+| `redistribute-after-hours` busca template | ✅ | `maybeSingle()` + fallback (linhas 161-171) |
+| Guard anti-perda no catch | ✅ | Re-add tag `pendente_retorno` (linhas 182-185+) |
+
+## D) Resumo
+
+**Único pendente: trigger `updated_at` não aplicada no banco.** Todo o resto está correto.
+
+### Plano de execução
+
+1. **Executar migration** — criar trigger `update_business_messages_config_updated_at` via ferramenta de migração
+2. **Verificar** — query de confirmação pós-criação
+
+Nenhum arquivo de código precisa ser alterado.
+

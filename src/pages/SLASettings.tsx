@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Clock, Calendar, Trash2, Save, Settings, MessageSquareText } from "lucide-react";
+import { ArrowLeft, Plus, Clock, Calendar, Trash2, Save, Settings, MessageSquareText, AlertTriangle, RotateCcw } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

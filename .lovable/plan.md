@@ -1,41 +1,70 @@
 
-# Plano: Fallback Inteligente Fora do Horário (sem "falso SLA") ✅
 
-## Status: IMPLEMENTADO
+# Mensagens Configuráveis de Fora do Horário
 
-## Resumo
+## Mensagens Atuais (hardcoded)
 
-Lógica invertida: `redistribute-after-hours` agora age **dentro do horário** (redistribui conversas com tag `pendente_retorno`). Fora do horário, a IA mantém `autopilot` e registra pendência sem chamar `route-conversation`.
+**Quando o cliente pede humano fora do horário** (ai-autopilot-chat, linha 7454):
+> "Nosso atendimento humano funciona {scheduleSummary}. {nextOpenText} um atendente poderá te ajudar. Enquanto isso, posso continuar tentando por aqui! 😊"
 
-## Arquivos Alterados
+**Quando o horário comercial abre e o cron redistribui** (redistribute-after-hours, linha 163):
+> "☀️ Horário comercial iniciado. Um atendente será designado para continuar seu atendimento."
+
+---
+
+## Plano
+
+### 1. Nova tabela: `business_messages_config`
+
+Tabela simples com pares chave/valor para mensagens configuráveis:
+
+```sql
+CREATE TABLE public.business_messages_config (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_key text UNIQUE NOT NULL,
+  message_template text NOT NULL,
+  description text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Seeds com as mensagens atuais
+INSERT INTO public.business_messages_config (message_key, message_template, description) VALUES
+  ('after_hours_handoff', 'Nosso atendimento humano funciona {schedule}. {next_open} um atendente poderá te ajudar. Enquanto isso, posso continuar tentando por aqui! 😊', 'Mensagem enviada ao cliente quando pede humano fora do horário'),
+  ('business_hours_reopened', '☀️ Horário comercial iniciado. Um atendente será designado para continuar seu atendimento.', 'Mensagem enviada quando o horário comercial abre e a conversa é redistribuída');
+```
+
+RLS: leitura para authenticated, escrita para admins.
+
+### 2. UI na página de SLA Settings (`src/pages/SLASettings.tsx`)
+
+Nova seção "Mensagens de Fora do Horário" na aba de horário comercial com:
+- Textarea para cada mensagem (after_hours_handoff e business_hours_reopened)
+- Descrição explicativa de cada uma
+- Placeholders disponíveis: `{schedule}`, `{next_open}` (para a mensagem de fora do horário)
+- Botão salvar por mensagem
+
+### 3. Hook `useBusinessMessages`
+
+Novo hook em `src/hooks/useBusinessMessages.ts` para CRUD da tabela.
+
+### 4. Edge Functions: buscar mensagem do banco
+
+**`ai-autopilot-chat/index.ts`** (linha 7454): Em vez do texto hardcoded, buscar `after_hours_handoff` da tabela e substituir `{schedule}` e `{next_open}` pelos valores dinâmicos. Fallback para o texto atual se não encontrar.
+
+**`redistribute-after-hours/index.ts`** (linha 163): Buscar `business_hours_reopened` da tabela. Fallback para o texto atual.
+
+### 5. Arquivos alterados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/redistribute-after-hours/index.ts` | Reescrita: age dentro do horário, busca tag `pendente_retorno`, roteia e remove tag |
-| `supabase/functions/ai-autopilot-chat/index.ts` | Import business-hours + contexto no prompt + condicional no `request_human_agent` |
-| SQL Migration | Tag `pendente_retorno` criada na tabela `tags` |
+| SQL Migration | Criar tabela `business_messages_config` + seeds + RLS |
+| `src/pages/SLASettings.tsx` | Nova seção com textareas editáveis |
+| `src/hooks/useBusinessMessages.ts` | Novo hook (query + mutation) |
+| `supabase/functions/ai-autopilot-chat/index.ts` | Buscar mensagem da tabela (1 query, com fallback) |
+| `supabase/functions/redistribute-after-hours/index.ts` | Buscar mensagem da tabela (1 query, com fallback) |
 
-## Lógica Implementada
+### Sem impacto em features existentes
+- Kill Switch, Shadow Mode, Fluxos: não afetados
+- Se a tabela estiver vazia ou inacessível, cai no fallback (mensagem atual hardcoded)
 
-### redistribute-after-hours (cron)
-- `within_hours = false` → nada a fazer
-- `within_hours = true` → busca conversas com tag `pendente_retorno` → route-conversation → waiting_human → remove tag → mensagem sistema
-
-### ai-autopilot-chat
-- **Prompt:** Injeta info de horário comercial (aberto/fechado + próxima abertura)
-- **request_human_agent dentro do horário:** comportamento padrão (copilot + route-conversation)
-- **request_human_agent fora do horário:**
-  - NÃO chama route-conversation
-  - NÃO muda ai_mode (mantém autopilot)
-  - Envia mensagem informativa ao cliente
-  - Aplica tag `pendente_retorno`
-  - Salva metadata (after_hours_handoff_requested_at, pending_department_id, etc.)
-  - Registra nota interna
-
-## Garantias
-
-- Kill Switch: respeitado (verificado antes)
-- Shadow Mode: não afetado
-- Fluxos: soberania mantida (guard `if (!flow_context)`)
-- SLA: zero handoff fantasma fora do horário
-- Cron existente: mantém `* * * * *` do config.toml

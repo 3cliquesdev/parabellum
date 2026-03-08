@@ -639,9 +639,9 @@ function BusinessMessagesSection() {
               />
               <p className="text-xs text-muted-foreground italic">{label.placeholderHint}</p>
               {missingPlaceholders && (
-                <Alert variant="default" className="border-yellow-500/50 bg-yellow-500/10">
-                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                  <AlertDescription className="text-xs text-yellow-700">
+                <Alert variant="default" className="border-warning/50 bg-warning/10">
+                  <AlertTriangle className="h-4 w-4 text-warning" />
+                  <AlertDescription className="text-xs text-warning">
                     Atenção: os placeholders {"{{schedule}}"} e/ou {"{{next_open}}"} foram removidos. A mensagem pode ficar incompleta.
                   </AlertDescription>
                 </Alert>

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Clock, Calendar, Trash2, Save, Settings } from "lucide-react";
+import { ArrowLeft, Plus, Clock, Calendar, Trash2, Save, Settings, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { useBusinessMessages, useUpdateBusinessMessage } from "@/hooks/useBusinessMessages";
 import { 
   useSLAPolicies, 
   useCreateSLAPolicy, 
@@ -537,13 +539,98 @@ export default function SLASettings() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+              </Table>
                 )}
               </CardContent>
             </Card>
+
+            {/* Mensagens Configuráveis */}
+            <BusinessMessagesSection />
           </TabsContent>
         </Tabs>
       </div>
     </div>
+  );
+}
+
+function BusinessMessagesSection() {
+  const { data: messages = [], isLoading } = useBusinessMessages();
+  const updateMessage = useUpdateBusinessMessage();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      const initial: Record<string, string> = {};
+      messages.forEach((m) => { initial[m.id] = m.message_template; });
+      setDrafts(initial);
+    }
+  }, [messages]);
+
+  const handleSave = (id: string) => {
+    const template = drafts[id];
+    if (template !== undefined) {
+      updateMessage.mutate({ id, message_template: template });
+    }
+  };
+
+  const labels: Record<string, { title: string; placeholderHint: string }> = {
+    after_hours_handoff: {
+      title: "Quando o cliente pede atendente fora do horário",
+      placeholderHint: "Placeholders disponíveis: {schedule} (horário de funcionamento), {next_open} (próxima abertura)",
+    },
+    business_hours_reopened: {
+      title: "Quando o horário comercial abre (redistribuição)",
+      placeholderHint: "Esta mensagem não utiliza placeholders dinâmicos",
+    },
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="mt-6">
+        <CardContent className="py-8 text-center text-muted-foreground">Carregando...</CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MessageSquareText className="h-5 w-5" />
+          Mensagens de Fora do Horário
+        </CardTitle>
+        <CardDescription>
+          Personalize as mensagens automáticas enviadas quando o atendimento humano não está disponível
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {messages.map((msg) => {
+          const label = labels[msg.message_key] || { title: msg.message_key, placeholderHint: "" };
+          const isDirty = drafts[msg.id] !== msg.message_template;
+
+          return (
+            <div key={msg.id} className="space-y-2">
+              <Label className="text-sm font-medium">{label.title}</Label>
+              <p className="text-xs text-muted-foreground">{msg.description}</p>
+              <Textarea
+                value={drafts[msg.id] ?? msg.message_template}
+                onChange={(e) => setDrafts((prev) => ({ ...prev, [msg.id]: e.target.value }))}
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground italic">{label.placeholderHint}</p>
+              <Button
+                size="sm"
+                onClick={() => handleSave(msg.id)}
+                disabled={!isDirty || updateMessage.isPending}
+              >
+                <Save className="h-4 w-4 mr-1" />
+                Salvar
+              </Button>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }

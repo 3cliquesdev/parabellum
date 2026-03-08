@@ -7450,8 +7450,24 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
               // 1. NÃO chamar route-conversation
               // 2. NÃO mudar ai_mode (mantém autopilot)
 
-              // 3. Mensagem ao cliente
-              assistantMessage = `Nosso atendimento humano funciona ${scheduleSummary}. ${nextOpenText} um atendente poderá te ajudar. Enquanto isso, posso continuar tentando por aqui! 😊`;
+              // 3. Mensagem ao cliente (template configurável com fallback)
+              const defaultAfterHoursMsg = `Nosso atendimento humano funciona ${scheduleSummary}. ${nextOpenText} um atendente poderá te ajudar. Enquanto isso, posso continuar tentando por aqui! 😊`;
+              try {
+                const { data: msgRow } = await supabaseClient
+                  .from('business_messages_config')
+                  .select('message_template')
+                  .eq('message_key', 'after_hours_handoff')
+                  .maybeSingle();
+                if (msgRow?.message_template) {
+                  assistantMessage = msgRow.message_template
+                    .replace(/\{schedule\}/g, scheduleSummary)
+                    .replace(/\{next_open\}/g, nextOpenText);
+                } else {
+                  assistantMessage = defaultAfterHoursMsg;
+                }
+              } catch (_) {
+                assistantMessage = defaultAfterHoursMsg;
+              }
 
               // 4. Adicionar tag "pendente_retorno" na conversation_tags
               try {

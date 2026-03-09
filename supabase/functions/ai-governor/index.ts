@@ -72,6 +72,40 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .order('created_at', { ascending: false })
     .limit(500);
 
+  // ═══ Contagem REAL de conversas resolvidas pela IA ═══
+  // Busca conversas fechadas no período que tiveram evento de fechamento pela IA
+  const closedConvIds = convs?.filter((c: any) => c.status === 'closed').map((c: any) => c.id) ?? [];
+  let closedByAIReal = closedByAI; // fallback para o filtro original
+  if (closedConvIds.length > 0) {
+    // Contar conversas que tiveram evento de close pela IA (ai_close_conversation, ai_auto_close, etc.)
+    const { data: aiCloseEvents } = await supabase
+      .from('ai_events')
+      .select('entity_id')
+      .in('entity_id', closedConvIds.slice(0, 200))
+      .in('event_type', ['ai_close_conversation', 'ai_auto_close', 'autopilot_close', 'ai_resolved'])
+      .gte('created_at', since)
+      .lt('created_at', until);
+    
+    // Também verificar via última mensagem AI antes do fechamento
+    const { data: aiLastMsgClose } = await supabase
+      .from('messages')
+      .select('conversation_id')
+      .in('conversation_id', closedConvIds.slice(0, 200))
+      .eq('is_ai_generated', true)
+      .gte('created_at', since)
+      .lt('created_at', until);
+    
+    const aiClosedSet = new Set<string>();
+    aiCloseEvents?.forEach((e: any) => aiClosedSet.add(e.entity_id));
+    // Conversas fechadas onde a última mensagem foi da IA também conta
+    aiLastMsgClose?.forEach((m: any) => aiClosedSet.add(m.conversation_id));
+    // Também incluir os que já tinham ai_mode=autopilot
+    convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'autopilot')
+      .forEach((c: any) => aiClosedSet.add(c.id));
+    
+    closedByAIReal = aiClosedSet.size;
+  }
+
   const totalAIEvents = totalAIEventsCount ?? aiEvents?.length ?? 0;
   const fallbackEvents = aiEvents?.filter((e: any) => e.output_json?.action === 'handoff' || e.output_json?.escalated === true).length ?? 0;
   const directEvents = aiEvents?.filter((e: any) => e.output_json?.action === 'direct').length ?? 0;

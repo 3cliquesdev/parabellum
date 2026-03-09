@@ -21,6 +21,7 @@ export function useOrganizations() {
       // Calculate stats for each organization
       return data.map((org) => {
         const contactsCount = org.contacts?.[0]?.count || 0;
+        const phonesCount = (org.organization_phones as any)?.[0]?.count || 0;
         const activeDeals = org.deals?.filter(d => d.status === 'open').length || 0;
         const totalRevenue = org.deals
           ?.filter(d => d.status === 'won')
@@ -29,6 +30,7 @@ export function useOrganizations() {
         return {
           ...org,
           contactsCount,
+          phonesCount,
           activeDeals,
           totalRevenue,
         };

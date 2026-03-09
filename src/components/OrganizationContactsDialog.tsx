@@ -170,6 +170,9 @@ export default function OrganizationContactsDialog({ orgId, orgName, trigger }: 
               </ScrollArea>
             )}
           </div>
+
+          {/* WhatsApp phones */}
+          <OrganizationPhonesSection orgId={orgId} />
         </DialogContent>
       </Dialog>
 

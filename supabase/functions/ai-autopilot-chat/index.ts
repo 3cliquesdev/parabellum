@@ -1282,6 +1282,10 @@ serve(async (req) => {
 
     const { conversationId, customerMessage, maxHistory = 50, customer_context, flow_context }: AutopilotChatRequest = parsedBody;
     
+    // 🆕 Carregar RAGConfig uma única vez para todo o handler
+    const ragConfig = await getRAGConfig(supabaseClient);
+    console.log('[ai-autopilot-chat] 📊 RAGConfig carregado:', { model: ragConfig.model, strictMode: ragConfig.strictMode, blockFinancial: ragConfig.blockFinancial });
+
     // Validação defensiva
     if (!conversationId || conversationId === 'undefined') {
       console.error('[ai-autopilot-chat] ❌ conversationId inválido:', conversationId);

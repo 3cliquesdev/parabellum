@@ -796,7 +796,7 @@ async function sendEmailReport(
 
         <!-- Vendas do Dia -->
         <tr><td style="padding:16px 32px 6px;">
-          <p style="color:#22c55e;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">💰 Vendas do Dia</p>
+          <p style="color:#22c55e;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">Vendas do Dia</p>
         </td></tr>
         <tr><td style="padding:0 32px 20px;">
           <table width="100%" cellpadding="0" cellspacing="6">

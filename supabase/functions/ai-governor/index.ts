@@ -193,14 +193,26 @@ async function sendEmailReport(
 </body>
 </html>`;
 
+  // Buscar sender padrão verificado do banco
+  let fromName = 'IA Governante - 3Cliques';
+  let fromEmail = 'contato@mail.3cliques.net';
+  try {
+    const { data: sender } = await supabase
+      .from('email_senders')
+      .select('from_name, from_email')
+      .eq('is_default', true)
+      .single();
+    if (sender) fromEmail = sender.from_email;
+  } catch {}
+
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'IA Governante <governante@mail.3cliques.net>',
+        from: `${fromName} <${fromEmail}>`,
         to: [adminEmail],
-        subject: `🤖 Relatório IA Governante — ${dateStr}`,
+        subject: `Relatório IA Governante — ${dateStr}`,
         html: htmlContent,
       }),
     });

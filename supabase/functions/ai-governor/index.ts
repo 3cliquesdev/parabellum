@@ -1351,7 +1351,7 @@ serve(async (req) => {
     // Enviar Email
     let emailResult = { sent: 0, errors: 0 };
     for (const admin of adminEmails) {
-      const ok = await sendEmailReport(supabase, admin.email, admin.name, dateStr, aiAnalysis, metrics, salesMetrics);
+      const ok = await sendEmailReport(supabase, admin.email, admin.name, dateStr, aiAnalysis, metrics, salesMetrics, periodStr);
       if (ok) emailResult.sent++; else emailResult.errors++;
     }
 

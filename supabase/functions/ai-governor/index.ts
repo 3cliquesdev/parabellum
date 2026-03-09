@@ -957,6 +957,24 @@ async function sendEmailReport(
               </td>
             </tr>
           </table>
+          <!-- Breakdown vendas novas: Orgânico / Afiliados / Comercial -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
+            <tr>
+              <td style="text-align:center;">
+                <span style="display:inline-block;background:#8b5cf6;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;margin:2px;">Organico: ${salesMetrics.newSalesOrganicCount} (${fmtBRL(salesMetrics.newSalesOrganicRevenue)})</span>
+                <span style="display:inline-block;background:#f97316;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;margin:2px;">Afiliados: ${salesMetrics.newSalesAffiliateCount} (${fmtBRL(salesMetrics.newSalesAffiliateRevenue)})</span>
+                <span style="display:inline-block;background:#3b82f6;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;margin:2px;">Comercial: ${salesMetrics.newSalesComercialCount} (${fmtBRL(salesMetrics.newSalesComercialRevenue)})</span>
+              </td>
+            </tr>
+            ${(salesMetrics.topNewAffiliates ?? []).length > 0 ? `<tr><td style="text-align:center;padding-top:6px;">
+              <span style="color:#64748b;font-size:11px;">Top afiliados: ${(salesMetrics.topNewAffiliates ?? []).map((a: any) => `<strong style="color:#f97316;">${a.name}</strong> ${a.deals}`).join(', ')}</span>
+            </td></tr>` : ''}
+            ${(salesMetrics.affPctNew ?? 0) >= 50 ? `<tr><td style="text-align:center;padding-top:6px;">
+              <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 12px;display:inline-block;">
+                <span style="color:#92400e;font-size:11px;font-weight:700;">⚠️ Afiliados = ${salesMetrics.affPctNew}% das vendas novas — diversificar canais</span>
+              </div>
+            </td></tr>` : ''}
+          </table>
           <p style="color:#64748b;font-size:11px;margin:8px 0 0;text-align:center;">
             Total: ${salesMetrics.wonToday} fechamentos | ${fmtBRL(salesMetrics.revenueToday)}
           </p>

@@ -211,7 +211,7 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
   const partnerPct = origins.find(o => o.key === 'parceiros')?.pct ?? 0;
   if (partnerPct >= 50) alerts.push(`⚠️ Parceiros representam ${partnerPct}% da receita — risco de dependência`);
   if (topPartners[0]?.pct >= 35) alerts.push(`⚠️ "${topPartners[0].name}" concentra ${topPartners[0].pct}% da receita do dia`);
-  if ((cats.comercial.deals) === 0 && (wonToday?.length ?? 0) > 0) alerts.push('📢 Time comercial sem fechamentos hoje');
+  if ((cats.comercial.deals) === 0 && totalRevToday > 0) alerts.push('📢 Time comercial sem fechamentos hoje');
 
   // Período mês + MoM
   const { data: wonMonth } = await supabase

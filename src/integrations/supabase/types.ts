@@ -6035,6 +6035,38 @@ export type Database = {
           },
         ]
       }
+      organization_phones: {
+        Row: {
+          created_at: string | null
+          id: string
+          label: string
+          organization_id: string
+          phone: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          label: string
+          organization_id: string
+          phone: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          label?: string
+          organization_id?: string
+          phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_phones_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string

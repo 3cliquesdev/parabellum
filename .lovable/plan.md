@@ -1,48 +1,31 @@
 
+# Plano: Mensagens Configuráveis de Fora do Horário ✅
 
-# Lista de Telefones WhatsApp na Organização
+## Status: IMPLEMENTADO (com ajustes finos aplicados)
 
-## Objetivo
-Adicionar uma lista simples de telefones (nome + WhatsApp) diretamente na organização, sem criar contatos no CRM. Útil para registrar membros da equipe do cliente para fluxos de atendimento.
+## Resumo
 
-## Mudanças
+As mensagens automáticas enviadas fora do horário comercial (handoff e redistribuição) agora são editáveis via UI na página de SLA Settings. Templates armazenados na tabela `business_messages_config` com fallback para mensagens padrão.
 
-### 1. Nova tabela: `organization_phones`
-```sql
-CREATE TABLE public.organization_phones (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  label text NOT NULL,          -- ex: "João - Financeiro"
-  phone text NOT NULL,          -- número WhatsApp
-  created_at timestamptz DEFAULT now()
-);
+## Ajustes Finos Aplicados
 
-ALTER TABLE public.organization_phones ENABLE ROW LEVEL SECURITY;
+- ✅ Trigger `updated_at` reutilizando `public.update_updated_at_column()`
+- ✅ Validação: botão salvar desabilitado se template vazio
+- ✅ Warning visual se placeholders `{schedule}` / `{next_open}` removidos
+- ✅ Botão "Restaurar Padrão" para resetar mensagens
 
--- RLS: acesso para autenticados (mesma lógica das outras tabelas do CRM)
-CREATE POLICY "Authenticated users can manage org phones"
-  ON public.organization_phones FOR ALL TO authenticated USING (true) WITH CHECK (true);
-```
+## Arquivos Alterados
 
-### 2. Novo componente: `OrganizationPhonesSection`
-- Renderizado dentro do `OrganizationContactsDialog` (ou como seção separada no card da org)
-- Lista os telefones cadastrados com botão de remover
-- Formulário inline: campos **Nome/Rótulo** + **WhatsApp** + botão Adicionar
-- CRUD direto via Supabase SDK (insert/delete na `organization_phones`)
+| Arquivo | Mudança |
+|---------|---------|
+| SQL Migrations | Tabela `business_messages_config` + seeds + RLS + trigger updated_at |
+| `src/hooks/useBusinessMessages.ts` | Hook (query + mutation) |
+| `src/pages/SLASettings.tsx` | Seção "Mensagens de Fora do Horário" com validação + restaurar padrão |
+| `supabase/functions/ai-autopilot-chat/index.ts` | Busca template `after_hours_handoff` com fallback |
+| `supabase/functions/redistribute-after-hours/index.ts` | Busca template `business_hours_reopened` com fallback |
 
-### 3. Editar `OrganizationContactsDialog.tsx`
-- Adicionar a seção "Telefones WhatsApp" abaixo dos contatos vinculados
-- Separador visual entre contatos CRM e telefones avulsos
+## Garantias
 
-### 4. Editar `useOrganizationContacts.tsx`
-- Adicionar query para `organization_phones` (ou criar hook separado `useOrganizationPhones`)
-- Mutations para add/remove phone
-
-### 5. Exibir contagem no card da org (`Organizations.tsx`)
-- Mostrar count de telefones extras ao lado dos contatos (ex: ícone de telefone com número)
-
-## Sem impacto em features existentes
-- Contatos CRM continuam funcionando igual
-- Roteamento preferencial não é afetado (usa `contacts.organization_id`)
-- Esses telefones são apenas registro/referência — não participam do fluxo de distribuição automaticamente
-
+- Fallback hardcoded se tabela vazia ou inacessível
+- Kill Switch, Shadow Mode, Fluxos: não afetados
+- RLS: leitura authenticated, escrita managers/admins

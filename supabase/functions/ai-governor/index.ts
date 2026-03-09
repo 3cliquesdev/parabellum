@@ -461,6 +461,10 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
   const partnerPct = origins.find(o => o.key === 'parceiros')?.pct ?? 0;
   if (partnerPct >= 50) alerts.push(`⚠️ Parceiros representam ${partnerPct}% da receita — risco de dependência`);
   if (topPartners[0]?.pct >= 35) alerts.push(`⚠️ "${topPartners[0].name}" concentra ${topPartners[0].pct}% da receita do dia`);
+
+  // Alerta de concentração de afiliados nas vendas NOVAS
+  const affPctNew = newSalesCount > 0 ? Math.round((newSalesAffiliateCount / newSalesCount) * 100) : 0;
+  if (affPctNew >= 50) alerts.push(`⚠️ Afiliados representam ${affPctNew}% das vendas novas — diversificar canais`);
   
   // Alerta comercial inteligente (considera mês)
   if (cats.comercial.deals === 0 && totalRevToday > 0) {

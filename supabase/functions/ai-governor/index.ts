@@ -745,7 +745,7 @@ async function sendEmailReport(
         <tr><td style="background:linear-gradient(135deg,${headerColor} 0%,${headerColorEnd} 100%);padding:32px 32px 28px;text-align:center;">
           ${logoUrl 
             ? `<img src="${logoUrl}" alt="${brandName}" style="max-height:40px;max-width:200px;margin-bottom:8px;" />`
-            : `<div style="font-size:32px;margin-bottom:8px;">🤖</div>`
+            : ''
           }
           <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">Report Diário CRM 3Cliques</h1>
           <p style="color:#94a3b8;margin:6px 0 0;font-size:13px;">Relatório ${dateStr}</p>

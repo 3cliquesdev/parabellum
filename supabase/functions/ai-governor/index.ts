@@ -664,7 +664,7 @@ async function sendEmailReport(
   const pipelineLeadsHtml = salesMetrics.newLeadsToday > 0 ? `
         <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
         <tr><td style="padding:16px 32px 6px;">
-          <p style="color:#2563eb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">📥 Novos Leads Hoje (Pipeline)</p>
+          <p style="color:#2563eb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">Novos Leads Hoje (Pipeline)</p>
         </td></tr>
         <tr><td style="padding:0 32px 12px;">
           ${(salesMetrics.topNewSources ?? []).map((s: string) => `<p style="color:#334155;font-size:13px;margin:4px 0;">• ${s}</p>`).join('')}

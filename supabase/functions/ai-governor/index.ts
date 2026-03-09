@@ -618,6 +618,7 @@ PRIORIZE: Inbox e IA sao mais importantes que vendas.
 Se IA resolveu abaixo de 30% isso DEVE ser o [ATENCAO] principal.
 FOQUE NO DIA: analise o que aconteceu HOJE e o que fazer AMANHA para melhorar.
 IMPORTANTE: Distinga vendas novas de recorrencias. Recorrencias NAO sao vendas novas — sao renovacoes automaticas.
+VENDAS NOVAS: Analise o detalhamento (organico vs afiliado vs comercial). Se afiliados dominam (>50%), [SUGESTOES] DEVE incluir acao de diversificacao de canais proprios.
 TAGS: Se houver tags frequentes, sugira acoes especificas para resolver os problemas mais comuns.
 TICKETS: Se houver tickets urgentes/alta, priorize sugestoes para resolve-los amanha.
 

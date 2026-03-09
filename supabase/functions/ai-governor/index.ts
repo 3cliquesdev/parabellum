@@ -30,6 +30,24 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
   const closedByAI = convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'autopilot').length ?? 0;
   const escalatedToHuman = convs?.filter((c: any) => c.ai_mode === 'waiting_human' || c.ai_mode === 'copilot').length ?? 0;
   const closedTotal = convs?.filter((c: any) => c.status === 'closed').length ?? 0;
+  const openTotal = convs?.filter((c: any) => c.status === 'open').length ?? 0;
+
+  // Breakdown por ai_mode
+  const autopilotConvs = convs?.filter((c: any) => c.ai_mode === 'autopilot').length ?? 0;
+  const copilotConvs = convs?.filter((c: any) => c.ai_mode === 'copilot').length ?? 0;
+  const waitingHumanConvs = convs?.filter((c: any) => c.ai_mode === 'waiting_human').length ?? 0;
+  const disabledConvs = convs?.filter((c: any) => c.ai_mode === 'disabled').length ?? 0;
+
+  // Breakdown por status + ai_mode (detalhado)
+  const closedAutopilot = convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'autopilot').length ?? 0;
+  const closedCopilot = convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'copilot').length ?? 0;
+  const closedDisabled = convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'disabled').length ?? 0;
+  const openAutopilot = convs?.filter((c: any) => c.status === 'open' && c.ai_mode === 'autopilot').length ?? 0;
+  const openCopilot = convs?.filter((c: any) => c.status === 'open' && c.ai_mode === 'copilot').length ?? 0;
+
+  // Breakdown por canal
+  const channelCounts: Record<string, number> = {};
+  convs?.forEach((c: any) => { if (c.channel) channelCounts[c.channel] = (channelCounts[c.channel] ?? 0) + 1; });
 
   const closedWithTime = convs?.filter((c: any) => c.closed_at && c.created_at) ?? [];
   const avgResolutionMin = closedWithTime.length > 0
@@ -76,7 +94,17 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
   const { count: totalMessages } = await supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', since).lt('created_at', until);
   const { count: aiMessages } = await supabase.from('messages').select('id', { count: 'exact', head: true }).eq('is_ai_generated', true).gte('created_at', since).lt('created_at', until);
 
-  // ═══ CONTEXTO TÉCNICO DO SISTEMA ═══
+  // CSAT do dia
+  const { data: csatData } = await supabase
+    .from('conversation_ratings')
+    .select('rating')
+    .gte('created_at', since)
+    .lt('created_at', until);
+  
+  const csatCount = csatData?.length ?? 0;
+  const csatAvg = csatCount > 0
+    ? (csatData.reduce((sum: number, r: any) => sum + (Number(r.rating) || 0), 0) / csatCount).toFixed(1)
+    : null;
 
   // KB coverage: artigos ativos com embedding
   const { count: kbArticlesCount } = await supabase
@@ -85,15 +113,8 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .eq('is_active', true)
     .not('embedding', 'is', null);
 
-  // Modos de conversa (autopilot vs copilot) — usar convs já carregado
-  const autopilotConvs = convs?.filter((c: any) => c.ai_mode === 'autopilot').length ?? 0;
-  const copilotConvs = convs?.filter((c: any) => c.ai_mode === 'copilot').length ?? 0;
-  const waitingHumanConvs = convs?.filter((c: any) => c.ai_mode === 'waiting_human').length ?? 0;
-
   // Canais ativos no dia
-  const activeChannelsSet = new Set<string>();
-  convs?.forEach((c: any) => { if (c.channel) activeChannelsSet.add(c.channel); });
-  const activeChannels = Array.from(activeChannelsSet);
+  const activeChannels = Object.keys(channelCounts);
 
   // Configs atuais da IA
   const { data: aiCfgs } = await supabase
@@ -108,7 +129,7 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     blockFinancial: aiCfgs?.find((c: any) => c.key === 'ai_block_financial')?.value ?? 'N/A',
   };
 
-  // Top motivos de falha da IA (eventos de saída/transferência)
+  // Top motivos de falha da IA
   const { data: failEvents } = await supabase
     .from('ai_events')
     .select('event_type, output_json')
@@ -128,13 +149,19 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .map(([k, v]) => `${k} (${v}x)`);
 
   return {
-    totalConvs, closedByAI, escalatedToHuman, closedTotal, avgResolutionMin,
+    totalConvs, closedByAI, escalatedToHuman, closedTotal, openTotal, avgResolutionMin,
     totalAIEvents, fallbackEvents, directEvents, topIntents,
     criticalAnomalies, warningAnomalies,
     totalMessages: totalMessages ?? 0, aiMessages: aiMessages ?? 0,
+    // Breakdown detalhado
+    autopilotConvs, copilotConvs, waitingHumanConvs, disabledConvs,
+    closedAutopilot, closedCopilot, closedDisabled,
+    openAutopilot, openCopilot,
+    channelCounts,
+    // CSAT
+    csatCount, csatAvg,
     // Contexto técnico
     kbArticlesCount: kbArticlesCount ?? 0,
-    autopilotConvs, copilotConvs, waitingHumanConvs,
     activeChannels,
     aiConfig,
     topFailReasons,
@@ -155,10 +182,18 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
   // Deals won hoje (filtro por closed_at = data do fechamento)
   const { data: wonToday } = await supabase
     .from('deals')
-    .select('id, gross_value, affiliate_name, affiliate_commission, lead_source, kiwify_offer_id, tracking_code, is_organic_sale, pipeline_id, assigned_to')
+    .select('id, gross_value, affiliate_name, affiliate_commission, lead_source, kiwify_offer_id, tracking_code, is_organic_sale, pipeline_id, assigned_to, is_returning_customer')
     .eq('status', 'won')
     .gte('closed_at', since)
     .lt('closed_at', until);
+
+  // Separar vendas novas vs recorrências
+  const newSalesDeals = wonToday?.filter((d: any) => !d.is_returning_customer) ?? [];
+  const recurrenceDeals = wonToday?.filter((d: any) => d.is_returning_customer === true) ?? [];
+  const newSalesCount = newSalesDeals.length;
+  const newSalesRevenue = newSalesDeals.reduce((s: number, d: any) => s + (Number(d.gross_value) || 0), 0);
+  const recurrenceCount = recurrenceDeals.length;
+  const recurrenceRevenue = recurrenceDeals.reduce((s: number, d: any) => s + (Number(d.gross_value) || 0), 0);
 
   // Deals perdidos hoje (filtro por closed_at)
   const { data: lostToday } = await supabase
@@ -392,6 +427,11 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
     lostToday: lostToday?.length ?? 0,
     newDeals: newDealsCount ?? 0,
     revenueToday: totalRevToday,
+    // Vendas novas vs recorrências
+    newSalesCount,
+    newSalesRevenue,
+    recurrenceCount,
+    recurrenceRevenue,
     origins,
     topPartners,
     topReps,
@@ -416,6 +456,8 @@ async function generateAIAnalysis(metrics: any, salesMetrics: any, dateStr: stri
   const aiRate = metrics.totalConvs > 0 ? ((metrics.closedByAI / metrics.totalConvs) * 100).toFixed(1) : '0';
   const escRate = metrics.totalConvs > 0 ? ((metrics.escalatedToHuman / metrics.totalConvs) * 100).toFixed(1) : '0';
 
+  const channelBreakdown = Object.entries(metrics.channelCounts ?? {}).map(([ch, cnt]) => `${ch}: ${cnt}`).join(', ') || 'N/A';
+
   const prompt = `Voce e o analista executivo da Parabellum. Sua funcao e gerar um relatorio de diagnostico DIRETO e ACIONAVEL. Nao seja gentil — seja preciso e honesto.
 
 Este relatorio e DIARIO. Foque no que aconteceu HOJE e como melhorar AMANHA.
@@ -423,23 +465,28 @@ Este relatorio e DIARIO. Foque no que aconteceu HOJE e como melhorar AMANHA.
 ===== HOJE (${dateStr}) =====
 
 INBOX & IA (PRIORIDADE MAXIMA):
-- Conversas abertas HOJE: ${metrics.totalConvs}
-- Resolvidas pela IA (autopilot) HOJE: ${metrics.closedByAI} (${aiRate}%)
-- Escaladas para humano HOJE: ${metrics.escalatedToHuman} (${escRate}%)
-- Tempo medio de resolucao HOJE: ${metrics.avgResolutionMin ?? 'N/A'} minutos
-- Eventos IA disparados HOJE: ${metrics.totalAIEvents}
-- Mensagens HOJE: ${metrics.totalMessages} (${metrics.aiMessages} enviadas pela IA)
-- Anomalias criticas HOJE: ${metrics.criticalAnomalies?.length ?? 0}
+- Total conversas HOJE: ${metrics.totalConvs} (por canal: ${channelBreakdown})
+- Abertas agora: ${metrics.openTotal} | Fechadas: ${metrics.closedTotal} | Fila humana: ${metrics.waitingHumanConvs}
+- IA autopilot: resolveu ${metrics.closedAutopilot}, ativas ${metrics.openAutopilot} (${aiRate}% resolucao)
+- Copilot: ${metrics.closedCopilot + metrics.openCopilot} total (${metrics.closedCopilot} fechadas, ${metrics.openCopilot} abertas)
+- Desabilitado: ${metrics.disabledConvs} (${metrics.closedDisabled} fechadas)
+- Escaladas para humano: ${metrics.escalatedToHuman} (${escRate}%)
+- Tempo medio de resolucao: ${metrics.avgResolutionMin ?? 'N/A'} minutos
+- Eventos IA: ${metrics.totalAIEvents} | Msgs: ${metrics.totalMessages} (${metrics.aiMessages} da IA)
+- CSAT hoje: ${metrics.csatAvg ? `${metrics.csatAvg}/5 (${metrics.csatCount} avaliacoes)` : 'Sem avaliacoes'}
+- Anomalias criticas: ${metrics.criticalAnomalies?.length ?? 0}
 
 VENDAS HOJE:
-- Fechamentos HOJE: ${salesMetrics.wonToday} | Receita HOJE: R$ ${salesMetrics.revenueToday.toLocaleString('pt-BR')}
-- Perdidos HOJE: ${salesMetrics.lostToday}${salesMetrics.topLostReasons.length ? ' | Motivos: ' + salesMetrics.topLostReasons.join(', ') : ''}
-- Novos deals HOJE: ${salesMetrics.newDeals}
-- Canais HOJE: ${salesMetrics.origins.map((o: any) => `${o.label} ${o.pct}%`).join(' | ')}
+- Vendas novas (primeiro pagamento): ${salesMetrics.newSalesCount} | R$ ${salesMetrics.newSalesRevenue.toLocaleString('pt-BR')}
+- Recorrencias (renovacoes): ${salesMetrics.recurrenceCount} | R$ ${salesMetrics.recurrenceRevenue.toLocaleString('pt-BR')}
+- Total fechamentos: ${salesMetrics.wonToday} | Receita total: R$ ${salesMetrics.revenueToday.toLocaleString('pt-BR')}
+- Perdidos: ${salesMetrics.lostToday}${salesMetrics.topLostReasons.length ? ' | Motivos: ' + salesMetrics.topLostReasons.join(', ') : ''}
+- Novos deals abertos: ${salesMetrics.newDeals}
+- Canais: ${salesMetrics.origins.map((o: any) => `${o.label} ${o.pct}%`).join(' | ')}
 - Time comercial HOJE: ${salesMetrics.topReps.length > 0 ? salesMetrics.topReps.map((r: any) => `${r.name}: ${r.deals} deals`).join(', ') : 'Sem fechamentos hoje'}
 
 PIPELINE HOJE:
-- Novos leads capturados HOJE: ${salesMetrics.newLeadsToday}
+- Novos leads capturados: ${salesMetrics.newLeadsToday}
 - Por fonte: ${salesMetrics.topNewSources.join(' | ') || 'Nenhum'}
 
 ===== MES (acumulado) =====
@@ -450,61 +497,28 @@ PIPELINE HOJE:
 - Alertas: ${salesMetrics.alerts.join(' | ') || 'Nenhum'}
 
 PARAMETROS DE SAUDE (use para avaliar):
-✅ IA resolucao SAUDAVEL: acima de 60%
-⚠️ IA resolucao ATENCAO: 30-60%
-🚨 IA resolucao CRITICO: abaixo de 30%
-✅ Escalacao SAUDAVEL: abaixo de 20%
-⚠️ Escalacao ATENCAO: 20-35%
-🚨 Escalacao CRITICO: acima de 35%
-✅ Tempo medio SAUDAVEL: abaixo de 15 min
-⚠️ Tempo medio ATENCAO: 15-30 min
-🚨 Tempo medio CRITICO: acima de 30 min
+IA resolucao SAUDAVEL: acima de 60%, ATENCAO: 30-60%, CRITICO: abaixo de 30%
+Escalacao SAUDAVEL: abaixo de 20%, ATENCAO: 20-35%, CRITICO: acima de 35%
+Tempo medio SAUDAVEL: abaixo de 15 min, ATENCAO: 15-30 min, CRITICO: acima de 30 min
 
-===== CONTEXTO DO SISTEMA (use para diagnostico tecnico preciso) =====
-- Configuracoes da IA: ai_strict_rag_mode=${metrics.aiConfig?.strictRagMode ?? 'N/A'}, threshold=${metrics.aiConfig?.ragMinThreshold ?? 'N/A'}, confidence_direct=${metrics.aiConfig?.confidenceDirect ?? 'N/A'}, block_financial=${metrics.aiConfig?.blockFinancial ?? 'N/A'}
-- KB (Knowledge Base): ${metrics.kbArticlesCount ?? 0} artigos ativos com embedding
-- Modos de conversa HOJE: ${metrics.autopilotConvs ?? 0} em autopilot, ${metrics.copilotConvs ?? 0} em copilot, ${metrics.waitingHumanConvs ?? 0} em waiting_human
-- Canais ativos: ${metrics.activeChannels?.join(', ') ?? 'N/A'}
-- Top motivos de falha/transferencia da IA: ${metrics.topFailReasons?.length > 0 ? metrics.topFailReasons.join(', ') : 'Nenhum registrado'}
+===== CONTEXTO DO SISTEMA =====
+- ai_strict_rag_mode=${metrics.aiConfig?.strictRagMode ?? 'N/A'}, threshold=${metrics.aiConfig?.ragMinThreshold ?? 'N/A'}, confidence_direct=${metrics.aiConfig?.confidenceDirect ?? 'N/A'}, block_financial=${metrics.aiConfig?.blockFinancial ?? 'N/A'}
+- KB: ${metrics.kbArticlesCount ?? 0} artigos ativos com embedding
+- Top falhas IA: ${metrics.topFailReasons?.length > 0 ? metrics.topFailReasons.join(', ') : 'Nenhum registrado'}
 
 ===== INSTRUCOES =====
 
 PRIORIZE: Inbox e IA sao mais importantes que vendas.
-Se IA resolveu abaixo de 30% → isso DEVE ser o [ATENCAO] principal.
+Se IA resolveu abaixo de 30% isso DEVE ser o [ATENCAO] principal.
 FOQUE NO DIA: analise o que aconteceu HOJE e o que fazer AMANHA para melhorar.
+IMPORTANTE: Distinga vendas novas de recorrencias. Recorrencias NAO sao vendas novas — sao renovacoes automaticas.
 
-INSTRUCOES POR SECAO:
+[DESTAQUES] — O MELHOR dado do DIA. Cite numero exato.
+[ATENCAO] — Diagnostico TECNICO. Cite configs, nos do fluxo, gaps na KB. NUNCA diga "falta de treinamento".
+[SUGESTOES] — 3 acoes: 1) TECNICA 2) CONTEUDO 3) COMERCIAL. Especificas e operacionais.
+[MOTIVACIONAL] — Varie. Use dados reais do DIA.
 
-[DESTAQUES] — Encontre O MELHOR dado do DIA. Se inbox esta ruim, foque nas vendas ou crescimento. Sempre ha algo positivo. Cite o numero exato de HOJE.
-
-[ATENCAO] — Seja um especialista TECNICO. Use o CONTEXTO DO SISTEMA acima para diagnosticar:
-- Se autopilotConvs = 0 ou < 50% do total: "Conversas NAO estao em autopilot — IA assistindo humanos em vez de resolver sozinha. Verificar no ia_entrada no Master Flow e confirmar ai_persistent=true."
-- Se topFailReasons tem ai_handoff_exit: "IA transferiu Nx por falta de conteudo no RAG — KB precisa de artigos sobre [topico inferido]."
-- Se ai_strict_rag_mode=true e resolucao baixa: "ai_strict_rag_mode ativo — IA recusa responder sem match exato na KB. Considerar ajustar para false ou aumentar artigos."
-- Se block_financial=true: "Bloqueio financeiro ativo — IA nao responde perguntas sobre valores/pagamentos."
-- CITE CAUSA TECNICA REAL. NUNCA diga "falta de treinamento" ou "reavaliar estrategia". Sempre aponte a config, o no do fluxo ou o gap na KB.
-
-[SUGESTOES] — 3 acoes ESPECIFICAS e OPERACIONAIS para melhorar AMANHA:
-1) Uma acao TECNICA (config do sistema, no do fluxo, deploy). Ex: "Verificar se no ia_entrada tem forbid_financial=true" ou "Alterar ai_strict_rag_mode para false"
-2) Uma acao de CONTEUDO (artigo KB especifico baseado nos fails). Ex: "Criar artigo KB sobre cancelamento de conta — top motivo de transferencia"
-3) Uma acao COMERCIAL (com nome do canal/parceiro/rep). Ex: "CIRILO representa X% — contatar 2o parceiro para diversificar"
-NUNCA USE frases vagas como "implementar treinamento", "reavaliar estrategia", "melhorar processos"
-
-[MOTIVACIONAL] — Varie a cada relatorio. Use dados reais do DIA. Ex: "Com X fechamentos hoje e crescimento de Y% no mes, a direcao e clara — agora e executar."
-
-FORMATO OBRIGATORIO:
-[DESTAQUES] texto
-[ATENCAO] texto
-[SUGESTOES] texto
-[MOTIVACIONAL] texto
-
-REGRAS ABSOLUTAS:
-- NUNCA use **, -, *, markdown ou bullets
-- Cada tag aparece UMA vez em linha propria
-- SEMPRE mencione a taxa de resolucao da IA no [ATENCAO] se < 60%
-- Maximo 3 frases por tag
-- Cite numeros reais de HOJE, nao genericos
-- Use o contexto do sistema para diagnosticos tecnicos precisos`;
+FORMATO: [TAG] texto (uma vez por tag, sem markdown, max 3 frases por tag)`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -794,19 +808,20 @@ async function sendEmailReport(
             </tr>
           </table>
         </td></tr>
-        <!-- Sub-metrics -->
+        <!-- Sub-metrics detalhados -->
         <tr><td style="padding:0 32px 20px;">
           <p style="color:#64748b;font-size:12px;margin:0;line-height:1.8;">
-            Tempo medio de resolucao: <strong style="color:#1e293b;">${metrics.avgResolutionMin ? `${metrics.avgResolutionMin} min` : '—'}</strong><br/>
-            Mensagens: <strong style="color:#1e293b;">${metrics.totalMessages}</strong> (${metrics.aiMessages} da IA)
-            ${metrics.topIntents.length > 0 ? `<br/>Top eventos: <strong style="color:#1e293b;">${metrics.topIntents.slice(0, 3).join(', ')}</strong>` : ''}
+            Abertas agora: <strong style="color:#1e293b;">${metrics.openTotal}</strong> | Fechadas: <strong style="color:#1e293b;">${metrics.closedTotal}</strong> | Fila humana: <strong style="color:#dc2626;">${metrics.waitingHumanConvs}</strong><br/>
+            Autopilot: resolveu <strong style="color:#22c55e;">${metrics.closedAutopilot}</strong>, ativas ${metrics.openAutopilot} | Copilot: <strong style="color:#1e293b;">${metrics.copilotConvs}</strong> | Desabilitado: ${metrics.disabledConvs}<br/>
+            Tempo medio: <strong style="color:#1e293b;">${metrics.avgResolutionMin ? `${metrics.avgResolutionMin} min` : '—'}</strong> | Msgs: <strong style="color:#1e293b;">${metrics.totalMessages}</strong> (${metrics.aiMessages} da IA)
+            ${metrics.csatAvg ? `<br/>CSAT hoje: <strong style="color:#f59e0b;">${metrics.csatAvg}/5</strong> (${metrics.csatCount} avaliacoes)` : ''}
             ${(metrics.criticalAnomalies?.length ?? 0) > 0 ? `<br/>Anomalias: <strong style="color:#dc2626;">${metrics.criticalAnomalies.length} criticas</strong>` : ''}
           </p>
         </td></tr>
 
         <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
 
-        <!-- HOJE — Vendas -->
+        <!-- HOJE — Vendas (separadas) -->
         <tr><td style="padding:16px 32px 6px;">
           <p style="color:#22c55e;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Vendas</p>
         </td></tr>
@@ -814,20 +829,28 @@ async function sendEmailReport(
           <table width="100%" cellpadding="0" cellspacing="6">
             <tr>
               <td style="background:#f0fdf4;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #bbf7d0;">
-                <div style="color:#16a34a;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.wonToday}</div>
-                <div style="color:#16a34a;font-size:13px;font-weight:700;margin-top:4px;">${fmtBRL(salesMetrics.revenueToday)}</div>
-                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Ganhos</div>
+                <div style="color:#16a34a;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.newSalesCount}</div>
+                <div style="color:#16a34a;font-size:13px;font-weight:700;margin-top:4px;">${fmtBRL(salesMetrics.newSalesRevenue)}</div>
+                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Vendas Novas</div>
+              </td>
+              <td style="background:#eff6ff;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #bfdbfe;">
+                <div style="color:#2563eb;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.recurrenceCount}</div>
+                <div style="color:#2563eb;font-size:13px;font-weight:700;margin-top:4px;">${fmtBRL(salesMetrics.recurrenceRevenue)}</div>
+                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Recorrencias</div>
               </td>
               <td style="background:#fef2f2;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #fecaca;">
                 <div style="color:#dc2626;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.lostToday}</div>
                 <div style="color:#94a3b8;font-size:10px;margin-top:6px;font-weight:600;text-transform:uppercase;">Perdidos</div>
               </td>
-              <td style="background:#eff6ff;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #bfdbfe;">
-                <div style="color:#2563eb;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.newDeals}</div>
+              <td style="background:#f8fafc;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #e2e8f0;">
+                <div style="color:#1e293b;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.newDeals}</div>
                 <div style="color:#94a3b8;font-size:10px;margin-top:6px;font-weight:600;text-transform:uppercase;">Novos Deals</div>
               </td>
             </tr>
           </table>
+          <p style="color:#64748b;font-size:11px;margin:8px 0 0;text-align:center;">
+            Total: ${salesMetrics.wonToday} fechamentos | ${fmtBRL(salesMetrics.revenueToday)}
+          </p>
         </td></tr>
 
         ${originsHtml}
@@ -1004,13 +1027,30 @@ serve(async (req) => {
     const fmtK = (v: number) => v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v.toLocaleString('pt-BR')}`;
     const channelsSummary = (salesMetrics.origins ?? []).map((o: any) => `${o.emoji} ${o.label}: ${o.pct}% (${o.deals})`).join('\n');
 
-    // ═══ HOJE — Atendimento ═══
+    // Canal breakdown
+    const channelBreakdownWa = Object.entries(metrics.channelCounts ?? {}).map(([ch, cnt]) => `${ch} ${cnt}`).join(', ') || 'N/A';
 
-    // ═══ HOJE — Atendimento ═══
-    const inboxSummary = `📞 *HOJE — Atendimento*\nConversas: ${metrics.totalConvs} | IA resolveu: ${metrics.closedByAI} | Escaladas: ${metrics.escalatedToHuman}\nTempo medio: ${metrics.avgResolutionMin ?? '—'} min\nEventos IA: ${metrics.totalAIEvents} | Msgs: ${metrics.totalMessages} (${metrics.aiMessages} da IA)${metrics.criticalAnomalies?.length > 0 ? `\nAnomalias: ${metrics.criticalAnomalies.length} criticas` : ''}`;
+    // ═══ HOJE — Atendimento (detalhado) ═══
+    const inboxSummary = [
+      `📞 *HOJE — Atendimento*`,
+      `Conversas: ${metrics.totalConvs} (${channelBreakdownWa})`,
+      `Abertas agora: ${metrics.openTotal} | Fechadas: ${metrics.closedTotal} | Fila humana: ${metrics.waitingHumanConvs}`,
+      `IA autopilot: resolveu ${metrics.closedAutopilot}, ativas ${metrics.openAutopilot}`,
+      `Copilot: ${metrics.copilotConvs} | Desabilitado: ${metrics.disabledConvs}`,
+      `Tempo medio: ${metrics.avgResolutionMin ?? '—'} min`,
+      `Eventos IA: ${metrics.totalAIEvents} | Msgs: ${metrics.totalMessages} (${metrics.aiMessages} da IA)`,
+      metrics.csatAvg ? `CSAT hoje: ${metrics.csatAvg}/5 (${metrics.csatCount} avaliacoes)` : null,
+      metrics.criticalAnomalies?.length > 0 ? `Anomalias: ${metrics.criticalAnomalies.length} criticas` : null,
+    ].filter(Boolean).join('\n');
 
-    // ═══ HOJE — Vendas ═══
-    const salesSummary = `💰 *HOJE — Vendas*\nFechamentos: ${salesMetrics.wonToday} | Receita: ${fmtK(salesMetrics.revenueToday)}\nPerdidos: ${salesMetrics.lostToday} | Novos deals: ${salesMetrics.newDeals}`;
+    // ═══ HOJE — Vendas (separadas) ═══
+    const salesSummary = [
+      `💰 *HOJE — Vendas*`,
+      `Vendas novas: ${salesMetrics.newSalesCount} (${fmtK(salesMetrics.newSalesRevenue)})`,
+      `Recorrencias: ${salesMetrics.recurrenceCount} (${fmtK(salesMetrics.recurrenceRevenue)})`,
+      `Total: ${salesMetrics.wonToday} fechamentos | ${fmtK(salesMetrics.revenueToday)}`,
+      `Perdidos: ${salesMetrics.lostToday} | Novos deals: ${salesMetrics.newDeals}`,
+    ].join('\n');
 
     // ═══ HOJE — Pipeline ═══
     const pipelineSummaryToday = salesMetrics.newLeadsToday > 0

@@ -504,8 +504,11 @@ async function sendEmailReport(
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.06);">
 
         <!-- Header -->
-        <tr><td style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:32px 32px 28px;text-align:center;">
-          <div style="font-size:32px;margin-bottom:8px;">🤖</div>
+        <tr><td style="background:linear-gradient(135deg,${headerColor} 0%,${headerColorEnd} 100%);padding:32px 32px 28px;text-align:center;">
+          ${logoUrl 
+            ? `<img src="${logoUrl}" alt="${brandName}" style="max-height:40px;max-width:200px;margin-bottom:8px;" />`
+            : `<div style="font-size:32px;margin-bottom:8px;">🤖</div>`
+          }
           <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">IA Governante</h1>
           <p style="color:#94a3b8;margin:6px 0 0;font-size:13px;">Relatório Executivo — ${dateStr}</p>
         </td></tr>

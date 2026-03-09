@@ -707,7 +707,8 @@ async function sendEmailReport(
   dateStr: string,
   aiAnalysis: string,
   metrics: any,
-  salesMetrics: any
+  salesMetrics: any,
+  periodStr?: string
 ): Promise<boolean> {
   const resendKey = Deno.env.get('RESEND_API_KEY');
   if (!resendKey) {

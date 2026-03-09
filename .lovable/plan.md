@@ -1,39 +1,31 @@
 
 
-# Plano: Corrigir Edges Duplicadas e Conexão Faltante no Fluxo Cópia
+# Corrigir Edges do Master Flow de Produção
 
-## Problemas Identificados
+## Escopo
+Aplicar as mesmas 8 correções já feitas na cópia ao fluxo de produção `e44da799-c404-4c86-abe0-4aea2ca0ea1f`.
 
-### 1. Drop Internacional sem conexão
-O nó `1769459533021` (Menu Produto Cliente) tem a opção `opt_1769459583909` (Drop Internacional) **sem nenhuma edge de saída**. O cliente fica preso.
+## Alterações (1 SQL UPDATE)
 
-**Correção**: Adicionar edge `opt_1769459583909` → `1769459768149` (Menu Assunto), igual às outras opções de produto.
+### Remover 7 edges duplicadas
+Todas apontam desnecessariamente para `1772196913050`, quando já existe caminho correto:
 
-### 2. Edges duplicadas no Menu Assunto (`1769459768149`)
-Cada opção tem **duas edges**: uma correta (para o nó "Trava" específico) e uma duplicada apontando para `1772196913050` (condição genérica). Isso causa comportamento imprevisível no motor de fluxos.
+| Source | Edge duplicada a remover | Caminho correto mantido |
+|--------|--------------------------|------------------------|
+| `opt_1769459784782` (Menu Assunto) | → `1772196913050` | → `1772136527156` |
+| `opt_1769459793458` | → `1772196913050` | → `1772136666814` |
+| `opt_1769459798821` | → `1772196913050` | → `1772136666814` |
+| `opt_1769459806791` | → `1772196913050` | → `1772136666814` |
+| `1772134319850` (Trava) | → `1772196913050` | → `1772135608356` |
+| `1772136527156` (Trava) | → `1772196913050` | → `1772136548363` |
+| `1772136666814` (Trava) | → `1772196913050` | → `1772136698929` |
 
-**4 edges a remover**:
-- `opt_1769459784782` → `1772196913050` (manter a que vai para `1772136527156`)
-- `opt_1769459793458` → `1772196913050` (manter a que vai para `1772136666814`)
-- `opt_1769459798821` → `1772196913050` (manter a que vai para `1772136666814`)
-- `opt_1769459806791` → `1772196913050` (manter a que vai para `1772136666814`)
+### Adicionar 1 edge faltante
+`opt_1769459583909` (Drop Internacional) → `1769459768149` (Menu Assunto)
 
-### 3. Edges duplicadas nos nós "Trava"
-Três nós "Trava" têm edge correta para seu nó condição E uma duplicada para `1772196913050`:
-
-**3 edges a remover**:
-- `1772134319850` → `1772196913050` (manter a que vai para `1772135608356`)
-- `1772136527156` → `1772196913050` (manter a que vai para `1772136548363`)
-- `1772136666814` → `1772196913050` (manter a que vai para `1772136698929`)
-
-> Nota: Os nós `1772134316245`, `1772134325194` e `1772134329293` têm `1772196913050` como **única** saída, então essas edges são mantidas.
-
-## Implementação
-
-Uma única operação UPDATE no `flow_definition` do fluxo `abc6cfc0-...`:
-
-1. **Remover 7 edges duplicadas** (IDs específicos listados acima)
-2. **Adicionar 1 edge** para Drop Internacional → Menu Assunto
-
-Nenhuma alteração em código frontend ou edge functions. Apenas correção de dados no `flow_definition` JSON.
+## Impacto
+- Zero downtime -- é um UPDATE no JSON `flow_definition`
+- Não altera nenhum nó, apenas corrige rotas
+- Conversas em andamento não são afetadas (usam estado salvo)
+- Nenhuma alteração em código frontend ou edge functions
 

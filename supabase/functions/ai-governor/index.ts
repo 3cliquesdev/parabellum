@@ -644,7 +644,7 @@ async function sendEmailReport(
       body: JSON.stringify({
         from: `${fromName} <${fromEmail}>`,
         to: [adminEmail],
-        subject: `IA Governante — ${dateStr} | ${salesMetrics.wonToday} fechamentos · ${fmtBRL(salesMetrics.revenueToday)}`,
+        subject: `IA Governante — Relatório ${dateStr} — Relatório Diário CRM 3Cliques`,
         html: htmlContent,
       }),
     });

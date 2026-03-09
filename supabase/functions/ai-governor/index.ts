@@ -564,10 +564,10 @@ async function sendEmailReport(
   // Formatar análise da IA em blocos estruturados
   function formatAnalysisHtml(text: string): string {
     const sectionMap: Record<string, { icon: string; title: string; color: string; bg: string; border: string }> = {
-      '[DESTAQUES]': { icon: '✅', title: 'Destaques', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-      '[ATENCAO]':   { icon: '⚠️', title: 'Atenção', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-      '[SUGESTOES]': { icon: '💡', title: 'Sugestões', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-      '[MOTIVACIONAL]': { icon: '🚀', title: '', color: '#7c3aed', bg: '#faf5ff', border: '#e9d5ff' },
+      '[DESTAQUES]': { icon: '', title: 'Destaques', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+      '[ATENCAO]':   { icon: '', title: 'Atencao', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+      '[SUGESTOES]': { icon: '', title: 'Sugestoes', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+      '[MOTIVACIONAL]': { icon: '', title: '', color: '#7c3aed', bg: '#faf5ff', border: '#e9d5ff' },
     };
 
     let html = '';

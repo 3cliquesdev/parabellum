@@ -548,7 +548,7 @@ async function sendEmailReport(
     branding = brandingRes.data;
   } catch {}
 
-  const fromName = 'IA Governante';
+  const fromName = sender?.from_name || brandName || 'Parabellum by 3Cliques';
   const fromEmail = sender?.from_email || 'contato@mail.3cliques.net';
   const headerColor = branding?.header_color || '#0f172a';
   const headerColorEnd = headerColor + 'dd';

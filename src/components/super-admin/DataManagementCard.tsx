@@ -170,7 +170,15 @@ export function DataManagementCard() {
           label="Importar Clientes"
           onClick={() => navigate("/import-clients")}
         />
+
+        <ActionButton
+          icon={Eraser}
+          label="Limpar Nomes de Contatos"
+          onClick={() => setCleanupOpen(true)}
+        />
       </CardContent>
+
+      <ContactNameCleanupDialog open={cleanupOpen} onOpenChange={setCleanupOpen} />
     </Card>
   );
 }

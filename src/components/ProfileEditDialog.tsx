@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { useUserRole } from "@/hooks/useUserRole";
+import { hasFullAccess } from "@/config/roles";
 import AvatarUploader from "@/components/AvatarUploader";
 import { Bot, Send } from "lucide-react";
 

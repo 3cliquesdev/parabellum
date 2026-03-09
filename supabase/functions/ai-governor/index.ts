@@ -1004,16 +1004,7 @@ serve(async (req) => {
     const fmtK = (v: number) => v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v.toLocaleString('pt-BR')}`;
     const channelsSummary = (salesMetrics.origins ?? []).map((o: any) => `${o.emoji} ${o.label}: ${o.pct}% (${o.deals})`).join('\n');
 
-    const teamSection = (salesMetrics.topRepsMonth ?? []).length > 0
-      ? `👥 *TIME COMERCIAL (mês)*\n` +
-        (salesMetrics.topRepsMonth ?? []).slice(0, 3).map((r: any, i: number) =>
-          `${['🥇','🥈','🥉'][i]} ${r.name}: ${r.deals} deals | ${fmtK(r.revenue)}`
-        ).join('\n')
-      : `👥 *TIME COMERCIAL*\nNenhum fechamento no mês ainda`;
-
-    const pipelineSection = salesMetrics.newLeadsToday > 0
-      ? `📥 *NOVOS LEADS HOJE (pipeline)*\n${(salesMetrics.topNewSources ?? []).join('\n')}\nTotal: ${salesMetrics.newLeadsToday} leads entraram`
-      : `📥 *NOVOS LEADS HOJE*\nNenhum lead novo capturado`;
+    // ═══ HOJE — Atendimento ═══
 
     // ═══ HOJE — Atendimento ═══
     const inboxSummary = `📞 *HOJE — Atendimento*\nConversas: ${metrics.totalConvs} | IA resolveu: ${metrics.closedByAI} | Escaladas: ${metrics.escalatedToHuman}\nTempo medio: ${metrics.avgResolutionMin ?? '—'} min\nEventos IA: ${metrics.totalAIEvents} | Msgs: ${metrics.totalMessages} (${metrics.aiMessages} da IA)${metrics.criticalAnomalies?.length > 0 ? `\nAnomalias: ${metrics.criticalAnomalies.length} criticas` : ''}`;

@@ -645,7 +645,7 @@ async function sendEmailReport(
             return `<div style="margin-bottom:10px;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="color:#334155;font-size:13px;font-weight:600;">${o.emoji} ${o.label}</td>
+                  <td style="color:#334155;font-size:13px;font-weight:600;">${o.label}</td>
                   <td style="color:#64748b;font-size:12px;text-align:right;">${o.pct}% · ${o.deals} deal${o.deals !== 1 ? 's' : ''} · ${fmtBRL(o.revenue)}</td>
                 </tr>
               </table>

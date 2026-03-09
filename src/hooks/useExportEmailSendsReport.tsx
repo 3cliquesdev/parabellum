@@ -13,12 +13,14 @@ function fmtDateTime(iso: string | null): string {
 
 function getEmailStatus(row: {
   bounced_at: string | null;
+  replied_at: string | null;
   clicked_at: string | null;
   opened_at: string | null;
   sent_at: string | null;
   status: string | null;
 }): string {
   if (row.bounced_at) return "Bounce";
+  if (row.replied_at) return "Respondido";
   if (row.clicked_at) return "Clicado";
   if (row.opened_at) return "Aberto";
   if (row.status === "error") return "Erro";

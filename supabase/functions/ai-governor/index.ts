@@ -82,21 +82,21 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
     .select('user_id');
   const commercialRepsIds = [...new Set(salesRepsData?.map((r: any) => r.user_id) ?? [])];
 
-  // Deals won hoje com origem completa
+  // Deals won hoje (filtro por closed_at = data do fechamento)
   const { data: wonToday } = await supabase
     .from('deals')
     .select('id, gross_value, affiliate_name, affiliate_commission, lead_source, kiwify_offer_id, tracking_code, is_organic_sale, pipeline_id, assigned_to')
     .eq('status', 'won')
-    .gte('created_at', since)
-    .lt('created_at', until);
+    .gte('closed_at', since)
+    .lt('closed_at', until);
 
-  // Deals perdidos hoje
+  // Deals perdidos hoje (filtro por closed_at)
   const { data: lostToday } = await supabase
     .from('deals')
     .select('id, lost_reason, gross_value')
     .eq('status', 'lost')
-    .gte('created_at', since)
-    .lt('created_at', until);
+    .gte('closed_at', since)
+    .lt('closed_at', until);
 
   const { count: newDealsCount } = await supabase
     .from('deals')

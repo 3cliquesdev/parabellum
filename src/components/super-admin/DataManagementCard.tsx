@@ -3,9 +3,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Database, Download, Trash2, RefreshCw, Upload, Loader2 } from "lucide-react";
+import { Database, Download, Trash2, RefreshCw, Upload, Loader2, Eraser } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { ContactNameCleanupDialog } from "./ContactNameCleanupDialog";
 
 export function DataManagementCard() {
   const { toast } = useToast();

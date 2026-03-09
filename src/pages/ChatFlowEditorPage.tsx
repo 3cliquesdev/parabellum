@@ -58,8 +58,18 @@ export default function ChatFlowEditorPage() {
     setCurrentFlowState(flowDef);
   };
 
-  const handleOpenSimulator = () => {
-    setSimulatorOpen(true);
+  const handleOpenTestDialog = () => {
+    setTestDialogOpen(true);
+  };
+
+  const handleAutoSave = async () => {
+    if (!id || !currentFlowState) return;
+    await new Promise<void>((resolve, reject) => {
+      updateFlow.mutate(
+        { id, flow_definition: currentFlowState },
+        { onSuccess: () => resolve(), onError: (err) => reject(err) }
+      );
+    });
   };
 
   const handleOpenSettings = () => {

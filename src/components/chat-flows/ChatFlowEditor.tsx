@@ -148,6 +148,7 @@ const createStartNode = (): Node => ({
 });
 
 function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSaving }: ChatFlowEditorProps) {
+  const { data: ticketCategories = [] } = useTicketCategories();
   // Criar nó de início se não houver nós
   const initialNodes = useMemo(() => {
     if (initialFlow?.nodes && initialFlow.nodes.length > 0) {

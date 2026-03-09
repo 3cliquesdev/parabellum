@@ -126,7 +126,7 @@ export function VariableAutocomplete({
 
   return (
     <div className="relative space-y-1">
-      <Popover open={open} onOpenChange={(o) => { if (!o) return; setOpen(o); }}>
+      <Popover open={open} onOpenChange={(o) => { if (!o) return; setOpen(o); }{ if (!o) return; setOpen(o); }}>
         <PopoverTrigger asChild>
           <div>
             <Textarea

@@ -104,6 +104,7 @@ export function useExportEmailSendsReport() {
           "Assunto": row.subject,
           "Data/Hora Envio": fmtDateTime(row.sent_at),
           "Status": getEmailStatus(row),
+          "Respondido": fmtDateTime(row.replied_at),
           "Clicado": fmtDateTime(row.clicked_at),
           "Aberto": fmtDateTime(row.opened_at),
           "Bounce": fmtDateTime(row.bounced_at),

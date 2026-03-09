@@ -250,6 +250,31 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
   const recurrenceCount = recurrenceDeals.length;
   const recurrenceRevenue = recurrenceDeals.reduce((s: number, d: any) => s + (Number(d.gross_value) || 0), 0);
 
+  // Sub-classificar vendas novas: quem vendeu?
+  const newSalesOrganic = newSalesDeals.filter((d: any) => !d.assigned_to && !d.affiliate_name);
+  const newSalesAffiliate = newSalesDeals.filter((d: any) => !d.assigned_to && d.affiliate_name);
+  const newSalesComercial = newSalesDeals.filter((d: any) => !!d.assigned_to);
+
+  const newSalesOrganicCount = newSalesOrganic.length;
+  const newSalesOrganicRevenue = newSalesOrganic.reduce((s: number, d: any) => s + (Number(d.gross_value) || 0), 0);
+  const newSalesAffiliateCount = newSalesAffiliate.length;
+  const newSalesAffiliateRevenue = newSalesAffiliate.reduce((s: number, d: any) => s + (Number(d.gross_value) || 0), 0);
+  const newSalesComercialCount = newSalesComercial.length;
+  const newSalesComercialRevenue = newSalesComercial.reduce((s: number, d: any) => s + (Number(d.gross_value) || 0), 0);
+
+  // Top afiliados nas vendas novas
+  const affNewMap: Record<string, { deals: number; revenue: number }> = {};
+  newSalesAffiliate.forEach((d: any) => {
+    const name = d.affiliate_name || 'Desconhecido';
+    if (!affNewMap[name]) affNewMap[name] = { deals: 0, revenue: 0 };
+    affNewMap[name].deals++;
+    affNewMap[name].revenue += Number(d.gross_value) || 0;
+  });
+  const topNewAffiliates = Object.entries(affNewMap)
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.deals - a.deals)
+    .slice(0, 5);
+
   // Deals perdidos hoje (filtro por closed_at)
   const { data: lostToday } = await supabase
     .from('deals')

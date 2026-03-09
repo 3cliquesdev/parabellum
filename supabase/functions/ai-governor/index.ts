@@ -68,7 +68,69 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
   const { count: totalMessages } = await supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', since).lt('created_at', until);
   const { count: aiMessages } = await supabase.from('messages').select('id', { count: 'exact', head: true }).eq('is_ai_generated', true).gte('created_at', since).lt('created_at', until);
 
-  return { totalConvs, closedByAI, escalatedToHuman, closedTotal, avgResolutionMin, totalAIEvents, fallbackEvents, directEvents, topIntents, criticalAnomalies, warningAnomalies, totalMessages: totalMessages ?? 0, aiMessages: aiMessages ?? 0 };
+  // ═══ CONTEXTO TÉCNICO DO SISTEMA ═══
+
+  // KB coverage: artigos ativos com embedding
+  const { count: kbArticlesCount } = await supabase
+    .from('knowledge_base_articles')
+    .select('id', { count: 'exact', head: true })
+    .eq('is_active', true)
+    .not('embedding', 'is', null);
+
+  // Modos de conversa (autopilot vs copilot) — usar convs já carregado
+  const autopilotConvs = convs?.filter((c: any) => c.ai_mode === 'autopilot').length ?? 0;
+  const copilotConvs = convs?.filter((c: any) => c.ai_mode === 'copilot').length ?? 0;
+  const waitingHumanConvs = convs?.filter((c: any) => c.ai_mode === 'waiting_human').length ?? 0;
+
+  // Canais ativos no dia
+  const activeChannelsSet = new Set<string>();
+  convs?.forEach((c: any) => { if (c.channel) activeChannelsSet.add(c.channel); });
+  const activeChannels = Array.from(activeChannelsSet);
+
+  // Configs atuais da IA
+  const { data: aiCfgs } = await supabase
+    .from('system_configurations')
+    .select('key, value')
+    .in('key', ['ai_strict_rag_mode', 'ai_rag_min_threshold', 'ai_confidence_direct', 'ai_block_financial']);
+
+  const aiConfig = {
+    strictRagMode: aiCfgs?.find((c: any) => c.key === 'ai_strict_rag_mode')?.value ?? 'N/A',
+    ragMinThreshold: aiCfgs?.find((c: any) => c.key === 'ai_rag_min_threshold')?.value ?? 'N/A',
+    confidenceDirect: aiCfgs?.find((c: any) => c.key === 'ai_confidence_direct')?.value ?? 'N/A',
+    blockFinancial: aiCfgs?.find((c: any) => c.key === 'ai_block_financial')?.value ?? 'N/A',
+  };
+
+  // Top motivos de falha da IA (eventos de saída/transferência)
+  const { data: failEvents } = await supabase
+    .from('ai_events')
+    .select('event_type, output_json')
+    .gte('created_at', since)
+    .lt('created_at', until)
+    .in('event_type', ['ai_handoff_exit', 'ai_blocked_financial', 'ai_blocked_commercial', 'ai_transfer', 'ai_no_answer'])
+    .limit(100);
+
+  const failTopics: Record<string, number> = {};
+  failEvents?.forEach((e: any) => {
+    const t = e.event_type;
+    failTopics[t] = (failTopics[t] ?? 0) + 1;
+  });
+  const topFailReasons = Object.entries(failTopics)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([k, v]) => `${k} (${v}x)`);
+
+  return {
+    totalConvs, closedByAI, escalatedToHuman, closedTotal, avgResolutionMin,
+    totalAIEvents, fallbackEvents, directEvents, topIntents,
+    criticalAnomalies, warningAnomalies,
+    totalMessages: totalMessages ?? 0, aiMessages: aiMessages ?? 0,
+    // Contexto técnico
+    kbArticlesCount: kbArticlesCount ?? 0,
+    autopilotConvs, copilotConvs, waitingHumanConvs,
+    activeChannels,
+    aiConfig,
+    topFailReasons,
+  };
 }
 
 async function collectSalesMetrics(supabase: any, since: string, until: string) {
@@ -387,25 +449,50 @@ PIPELINE COMERCIAL HOJE:
 TIME COMERCIAL (mês):
 ${salesMetrics.topRepsMonth.length > 0 ? salesMetrics.topRepsMonth.map((r: any) => `${r.name}: ${r.deals} deals / R$${r.revenue}`).join(' | ') : 'Sem fechamentos no mês'}
 
+===== CONTEXTO DO SISTEMA (use para diagnóstico técnico preciso) =====
+- Configurações da IA: ai_strict_rag_mode=${metrics.aiConfig?.strictRagMode ?? 'N/A'}, threshold=${metrics.aiConfig?.ragMinThreshold ?? 'N/A'}, confidence_direct=${metrics.aiConfig?.confidenceDirect ?? 'N/A'}, block_financial=${metrics.aiConfig?.blockFinancial ?? 'N/A'}
+- KB (Knowledge Base): ${metrics.kbArticlesCount ?? 0} artigos ativos com embedding
+- Modos de conversa do dia: ${metrics.autopilotConvs ?? 0} em autopilot, ${metrics.copilotConvs ?? 0} em copilot, ${metrics.waitingHumanConvs ?? 0} em waiting_human
+- Canais ativos: ${metrics.activeChannels?.join(', ') ?? 'N/A'}
+- Top motivos de falha/transferência da IA: ${metrics.topFailReasons?.length > 0 ? metrics.topFailReasons.join(', ') : 'Nenhum registrado'}
+
 ===== INSTRUÇÕES =====
 
 PRIORIZE: Inbox e IA são mais importantes que vendas.
 Se IA resolveu abaixo de 30% → isso DEVE ser o [ATENCAO] principal.
-Se escalações acima de 35% → mencione a causa provável e a solução.
-Se o tempo médio está alto → aponte o impacto no cliente.
 
-FORMATO OBRIGATÓRIO — copie EXATAMENTE:
-[DESTAQUES] Uma frase sobre o ponto positivo mais relevante do dia (inbox OU vendas).
-[ATENCAO] Diagnóstico dos 2-3 problemas mais críticos com números exatos. Ex: "IA resolveu apenas X% (meta: 60%) — causa provável: KB incompleta. Escalação em Y% acima do limite."
-[SUGESTOES] 1) Ação específica para o inbox. 2) Ação específica para vendas. 3) Ação específica para o time.
-[MOTIVACIONAL] Uma frase curta de encerramento.
+INSTRUÇÕES POR SEÇÃO:
+
+[DESTAQUES] — Encontre O MELHOR dado do dia. Se inbox está ruim, foque nas vendas ou crescimento MoM. Sempre há algo positivo. Cite o número exato.
+
+[ATENCAO] — Seja um especialista TÉCNICO. Use o CONTEXTO DO SISTEMA acima para diagnosticar:
+- Se autopilotConvs = 0 ou < 50% do total: "Conversas NÃO estão em autopilot — IA assistindo humanos em vez de resolver sozinha. Verificar nó ia_entrada no Master Flow e confirmar ai_persistent=true."
+- Se topFailReasons tem ai_handoff_exit: "IA transferiu Nx por falta de conteúdo no RAG — KB precisa de artigos sobre [tópico inferido]."
+- Se ai_strict_rag_mode=true e resolução baixa: "ai_strict_rag_mode ativo — IA recusa responder sem match exato na KB. Considerar ajustar para false ou aumentar artigos."
+- Se block_financial=true: "Bloqueio financeiro ativo — IA não responde perguntas sobre valores/pagamentos."
+- CITE CAUSA TÉCNICA REAL. NUNCA diga "falta de treinamento" ou "reavaliar estratégia". Sempre aponte a config, o nó do fluxo ou o gap na KB.
+
+[SUGESTOES] — 3 ações ESPECÍFICAS e OPERACIONAIS:
+1) Uma ação TÉCNICA (config do sistema, nó do fluxo, deploy). Ex: "Verificar se nó ia_entrada tem forbid_financial=true" ou "Alterar ai_strict_rag_mode para false"
+2) Uma ação de CONTEÚDO (artigo KB específico baseado nos fails). Ex: "Criar artigo KB sobre cancelamento de conta — top motivo de transferência"
+3) Uma ação COMERCIAL (com nome do canal/parceiro/rep). Ex: "CIRILO representa X% — contatar 2º parceiro para diversificar"
+NUNCA USE frases vagas como "implementar treinamento", "reavaliar estratégia", "melhorar processos"
+
+[MOTIVACIONAL] — Varie a cada relatório. Use dados reais do dia. Ex: "Com X fechamentos e crescimento de Y% no mês, a direção é clara — agora é executar."
+
+FORMATO OBRIGATÓRIO:
+[DESTAQUES] texto
+[ATENCAO] texto
+[SUGESTOES] texto
+[MOTIVACIONAL] texto
 
 REGRAS ABSOLUTAS:
 - NUNCA use **, -, *, markdown ou bullets
 - Cada tag aparece UMA vez em linha própria
 - SEMPRE mencione a taxa de resolução da IA no [ATENCAO] se < 60%
 - Máximo 3 frases por tag
-- Cite números reais, não genéricos`;
+- Cite números reais, não genéricos
+- Use o contexto do sistema para diagnósticos técnicos precisos`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

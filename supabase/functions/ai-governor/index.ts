@@ -148,6 +148,57 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .slice(0, 5)
     .map(([k, v]) => `${k} (${v}x)`);
 
+  // ═══ Tags de conversas do dia ═══
+  const { data: convTagsData } = await supabase
+    .from('conversation_tags')
+    .select('tag_id, tags(name, color), conversation_id')
+    .gte('created_at', since)
+    .lt('created_at', until);
+
+  const tagCountMap: Record<string, { name: string; count: number }> = {};
+  convTagsData?.forEach((ct: any) => {
+    const tagName = ct.tags?.name;
+    if (tagName) {
+      if (!tagCountMap[tagName]) tagCountMap[tagName] = { name: tagName, count: 0 };
+      tagCountMap[tagName].count++;
+    }
+  });
+  const topConversationTags = Object.values(tagCountMap)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // ═══ Tickets do dia ═══
+  const { data: ticketsToday } = await supabase
+    .from('tickets')
+    .select('id, ticket_number, subject, status, priority, category, created_at')
+    .gte('created_at', since)
+    .lt('created_at', until)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  const ticketsTodayTotal = ticketsToday?.length ?? 0;
+  const ticketsByPriority = {
+    urgent: ticketsToday?.filter((t: any) => t.priority === 'urgent').length ?? 0,
+    high: ticketsToday?.filter((t: any) => t.priority === 'high').length ?? 0,
+    medium: ticketsToday?.filter((t: any) => t.priority === 'medium').length ?? 0,
+    low: ticketsToday?.filter((t: any) => t.priority === 'low').length ?? 0,
+  };
+  const ticketsOpen = ticketsToday?.filter((t: any) => t.status === 'open' || t.status === 'in_progress').length ?? 0;
+  const ticketsTopSubjects = ticketsToday
+    ?.filter((t: any) => t.priority === 'urgent' || t.priority === 'high')
+    ?.slice(0, 5)
+    ?.map((t: any) => ({ ticket_number: t.ticket_number, subject: t.subject, priority: t.priority })) ?? [];
+
+  const ticketCatMap: Record<string, number> = {};
+  ticketsToday?.forEach((t: any) => {
+    const cat = t.category || 'Sem categoria';
+    ticketCatMap[cat] = (ticketCatMap[cat] ?? 0) + 1;
+  });
+  const ticketsCategories = Object.entries(ticketCatMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([category, count]) => ({ category, count }));
+
   return {
     totalConvs, closedByAI, escalatedToHuman, closedTotal, openTotal, avgResolutionMin,
     totalAIEvents, fallbackEvents, directEvents, topIntents,
@@ -165,6 +216,10 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     activeChannels,
     aiConfig,
     topFailReasons,
+    // Tags de conversas
+    topConversationTags,
+    // Tickets do dia
+    ticketsTodayTotal, ticketsByPriority, ticketsOpen, ticketsTopSubjects, ticketsCategories,
   };
 }
 

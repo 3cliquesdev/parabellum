@@ -637,7 +637,7 @@ async function sendEmailReport(
   const originsHtml = (salesMetrics.origins ?? []).length > 0 ? `
         <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
         <tr><td style="padding:16px 32px 6px;">
-          <p style="color:#8b5cf6;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">📊 Canais de Venda</p>
+          <p style="color:#8b5cf6;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">Canais de Venda</p>
         </td></tr>
         <tr><td style="padding:0 32px 12px;">
           ${(salesMetrics.origins ?? []).map((o: any) => {

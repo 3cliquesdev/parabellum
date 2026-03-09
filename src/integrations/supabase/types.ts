@@ -498,6 +498,36 @@ export type Database = {
           },
         ]
       }
+      ai_governor_reports: {
+        Row: {
+          ai_analysis: string | null
+          created_at: string | null
+          date: string
+          generated_at: string | null
+          id: string
+          metrics_snapshot: Json
+          sent_to_phones: string[] | null
+        }
+        Insert: {
+          ai_analysis?: string | null
+          created_at?: string | null
+          date: string
+          generated_at?: string | null
+          id?: string
+          metrics_snapshot?: Json
+          sent_to_phones?: string[] | null
+        }
+        Update: {
+          ai_analysis?: string | null
+          created_at?: string | null
+          date?: string
+          generated_at?: string | null
+          id?: string
+          metrics_snapshot?: Json
+          sent_to_phones?: string[] | null
+        }
+        Relationships: []
+      }
       ai_learning_timeline: {
         Row: {
           confidence: string | null

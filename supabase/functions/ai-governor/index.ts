@@ -339,13 +339,24 @@ async function sendEmailReport(
 
   // Buscar branding interno (employee) e sender padrão
   let sender: any = null;
+  let branding: any = null;
   try {
-    const { data } = await supabase.from('email_senders').select('*').eq('is_default', true).single();
-    sender = data;
+    const [senderRes, brandingRes] = await Promise.all([
+      supabase.from('email_senders').select('*').eq('is_default', true).single(),
+      supabase.from('email_branding').select('*').eq('is_default_employee', true).single(),
+    ]);
+    sender = senderRes.data;
+    branding = brandingRes.data;
   } catch {}
 
   const fromName = 'IA Governante';
   const fromEmail = sender?.from_email || 'contato@mail.3cliques.net';
+  const headerColor = branding?.header_color || '#0f172a';
+  const headerColorEnd = headerColor + 'dd';
+  const brandName = branding?.name || 'Parabellum by 3Cliques';
+  const logoUrl = branding?.logo_url;
+  const footerText = branding?.footer_text || 'Parabellum by 3Cliques • Gerado automaticamente';
+  const footerLogoUrl = branding?.footer_logo_url;
 
   const aiRate = metrics.totalConvs > 0 ? Math.round((metrics.closedByAI / metrics.totalConvs) * 100) : 0;
   const escRate = metrics.totalConvs > 0 ? Math.round((metrics.escalatedToHuman / metrics.totalConvs) * 100) : 0;
@@ -493,8 +504,11 @@ async function sendEmailReport(
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.06);">
 
         <!-- Header -->
-        <tr><td style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:32px 32px 28px;text-align:center;">
-          <div style="font-size:32px;margin-bottom:8px;">🤖</div>
+        <tr><td style="background:linear-gradient(135deg,${headerColor} 0%,${headerColorEnd} 100%);padding:32px 32px 28px;text-align:center;">
+          ${logoUrl 
+            ? `<img src="${logoUrl}" alt="${brandName}" style="max-height:40px;max-width:200px;margin-bottom:8px;" />`
+            : `<div style="font-size:32px;margin-bottom:8px;">🤖</div>`
+          }
           <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">IA Governante</h1>
           <p style="color:#94a3b8;margin:6px 0 0;font-size:13px;">Relatório Executivo — ${dateStr}</p>
         </td></tr>
@@ -612,8 +626,9 @@ async function sendEmailReport(
         </td></tr>
 
         <!-- Footer -->
-        <tr><td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
-          <p style="color:#94a3b8;font-size:11px;margin:0;">Parabellum by 3Cliques • Gerado automaticamente</p>
+        <tr><td style="background:${headerColor};padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+          ${footerLogoUrl ? `<img src="${footerLogoUrl}" alt="${brandName}" style="max-height:30px;margin-bottom:10px;" /><br/>` : ''}
+          <p style="color:#94a3b8;font-size:11px;margin:0;">${footerText}</p>
         </td></tr>
 
       </table>

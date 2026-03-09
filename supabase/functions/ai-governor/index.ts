@@ -230,8 +230,37 @@ async function sendEmailReport(
     return false;
   }
 
+  // Buscar branding interno (employee) e sender padrão
+  let branding: any = null;
+  let sender: any = null;
+  try {
+    const [brandingRes, senderRes] = await Promise.all([
+      supabase.from('email_branding').select('*').eq('is_default_employee', true).single(),
+      supabase.from('email_senders').select('*').eq('is_default', true).single(),
+    ]);
+    branding = brandingRes.data;
+    sender = senderRes.data;
+  } catch {}
+
+  const headerColor = branding?.header_color || '#1a1a2e';
+  const primaryColor = branding?.primary_color || '#6366f1';
+  const brandName = branding?.name || '3Cliques';
+  const footerText = branding?.footer_text || `${brandName} — Equipe Interna`;
+  const logoUrl = branding?.logo_url;
+  const footerLogoUrl = branding?.footer_logo_url;
+  const fromName = 'IA Governante - ' + (sender?.from_name || brandName);
+  const fromEmail = sender?.from_email || 'contato@mail.3cliques.net';
+
   const aiRate = metrics.totalConvs > 0 ? Math.round((metrics.closedByAI / metrics.totalConvs) * 100) : 0;
   const escalationRate = metrics.totalConvs > 0 ? Math.round((metrics.escalatedToHuman / metrics.totalConvs) * 100) : 0;
+
+  const logoHtml = logoUrl
+    ? `<img src="${logoUrl}" alt="${brandName}" style="max-height:40px;max-width:200px;" />`
+    : `<h1 style="color:#ffffff;margin:0;font-size:24px;">IA Governante</h1>`;
+
+  const footerLogoHtml = footerLogoUrl
+    ? `<img src="${footerLogoUrl}" alt="${brandName}" style="max-height:30px;margin-bottom:10px;" /><br/>`
+    : '';
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -240,9 +269,9 @@ async function sendEmailReport(
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 0;">
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-        <!-- Header -->
-        <tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:32px 40px;text-align:center;">
-          <h1 style="color:#ffffff;margin:0;font-size:24px;">IA Governante</h1>
+        <!-- Header with branding -->
+        <tr><td style="background:linear-gradient(135deg,${headerColor} 0%,${headerColor}dd 100%);padding:32px 40px;text-align:center;">
+          ${logoHtml}
           <p style="color:#a0aec0;margin:8px 0 0;font-size:14px;">Relatório Executivo — ${dateStr}</p>
         </td></tr>
 
@@ -257,7 +286,7 @@ async function sendEmailReport(
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td style="background:#f0f4ff;border-radius:8px;padding:16px;text-align:center;width:25%;">
-                <div style="color:#6366f1;font-size:28px;font-weight:bold;">${metrics.totalConvs}</div>
+                <div style="color:${primaryColor};font-size:28px;font-weight:bold;">${metrics.totalConvs}</div>
                 <div style="color:#64748b;font-size:11px;margin-top:4px;">Conversas</div>
               </td>
               <td width="8"></td>
@@ -298,7 +327,7 @@ async function sendEmailReport(
               </td>
               <td width="8"></td>
               <td style="background:#f0f4ff;border-radius:8px;padding:16px;text-align:center;width:33%;">
-                <div style="color:#6366f1;font-size:28px;font-weight:bold;">${salesMetrics.newDeals}</div>
+                <div style="color:${primaryColor};font-size:28px;font-weight:bold;">${salesMetrics.newDeals}</div>
                 <div style="color:#64748b;font-size:11px;margin-top:4px;">Novos Deals</div>
               </td>
             </tr>
@@ -317,7 +346,7 @@ async function sendEmailReport(
               </td>
               <td width="8"></td>
               <td style="background:#f0f4ff;border-radius:8px;padding:16px;text-align:center;width:33%;">
-                <div style="color:#6366f1;font-size:22px;font-weight:bold;">${salesMetrics.conversionRate}%</div>
+                <div style="color:${primaryColor};font-size:22px;font-weight:bold;">${salesMetrics.conversionRate}%</div>
                 <div style="color:#64748b;font-size:11px;margin-top:4px;">Conversão</div>
               </td>
               <td width="8"></td>
@@ -331,40 +360,29 @@ async function sendEmailReport(
 
         <!-- Pipeline -->
         <tr><td style="padding:0 40px 24px;">
-          <div style="background:#f8fafc;border-radius:8px;padding:16px;display:flex;">
+          <div style="background:#f8fafc;border-radius:8px;padding:16px;">
             <p style="color:#1a1a2e;font-size:14px;margin:0;">📊 <strong>Pipeline:</strong> ${salesMetrics.pipelineCount} deals abertos — ${formatCurrency(salesMetrics.pipelineValue)}</p>
           </div>
         </td></tr>
 
         <!-- AI Analysis -->
         <tr><td style="padding:0 40px 32px;">
-          <div style="background:#f8fafc;border-radius:8px;border-left:4px solid #6366f1;padding:20px 24px;">
+          <div style="background:#f8fafc;border-radius:8px;border-left:4px solid ${primaryColor};padding:20px 24px;">
             <h3 style="color:#1a1a2e;font-size:16px;margin:0 0 12px;">🧠 Análise da IA</h3>
             <div style="color:#334155;font-size:14px;line-height:1.7;white-space:pre-line;">${aiAnalysis.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\*(.*?)\*/g, '<strong>$1</strong>')}</div>
           </div>
         </td></tr>
 
-        <!-- Footer -->
-        <tr><td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
-          <p style="color:#94a3b8;font-size:12px;margin:0;">Parabellum by 3Cliques — Relatório gerado automaticamente</p>
+        <!-- Footer with branding -->
+        <tr><td style="background:${headerColor};padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+          ${footerLogoHtml}
+          <p style="color:#94a3b8;font-size:12px;margin:0;">${footerText}</p>
         </td></tr>
       </table>
     </td></tr>
   </table>
 </body>
 </html>`;
-
-  // Buscar sender padrão verificado do banco
-  let fromName = 'IA Governante - 3Cliques';
-  let fromEmail = 'contato@mail.3cliques.net';
-  try {
-    const { data: sender } = await supabase
-      .from('email_senders')
-      .select('from_name, from_email')
-      .eq('is_default', true)
-      .single();
-    if (sender) fromEmail = sender.from_email;
-  } catch {}
 
   try {
     const res = await fetch('https://api.resend.com/emails', {

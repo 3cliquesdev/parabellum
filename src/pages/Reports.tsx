@@ -162,6 +162,20 @@ export default function Reports() {
       ],
     },
     {
+      id: 'email',
+      name: '📧 E-mail',
+      icon: Mail,
+      reports: [
+        {
+          id: 'email_sends_export',
+          name: 'Envios de E-mail por Template',
+          description: 'Status de envio, abertura, clique e bounce por período e template (Excel)',
+          icon: FileSpreadsheet,
+          action: 'emailSendsExport',
+        },
+      ],
+    },
+    {
       id: 'ai_chat',
       name: '🤖 IA & Chat',
       icon: MessageSquare,

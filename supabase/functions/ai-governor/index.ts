@@ -733,7 +733,11 @@ async function sendEmailReport(
 
         ${originsHtml}
 
+        ${pipelineLeadsHtml}
+
         ${teamHtml}
+
+        ${teamMonthHtml}
 
         <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
 

@@ -111,6 +111,7 @@ async function sendWhatsAppReport(supabase: any, phoneNumbers: string[], message
 }
 
 async function sendEmailReport(
+  supabase: any,
   adminEmail: string,
   adminName: string,
   dateStr: string,
@@ -192,14 +193,26 @@ async function sendEmailReport(
 </body>
 </html>`;
 
+  // Buscar sender padrão verificado do banco
+  let fromName = 'IA Governante - 3Cliques';
+  let fromEmail = 'contato@mail.3cliques.net';
+  try {
+    const { data: sender } = await supabase
+      .from('email_senders')
+      .select('from_name, from_email')
+      .eq('is_default', true)
+      .single();
+    if (sender) fromEmail = sender.from_email;
+  } catch {}
+
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'IA Governante <governante@mail.3cliques.net>',
+        from: `${fromName} <${fromEmail}>`,
         to: [adminEmail],
-        subject: `🤖 Relatório IA Governante — ${dateStr}`,
+        subject: `Relatório IA Governante — ${dateStr}`,
         html: htmlContent,
       }),
     });
@@ -317,7 +330,7 @@ serve(async (req) => {
     // Enviar Email
     let emailResult = { sent: 0, errors: 0 };
     for (const admin of adminEmails) {
-      const ok = await sendEmailReport(admin.email, admin.name, dateStr, aiAnalysis, metrics);
+      const ok = await sendEmailReport(supabase, admin.email, admin.name, dateStr, aiAnalysis, metrics);
       if (ok) emailResult.sent++; else emailResult.errors++;
     }
 

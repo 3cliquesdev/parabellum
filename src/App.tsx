@@ -267,6 +267,7 @@ const App = () => {
               <Route path="/settings/scoring" element={<ProtectedRoute requiredPermission="settings.view"><Layout><ScoringSettings /></Layout></ProtectedRoute>} />
               <Route path="/settings/sales-channels" element={<ProtectedRoute requiredPermission="sales.manage_pipelines"><Layout><SalesChannelsSettings /></Layout></ProtectedRoute>} />
               <Route path="/settings/ticket-statuses" element={<ProtectedRoute requiredPermission="settings.view"><Layout><TicketStatusSettings /></Layout></ProtectedRoute>} />
+              <Route path="/settings/ticket-categories" element={<ProtectedRoute requiredPermission="settings.view"><Layout><TicketCategoriesSettings /></Layout></ProtectedRoute>} />
               <Route path="/admin-onboarding" element={<ProtectedRoute requiredPermission="settings.view"><AdminOnboarding /></ProtectedRoute>} />
               <Route path="/super-admin" element={<ProtectedRoute requiredPermission="super_admin.access"><Layout><SuperAdminPanel /></Layout></ProtectedRoute>} />
               <Route path="/admin/permissions-audit" element={<ProtectedRoute requiredPermission="users.manage"><Layout><PermissionsAudit /></Layout></ProtectedRoute>} />

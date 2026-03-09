@@ -224,12 +224,65 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
       .slice(0, 5);
   }
 
+  // ═══ Pipeline Comercial — novos leads abertos hoje ═══
+  const { data: pipelineNewToday } = await supabase
+    .from('deals')
+    .select('id, lead_source, tracking_code, assigned_to, value, created_at')
+    .eq('status', 'open')
+    .gte('created_at', since)
+    .lt('created_at', until);
+
+  const pipelineBySource: Record<string, number> = {};
+  pipelineNewToday?.forEach((d: any) => {
+    const src = d.lead_source === 'formulario' ? `📝 Formulário${d.tracking_code ? ': ' + d.tracking_code : ''}`
+      : d.lead_source === 'whatsapp' ? '💬 WhatsApp'
+      : d.lead_source === 'webchat' ? '🌐 WebChat'
+      : d.lead_source?.startsWith('kiwify') ? '🟠 Kiwify'
+      : '📌 Outro';
+    pipelineBySource[src] = (pipelineBySource[src] ?? 0) + 1;
+  });
+  const newLeadsToday = pipelineNewToday?.length ?? 0;
+  const topNewSources = Object.entries(pipelineBySource)
+    .sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([k, v]) => `${k}: ${v} leads`);
+
+  // ═══ Performance do time comercial no MÊS ═══
+  const { data: wonMonthByRep } = await supabase
+    .from('deals')
+    .select('assigned_to, gross_value')
+    .eq('status', 'won')
+    .gte('closed_at', firstDayOfMonth)
+    .not('assigned_to', 'is', null);
+
+  const repMonthMap: Record<string, { deals: number; revenue: number }> = {};
+  wonMonthByRep?.forEach((d: any) => {
+    if (!d.assigned_to) return;
+    if (!repMonthMap[d.assigned_to]) repMonthMap[d.assigned_to] = { deals: 0, revenue: 0 };
+    repMonthMap[d.assigned_to].deals++;
+    repMonthMap[d.assigned_to].revenue += Number(d.gross_value) || 0;
+  });
+
+  const repMonthIds = Object.keys(repMonthMap);
+  let topRepsMonth: any[] = [];
+  if (repMonthIds.length > 0) {
+    const { data: monthProfiles } = await supabase.from('profiles').select('id, full_name').in('id', repMonthIds);
+    topRepsMonth = repMonthIds
+      .map(id => ({ name: monthProfiles?.find((p: any) => p.id === id)?.full_name ?? 'Agente', ...repMonthMap[id] }))
+      .sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  }
+
   // Alertas de concentração
   const alerts: string[] = [];
   const partnerPct = origins.find(o => o.key === 'parceiros')?.pct ?? 0;
   if (partnerPct >= 50) alerts.push(`⚠️ Parceiros representam ${partnerPct}% da receita — risco de dependência`);
   if (topPartners[0]?.pct >= 35) alerts.push(`⚠️ "${topPartners[0].name}" concentra ${topPartners[0].pct}% da receita do dia`);
-  if ((cats.comercial.deals) === 0 && totalRevToday > 0) alerts.push('📢 Time comercial sem fechamentos hoje');
+  
+  // Alerta comercial inteligente (considera mês)
+  if (cats.comercial.deals === 0 && totalRevToday > 0) {
+    const monthDeals = topRepsMonth.reduce((s: number, r: any) => s + r.deals, 0);
+    if (monthDeals === 0) alerts.push('📢 Time comercial: sem fechamentos hoje nem no mês — verificar pipeline');
+    else alerts.push(`📢 Time comercial: sem fechamento hoje (${monthDeals} deals no mês)`);
+  }
 
   // Período mês + MoM
   const { data: wonMonth } = await supabase

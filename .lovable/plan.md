@@ -1,31 +1,43 @@
 
-# Plano: Mensagens Configuráveis de Fora do Horário ✅
 
-## Status: IMPLEMENTADO (com ajustes finos aplicados)
+## Diagnóstico: Email caindo no Spam
 
-## Resumo
+### Causa raiz
 
-As mensagens automáticas enviadas fora do horário comercial (handoff e redistribuição) agora são editáveis via UI na página de SLA Settings. Templates armazenados na tabela `business_messages_config` com fallback para mensagens padrão.
+O email está sendo enviado com o remetente **`governante@mail.3cliques.net`** — um endereço que **não existe como sender verificado** no Resend. Os outros emails do sistema usam `contato@mail.3cliques.net` (que é o sender padrão configurado na tabela `email_senders`).
 
-## Ajustes Finos Aplicados
+Quando o Resend envia de um endereço não verificado explicitamente, os provedores de email (Gmail, Outlook etc.) penalizam com score de spam porque:
+1. **SPF/DKIM** podem não estar alinhados para o subendereço `governante@`
+2. O **emoji no subject** (`🤖`) aumenta score de spam
+3. O remetente nunca foi usado antes — sem reputação
 
-- ✅ Trigger `updated_at` reutilizando `public.update_updated_at_column()`
-- ✅ Validação: botão salvar desabilitado se template vazio
-- ✅ Warning visual se placeholders `{schedule}` / `{next_open}` removidos
-- ✅ Botão "Restaurar Padrão" para resetar mensagens
+### Plano de correção
 
-## Arquivos Alterados
+1. **Trocar o remetente** de `governante@mail.3cliques.net` para `contato@mail.3cliques.net` (mesmo sender verificado usado nos tickets e outros emails do sistema)
+2. **Ajustar o `from_name`** para `"IA Governante - 3Cliques"` para manter a identidade visual sem usar email não verificado
+3. **Remover emoji do subject** — trocar de `🤖 Relatório IA Governante — ${dateStr}` para `Relatório IA Governante — ${dateStr}`
+4. **Buscar o sender padrão do banco** (tabela `email_senders` onde `is_default = true`) em vez de hardcodar, igual já é feito no `send-ticket-email-reply`
 
-| Arquivo | Mudança |
-|---------|---------|
-| SQL Migrations | Tabela `business_messages_config` + seeds + RLS + trigger updated_at |
-| `src/hooks/useBusinessMessages.ts` | Hook (query + mutation) |
-| `src/pages/SLASettings.tsx` | Seção "Mensagens de Fora do Horário" com validação + restaurar padrão |
-| `supabase/functions/ai-autopilot-chat/index.ts` | Busca template `after_hours_handoff` com fallback |
-| `supabase/functions/redistribute-after-hours/index.ts` | Busca template `business_hours_reopened` com fallback |
+### Alteração técnica
 
-## Garantias
+**Arquivo:** `supabase/functions/ai-governor/index.ts`
 
-- Fallback hardcoded se tabela vazia ou inacessível
-- Kill Switch, Shadow Mode, Fluxos: não afetados
-- RLS: leitura authenticated, escrita managers/admins
+- Na função `sendEmailReport`, antes do fetch, buscar o sender padrão:
+```typescript
+let fromName = "IA Governante - 3Cliques";
+let fromEmail = "contato@mail.3cliques.net";
+try {
+  const { data: sender } = await supabase
+    .from("email_senders")
+    .select("from_name, from_email")
+    .eq("is_default", true)
+    .single();
+  if (sender) fromEmail = sender.from_email;
+} catch {}
+```
+
+- Trocar o `from` no payload para: `${fromName} <${fromEmail}>`
+- Remover emoji do `subject`
+
+Isso alinha o remetente com o domínio verificado e melhora drasticamente a entregabilidade.
+

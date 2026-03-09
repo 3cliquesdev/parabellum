@@ -104,21 +104,39 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
     .gte('created_at', since)
     .lt('created_at', until);
 
-  // Classificação de origem
+  // Classificação de origem — Hierarquia: assigned_to → recorrência → parceiro → formulário → canal → orgânico → kiwify → fallback
   const classifyOrigin = (deal: any): string => {
+    // REGRA PRINCIPAL: vendedor atribuído = SEMPRE comercial (docs/architecture/sales-channel-attribution-rules.md)
+    if (deal.assigned_to) return 'comercial_interno';
+
+    const source = (deal.lead_source || '').toLowerCase().trim();
+
+    // Recorrência / Renovação
+    if (source === 'kiwify_recorrencia' || source === 'kiwify_renovacao') return 'kiwify:recorrencia';
+
+    // Parceiros / Afiliados (sem vendedor)
     if (deal.affiliate_name) {
       if (deal.affiliate_name.toUpperCase().includes('CIRILO')) return 'parceiro:CIRILO Educação Digital';
       return `parceiro:${deal.affiliate_name}`;
     }
-    if (deal.assigned_to && commercialRepsIds.includes(deal.assigned_to)) return 'comercial_interno';
-    if (deal.lead_source === 'kiwify_recorrencia') return 'kiwify:recorrencia';
-    if (deal.lead_source === 'kiwify_direto') return 'kiwify:direto';
-    if (deal.lead_source === 'kiwify_novo_cliente') return 'kiwify:novo_cliente';
-    if (deal.lead_source === 'formulario') return `formulario:${deal.tracking_code || 'geral'}`;
-    if (deal.lead_source === 'whatsapp') return 'canal:whatsapp';
-    if (deal.lead_source === 'webchat') return 'canal:webchat';
+
+    // Formulários
+    if (source === 'formulario' || source === 'form' || source === 'chat_widget') return `formulario:${deal.tracking_code || 'geral'}`;
+
+    // Canais diretos
+    if (source === 'whatsapp') return 'canal:whatsapp';
+    if (source === 'webchat') return 'canal:webchat';
+
+    // Orgânico
     if (deal.is_organic_sale) return 'kiwify:organico';
+
+    // Kiwify automático
+    if (source === 'kiwify_direto') return 'kiwify:direto';
+    if (source === 'kiwify_novo_cliente') return 'kiwify:novo_cliente';
+
+    // Recuperação
     if (deal.pipeline_id === '00000000-0000-0000-0000-000000000001') return 'recuperacao';
+
     return 'direto';
   };
 

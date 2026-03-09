@@ -570,6 +570,11 @@ INBOX & IA (PRIORIDADE MAXIMA):
 
 VENDAS HOJE:
 - Vendas novas (primeiro pagamento): ${salesMetrics.newSalesCount} | R$ ${salesMetrics.newSalesRevenue.toLocaleString('pt-BR')}
+  DETALHAMENTO VENDAS NOVAS:
+  - Organico (pagina propria): ${salesMetrics.newSalesOrganicCount} vendas | R$ ${salesMetrics.newSalesOrganicRevenue.toLocaleString('pt-BR')}
+  - Afiliados: ${salesMetrics.newSalesAffiliateCount} vendas | R$ ${salesMetrics.newSalesAffiliateRevenue.toLocaleString('pt-BR')}${(salesMetrics.topNewAffiliates ?? []).length > 0 ? ' (Top: ' + (salesMetrics.topNewAffiliates ?? []).map((a: any) => `${a.name} ${a.deals}`).join(', ') + ')' : ''}
+  - Comercial (vendedor): ${salesMetrics.newSalesComercialCount} vendas | R$ ${salesMetrics.newSalesComercialRevenue.toLocaleString('pt-BR')}
+  - % Afiliados nas novas: ${salesMetrics.affPctNew}%${salesMetrics.affPctNew >= 50 ? ' ⚠️ ALERTA: DEPENDENCIA DE AFILIADOS' : ''}
 - Recorrencias (renovacoes): ${salesMetrics.recurrenceCount} | R$ ${salesMetrics.recurrenceRevenue.toLocaleString('pt-BR')}
 - Total fechamentos: ${salesMetrics.wonToday} | Receita total: R$ ${salesMetrics.revenueToday.toLocaleString('pt-BR')}
 - Perdidos: ${salesMetrics.lostToday}${salesMetrics.topLostReasons.length ? ' | Motivos: ' + salesMetrics.topLostReasons.join(', ') : ''}

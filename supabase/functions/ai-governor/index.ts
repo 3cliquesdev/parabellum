@@ -687,7 +687,7 @@ async function sendEmailReport(
   const teamHtml = (salesMetrics.topReps ?? []).length > 0 ? `
         <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
         <tr><td style="padding:16px 32px 6px;">
-          <p style="color:#3b82f6;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">Performance do Time (Hoje)</p>
+          <p style="color:#3b82f6;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px;">HOJE — Performance do Time</p>
           <p style="font-size:11px;color:#94a3b8;margin:0 0 12px;">Fechamentos diretos do dia (atribuídos ao time)</p>
         </td></tr>
         <tr><td style="padding:0 32px 20px;">

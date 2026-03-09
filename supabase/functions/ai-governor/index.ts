@@ -808,19 +808,20 @@ async function sendEmailReport(
             </tr>
           </table>
         </td></tr>
-        <!-- Sub-metrics -->
+        <!-- Sub-metrics detalhados -->
         <tr><td style="padding:0 32px 20px;">
           <p style="color:#64748b;font-size:12px;margin:0;line-height:1.8;">
-            Tempo medio de resolucao: <strong style="color:#1e293b;">${metrics.avgResolutionMin ? `${metrics.avgResolutionMin} min` : '—'}</strong><br/>
-            Mensagens: <strong style="color:#1e293b;">${metrics.totalMessages}</strong> (${metrics.aiMessages} da IA)
-            ${metrics.topIntents.length > 0 ? `<br/>Top eventos: <strong style="color:#1e293b;">${metrics.topIntents.slice(0, 3).join(', ')}</strong>` : ''}
+            Abertas agora: <strong style="color:#1e293b;">${metrics.openTotal}</strong> | Fechadas: <strong style="color:#1e293b;">${metrics.closedTotal}</strong> | Fila humana: <strong style="color:#dc2626;">${metrics.waitingHumanConvs}</strong><br/>
+            Autopilot: resolveu <strong style="color:#22c55e;">${metrics.closedAutopilot}</strong>, ativas ${metrics.openAutopilot} | Copilot: <strong style="color:#1e293b;">${metrics.copilotConvs}</strong> | Desabilitado: ${metrics.disabledConvs}<br/>
+            Tempo medio: <strong style="color:#1e293b;">${metrics.avgResolutionMin ? `${metrics.avgResolutionMin} min` : '—'}</strong> | Msgs: <strong style="color:#1e293b;">${metrics.totalMessages}</strong> (${metrics.aiMessages} da IA)
+            ${metrics.csatAvg ? `<br/>CSAT hoje: <strong style="color:#f59e0b;">${metrics.csatAvg}/5</strong> (${metrics.csatCount} avaliacoes)` : ''}
             ${(metrics.criticalAnomalies?.length ?? 0) > 0 ? `<br/>Anomalias: <strong style="color:#dc2626;">${metrics.criticalAnomalies.length} criticas</strong>` : ''}
           </p>
         </td></tr>
 
         <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
 
-        <!-- HOJE — Vendas -->
+        <!-- HOJE — Vendas (separadas) -->
         <tr><td style="padding:16px 32px 6px;">
           <p style="color:#22c55e;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Vendas</p>
         </td></tr>
@@ -828,20 +829,28 @@ async function sendEmailReport(
           <table width="100%" cellpadding="0" cellspacing="6">
             <tr>
               <td style="background:#f0fdf4;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #bbf7d0;">
-                <div style="color:#16a34a;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.wonToday}</div>
-                <div style="color:#16a34a;font-size:13px;font-weight:700;margin-top:4px;">${fmtBRL(salesMetrics.revenueToday)}</div>
-                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Ganhos</div>
+                <div style="color:#16a34a;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.newSalesCount}</div>
+                <div style="color:#16a34a;font-size:13px;font-weight:700;margin-top:4px;">${fmtBRL(salesMetrics.newSalesRevenue)}</div>
+                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Vendas Novas</div>
+              </td>
+              <td style="background:#eff6ff;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #bfdbfe;">
+                <div style="color:#2563eb;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.recurrenceCount}</div>
+                <div style="color:#2563eb;font-size:13px;font-weight:700;margin-top:4px;">${fmtBRL(salesMetrics.recurrenceRevenue)}</div>
+                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Recorrencias</div>
               </td>
               <td style="background:#fef2f2;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #fecaca;">
                 <div style="color:#dc2626;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.lostToday}</div>
                 <div style="color:#94a3b8;font-size:10px;margin-top:6px;font-weight:600;text-transform:uppercase;">Perdidos</div>
               </td>
-              <td style="background:#eff6ff;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #bfdbfe;">
-                <div style="color:#2563eb;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.newDeals}</div>
+              <td style="background:#f8fafc;border-radius:10px;padding:14px 8px;text-align:center;border:1px solid #e2e8f0;">
+                <div style="color:#1e293b;font-size:28px;font-weight:800;line-height:1;">${salesMetrics.newDeals}</div>
                 <div style="color:#94a3b8;font-size:10px;margin-top:6px;font-weight:600;text-transform:uppercase;">Novos Deals</div>
               </td>
             </tr>
           </table>
+          <p style="color:#64748b;font-size:11px;margin:8px 0 0;text-align:center;">
+            Total: ${salesMetrics.wonToday} fechamentos | ${fmtBRL(salesMetrics.revenueToday)}
+          </p>
         </td></tr>
 
         ${originsHtml}

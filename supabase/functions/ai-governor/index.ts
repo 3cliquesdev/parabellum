@@ -753,7 +753,7 @@ async function sendEmailReport(
 
         <!-- Greeting -->
         <tr><td style="padding:24px 32px 16px;">
-          <p style="color:#1e293b;font-size:15px;margin:0;">Olá, ${adminName}! 👋</p>
+          <p style="color:#1e293b;font-size:15px;margin:0;">Ola, ${adminName}!</p>
         </td></tr>
 
         <!-- Atendimento do Dia -->

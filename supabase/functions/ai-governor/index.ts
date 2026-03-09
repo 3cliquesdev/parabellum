@@ -182,10 +182,18 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
   // Deals won hoje (filtro por closed_at = data do fechamento)
   const { data: wonToday } = await supabase
     .from('deals')
-    .select('id, gross_value, affiliate_name, affiliate_commission, lead_source, kiwify_offer_id, tracking_code, is_organic_sale, pipeline_id, assigned_to')
+    .select('id, gross_value, affiliate_name, affiliate_commission, lead_source, kiwify_offer_id, tracking_code, is_organic_sale, pipeline_id, assigned_to, is_returning_customer')
     .eq('status', 'won')
     .gte('closed_at', since)
     .lt('closed_at', until);
+
+  // Separar vendas novas vs recorrências
+  const newSalesDeals = wonToday?.filter((d: any) => !d.is_returning_customer) ?? [];
+  const recurrenceDeals = wonToday?.filter((d: any) => d.is_returning_customer === true) ?? [];
+  const newSalesCount = newSalesDeals.length;
+  const newSalesRevenue = newSalesDeals.reduce((s: number, d: any) => s + (Number(d.gross_value) || 0), 0);
+  const recurrenceCount = recurrenceDeals.length;
+  const recurrenceRevenue = recurrenceDeals.reduce((s: number, d: any) => s + (Number(d.gross_value) || 0), 0);
 
   // Deals perdidos hoje (filtro por closed_at)
   const { data: lostToday } = await supabase

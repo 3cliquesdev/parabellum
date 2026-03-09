@@ -1018,13 +1018,30 @@ serve(async (req) => {
     const fmtK = (v: number) => v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v.toLocaleString('pt-BR')}`;
     const channelsSummary = (salesMetrics.origins ?? []).map((o: any) => `${o.emoji} ${o.label}: ${o.pct}% (${o.deals})`).join('\n');
 
-    // ═══ HOJE — Atendimento ═══
+    // Canal breakdown
+    const channelBreakdownWa = Object.entries(metrics.channelCounts ?? {}).map(([ch, cnt]) => `${ch} ${cnt}`).join(', ') || 'N/A';
 
-    // ═══ HOJE — Atendimento ═══
-    const inboxSummary = `📞 *HOJE — Atendimento*\nConversas: ${metrics.totalConvs} | IA resolveu: ${metrics.closedByAI} | Escaladas: ${metrics.escalatedToHuman}\nTempo medio: ${metrics.avgResolutionMin ?? '—'} min\nEventos IA: ${metrics.totalAIEvents} | Msgs: ${metrics.totalMessages} (${metrics.aiMessages} da IA)${metrics.criticalAnomalies?.length > 0 ? `\nAnomalias: ${metrics.criticalAnomalies.length} criticas` : ''}`;
+    // ═══ HOJE — Atendimento (detalhado) ═══
+    const inboxSummary = [
+      `📞 *HOJE — Atendimento*`,
+      `Conversas: ${metrics.totalConvs} (${channelBreakdownWa})`,
+      `Abertas agora: ${metrics.openTotal} | Fechadas: ${metrics.closedTotal} | Fila humana: ${metrics.waitingHumanConvs}`,
+      `IA autopilot: resolveu ${metrics.closedAutopilot}, ativas ${metrics.openAutopilot}`,
+      `Copilot: ${metrics.copilotConvs} | Desabilitado: ${metrics.disabledConvs}`,
+      `Tempo medio: ${metrics.avgResolutionMin ?? '—'} min`,
+      `Eventos IA: ${metrics.totalAIEvents} | Msgs: ${metrics.totalMessages} (${metrics.aiMessages} da IA)`,
+      metrics.csatAvg ? `CSAT hoje: ${metrics.csatAvg}/5 (${metrics.csatCount} avaliacoes)` : null,
+      metrics.criticalAnomalies?.length > 0 ? `Anomalias: ${metrics.criticalAnomalies.length} criticas` : null,
+    ].filter(Boolean).join('\n');
 
-    // ═══ HOJE — Vendas ═══
-    const salesSummary = `💰 *HOJE — Vendas*\nFechamentos: ${salesMetrics.wonToday} | Receita: ${fmtK(salesMetrics.revenueToday)}\nPerdidos: ${salesMetrics.lostToday} | Novos deals: ${salesMetrics.newDeals}`;
+    // ═══ HOJE — Vendas (separadas) ═══
+    const salesSummary = [
+      `💰 *HOJE — Vendas*`,
+      `Vendas novas: ${salesMetrics.newSalesCount} (${fmtK(salesMetrics.newSalesRevenue)})`,
+      `Recorrencias: ${salesMetrics.recurrenceCount} (${fmtK(salesMetrics.recurrenceRevenue)})`,
+      `Total: ${salesMetrics.wonToday} fechamentos | ${fmtK(salesMetrics.revenueToday)}`,
+      `Perdidos: ${salesMetrics.lostToday} | Novos deals: ${salesMetrics.newDeals}`,
+    ].join('\n');
 
     // ═══ HOJE — Pipeline ═══
     const pipelineSummaryToday = salesMetrics.newLeadsToday > 0

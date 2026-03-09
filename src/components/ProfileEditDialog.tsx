@@ -200,7 +200,7 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
             />
 
             {/* IA Governante — Admin only */}
-            {isAdmin && (
+            {hasFullAccess(role) && (
               <>
                 <Separator />
                 <div className="space-y-4">

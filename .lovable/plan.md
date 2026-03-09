@@ -1,36 +1,31 @@
 
+# Plano: Mensagens Configuráveis de Fora do Horário ✅
 
-## Plano: Seção "IA Governante" no ProfileEditDialog
+## Status: IMPLEMENTADO (com ajustes finos aplicados)
 
-### O que será feito
+## Resumo
 
-Adicionar uma seção condicional (apenas para admins) no `ProfileEditDialog` com:
+As mensagens automáticas enviadas fora do horário comercial (handoff e redistribuição) agora são editáveis via UI na página de SLA Settings. Templates armazenados na tabela `business_messages_config` com fallback para mensagens padrão.
 
-1. **Campo WhatsApp** — input para `profiles.whatsapp_number`
-2. **Switch "Receber relatório diário"** — toggle para `profiles.notify_ai_governor`
-3. **Botão "Enviar relatório agora"** — invoca `ai-governor` com `{ force_today: true }`
+## Ajustes Finos Aplicados
 
-### Detalhes técnicos
+- ✅ Trigger `updated_at` reutilizando `public.update_updated_at_column()`
+- ✅ Validação: botão salvar desabilitado se template vazio
+- ✅ Warning visual se placeholders `{schedule}` / `{next_open}` removidos
+- ✅ Botão "Restaurar Padrão" para resetar mensagens
 
-**Arquivo: `src/components/ProfileEditDialog.tsx`**
+## Arquivos Alterados
 
-- Importar `Switch` de `@/components/ui/switch`, `useUserRole` de `@/hooks/useUserRole`, e `Separator` de `@/components/ui/separator`
-- Adicionar dois campos de estado local: `whatsappNumber` e `notifyGovernor` (inicializados do `profile`)
-- Adicionar estado `sendingReport` para o botão de envio
-- No `useEffect` que faz reset, também setar `whatsappNumber` e `notifyGovernor` do profile
-- No `onSubmit`, incluir `whatsapp_number` e `notify_ai_governor` no update do Supabase
-- Após o campo de cargo, renderizar condicionalmente (se `role === 'admin'`):
-  - `<Separator />` visual
-  - Título "IA Governante" com ícone
-  - Input de telefone WhatsApp (placeholder `5511999999999`)
-  - Switch com label "Receber relatório diário da IA"
-  - Botão "Enviar relatório agora" que faz `supabase.functions.invoke('ai-governor', { body: { force_today: true } })` e mostra toast
+| Arquivo | Mudança |
+|---------|---------|
+| SQL Migrations | Tabela `business_messages_config` + seeds + RLS + trigger updated_at |
+| `src/hooks/useBusinessMessages.ts` | Hook (query + mutation) |
+| `src/pages/SLASettings.tsx` | Seção "Mensagens de Fora do Horário" com validação + restaurar padrão |
+| `supabase/functions/ai-autopilot-chat/index.ts` | Busca template `after_hours_handoff` com fallback |
+| `supabase/functions/redistribute-after-hours/index.ts` | Busca template `business_hours_reopened` com fallback |
 
-### Banco de dados
+## Garantias
 
-Nenhuma migration necessária — `whatsapp_number` e `notify_ai_governor` já existem na tabela `profiles`.
-
-### Visibilidade
-
-A seção só aparece para usuários com `role === 'admin'`, usando o hook `useUserRole()` já existente.
-
+- Fallback hardcoded se tabela vazia ou inacessível
+- Kill Switch, Shadow Mode, Fluxos: não afetados
+- RLS: leitura authenticated, escrita managers/admins

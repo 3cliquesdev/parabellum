@@ -927,6 +927,60 @@ async function sendEmailReport(
 
         ${teamMonthHtml}
 
+        ${/* Tags de Conversas HTML */ ''}
+        ${(metrics.topConversationTags ?? []).length > 0 ? `
+        <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
+        <tr><td style="padding:16px 32px 6px;">
+          <p style="color:#8b5cf6;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Tags de Conversas</p>
+        </td></tr>
+        <tr><td style="padding:0 32px 12px;">
+          ${(metrics.topConversationTags ?? []).map((t: any, i: number) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;${i < (metrics.topConversationTags ?? []).length - 1 ? 'border-bottom:1px solid #f1f5f9;' : ''}">
+              <span style="color:#334155;font-size:13px;font-weight:600;">${i + 1}. ${t.name}</span>
+              <span style="background:#8b5cf6;color:#ffffff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;">${t.count}x</span>
+            </div>
+          `).join('')}
+        </td></tr>` : ''}
+
+        ${/* Tickets do Dia HTML */ ''}
+        ${metrics.ticketsTodayTotal > 0 ? `
+        <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
+        <tr><td style="padding:16px 32px 6px;">
+          <p style="color:#dc2626;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Tickets</p>
+        </td></tr>
+        <tr><td style="padding:0 32px 12px;">
+          <table width="100%" cellpadding="0" cellspacing="6">
+            <tr>
+              <td style="background:#fef2f2;border-radius:10px;padding:12px 8px;text-align:center;border:1px solid #fecaca;">
+                <div style="color:#dc2626;font-size:22px;font-weight:800;">${metrics.ticketsTodayTotal}</div>
+                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Total</div>
+              </td>
+              <td style="background:#fef2f2;border-radius:10px;padding:12px 8px;text-align:center;border:1px solid #fecaca;">
+                <div style="color:#dc2626;font-size:22px;font-weight:800;">${metrics.ticketsByPriority?.urgent ?? 0}</div>
+                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Urgentes</div>
+              </td>
+              <td style="background:#fffbeb;border-radius:10px;padding:12px 8px;text-align:center;border:1px solid #fde68a;">
+                <div style="color:#d97706;font-size:22px;font-weight:800;">${metrics.ticketsByPriority?.high ?? 0}</div>
+                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Alta</div>
+              </td>
+              <td style="background:#f8fafc;border-radius:10px;padding:12px 8px;text-align:center;border:1px solid #e2e8f0;">
+                <div style="color:#1e293b;font-size:22px;font-weight:800;">${metrics.ticketsOpen ?? 0}</div>
+                <div style="color:#94a3b8;font-size:10px;margin-top:4px;font-weight:600;text-transform:uppercase;">Abertos</div>
+              </td>
+            </tr>
+          </table>
+          ${(metrics.ticketsTopSubjects ?? []).length > 0 ? `
+          <div style="margin-top:10px;">
+            ${(metrics.ticketsTopSubjects ?? []).map((t: any) => {
+              const prioColor = t.priority === 'urgent' ? '#dc2626' : '#d97706';
+              return `<p style="color:#334155;font-size:12px;margin:4px 0;">
+                <span style="background:${prioColor};color:#fff;font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;">${t.priority}</span>
+                #${t.ticket_number} ${t.subject}
+              </p>`;
+            }).join('')}
+          </div>` : ''}
+        </td></tr>` : ''}
+
         <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
 
         <!-- MÊS — Performance Acumulada -->

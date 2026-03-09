@@ -30,6 +30,24 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
   const closedByAI = convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'autopilot').length ?? 0;
   const escalatedToHuman = convs?.filter((c: any) => c.ai_mode === 'waiting_human' || c.ai_mode === 'copilot').length ?? 0;
   const closedTotal = convs?.filter((c: any) => c.status === 'closed').length ?? 0;
+  const openTotal = convs?.filter((c: any) => c.status === 'open').length ?? 0;
+
+  // Breakdown por ai_mode
+  const autopilotConvs = convs?.filter((c: any) => c.ai_mode === 'autopilot').length ?? 0;
+  const copilotConvs = convs?.filter((c: any) => c.ai_mode === 'copilot').length ?? 0;
+  const waitingHumanConvs = convs?.filter((c: any) => c.ai_mode === 'waiting_human').length ?? 0;
+  const disabledConvs = convs?.filter((c: any) => c.ai_mode === 'disabled').length ?? 0;
+
+  // Breakdown por status + ai_mode (detalhado)
+  const closedAutopilot = convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'autopilot').length ?? 0;
+  const closedCopilot = convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'copilot').length ?? 0;
+  const closedDisabled = convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'disabled').length ?? 0;
+  const openAutopilot = convs?.filter((c: any) => c.status === 'open' && c.ai_mode === 'autopilot').length ?? 0;
+  const openCopilot = convs?.filter((c: any) => c.status === 'open' && c.ai_mode === 'copilot').length ?? 0;
+
+  // Breakdown por canal
+  const channelCounts: Record<string, number> = {};
+  convs?.forEach((c: any) => { if (c.channel) channelCounts[c.channel] = (channelCounts[c.channel] ?? 0) + 1; });
 
   const closedWithTime = convs?.filter((c: any) => c.closed_at && c.created_at) ?? [];
   const avgResolutionMin = closedWithTime.length > 0
@@ -76,7 +94,17 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
   const { count: totalMessages } = await supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', since).lt('created_at', until);
   const { count: aiMessages } = await supabase.from('messages').select('id', { count: 'exact', head: true }).eq('is_ai_generated', true).gte('created_at', since).lt('created_at', until);
 
-  // ═══ CONTEXTO TÉCNICO DO SISTEMA ═══
+  // CSAT do dia
+  const { data: csatData } = await supabase
+    .from('conversation_ratings')
+    .select('rating')
+    .gte('created_at', since)
+    .lt('created_at', until);
+  
+  const csatCount = csatData?.length ?? 0;
+  const csatAvg = csatCount > 0
+    ? (csatData.reduce((sum: number, r: any) => sum + (Number(r.rating) || 0), 0) / csatCount).toFixed(1)
+    : null;
 
   // KB coverage: artigos ativos com embedding
   const { count: kbArticlesCount } = await supabase
@@ -85,15 +113,8 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .eq('is_active', true)
     .not('embedding', 'is', null);
 
-  // Modos de conversa (autopilot vs copilot) — usar convs já carregado
-  const autopilotConvs = convs?.filter((c: any) => c.ai_mode === 'autopilot').length ?? 0;
-  const copilotConvs = convs?.filter((c: any) => c.ai_mode === 'copilot').length ?? 0;
-  const waitingHumanConvs = convs?.filter((c: any) => c.ai_mode === 'waiting_human').length ?? 0;
-
   // Canais ativos no dia
-  const activeChannelsSet = new Set<string>();
-  convs?.forEach((c: any) => { if (c.channel) activeChannelsSet.add(c.channel); });
-  const activeChannels = Array.from(activeChannelsSet);
+  const activeChannels = Object.keys(channelCounts);
 
   // Configs atuais da IA
   const { data: aiCfgs } = await supabase
@@ -108,7 +129,7 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     blockFinancial: aiCfgs?.find((c: any) => c.key === 'ai_block_financial')?.value ?? 'N/A',
   };
 
-  // Top motivos de falha da IA (eventos de saída/transferência)
+  // Top motivos de falha da IA
   const { data: failEvents } = await supabase
     .from('ai_events')
     .select('event_type, output_json')
@@ -128,13 +149,19 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .map(([k, v]) => `${k} (${v}x)`);
 
   return {
-    totalConvs, closedByAI, escalatedToHuman, closedTotal, avgResolutionMin,
+    totalConvs, closedByAI, escalatedToHuman, closedTotal, openTotal, avgResolutionMin,
     totalAIEvents, fallbackEvents, directEvents, topIntents,
     criticalAnomalies, warningAnomalies,
     totalMessages: totalMessages ?? 0, aiMessages: aiMessages ?? 0,
+    // Breakdown detalhado
+    autopilotConvs, copilotConvs, waitingHumanConvs, disabledConvs,
+    closedAutopilot, closedCopilot, closedDisabled,
+    openAutopilot, openCopilot,
+    channelCounts,
+    // CSAT
+    csatCount, csatAvg,
     // Contexto técnico
     kbArticlesCount: kbArticlesCount ?? 0,
-    autopilotConvs, copilotConvs, waitingHumanConvs,
     activeChannels,
     aiConfig,
     topFailReasons,

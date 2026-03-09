@@ -1200,14 +1200,19 @@ serve(async (req) => {
       metrics.criticalAnomalies?.length > 0 ? `Anomalias: ${metrics.criticalAnomalies.length} criticas` : null,
     ].filter(Boolean).join('\n');
 
-    // ═══ HOJE — Vendas (separadas) ═══
+    // ═══ HOJE — Vendas (com breakdown por origem) ═══
+    const affTopStr = (salesMetrics.topNewAffiliates ?? []).length > 0
+      ? `  Top afiliados: ${(salesMetrics.topNewAffiliates ?? []).map((a: any) => `${a.name} ${a.deals} deals`).join(', ')}`
+      : '';
     const salesSummary = [
       `💰 *HOJE — Vendas*`,
       `Vendas novas: ${salesMetrics.newSalesCount} (${fmtK(salesMetrics.newSalesRevenue)})`,
+      `  Organico: ${salesMetrics.newSalesOrganicCount} (${fmtK(salesMetrics.newSalesOrganicRevenue)}) | Afiliados: ${salesMetrics.newSalesAffiliateCount} (${fmtK(salesMetrics.newSalesAffiliateRevenue)}) | Comercial: ${salesMetrics.newSalesComercialCount} (${fmtK(salesMetrics.newSalesComercialRevenue)})`,
+      affTopStr,
       `Recorrencias: ${salesMetrics.recurrenceCount} (${fmtK(salesMetrics.recurrenceRevenue)})`,
       `Total: ${salesMetrics.wonToday} fechamentos | ${fmtK(salesMetrics.revenueToday)}`,
       `Perdidos: ${salesMetrics.lostToday} | Novos deals: ${salesMetrics.newDeals}`,
-    ].join('\n');
+    ].filter(Boolean).join('\n');
 
     // ═══ HOJE — Pipeline ═══
     const pipelineSummaryToday = salesMetrics.newLeadsToday > 0

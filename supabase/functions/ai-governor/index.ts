@@ -928,7 +928,7 @@ async function sendEmailReport(
             : ''
           }
           <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">Report Diário CRM 3Cliques</h1>
-          <p style="color:#94a3b8;margin:6px 0 0;font-size:13px;">Relatório ${dateStr}</p>
+          <p style="color:#94a3b8;margin:6px 0 0;font-size:13px;">Relatório ${dateStr} ${periodStr || ''}</p>
         </td></tr>
 
         <!-- Greeting -->
@@ -938,7 +938,7 @@ async function sendEmailReport(
 
         <!-- HOJE — Atendimento -->
         <tr><td style="padding:0 32px 6px;">
-          <p style="color:#6366f1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Atendimento</p>
+          <p style="color:#6366f1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Atendimento ${periodStr || ''}</p>
         </td></tr>
         <tr><td style="padding:0 32px 12px;">
           <table width="100%" cellpadding="0" cellspacing="6">

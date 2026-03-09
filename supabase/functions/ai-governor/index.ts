@@ -427,6 +427,11 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
     lostToday: lostToday?.length ?? 0,
     newDeals: newDealsCount ?? 0,
     revenueToday: totalRevToday,
+    // Vendas novas vs recorrências
+    newSalesCount,
+    newSalesRevenue,
+    recurrenceCount,
+    recurrenceRevenue,
     origins,
     topPartners,
     topReps,

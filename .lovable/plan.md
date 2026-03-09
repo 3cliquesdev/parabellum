@@ -1,31 +1,40 @@
 
-# Plano: Mensagens Configuráveis de Fora do Horário ✅
 
-## Status: IMPLEMENTADO (com ajustes finos aplicados)
+# Fix: Calendário de período personalizado não permite selecionar datas
 
-## Resumo
+## Problema
+O `DateRangePicker` (componente com presets) usa `Popover` **sem `modal={true}`**. Quando o usuário clica em um dia do calendário, o Radix interpreta como interação que causa perda de foco e dispara `onOpenChange(false)` **antes** do `onSelect` do Calendar — o popover fecha sem registrar a seleção.
 
-As mensagens automáticas enviadas fora do horário comercial (handoff e redistribuição) agora são editáveis via UI na página de SLA Settings. Templates armazenados na tabela `business_messages_config` com fallback para mensagens padrão.
+O outro componente (`DatePickerWithRange` em `ui/date-range-picker.tsx`) já funciona corretamente porque usa `<Popover modal={true}>`.
 
-## Ajustes Finos Aplicados
+## Auditoria — Todos os date range pickers
 
-- ✅ Trigger `updated_at` reutilizando `public.update_updated_at_column()`
-- ✅ Validação: botão salvar desabilitado se template vazio
-- ✅ Warning visual se placeholders `{schedule}` / `{next_open}` removidos
-- ✅ Botão "Restaurar Padrão" para resetar mensagens
+| Componente | Arquivo | Tem `modal` / proteção? | Status |
+|---|---|---|---|
+| `DatePickerWithRange` | `src/components/ui/date-range-picker.tsx` | ✅ `modal={true}` | OK |
+| `DateRangePicker` | `src/components/DateRangePicker.tsx` | ❌ Sem `modal` nem `onInteractOutside` | **QUEBRADO** |
 
-## Arquivos Alterados
+Todos os usos do `DateRangePicker` são afetados:
+- `FiscalExport.tsx` (Nota Fiscal — caso reportado)
+- `ConversationsReport.tsx`
+- `CommercialConversationsReport.tsx`
+- `Subscriptions.tsx`
+- `GlobalFilters.tsx` (Analytics)
 
-| Arquivo | Mudança |
-|---------|---------|
-| SQL Migrations | Tabela `business_messages_config` + seeds + RLS + trigger updated_at |
-| `src/hooks/useBusinessMessages.ts` | Hook (query + mutation) |
-| `src/pages/SLASettings.tsx` | Seção "Mensagens de Fora do Horário" com validação + restaurar padrão |
-| `supabase/functions/ai-autopilot-chat/index.ts` | Busca template `after_hours_handoff` com fallback |
-| `supabase/functions/redistribute-after-hours/index.ts` | Busca template `business_hours_reopened` com fallback |
+## Solução
 
-## Garantias
+Alteração única em `src/components/DateRangePicker.tsx`, linha 265:
 
-- Fallback hardcoded se tabela vazia ou inacessível
-- Kill Switch, Shadow Mode, Fluxos: não afetados
-- RLS: leitura authenticated, escrita managers/admins
+Trocar:
+```tsx
+<Popover open={calendarOpen} onOpenChange={handleCalendarOpenChange}>
+```
+Por:
+```tsx
+<Popover open={calendarOpen} onOpenChange={handleCalendarOpenChange} modal={true}>
+```
+
+Isso impede que cliques dentro do popover causem fechamento prematuro, mantendo o comportamento de fechar programaticamente apenas quando ambas as datas forem selecionadas (lógica já existente em `handleCalendarSelect`).
+
+Uma linha corrige todos os 5+ locais que usam este componente.
+

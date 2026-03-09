@@ -24,15 +24,7 @@ interface TicketNotificationRule {
   };
 }
 
-const TICKET_CATEGORIES = [
-  { value: 'saque', label: 'Saque' },
-  { value: 'financeiro', label: 'Financeiro' },
-  { value: 'reembolso', label: 'Reembolso' },
-  { value: 'tecnico', label: 'Técnico' },
-  { value: 'suporte', label: 'Suporte Geral' },
-  { value: 'devolucao', label: 'Devolução' },
-  { value: 'troca', label: 'Troca' },
-];
+// Categories are now loaded dynamically from the database
 
 const EVENT_TYPES = [
   { value: 'created', label: 'Ticket Criado', icon: '📬' },

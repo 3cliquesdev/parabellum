@@ -72,6 +72,40 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .order('created_at', { ascending: false })
     .limit(500);
 
+  // ═══ Contagem REAL de conversas resolvidas pela IA ═══
+  // Busca conversas fechadas no período que tiveram evento de fechamento pela IA
+  const closedConvIds = convs?.filter((c: any) => c.status === 'closed').map((c: any) => c.id) ?? [];
+  let closedByAIReal = closedByAI; // fallback para o filtro original
+  if (closedConvIds.length > 0) {
+    // Contar conversas que tiveram evento de close pela IA (ai_close_conversation, ai_auto_close, etc.)
+    const { data: aiCloseEvents } = await supabase
+      .from('ai_events')
+      .select('entity_id')
+      .in('entity_id', closedConvIds.slice(0, 200))
+      .in('event_type', ['ai_close_conversation', 'ai_auto_close', 'autopilot_close', 'ai_resolved'])
+      .gte('created_at', since)
+      .lt('created_at', until);
+    
+    // Também verificar via última mensagem AI antes do fechamento
+    const { data: aiLastMsgClose } = await supabase
+      .from('messages')
+      .select('conversation_id')
+      .in('conversation_id', closedConvIds.slice(0, 200))
+      .eq('is_ai_generated', true)
+      .gte('created_at', since)
+      .lt('created_at', until);
+    
+    const aiClosedSet = new Set<string>();
+    aiCloseEvents?.forEach((e: any) => aiClosedSet.add(e.entity_id));
+    // Conversas fechadas onde a última mensagem foi da IA também conta
+    aiLastMsgClose?.forEach((m: any) => aiClosedSet.add(m.conversation_id));
+    // Também incluir os que já tinham ai_mode=autopilot
+    convs?.filter((c: any) => c.status === 'closed' && c.ai_mode === 'autopilot')
+      .forEach((c: any) => aiClosedSet.add(c.id));
+    
+    closedByAIReal = aiClosedSet.size;
+  }
+
   const totalAIEvents = totalAIEventsCount ?? aiEvents?.length ?? 0;
   const fallbackEvents = aiEvents?.filter((e: any) => e.output_json?.action === 'handoff' || e.output_json?.escalated === true).length ?? 0;
   const directEvents = aiEvents?.filter((e: any) => e.output_json?.action === 'direct').length ?? 0;
@@ -149,11 +183,21 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .map(([k, v]) => `${k} (${v}x)`);
 
   // ═══ Tags de conversas do dia ═══
-  const { data: convTagsData } = await supabase
-    .from('conversation_tags')
-    .select('tag_id, tags(name, color), conversation_id')
-    .gte('created_at', since)
-    .lt('created_at', until);
+  // Buscar tags de conversas criadas no período (não pela data de criação da tag)
+  const convIdsForTags = convs?.map((c: any) => c.id) ?? [];
+  let convTagsData: any[] = [];
+  if (convIdsForTags.length > 0) {
+    // Buscar em batches para evitar limite
+    const tagBatchSize = 200;
+    for (let i = 0; i < convIdsForTags.length; i += tagBatchSize) {
+      const batch = convIdsForTags.slice(i, i + tagBatchSize);
+      const { data: batchTags } = await supabase
+        .from('conversation_tags')
+        .select('tag_id, tags(name, color), conversation_id')
+        .in('conversation_id', batch);
+      if (batchTags) convTagsData.push(...batchTags);
+    }
+  }
 
   const tagCountMap: Record<string, { name: string; count: number }> = {};
   convTagsData?.forEach((ct: any) => {
@@ -200,13 +244,13 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .map(([category, count]) => ({ category, count }));
 
   return {
-    totalConvs, closedByAI, escalatedToHuman, closedTotal, openTotal, avgResolutionMin,
+    totalConvs, closedByAI: closedByAIReal, escalatedToHuman, closedTotal, openTotal, avgResolutionMin,
     totalAIEvents, fallbackEvents, directEvents, topIntents,
     criticalAnomalies, warningAnomalies,
     totalMessages: totalMessages ?? 0, aiMessages: aiMessages ?? 0,
     // Breakdown detalhado
     autopilotConvs, copilotConvs, waitingHumanConvs, disabledConvs,
-    closedAutopilot, closedCopilot, closedDisabled,
+    closedAutopilot: closedByAIReal, closedCopilot, closedDisabled,
     openAutopilot, openCopilot,
     channelCounts,
     // CSAT
@@ -663,7 +707,8 @@ async function sendEmailReport(
   dateStr: string,
   aiAnalysis: string,
   metrics: any,
-  salesMetrics: any
+  salesMetrics: any,
+  periodStr?: string
 ): Promise<boolean> {
   const resendKey = Deno.env.get('RESEND_API_KEY');
   if (!resendKey) {
@@ -883,7 +928,7 @@ async function sendEmailReport(
             : ''
           }
           <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">Report Diário CRM 3Cliques</h1>
-          <p style="color:#94a3b8;margin:6px 0 0;font-size:13px;">Relatório ${dateStr}</p>
+          <p style="color:#94a3b8;margin:6px 0 0;font-size:13px;">Relatório ${dateStr} ${periodStr || ''}</p>
         </td></tr>
 
         <!-- Greeting -->
@@ -893,7 +938,7 @@ async function sendEmailReport(
 
         <!-- HOJE — Atendimento -->
         <tr><td style="padding:0 32px 6px;">
-          <p style="color:#6366f1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Atendimento</p>
+          <p style="color:#6366f1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Atendimento ${periodStr || ''}</p>
         </td></tr>
         <tr><td style="padding:0 32px 12px;">
           <table width="100%" cellpadding="0" cellspacing="6">
@@ -930,9 +975,9 @@ async function sendEmailReport(
 
         <tr><td style="padding:0 32px;"><div style="border-top:1px solid #e2e8f0;"></div></td></tr>
 
-        <!-- HOJE — Vendas (separadas) -->
+        <!-- HOJE — Vendas Novas + Recorrências -->
         <tr><td style="padding:16px 32px 6px;">
-          <p style="color:#22c55e;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Vendas</p>
+          <p style="color:#22c55e;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">HOJE — Vendas Novas + Recorrências</p>
         </td></tr>
         <tr><td style="padding:0 32px 20px;">
           <table width="100%" cellpadding="0" cellspacing="6">
@@ -1211,9 +1256,14 @@ serve(async (req) => {
     // Canal breakdown
     const channelBreakdownWa = Object.entries(metrics.channelCounts ?? {}).map(([ch, cnt]) => `${ch} ${cnt}`).join(', ') || 'N/A';
 
+    // Período formatado
+    const periodStr = forceToday
+      ? `(00:00 - ${until.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})`
+      : '(00:00 - 23:59)';
+
     // ═══ HOJE — Atendimento (detalhado) ═══
     const inboxSummary = [
-      `📞 *HOJE — Atendimento*`,
+      `📞 *HOJE — Atendimento* ${periodStr}`,
       `Conversas: ${metrics.totalConvs} (${channelBreakdownWa})`,
       `Abertas agora: ${metrics.openTotal} | Fechadas: ${metrics.closedTotal} | Fila humana: ${metrics.waitingHumanConvs}`,
       `IA autopilot: resolveu ${metrics.closedAutopilot}, ativas ${metrics.openAutopilot}`,
@@ -1224,19 +1274,24 @@ serve(async (req) => {
       metrics.criticalAnomalies?.length > 0 ? `Anomalias: ${metrics.criticalAnomalies.length} criticas` : null,
     ].filter(Boolean).join('\n');
 
-    // ═══ HOJE — Vendas (com breakdown por origem) ═══
+    // ═══ HOJE — Vendas Novas ═══
     const affTopStr = (salesMetrics.topNewAffiliates ?? []).length > 0
       ? `  Top afiliados: ${(salesMetrics.topNewAffiliates ?? []).map((a: any) => `${a.name} ${a.deals} deals`).join(', ')}`
       : '';
-    const salesSummary = [
-      `💰 *HOJE — Vendas*`,
-      `Vendas novas: ${salesMetrics.newSalesCount} (${fmtK(salesMetrics.newSalesRevenue)})`,
-      `  Organico: ${salesMetrics.newSalesOrganicCount} (${fmtK(salesMetrics.newSalesOrganicRevenue)}) | Afiliados: ${salesMetrics.newSalesAffiliateCount} (${fmtK(salesMetrics.newSalesAffiliateRevenue)}) | Comercial: ${salesMetrics.newSalesComercialCount} (${fmtK(salesMetrics.newSalesComercialRevenue)})`,
+    const newSalesSummary = [
+      `💰 *HOJE — Vendas Novas*`,
+      `Novas: ${salesMetrics.newSalesCount} (${fmtK(salesMetrics.newSalesRevenue)})`,
+      `  Organico: ${salesMetrics.newSalesOrganicCount} (${fmtK(salesMetrics.newSalesOrganicRevenue)})`,
+      `  Afiliados: ${salesMetrics.newSalesAffiliateCount} (${fmtK(salesMetrics.newSalesAffiliateRevenue)})`,
+      `  Comercial: ${salesMetrics.newSalesComercialCount} (${fmtK(salesMetrics.newSalesComercialRevenue)})`,
       affTopStr,
-      `Recorrencias: ${salesMetrics.recurrenceCount} (${fmtK(salesMetrics.recurrenceRevenue)})`,
-      `Total: ${salesMetrics.wonToday} fechamentos | ${fmtK(salesMetrics.revenueToday)}`,
-      `Perdidos: ${salesMetrics.lostToday} | Novos deals: ${salesMetrics.newDeals}`,
     ].filter(Boolean).join('\n');
+
+    // ═══ HOJE — Recorrências ═══
+    const recurrenceSummary = `🔄 *HOJE — Recorrências*\nRenovações: ${salesMetrics.recurrenceCount} (${fmtK(salesMetrics.recurrenceRevenue)})`;
+
+    // ═══ Resumo Geral ═══
+    const salesResume = `📊 *Resumo:* ${salesMetrics.wonToday} fechamentos | ${fmtK(salesMetrics.revenueToday)}\nPerdidos: ${salesMetrics.lostToday} | Novos deals: ${salesMetrics.newDeals}`;
 
     // ═══ HOJE — Pipeline ═══
     const pipelineSummaryToday = salesMetrics.newLeadsToday > 0
@@ -1277,7 +1332,7 @@ serve(async (req) => {
 
     const optionalSections = [tagsSummary, ticketsSummary].filter(Boolean).join('\n\n');
 
-    const fullMessage = `*Report Diario CRM 3Cliques — Relatorio ${dateStr}*\n${'─'.repeat(30)}\n\n${inboxSummary}\n\n${salesSummary}\n\n${pipelineSummaryToday}\n${channelsSummarySection}${optionalSections ? '\n\n' + optionalSections : ''}\n\n${monthSummary}\n\n${teamMonthSummary}${(salesMetrics.alerts ?? []).length > 0 ? `\n\n⚠️ *Alertas:*\n${(salesMetrics.alerts ?? []).join('\n')}` : ''}\n\n${'─'.repeat(30)}\n\n${aiAnalysis}\n\n${'─'.repeat(30)}\n_Parabellum by 3Cliques — ${now.toLocaleTimeString('pt-BR')}_`;
+    const fullMessage = `*Report Diario CRM 3Cliques — Relatorio ${dateStr} ${periodStr}*\n${'─'.repeat(30)}\n\n${inboxSummary}\n\n${newSalesSummary}\n\n${recurrenceSummary}\n\n${salesResume}\n\n${pipelineSummaryToday}\n${channelsSummarySection}${optionalSections ? '\n\n' + optionalSections : ''}\n\n${monthSummary}\n\n${teamMonthSummary}${(salesMetrics.alerts ?? []).length > 0 ? `\n\n⚠️ *Alertas:*\n${(salesMetrics.alerts ?? []).join('\n')}` : ''}\n\n${'─'.repeat(30)}\n\n${aiAnalysis}\n\n${'─'.repeat(30)}\n_Parabellum by 3Cliques — ${now.toLocaleTimeString('pt-BR')}_`;
 
     const { data: savedReport } = await supabase.from('ai_governor_reports').insert({
       date: since.toISOString().split('T')[0],
@@ -1296,7 +1351,7 @@ serve(async (req) => {
     // Enviar Email
     let emailResult = { sent: 0, errors: 0 };
     for (const admin of adminEmails) {
-      const ok = await sendEmailReport(supabase, admin.email, admin.name, dateStr, aiAnalysis, metrics, salesMetrics);
+      const ok = await sendEmailReport(supabase, admin.email, admin.name, dateStr, aiAnalysis, metrics, salesMetrics, periodStr);
       if (ok) emailResult.sent++; else emailResult.errors++;
     }
 

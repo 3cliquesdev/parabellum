@@ -157,36 +157,21 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
 }
 
 async function generateAIAnalysis(metrics: any, salesMetrics: any, dateStr: string, openaiKey: string): Promise<string> {
-  const prompt = `Você é a IA Governante do Parabellum, sistema de Customer Success e CRM.
-Analise as métricas do dia ${dateStr} e gere relatório executivo CURTO para WhatsApp (máx 40 linhas).
+  const prompt = `Você é a IA Governante do Parabellum, sistema de CRM e Customer Success.
+Analise as métricas do dia ${dateStr} e gere um relatório executivo estruturado.
 
-📞 ATENDIMENTO:
-- Conversas: ${metrics.totalConvs} | Fechadas pela IA: ${metrics.closedByAI} (${pct(metrics.closedByAI, metrics.totalConvs)})
-- Escaladas para humano: ${metrics.escalatedToHuman} (${pct(metrics.escalatedToHuman, metrics.totalConvs)})
-- Tempo médio resolução: ${metrics.avgResolutionMin ? `${metrics.avgResolutionMin} min` : 'sem dados'}
-- Eventos de IA: ${metrics.totalAIEvents} | Diretos: ${metrics.directEvents} | Handoffs: ${metrics.fallbackEvents}
-- Mensagens: ${metrics.totalMessages} (${metrics.aiMessages} da IA)
-- Top eventos: ${metrics.topIntents.join(', ') || 'Sem dados'}
-- Anomalias críticas: ${metrics.criticalAnomalies.length} | Avisos: ${metrics.warningAnomalies.length}
+DADOS:
+📞 ATENDIMENTO: Conversas: ${metrics.totalConvs} | Fechadas pela IA: ${metrics.closedByAI} (${pct(metrics.closedByAI, metrics.totalConvs)}) | Escaladas: ${metrics.escalatedToHuman} (${pct(metrics.escalatedToHuman, metrics.totalConvs)}) | Tempo médio resolução: ${metrics.avgResolutionMin ? `${metrics.avgResolutionMin} min` : 'sem dados'} | Eventos IA: ${metrics.totalAIEvents} (top: ${metrics.topIntents.join(', ') || 'Sem dados'}) | Anomalias: ${metrics.criticalAnomalies.length} críticas, ${metrics.warningAnomalies.length} avisos
+💰 VENDAS DIA: Novos: ${salesMetrics.newDeals} | Ganhos: ${salesMetrics.wonToday} (${formatCurrency(salesMetrics.revenueToday)}) | Perdidos: ${salesMetrics.lostToday} | Motivos perda: ${salesMetrics.topLostReasons.join(', ') || 'Nenhum'}
+📈 MÊS: Won: ${salesMetrics.dealsWonMonth} | Receita: ${formatCurrency(salesMetrics.revenueMonth)} | Meta: ${salesMetrics.goalTarget > 0 ? `${formatCurrency(salesMetrics.goalTarget)} (${salesMetrics.goalProgress}%)` : 'Sem meta'} | Conversão: ${salesMetrics.conversionRate}% | Pipeline: ${salesMetrics.pipelineCount} deals (${formatCurrency(salesMetrics.pipelineValue)})
 
-💰 VENDAS DO DIA:
-- Novos deals: ${salesMetrics.newDeals}
-- Ganhos: ${salesMetrics.wonToday} (${formatCurrency(salesMetrics.revenueToday)})
-- Perdidos: ${salesMetrics.lostToday}
-- Motivos de perda: ${salesMetrics.topLostReasons.join(', ') || 'Nenhum'}
+FORMATO OBRIGATÓRIO - use EXATAMENTE estas seções, uma por linha, sem bullet points nem listas:
+[DESTAQUES] Uma frase com os pontos positivos do dia.
+[ATENCAO] Uma frase com pontos de atenção ou riscos.
+[SUGESTOES] Uma frase com sugestões práticas de melhoria.
+[MOTIVACIONAL] Uma frase motivacional curta.
 
-📈 VENDAS DO MÊS:
-- Deals ganhos no mês: ${salesMetrics.dealsWonMonth}
-- Receita acumulada: ${formatCurrency(salesMetrics.revenueMonth)}
-- Meta: ${salesMetrics.goalTarget > 0 ? `${formatCurrency(salesMetrics.goalTarget)} (${salesMetrics.goalProgress}% atingido)` : 'Sem meta definida'}
-- Taxa de conversão: ${salesMetrics.conversionRate}%
-
-📊 PIPELINE:
-- Deals abertos: ${salesMetrics.pipelineCount}
-- Valor total: ${formatCurrency(salesMetrics.pipelineValue)}
-
-FORMATO: Use emojis. Seções: 📊 Resumo | 📞 Atendimento | 💰 Vendas | ✅ Destaques | ⚠️ Atenção | 💡 Sugestões
-Termine com frase motivacional curta. Seja direto e prático.`;
+Cada seção deve ter NO MÁXIMO 2 frases. Seja direto, prático e use dados reais.`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

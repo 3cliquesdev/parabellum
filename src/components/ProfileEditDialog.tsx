@@ -52,7 +52,7 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
   const { profile, user, refetchProfile } = useAuth();
   const { toast } = useToast();
   const { uploadAvatar, uploading: uploadingAvatar } = useAvatarUpload();
-  const { isAdmin } = useUserRole();
+  const { role } = useUserRole();
   const queryClient = useQueryClient();
 
   const form = useForm<ProfileFormData>({

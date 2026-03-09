@@ -785,10 +785,10 @@ async function sendEmailReport(
         <!-- Sub-metrics -->
         <tr><td style="padding:0 32px 20px;">
           <p style="color:#64748b;font-size:12px;margin:0;line-height:1.8;">
-            ⏱ Tempo médio de resolução: <strong style="color:#1e293b;">${metrics.avgResolutionMin ? `${metrics.avgResolutionMin} min` : '—'}</strong><br/>
-            💬 Mensagens: <strong style="color:#1e293b;">${metrics.totalMessages}</strong> (${metrics.aiMessages} da IA)
-            ${metrics.topIntents.length > 0 ? `<br/>🔝 Top eventos: <strong style="color:#1e293b;">${metrics.topIntents.slice(0, 3).join(', ')}</strong>` : ''}
-            ${(metrics.criticalAnomalies?.length ?? 0) > 0 ? `<br/>🔴 Anomalias: <strong style="color:#dc2626;">${metrics.criticalAnomalies.length} críticas</strong>` : ''}
+            Tempo medio de resolucao: <strong style="color:#1e293b;">${metrics.avgResolutionMin ? `${metrics.avgResolutionMin} min` : '—'}</strong><br/>
+            Mensagens: <strong style="color:#1e293b;">${metrics.totalMessages}</strong> (${metrics.aiMessages} da IA)
+            ${metrics.topIntents.length > 0 ? `<br/>Top eventos: <strong style="color:#1e293b;">${metrics.topIntents.slice(0, 3).join(', ')}</strong>` : ''}
+            ${(metrics.criticalAnomalies?.length ?? 0) > 0 ? `<br/>Anomalias: <strong style="color:#dc2626;">${metrics.criticalAnomalies.length} criticas</strong>` : ''}
           </p>
         </td></tr>
 

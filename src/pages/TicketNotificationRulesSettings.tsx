@@ -192,8 +192,10 @@ export default function TicketNotificationRulesSettings() {
     }
   };
 
+  const { data: ticketCategories = [] } = useTicketCategories();
+
   const getCategoryLabel = (value: string) => 
-    TICKET_CATEGORIES.find(c => c.value === value)?.label || value;
+    ticketCategories.find(c => c.name === value)?.name || value;
 
   const getEventInfo = (value: string) => 
     EVENT_TYPES.find(e => e.value === value) || { label: value, icon: '📧' };

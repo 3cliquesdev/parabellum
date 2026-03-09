@@ -244,13 +244,13 @@ async function collectDayMetrics(supabase: any, since: string, until: string) {
     .map(([category, count]) => ({ category, count }));
 
   return {
-    totalConvs, closedByAI, escalatedToHuman, closedTotal, openTotal, avgResolutionMin,
+    totalConvs, closedByAI: closedByAIReal, escalatedToHuman, closedTotal, openTotal, avgResolutionMin,
     totalAIEvents, fallbackEvents, directEvents, topIntents,
     criticalAnomalies, warningAnomalies,
     totalMessages: totalMessages ?? 0, aiMessages: aiMessages ?? 0,
     // Breakdown detalhado
     autopilotConvs, copilotConvs, waitingHumanConvs, disabledConvs,
-    closedAutopilot, closedCopilot, closedDisabled,
+    closedAutopilot: closedByAIReal, closedCopilot, closedDisabled,
     openAutopilot, openCopilot,
     channelCounts,
     // CSAT

@@ -2142,6 +2142,21 @@ serve(async (req) => {
         }
         const aiExitForced = !!forceAIExit;
 
+        // 🆕 INTENT DATA: Salvar ai_exit_intent no collectedData quando recebido do webhook
+        if (intentData && intentData.ai_exit_intent) {
+          collectedData.ai_exit_intent = intentData.ai_exit_intent;
+          console.log(`[process-chat-flow] 🎯 ai_exit_intent salvo: "${intentData.ai_exit_intent}"`);
+        }
+        // Salvar intent automático quando financialIntentMatch ou commercialIntentMatch
+        if (financialIntentMatch && !collectedData.ai_exit_intent) {
+          collectedData.ai_exit_intent = 'financeiro';
+          console.log('[process-chat-flow] 🎯 ai_exit_intent=financeiro (auto-detect from financialIntentMatch)');
+        }
+        if (commercialIntentMatch && !collectedData.ai_exit_intent) {
+          collectedData.ai_exit_intent = 'comercial';
+          console.log('[process-chat-flow] 🎯 ai_exit_intent=comercial (auto-detect from commercialIntentMatch)');
+        }
+
         if (financialIntentMatch || commercialIntentMatch || keywordMatch || maxReached || aiExitForced) {
           const exitReason = financialIntentMatch ? 'financial_blocked' : commercialIntentMatch ? 'commercial_blocked' : aiExitForced ? 'ai_handoff_exit' : keywordMatch ? 'exit_keyword' : 'max_interactions';
           console.log(`[process-chat-flow] 🔄 AI persistent EXIT: reason=${exitReason} keyword=${keywordMatch} maxReached=${maxReached} financial=${financialIntentMatch} commercial=${commercialIntentMatch} count=${aiCount}`);

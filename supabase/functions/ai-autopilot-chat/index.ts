@@ -1282,6 +1282,10 @@ serve(async (req) => {
 
     const { conversationId, customerMessage, maxHistory = 50, customer_context, flow_context }: AutopilotChatRequest = parsedBody;
     
+    // 🆕 Carregar RAGConfig uma única vez para todo o handler
+    const ragConfig = await getRAGConfig(supabaseClient);
+    console.log('[ai-autopilot-chat] 📊 RAGConfig carregado:', { model: ragConfig.model, strictMode: ragConfig.strictMode, blockFinancial: ragConfig.blockFinancial });
+
     // Validação defensiva
     if (!conversationId || conversationId === 'undefined') {
       console.error('[ai-autopilot-chat] ❌ conversationId inválido:', conversationId);
@@ -1335,7 +1339,7 @@ serve(async (req) => {
     // 🔒 TRAVA FINANCEIRA — Interceptação na ENTRADA (antes de chamar LLM)
     const financialIntentPattern = /saque|sacar|reembolso|estorno|(?<!\bendereco\s+de\s*)(?<!\bendere[çc]o\s+de\s*)(?<!\blocal\s+de\s*)devolu[çc][ãa]o|(?<!\bendereco\s+de\s*)(?<!\bendere[çc]o\s+de\s*)(?<!\blocal\s+de\s*)devolver|cancelar.*assinatura|meu dinheiro|(sacar|tirar|retirar|ver|consultar|meu)\s*saldo|(fazer|realizar|efetuar|cancelar|estornar)\s*pagamento|(cancelar|contestar|cobran[çc]a\s*indevida)|retirar|retirada|caixa|carteira|pix|transferir\s*saldo|tirar\s*dinheiro|tirar\s*meu|valor\s*(que|da|do|em)|ressarcimento/i;
     
-    if (flowForbidFinancial && customerMessage && customerMessage.trim().length > 0 && financialIntentPattern.test(customerMessage)) {
+    if (ragConfig.blockFinancial && flowForbidFinancial && customerMessage && customerMessage.trim().length > 0 && financialIntentPattern.test(customerMessage)) {
       console.warn('[ai-autopilot-chat] 🔒 TRAVA FINANCEIRA (ENTRADA): Intenção financeira detectada, bloqueando IA:', customerMessage.substring(0, 80));
       
       const fixedMessage = 'Entendi. Para assuntos financeiros (saque, reembolso, devolução), vou te encaminhar para um atendente humano agora.';
@@ -3510,8 +3514,8 @@ serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
-    // Buscar modelo AI configurado dinamicamente
-    const configuredAIModel = await getConfiguredAIModel(supabaseClient);
+    // Usar modelo do RAGConfig já carregado (evita query duplicada)
+    const configuredAIModel = ragConfig.model;
     console.log(`[ai-autopilot-chat] Using AI model: ${configuredAIModel}`);
     
     if (!OPENAI_API_KEY && !LOVABLE_API_KEY) {
@@ -4123,20 +4127,9 @@ Responda APENAS: skip ou search`
     // 🎯 SISTEMA ANTI-ALUCINAÇÃO - VERIFICAÇÃO DE CONFIANÇA
     // ============================================================
     
-    // 🆕 Buscar configuração do modo RAG estrito
-    let isStrictRAGMode = false;
-    try {
-      const { data: strictModeConfig } = await supabaseClient
-        .from('system_configurations')
-        .select('value')
-        .eq('key', 'ai_strict_rag_mode')
-        .maybeSingle();
-      
-      isStrictRAGMode = strictModeConfig?.value === 'true';
-      console.log('[ai-autopilot-chat] 🎯 Modo RAG Estrito:', isStrictRAGMode ? 'ATIVADO' : 'desativado');
-    } catch (configError) {
-      console.warn('[ai-autopilot-chat] ⚠️ Erro ao buscar config strict mode:', configError);
-    }
+    // 🆕 Usar RAGConfig já carregado (query única no início do handler)
+    const isStrictRAGMode = ragConfig.strictMode;
+    console.log('[ai-autopilot-chat] 🎯 Modo RAG Estrito:', isStrictRAGMode ? 'ATIVADO' : 'desativado');
     
     // ============================================================
     // 🆕 MODO RAG ESTRITO - Processamento exclusivo com GPT-4o

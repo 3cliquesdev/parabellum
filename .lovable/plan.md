@@ -1,32 +1,31 @@
 
+# Plano: Mensagens Configuráveis de Fora do Horário ✅
 
-# Relatório IA Governante para Gerentes
+## Status: IMPLEMENTADO (com ajustes finos aplicados)
 
-## Situação Atual
+## Resumo
 
-- A Edge Function `ai-governor` já busca **qualquer perfil** com `notify_ai_governor = true` — não filtra por role. Então o backend já suporta gerentes.
-- O problema está no **frontend**: o `ProfileEditDialog` só mostra a seção "IA Governante" (WhatsApp + toggle) quando `isAdmin === true` (linha 202). Gerentes não conseguem ativar.
+As mensagens automáticas enviadas fora do horário comercial (handoff e redistribuição) agora são editáveis via UI na página de SLA Settings. Templates armazenados na tabela `business_messages_config` com fallback para mensagens padrão.
 
-## Mudança Necessária
+## Ajustes Finos Aplicados
 
-Apenas **1 arquivo**: `src/components/ProfileEditDialog.tsx`
+- ✅ Trigger `updated_at` reutilizando `public.update_updated_at_column()`
+- ✅ Validação: botão salvar desabilitado se template vazio
+- ✅ Warning visual se placeholders `{schedule}` / `{next_open}` removidos
+- ✅ Botão "Restaurar Padrão" para resetar mensagens
 
-### 1. Expandir a condição de visibilidade da seção IA Governante
+## Arquivos Alterados
 
-Trocar `isAdmin` por `hasFullAccess(role)` (importando de `src/config/roles.ts`), que inclui: admin, manager, general_manager, support_manager, cs_manager, financial_manager.
+| Arquivo | Mudança |
+|---------|---------|
+| SQL Migrations | Tabela `business_messages_config` + seeds + RLS + trigger updated_at |
+| `src/hooks/useBusinessMessages.ts` | Hook (query + mutation) |
+| `src/pages/SLASettings.tsx` | Seção "Mensagens de Fora do Horário" com validação + restaurar padrão |
+| `supabase/functions/ai-autopilot-chat/index.ts` | Busca template `after_hours_handoff` com fallback |
+| `supabase/functions/redistribute-after-hours/index.ts` | Busca template `business_hours_reopened` com fallback |
 
-Linha 202: `{isAdmin && (` → `{hasFullAccess(role) && (`
+## Garantias
 
-### 2. Expandir a condição de salvamento
-
-Linha 95: `if (isAdmin)` → `if (hasFullAccess(role))` para que gerentes também salvem `whatsapp_number` e `notify_ai_governor`.
-
-### 3. Obter o role
-
-O componente já usa `useAuth()`. Precisa adicionar `useUserRole()` para ter acesso ao `role`.
-
-## Impacto
-- Zero regressão — backend já aceita qualquer perfil com a flag
-- Gerentes passam a ver a seção no perfil, configurar WhatsApp e ativar o relatório
-- Admins continuam funcionando igual
-
+- Fallback hardcoded se tabela vazia ou inacessível
+- Kill Switch, Shadow Mode, Fluxos: não afetados
+- RLS: leitura authenticated, escrita managers/admins

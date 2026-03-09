@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { useUserRole } from "@/hooks/useUserRole";
+import { hasFullAccess } from "@/config/roles";
 import AvatarUploader from "@/components/AvatarUploader";
 import { Bot, Send } from "lucide-react";
 
@@ -51,7 +52,7 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
   const { profile, user, refetchProfile } = useAuth();
   const { toast } = useToast();
   const { uploadAvatar, uploading: uploadingAvatar } = useAvatarUpload();
-  const { isAdmin } = useUserRole();
+  const { role } = useUserRole();
   const queryClient = useQueryClient();
 
   const form = useForm<ProfileFormData>({
@@ -92,7 +93,7 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
         avatar_url: avatarUrl || null,
       };
 
-      if (isAdmin) {
+      if (hasFullAccess(role)) {
         updatePayload.whatsapp_number = whatsappNumber || null;
         updatePayload.notify_ai_governor = notifyGovernor;
       }
@@ -199,7 +200,7 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
             />
 
             {/* IA Governante — Admin only */}
-            {isAdmin && (
+            {hasFullAccess(role) && (
               <>
                 <Separator />
                 <div className="space-y-4">

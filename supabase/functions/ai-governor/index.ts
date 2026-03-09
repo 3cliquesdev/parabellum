@@ -730,7 +730,7 @@ async function sendEmailReport(
   // MoM section
   const momHtml = salesMetrics.momGrowth !== null ? `
         <p style="color:#64748b;font-size:12px;margin:4px 0 0;">
-          ${salesMetrics.momGrowth >= 0 ? '📈' : '📉'} MoM: <strong style="color:${salesMetrics.momGrowth >= 0 ? '#16a34a' : '#dc2626'};">${salesMetrics.momGrowth > 0 ? '+' : ''}${salesMetrics.momGrowth}%</strong> vs mês anterior
+          MoM: <strong style="color:${salesMetrics.momGrowth >= 0 ? '#16a34a' : '#dc2626'};">${salesMetrics.momGrowth > 0 ? '+' : ''}${salesMetrics.momGrowth}%</strong> vs mes anterior
         </p>` : '';
 
   const htmlContent = `<!DOCTYPE html>

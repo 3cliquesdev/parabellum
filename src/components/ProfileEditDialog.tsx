@@ -93,7 +93,7 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
         avatar_url: avatarUrl || null,
       };
 
-      if (isAdmin) {
+      if (hasFullAccess(role)) {
         updatePayload.whatsapp_number = whatsappNumber || null;
         updatePayload.notify_ai_governor = notifyGovernor;
       }

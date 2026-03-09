@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileSpreadsheet, TrendingUp, Users, MessageSquare, DollarSign, Target, Clock, BarChart3, RefreshCw, Timer } from "lucide-react";
+import { FileSpreadsheet, TrendingUp, Users, MessageSquare, DollarSign, Target, Clock, BarChart3, RefreshCw, Timer, Mail } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import ReportCard from "@/components/ReportCard";
 import ReportFilterPanel from "@/components/ReportFilterPanel";
 import { AnalyticsReportPanel } from "@/components/reports/AnalyticsReportPanel";
-
+import { EmailSendsExportDialog } from "@/components/email/EmailSendsExportDialog";
 export default function Reports() {
   const navigate = useNavigate();
   const [selectedReport, setSelectedReport] = useState<any>(null);

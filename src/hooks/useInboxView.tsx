@@ -62,6 +62,7 @@ interface FetchOptions {
   role?: string | null;
   departmentIds?: string[] | null;
   scope?: InboxScope;
+  aiMode?: string;
 }
 
 // Função para buscar dados do inbox com filtros de role

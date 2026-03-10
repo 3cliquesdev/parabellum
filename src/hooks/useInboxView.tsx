@@ -239,25 +239,19 @@ function applyFilters(items: InboxViewItem[], filters?: InboxFilters, tagIdsSet?
     result = result.filter(item => item.has_attachments);
   }
 
-  // AI mode filter
-  if (filters.aiMode) {
+  // AI mode filter — skip for archived (already filtered at DB level)
+  if (scope !== 'archived' && filters.aiMode) {
     if (filters.aiMode === 'ai_all') {
       result = result.filter(item => ['autopilot', 'copilot', 'waiting_human'].includes(item.ai_mode));
     } else if (filters.aiMode === 'ai_only') {
-      if (scope === 'archived') {
-        // Para encerradas: mostrar conversas resolvidas pela IA (podem ter assigned_to)
-        result = result.filter(item => item.ai_mode === 'autopilot');
-      } else {
-        // Para ativas: sem humano atribuído
-        result = result.filter(item => item.ai_mode === 'autopilot' && !item.assigned_to);
-      }
+      result = result.filter(item => item.ai_mode === 'autopilot' && !item.assigned_to);
     } else {
       result = result.filter(item => item.ai_mode === filters.aiMode);
     }
   }
 
-  // Department filter
-  if (filters.department) {
+  // Department filter — skip for archived (already filtered at DB level)
+  if (scope !== 'archived' && filters.department) {
     result = result.filter(item => item.department === filters.department);
   }
 

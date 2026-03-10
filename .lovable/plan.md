@@ -1,23 +1,21 @@
 
-# Correções Cirúrgicas no AI Autopilot Chat — CONCLUÍDO (10/03/2026)
+# Auto-assign ao enviar mensagem — CONCLUÍDO (10/03/2026)
 
-## Status dos Bugs
+## Problema
+Agentes enviavam mensagens via composer sem clicar "Assumir", deixando `assigned_to: null` e `ai_mode: waiting_human`. Quando o contato respondia, o sistema disparava mensagem de fila.
 
-| Bug | Status | Ação |
-|-----|--------|------|
-| BUG 1: Trigger AFTER→BEFORE | ✅ Já migrado | Nenhuma |
-| BUG 2: ESCAPE_PATTERNS markdown | ✅ Já corrigido | Nenhuma |
-| BUG 4: Dispatch copilot | ✅ Já migrado | Nenhuma |
-| BUG 5: generateRestrictedPrompt markdown | ✅ Corrigido | FIX 1 |
-| BUG 6: forbidQuestions falso positivo | ✅ Corrigido | FIX 2 |
-| BUG 7: Mensagens ticket com markdown | ✅ Corrigido | FIX 3 |
-| MELHORIA 1: SCORE_MINIMUM 0.10→0.25 | ✅ Corrigido | FIX 4 |
+## Solução aplicada
 
-## Alterações aplicadas em `supabase/functions/ai-autopilot-chat/index.ts`
+1. **RPC `auto_assign_on_send`** (SECURITY DEFINER):
+   - Se `assigned_to` é null e `ai_mode` é `waiting_human` ou `autopilot`, atribui ao agente e muda para `copilot`
+   - Cancela `chat_flow_states` ativos
+   - Retorna `{ assigned: true/false }`
 
-- **FIX 1**: generateRestrictedPrompt agora proíbe markdown explicitamente e remove `**` do bloco "Contexto do Cliente"
-- **FIX 2**: validateResponseRestrictions usa split por frases — só bloqueia se frase termina em `?`
-- **FIX 3**: Mensagens de ticket (saque fallback + orderInfo) sem markdown
-- **FIX 4**: SCORE_MINIMUM de 0.10 → 0.25
+2. **`src/hooks/useSendMessageInstant.tsx`**:
+   - Após persistir mensagem não-interna, chama `auto_assign_on_send` em background
+   - Invalida caches de conversations, ai-mode e inbox-view quando auto-assign ocorre
 
-## Deploy: ✅ Edge function deployed
+## Impacto
+- Agentes que respondem sem clicar "Assumir" são automaticamente atribuídos
+- Evita que dispatch/IA interfira em conversas onde humano já está respondendo
+- Zero impacto em conversas já atribuídas ou em modo `disabled`

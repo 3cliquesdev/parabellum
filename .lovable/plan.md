@@ -1,22 +1,23 @@
 
-# Auditoria IA e Chat Flow — Correções Aplicadas (10/03/2026)
+# Correções Cirúrgicas no AI Autopilot Chat — CONCLUÍDO (10/03/2026)
 
-## Correções Implementadas
+## Status dos Bugs
 
-### ✅ Fix 1: Prefixo cautious sem markdown
-- `generateResponsePrefix('cautious')` agora retorna texto plano sem `**`
-- Elimina contract violations auto-infligidas pelo próprio sistema
+| Bug | Status | Ação |
+|-----|--------|------|
+| BUG 1: Trigger AFTER→BEFORE | ✅ Já migrado | Nenhuma |
+| BUG 2: ESCAPE_PATTERNS markdown | ✅ Já corrigido | Nenhuma |
+| BUG 4: Dispatch copilot | ✅ Já migrado | Nenhuma |
+| BUG 5: generateRestrictedPrompt markdown | ✅ Corrigido | FIX 1 |
+| BUG 6: forbidQuestions falso positivo | ✅ Corrigido | FIX 2 |
+| BUG 7: Mensagens ticket com markdown | ✅ Corrigido | FIX 3 |
+| MELHORIA 1: SCORE_MINIMUM 0.10→0.25 | ✅ Corrigido | FIX 4 |
 
-### ✅ Fix 2: Dispatch-conversations aceita copilot
-- Separou check de `assigned_to` do check de `ai_mode`
-- Agora aceita `waiting_human` E `copilot` para dispatch
-- Causa raiz: condição `ai_mode !== 'waiting_human'` rejeitava copilot
+## Alterações aplicadas em `supabase/functions/ai-autopilot-chat/index.ts`
 
-### ✅ Fix 3: Conversas stuck corrigidas via SQL
-- Flow states presos em `ia_entrada` cancelados
-- Dispatch jobs `already_assigned` reabertos como `pending`
-- Novos dispatch jobs criados para conversas sem fila
+- **FIX 1**: generateRestrictedPrompt agora proíbe markdown explicitamente e remove `**` do bloco "Contexto do Cliente"
+- **FIX 2**: validateResponseRestrictions usa split por frases — só bloqueia se frase termina em `?`
+- **FIX 3**: Mensagens de ticket (saque fallback + orderInfo) sem markdown
+- **FIX 4**: SCORE_MINIMUM de 0.10 → 0.25
 
-### ⚠️ BUG 3 (operacional): Customer Success sem agentes
-- Não é bug de código — departamento sem agentes online
-- Requer ação administrativa
+## Deploy: ✅ Edge function deployed

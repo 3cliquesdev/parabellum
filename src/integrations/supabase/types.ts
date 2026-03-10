@@ -3171,6 +3171,9 @@ export type Database = {
           name: string
           parent_id: string | null
           send_rating_on_close: boolean | null
+          slow_response_alert_enabled: boolean
+          slow_response_alert_minutes: number | null
+          slow_response_alert_tag_id: string | null
           updated_at: string
           whatsapp_number: string | null
         }
@@ -3189,6 +3192,9 @@ export type Database = {
           name: string
           parent_id?: string | null
           send_rating_on_close?: boolean | null
+          slow_response_alert_enabled?: boolean
+          slow_response_alert_minutes?: number | null
+          slow_response_alert_tag_id?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }
@@ -3207,6 +3213,9 @@ export type Database = {
           name?: string
           parent_id?: string | null
           send_rating_on_close?: boolean | null
+          slow_response_alert_enabled?: boolean
+          slow_response_alert_minutes?: number | null
+          slow_response_alert_tag_id?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }
@@ -3230,6 +3239,13 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "departments_slow_response_alert_tag_id_fkey"
+            columns: ["slow_response_alert_tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
             referencedColumns: ["id"]
           },
         ]
@@ -7443,6 +7459,42 @@ export type Database = {
             columns: ["board_id"]
             isOneToOne: false
             referencedRelation: "project_boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      protected_conversation_tags: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protected_conversation_tags_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "protected_conversation_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
             referencedColumns: ["id"]
           },
         ]

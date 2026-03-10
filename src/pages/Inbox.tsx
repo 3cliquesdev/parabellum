@@ -301,7 +301,7 @@ export default function Inbox() {
       case "sla":
         return result; // Já vem filtrado do hook dedicado
       case "unassigned":
-        return result.filter(c => !c.assigned_to && c.status !== 'closed');
+        return result.filter(c => !c.assigned_to && c.status !== 'closed' && c.ai_mode !== 'autopilot');
       case "archived":
         return result; // ✅ Cache já vem com scope=archived, sem re-filtrar
       default:

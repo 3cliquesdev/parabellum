@@ -533,7 +533,8 @@ async function handleFlowReInvoke(
       await supabase.from("messages").insert({
         conversation_id: conversationId,
         content: flowMessage,
-        sender_type: "system",
+        sender_type: "user",
+        is_ai_generated: true,
         message_type: "text",
       });
     }

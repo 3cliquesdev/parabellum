@@ -317,7 +317,7 @@ Deno.serve(async (req) => {
     // Buscar departamentos com ai_auto_close_minutes configurado
     const { data: aiDepartments, error: aiDeptError } = await supabase
       .from('departments')
-      .select('id, name, ai_auto_close_minutes, send_rating_on_close')
+      .select('id, name, ai_auto_close_minutes, send_rating_on_close, ai_auto_close_tag_id')
       .not('ai_auto_close_minutes', 'is', null);
 
     if (aiDeptError) {

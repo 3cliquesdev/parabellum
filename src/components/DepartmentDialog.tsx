@@ -262,6 +262,41 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
                   </p>
                 </div>
               )}
+
+              <Separator className="my-2" />
+
+              {/* Human Auto-close settings */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="humanAutoCloseEnabled">Encerrar conversas humanas por inatividade</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Fecha conversas atendidas por humano quando o cliente não responde
+                  </p>
+                </div>
+                <Switch
+                  id="humanAutoCloseEnabled"
+                  checked={humanAutoCloseEnabled}
+                  onCheckedChange={setHumanAutoCloseEnabled}
+                />
+              </div>
+
+              {humanAutoCloseEnabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="humanAutoCloseMinutes">Tempo de inatividade humano (minutos)</Label>
+                  <Input
+                    id="humanAutoCloseMinutes"
+                    type="number"
+                    min={1}
+                    max={1440}
+                    placeholder="Ex: 5"
+                    value={humanAutoCloseMinutes}
+                    onChange={(e) => setHumanAutoCloseMinutes(e.target.value ? Number(e.target.value) : "")}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Mínimo 1 minuto. Encerra quando o cliente não responde ao agente humano neste período.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

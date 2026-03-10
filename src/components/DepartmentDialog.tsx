@@ -309,7 +309,7 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
                 <div className="space-y-0.5">
                   <Label htmlFor="humanAutoCloseEnabled">Encerrar conversas humanas por inatividade</Label>
                   <p className="text-xs text-muted-foreground">
-                    Fecha conversas atendidas por humano quando o cliente não responde
+                    Cliente não respondeu ao atendimento humano
                   </p>
                 </div>
                 <Switch

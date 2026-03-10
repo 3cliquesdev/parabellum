@@ -33,6 +33,7 @@ export function useCreateDepartment() {
           auto_close_minutes: params.auto_close_minutes ?? null,
           send_rating_on_close: params.send_rating_on_close ?? true,
           ai_auto_close_minutes: params.ai_auto_close_minutes ?? null,
+          ai_auto_close_tag_id: params.ai_auto_close_tag_id ?? null,
           human_auto_close_minutes: params.human_auto_close_minutes ?? null,
           human_auto_close_tag_id: params.human_auto_close_tag_id ?? null,
         })

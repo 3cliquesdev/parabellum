@@ -756,7 +756,7 @@ interface ConfidenceResult {
 // Valores abaixo são FALLBACK apenas - a função calculateConfidenceScore usa config dinâmica
 const SCORE_DIRECT = 0.75;   // Fallback: Alta confiança - responde direto
 const SCORE_CAUTIOUS = 0.40; // Fallback: Média confiança - responde com cautela 
-const SCORE_MINIMUM = 0.10;  // Fallback: Mínimo - IA tenta responder, handoff só manual
+const SCORE_MINIMUM = 0.25;  // Fallback: Mínimo raised - evita respostas com < 25% de confiança
 
 // 🆕 Thresholds do MODO RAG ESTRITO (Anti-Alucinação) - mais conservador
 const STRICT_SCORE_MINIMUM = 0.50;   // Modo estrito mais tolerante

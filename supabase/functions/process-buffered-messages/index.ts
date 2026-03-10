@@ -402,9 +402,12 @@ async function callPipeline(
       }
 
       // 🆕 Handle contractViolation / flowExit (IA fabricou transferência ou escape)
-      if ((autopilotData.contractViolation || autopilotData.flowExit) && autopilotData.hasFlowContext && autopilotData.status !== "flow_advance_needed") {
+      // 🆕 Pular re-invoke se email acabou de ser verificado (evita loop de reinício do fluxo)
+      if ((autopilotData.contractViolation || autopilotData.flowExit) && autopilotData.hasFlowContext && autopilotData.status !== "flow_advance_needed" && !autopilotData.emailVerified) {
         console.log("[process-buffered-messages] 🔄 contractViolation/flowExit → re-invocando process-chat-flow com forceAIExit");
         await handleFlowReInvoke(supabase, conversationId, concatenatedMessage, instanceId, fromNumber, { forceAIExit: true });
+      } else if (autopilotData.emailVerified && (autopilotData.contractViolation || autopilotData.flowExit)) {
+        console.log("[process-buffered-messages] ⏭️ Skipping flow re-invoke: email was just verified, flow should continue naturally");
       }
 
       // Handle financial/commercial blocked

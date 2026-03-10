@@ -3020,6 +3020,7 @@ serve(async (req) => {
     // Se cliente SEM email envia uma mensagem contendo email válido,
     // processamos automaticamente como identificação
     // ============================================================
+    let emailWasVerifiedInThisRequest = false; // 🆕 Flag para evitar re-invoke do fluxo após validação de email
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
     const emailInMessage = customerMessage.match(emailRegex)?.[0];
     

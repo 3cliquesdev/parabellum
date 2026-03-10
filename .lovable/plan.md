@@ -1,35 +1,20 @@
 
+# Bypass de Greeting no Strict RAG ✅
 
-# Adicionar opção "waiting_human" e filtro agrupado "Conversas da IA" no Modo IA
+## Status: IMPLEMENTADO
 
 ## Problema
-O filtro "Modo IA" nos Filtros Avançados do Inbox só tem 3 opções (autopilot, copilot, disabled), mas falta:
-1. A opção `waiting_human` (IA aguardando humano assumir)
-2. Um filtro agrupado para ver **todas as conversas da IA** (autopilot + copilot + waiting_human)
+Mensagens como "Olá, vim pelo site e gostaria de atendimento" eram rejeitadas pelo Strict RAG (0% confiança) → `flow_advance_needed` → fallback → auto-close.
 
-## Alterações
+## Correção
+Adicionado bypass de greeting/contato genérico **antes** do check do Strict RAG no `ai-autopilot-chat/index.ts`.
 
-### 1. `src/components/inbox/InboxFilterPopover.tsx`
-Adicionar novas opções ao `AI_MODE_OPTIONS`:
-```typescript
-const AI_MODE_OPTIONS = [
-  { value: "ai_all", label: "🤖 Todas da IA" },        // NOVO: agrupa autopilot + copilot + waiting_human
-  { value: "autopilot", label: "🤖 Autopilot" },
-  { value: "copilot", label: "🧑‍✈️ Copilot" },
-  { value: "waiting_human", label: "⏳ Aguardando Humano" },  // NOVO
-  { value: "disabled", label: "❌ Desabilitado" },
-];
-```
+- `isSimpleGreetingEarly`: detecta saudações puras (oi, olá, bom dia, etc.)
+- `isGenericContactEarly`: detecta contatos genéricos ("vim pelo site", "gostaria de atendimento", etc.)
+- Se qualquer um for true → `isGreetingBypass = true` → Strict RAG é pulado
+- A execução continua até a lógica de boas-vindas existente (que já trata esses casos)
 
-### 2. `src/hooks/useInboxView.tsx`
-Atualizar o tipo `InboxFilters.aiMode` para incluir os novos valores e ajustar a lógica de filtragem:
-- Tipo: `'autopilot' | 'copilot' | 'disabled' | 'waiting_human' | 'ai_all'`
-- Quando `aiMode === 'ai_all'`, filtrar por `item.ai_mode in ['autopilot', 'copilot', 'waiting_human']`
-- Quando for um valor específico, manter filtro direto (`item.ai_mode === filters.aiMode`)
-
-### 3. `src/pages/Inbox.tsx`
-Atualizar o cast do `aiMode` no mapeamento de filtros para aceitar os novos valores.
-
-## Resultado
-O usuário poderá filtrar por "Todas da IA" para ver todas as conversas em atendimento automático, ou por modo específico incluindo "Aguardando Humano".
-
+## Travas mantidas
+- Strict RAG continua ativo para perguntas reais
+- Bypass operacional (pedidos/tracking) preservado
+- Kill Switch, Shadow Mode, CSAT guard inalterados

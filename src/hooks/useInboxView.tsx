@@ -47,7 +47,7 @@ export interface InboxFilters {
   slaStatus?: 'ok' | 'warning' | 'critical';
   hasAudio?: boolean;
   hasAttachments?: boolean;
-  aiMode?: 'autopilot' | 'copilot' | 'disabled';
+  aiMode?: 'autopilot' | 'copilot' | 'disabled' | 'waiting_human' | 'ai_all';
   department?: string;
   tagId?: string;
 }
@@ -190,7 +190,11 @@ function applyFilters(items: InboxViewItem[], filters?: InboxFilters, tagIdsSet?
 
   // AI mode filter
   if (filters.aiMode) {
-    result = result.filter(item => item.ai_mode === filters.aiMode);
+    if (filters.aiMode === 'ai_all') {
+      result = result.filter(item => ['autopilot', 'copilot', 'waiting_human'].includes(item.ai_mode));
+    } else {
+      result = result.filter(item => item.ai_mode === filters.aiMode);
+    }
   }
 
   // Department filter

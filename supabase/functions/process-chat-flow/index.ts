@@ -2947,6 +2947,17 @@ serve(async (req) => {
 
         // 🆕 FLOW-TO-FLOW TRANSFER (after message chain)
         if (nextNode.data?.target_flow_id) {
+          // 🔧 FIX 1: Proteção contra loop flow-to-flow (2o local)
+          if (nextNode.data.target_flow_id === activeState.flow_id) {
+            console.error('[process-chat-flow] ⚠️ LOOP DETECTADO (msg chain): flow-to-flow aponta para o mesmo fluxo. Cancelando.');
+            await supabaseClient.from('chat_flow_states').update({
+              status: 'cancelled', completed_at: new Date().toISOString()
+            }).eq('id', activeState.id);
+            return new Response(JSON.stringify({
+              useAI: false, transfer: false, error: 'flow_to_flow_loop_detected'
+            }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          }
+
           // Enviar mensagens acumuladas primeiro
           const preMsgs = [...extraMessages].filter(Boolean).join('\n\n');
           if (preMsgs) {

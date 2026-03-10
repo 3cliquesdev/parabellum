@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Edit, Trash2, Loader2, Clock, MessageSquare, Timer, Tag } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, Clock, MessageSquare, Timer, Tag, UserCheck } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDepartments, type Department } from "@/hooks/useDepartments";
 import { useDeleteDepartment } from "@/hooks/useDeleteDepartment";
@@ -187,6 +187,12 @@ export default function Departments() {
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Timer className="h-4 w-4" />
                         <span>IA auto-fecha em {department.ai_auto_close_minutes} min</span>
+                      </div>
+                    )}
+                    {department.human_auto_close_minutes != null && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <UserCheck className="h-4 w-4" />
+                        <span>Humano auto-fecha em {department.human_auto_close_minutes} min</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between">

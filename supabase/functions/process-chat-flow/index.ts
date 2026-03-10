@@ -2749,6 +2749,16 @@ serve(async (req) => {
           })
           .eq('id', activeState.id);
 
+        // 🔧 FIX 4: Transfer node atualiza conversations.department
+        const transferDeptId = nextNode.data?.department_id || null;
+        const transferAiMode = nextNode.data?.ai_mode || 'waiting_human';
+        const convUpdatePayload: any = { ai_mode: transferAiMode, assigned_to: null };
+        if (transferDeptId) convUpdatePayload.department = transferDeptId;
+        await supabaseClient.from('conversations').update(convUpdatePayload).eq('id', conversationId);
+        if (!transferDeptId) {
+          console.warn('[process-chat-flow] ⚠️ Transfer node sem department_id — conversa ficará sem dept atribuído');
+        }
+
         return new Response(
           JSON.stringify({
             useAI: false,

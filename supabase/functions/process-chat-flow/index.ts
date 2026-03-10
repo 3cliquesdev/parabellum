@@ -2415,11 +2415,12 @@ serve(async (req) => {
         let afterFetchNode = findNextNode(flowDef, nextNode);
         
         // Loop de auto-traverse: atravessar condition, input, start até conteúdo
-        while (afterFetchNode && ['condition', 'input', 'start'].includes(afterFetchNode.type)) {
-          if (afterFetchNode.type === 'condition') {
+        // 🔧 FIX 3: Auto-traverse cobre condition_v2
+        while (afterFetchNode && ['condition', 'condition_v2', 'input', 'start'].includes(afterFetchNode.type)) {
+          if (afterFetchNode.type === 'condition' || afterFetchNode.type === 'condition_v2') {
             const condPath = evaluateConditionPath(afterFetchNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
             const resolved = findNextNode(flowDef, afterFetchNode, condPath);
-            if (!resolved || !['condition', 'input', 'start'].includes(resolved.type)) {
+            if (!resolved || !['condition', 'condition_v2', 'input', 'start'].includes(resolved.type)) {
               afterFetchNode = resolved;
               break;
             }
@@ -2432,7 +2433,7 @@ serve(async (req) => {
         
         if (afterFetchNode) {
           nextNode = afterFetchNode;
-          const fetchStatus = nextNode.type.startsWith('ask_') || nextNode.type === 'condition'
+          const fetchStatus = nextNode.type.startsWith('ask_') || nextNode.type === 'condition' || nextNode.type === 'condition_v2'
             ? 'waiting_input' : 'active';
           await supabaseClient
             .from('chat_flow_states')

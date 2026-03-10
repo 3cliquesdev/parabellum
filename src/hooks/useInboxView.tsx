@@ -327,7 +327,8 @@ export function useInboxView(filters?: InboxFilters, scope: InboxScope = 'active
     departmentIds,
     scope,
     aiMode: scope === 'archived' ? filters?.aiMode : undefined,
-  }), [user?.id, role, departmentIds, scope, filters?.aiMode]);
+    dateRange: scope === 'archived' ? filters?.dateRange : undefined,
+  }), [user?.id, role, departmentIds, scope, filters?.aiMode, filters?.dateRange]);
 
   const fetchOptionsRef = useRef(fetchOptions);
   fetchOptionsRef.current = fetchOptions;

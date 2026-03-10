@@ -12,6 +12,7 @@ interface CreateDepartmentParams {
   send_rating_on_close?: boolean;
   ai_auto_close_minutes?: number | null;
   human_auto_close_minutes?: number | null;
+  human_auto_close_tag_id?: string | null;
 }
 
 export function useCreateDepartment() {

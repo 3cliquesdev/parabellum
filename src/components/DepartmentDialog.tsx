@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCreateDepartment } from "@/hooks/useCreateDepartment";
 import { useUpdateDepartment } from "@/hooks/useUpdateDepartment";
+import { useTags } from "@/hooks/useTags";
 import type { Department } from "@/hooks/useDepartments";
 
 interface DepartmentDialogProps {
@@ -30,9 +32,10 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
   const [aiAutoCloseMinutes, setAiAutoCloseMinutes] = useState<number | "">("");
   const [humanAutoCloseEnabled, setHumanAutoCloseEnabled] = useState(false);
   const [humanAutoCloseMinutes, setHumanAutoCloseMinutes] = useState<number | "">("");
-
+  const [humanAutoCloseTagId, setHumanAutoCloseTagId] = useState<string>("");
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
+  const { data: tags } = useTags();
 
   useEffect(() => {
     if (department) {
@@ -47,6 +50,7 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
       setAiAutoCloseMinutes(department.ai_auto_close_minutes ?? "");
       setHumanAutoCloseEnabled(department.human_auto_close_minutes != null);
       setHumanAutoCloseMinutes(department.human_auto_close_minutes ?? "");
+      setHumanAutoCloseTagId(department.human_auto_close_tag_id ?? "");
     } else {
       setName("");
       setDescription("");
@@ -59,6 +63,7 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
       setAiAutoCloseMinutes("");
       setHumanAutoCloseEnabled(false);
       setHumanAutoCloseMinutes("");
+      setHumanAutoCloseTagId("");
     }
   }, [department, open]);
 
@@ -89,6 +94,7 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
         send_rating_on_close: sendRatingOnClose,
         ai_auto_close_minutes: aiAutoCloseMinutesValue,
         human_auto_close_minutes: humanAutoCloseMinutesValue,
+        human_auto_close_tag_id: humanAutoCloseEnabled && humanAutoCloseTagId ? humanAutoCloseTagId : null,
       });
     } else {
       await createMutation.mutateAsync({
@@ -101,6 +107,7 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
         send_rating_on_close: sendRatingOnClose,
         ai_auto_close_minutes: aiAutoCloseMinutesValue,
         human_auto_close_minutes: humanAutoCloseMinutesValue,
+        human_auto_close_tag_id: humanAutoCloseEnabled && humanAutoCloseTagId ? humanAutoCloseTagId : null,
       });
     }
 
@@ -281,20 +288,47 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
               </div>
 
               {humanAutoCloseEnabled && (
-                <div className="space-y-2">
-                  <Label htmlFor="humanAutoCloseMinutes">Tempo de inatividade humano (minutos)</Label>
-                  <Input
-                    id="humanAutoCloseMinutes"
-                    type="number"
-                    min={1}
-                    max={1440}
-                    placeholder="Ex: 5"
-                    value={humanAutoCloseMinutes}
-                    onChange={(e) => setHumanAutoCloseMinutes(e.target.value ? Number(e.target.value) : "")}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Mínimo 1 minuto. Encerra quando o cliente não responde ao agente humano neste período.
-                  </p>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="humanAutoCloseMinutes">Tempo de inatividade humano (minutos)</Label>
+                    <Input
+                      id="humanAutoCloseMinutes"
+                      type="number"
+                      min={1}
+                      max={1440}
+                      placeholder="Ex: 5"
+                      value={humanAutoCloseMinutes}
+                      onChange={(e) => setHumanAutoCloseMinutes(e.target.value ? Number(e.target.value) : "")}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Mínimo 1 minuto. Encerra quando o cliente não responde ao agente humano neste período.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="humanAutoCloseTagId">Tag ao encerrar</Label>
+                    <Select value={humanAutoCloseTagId} onValueChange={setHumanAutoCloseTagId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma tag (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tags?.map((tag) => (
+                          <SelectItem key={tag.id} value={tag.id}>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-3 h-3 rounded-full inline-block"
+                                style={{ backgroundColor: tag.color || "#6B7280" }}
+                              />
+                              {tag.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Tag aplicada automaticamente ao encerrar por inatividade humana. Se não selecionada, usa a tag padrão.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

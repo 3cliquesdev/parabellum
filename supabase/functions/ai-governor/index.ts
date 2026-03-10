@@ -1270,7 +1270,7 @@ serve(async (req) => {
       `Copilot: ${metrics.copilotConvs} | Desabilitado: ${metrics.disabledConvs}`,
       `Tempo medio: ${metrics.avgResolutionMin ?? '—'} min`,
       `Eventos IA: ${metrics.totalAIEvents} | Msgs: ${metrics.totalMessages} (${metrics.aiMessages} da IA)`,
-      metrics.csatAvg ? `CSAT hoje: ${metrics.csatAvg}/5 (${metrics.csatCount} avaliacoes)` : null,
+      metrics.csatAvg ? `CSAT: ${metrics.csatAvg}/5 (${metrics.csatCount} avaliacoes)` : null,
       metrics.criticalAnomalies?.length > 0 ? `Anomalias: ${metrics.criticalAnomalies.length} criticas` : null,
     ].filter(Boolean).join('\n');
 

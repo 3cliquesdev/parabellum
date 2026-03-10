@@ -6843,7 +6843,7 @@ Para liberar operações financeiras como saque, preciso transferir você para u
               // Handoff para humano
               await supabaseClient
                 .from('conversations')
-                .update({ ai_mode: 'copilot' })
+                .update({ ai_mode: 'copilot', department: conversation.department || '36ce66cd-7414-4fc8-bd4a-268fecc3f01a' })
                 .eq('id', conversationId);
 
               await supabaseClient.functions.invoke('route-conversation', {
@@ -7411,7 +7411,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
               if (!flow_context) {
                 await supabaseClient
                   .from('conversations')
-                  .update({ ai_mode: 'copilot' })
+                  .update({ ai_mode: 'copilot', department: conversation.department || '36ce66cd-7414-4fc8-bd4a-268fecc3f01a' })
                   .eq('id', conversationId);
                 console.log('[ai-autopilot-chat] ✅ ai_mode mudado para copilot');
               } else {
@@ -8655,6 +8655,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
           .from('conversations')
           .update({ 
             ai_mode: 'copilot',
+            department: conversation.department || '36ce66cd-7414-4fc8-bd4a-268fecc3f01a',
             last_message_at: new Date().toISOString()
           })
           .eq('id', conversationId);

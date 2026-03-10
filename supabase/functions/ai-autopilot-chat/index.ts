@@ -756,7 +756,7 @@ interface ConfidenceResult {
 // Valores abaixo são FALLBACK apenas - a função calculateConfidenceScore usa config dinâmica
 const SCORE_DIRECT = 0.75;   // Fallback: Alta confiança - responde direto
 const SCORE_CAUTIOUS = 0.40; // Fallback: Média confiança - responde com cautela 
-const SCORE_MINIMUM = 0.10;  // Fallback: Mínimo - IA tenta responder, handoff só manual
+const SCORE_MINIMUM = 0.25;  // Fallback: Mínimo raised - evita respostas com < 25% de confiança
 
 // 🆕 Thresholds do MODO RAG ESTRITO (Anti-Alucinação) - mais conservador
 const STRICT_SCORE_MINIMUM = 0.50;   // Modo estrito mais tolerante
@@ -1106,17 +1106,17 @@ async function createTicketSuccessMessage(
     if (saqueTemplate) return saqueTemplate;
     
     // Fallback se template não existir
-    return `**Solicitação de saque registrada!**
+    return `Solicitação de saque registrada!
 
-**Protocolo:** #${formattedId}
-**Valor Solicitado:** R$ ${withdrawalData.amount.toFixed(2)}
-${withdrawalData.cpf_last4 ? `**CPF (final):** ...${withdrawalData.cpf_last4}` : ''}
-**Prazo:** até 7 dias úteis
+Protocolo: #${formattedId}
+Valor Solicitado: R$ ${withdrawalData.amount.toFixed(2)}
+${withdrawalData.cpf_last4 ? `CPF (final): ...${withdrawalData.cpf_last4}` : ''}
+Prazo: até 7 dias úteis
 
-**Você receberá um email confirmando a abertura do chamado.**
-**Quando o saque for processado, você será notificado por email também.**
+Você receberá um email confirmando a abertura do chamado.
+Quando o saque for processado, você será notificado por email também.
 
-**IMPORTANTE:** O saque será creditado via PIX na chave informada, vinculada ao seu CPF. Não é possível transferir para conta de terceiros.`;
+IMPORTANTE: O saque será creditado via PIX na chave informada, vinculada ao seu CPF. Não é possível transferir para conta de terceiros.`;
   }
   
   const ticketMessages: Record<string, string> = {
@@ -1130,7 +1130,7 @@ ${withdrawalData.cpf_last4 ? `**CPF (final):** ...${withdrawalData.cpf_last4}` :
   };
   
   const baseMessage = ticketMessages[issueType] || ticketMessages['default'];
-  const orderInfo = orderId ? `\n\n**Pedido:** ${orderId}` : '';
+  const orderInfo = orderId ? `\n\nPedido: ${orderId}` : '';
   
   return `${baseMessage}${orderInfo}`;
 }
@@ -1190,14 +1190,16 @@ Você PODE: coletar dados (email, CPF, ID do pedido) e resumir o caso. NÃO PODE
   restrictions += `
 NÃO sugira transferência para humano.
 NÃO invente informações.
+NÃO use markdown: sem negrito (**), sem # títulos, sem listas com - ou *.
+Use apenas texto simples, sem formatação.
 Se não houver dados suficientes, responda exatamente:
 "No momento não tenho essa informação."
 
 A resposta deve ser curta, clara e objetiva.
 
-**Contexto do Cliente:**
-- Nome: ${contactName}
-- Status: ${contactStatus}`;
+Contexto do Cliente:
+Nome: ${contactName}
+Status: ${contactStatus}`;
 
   return restrictions;
 }
@@ -1208,9 +1210,15 @@ function validateResponseRestrictions(
   forbidQuestions: boolean, 
   forbidOptions: boolean
 ): { valid: boolean; violation?: string } {
-  // Verificar perguntas (qualquer ? no texto)
-  if (forbidQuestions && response.includes('?')) {
-    return { valid: false, violation: 'question_detected' };
+  // Verificar perguntas — só bloqueia se uma FRASE termina com ?
+  // Evita falso positivo com ? dentro de parênteses ou observações
+  if (forbidQuestions) {
+    const hasRealQuestion = response
+      .split(/(?<=[.!])\s+/)
+      .some(sentence => sentence.trim().endsWith('?'));
+    if (hasRealQuestion) {
+      return { valid: false, violation: 'question_detected' };
+    }
   }
   
   // Verificar opções (padrões comuns de múltipla escolha)

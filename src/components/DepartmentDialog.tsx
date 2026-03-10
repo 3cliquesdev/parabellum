@@ -52,6 +52,7 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
       setHumanAutoCloseEnabled(department.human_auto_close_minutes != null);
       setHumanAutoCloseMinutes(department.human_auto_close_minutes ?? "");
       setHumanAutoCloseTagId(department.human_auto_close_tag_id ?? "");
+      setAiAutoCloseTagId(department.ai_auto_close_tag_id ?? "");
     } else {
       setName("");
       setDescription("");

@@ -698,14 +698,15 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        closed_count: totalClosedCount + aiClosedCount + noDeptClosedCount,
+        closed_count: totalClosedCount + aiClosedCount + noDeptClosedCount + humanClosedCount,
         whatsapp_window_expired_count: windowExpiredCount,
         ai_inactivity_closed_count: aiClosedCount,
+        human_inactivity_closed_count: humanClosedCount,
         no_dept_closed_count: noDeptClosedCount,
         flow_inactivity_timeout_count: flowInactivityCount,
         closed_ids: closedIds,
         by_department: results,
-        message: `Closed ${totalClosedCount} by inactivity + ${aiClosedCount} by AI inactivity + ${noDeptClosedCount} no-dept AI + ${windowExpiredCount} by WhatsApp window expired + ${flowInactivityCount} flow inactivity timeouts` 
+        message: `Closed ${totalClosedCount} by inactivity + ${aiClosedCount} by AI inactivity + ${humanClosedCount} by human inactivity + ${noDeptClosedCount} no-dept AI + ${windowExpiredCount} by WhatsApp window expired + ${flowInactivityCount} flow inactivity timeouts` 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

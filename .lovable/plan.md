@@ -1,62 +1,75 @@
 
 
-# Fix: IA Não Responde e Fica em Loop no Nó `ia_entrada`
+# Auditoria de IA e Chat Flow — Status Atual
 
-## Diagnóstico
+## O que ESTÁ funcionando (pós-fix)
 
-Analisei as 4 conversas e identifiquei o ciclo de falha:
+As correções anteriores estão ativas e funcionando:
+- **Trigger BEFORE**: Nenhuma conversa com `department = NULL` encontrada
+- **flow_advance_needed**: Jessé Silva (8eac256b) → contract violation detectado → `forceAIExit` → fluxo avançou para menu ✅
+- **forceCommercialExit**: Conv 0abf18d5 → bloqueio comercial → flow avançou ✅
+- **Anti-loop**: O guard de 0% confiança + 0 artigos KB está ativo
 
-1. Cliente envia mensagem → `process-chat-flow` retorna `aiNodeActive: true`
-2. `ai-autopilot-chat` gera resposta com 0% confiança e 0 artigos da KB
-3. A IA (GPT) gera texto como "Vou te direcionar para nosso menu de atendimento para encontrar o especialista certo!"
-4. **`FALLBACK_PHRASES` NÃO detecta** essa frase ("direcionar" não está na lista)
-5. A resposta passa todas as validações e é enviada ao cliente
-6. O fluxo **permanece em `ia_entrada`** → cliente responde → repete o loop
+---
 
-Em alguns casos, a IA gera perguntas/opções proibidas → `contract_violation_blocked` → `forceAIExit` é acionado, mas o `process-chat-flow` não avança o estado corretamente.
+## BUGS ATIVOS (3 problemas)
 
-**Resultado**: o cliente recebe 7+ vezes a mesma mensagem de fallback sem nunca ser transferido.
+### BUG 1: Prefixo `**Baseado nas informações disponíveis:**` causa contract_violation
 
-## Correções
+**Causa raiz**: A função `generateResponsePrefix('cautious')` (linha 995) adiciona `**Baseado nas informações disponíveis:**` com markdown. A IA então gera passos numerados (1. 2. 3.) que ativam `ESCAPE_PATTERNS` → o sistema bloqueia a própria resposta como violação de contrato.
 
-### 1. Adicionar frases faltantes ao `FALLBACK_PHRASES` (ai-autopilot-chat)
-Adicionar na lista `FALLBACK_PHRASES` (linha 638):
-```
-'direcionar para',
-'encontrar o especialista',
-'menu de atendimento',
-'vou te direcionar',
-```
-Isso garante que quando a IA gera o texto do fallback configurado no nó, o detector identifica e retorna `flow_advance_needed`.
+**Impacto**: 16 contract violations nas últimas 2h. Todas com `blocked_preview` começando com `**Baseado nas...`.
 
-### 2. Detecção imediata: 0 artigos + 0% confiança → flow_advance (ai-autopilot-chat)
-ANTES de chamar a IA (GPT), se `confidenceResult.score === 0` E `knowledgeArticles.length === 0` E existe `flow_context`, retornar `flow_advance_needed` imediatamente. Não há motivo para chamar o modelo se não tem nenhum artigo para fundamentar a resposta.
+**Conversas afetadas agora**:
+- Lucas Mugnol (83e38c1f) — msg às 14:47, violation às 14:48, SEM resposta há 35min
+- Carlos Antônio (ca133a86) — msg às 14:56, violation às 14:57, SEM resposta há 23min
 
-Inserir APÓS o bloco `shouldSkipHandoff` (após linha ~4720), antes de chegar na geração de resposta:
-```typescript
-// GUARD: 0 artigos + 0% confiança + flow_context → não gerar IA, avançar fluxo
-if (flow_context && confidenceResult.score === 0 && knowledgeArticles.length === 0 && !shouldSkipHandoff) {
-  return Response({ status: 'flow_advance_needed', reason: 'zero_confidence_zero_articles', hasFlowContext: true });
-}
-```
+**Fix**: Remover markdown do prefixo cautious. Usar texto plano: `"Baseado nas informações disponíveis:\n\n"` (sem `**`).
 
-### 3. Detecção do fallback configurado no nó (ai-autopilot-chat)
-Comparar a resposta da IA com o `flow_context.fallbackMessage` configurado no nó. Se forem similares, detectar como fallback automaticamente:
-```typescript
-if (flow_context?.fallbackMessage && assistantMessage.includes(flow_context.fallbackMessage.substring(0, 30))) {
-  isFallbackResponse = true;
-}
-```
+### BUG 2: Dispatch jobs marcados "completed/already_assigned" para conversas SEM agente
 
-### 4. Max fallback counter anti-loop (ai-autopilot-chat)
-Adicionar um contador de fallbacks consecutivos no `conversation.customer_metadata`. Se atingir 2 fallbacks seguidos para a mesma conversa no nó AI, forçar `flow_advance_needed` automaticamente, mesmo que a detecção de fallback falhe.
+5 conversas em `copilot` com `assigned_to = NULL` mas dispatch job `status: completed, last_error: already_assigned`:
+- `0a6acf51` (Jorge ~) — 12h sem agente
+- `85904262` (Jorge) — 4h sem agente
+- `1bfd61f8` (Daiane) — copilot, sem agente
+- `6d733cab` — copilot, sem agente
+- `8eac256b` (Jessé) — autopilot, sem agente
 
-### 5. Corrigir conversas presas agora (SQL via insert tool)
-Atualizar as 4+ conversas presas em `ia_entrada` para avançar: cancelar o flow state e mover para `waiting_human` com departamento Suporte para serem atendidas.
+**Causa**: O trigger `ensure_dispatch_job` marca dispatch como `completed` quando `assigned_to IS NOT NULL`, mas a função `dispatch-conversations` está retornando `already_assigned` erroneamente e completando o job sem atribuir agente.
+
+**Fix**: Na SQL, reabrir esses dispatch jobs como `pending` para re-processamento. E investigar por que `dispatch-conversations` retorna `already_assigned` quando `assigned_to IS NULL`.
+
+### BUG 3: Customer Success sem agentes (crônico)
+
+3 conversas escaladas há horas sem resolução:
+- Cristiane Reich — 8 tentativas
+- Emerson Smanioto — 6 tentativas
+- Michael platini — 7 tentativas
+
+Não é bug de código — departamento Customer Success não tem agentes online.
+
+---
+
+## Plano de Correção
+
+### Fix 1: Remover markdown do prefixo cautious
+Alterar `generateResponsePrefix('cautious')` de `'**Baseado nas informações disponíveis:**\n\n'` para `'Baseado nas informações disponíveis:\n\n'`. Isso elimina a auto-sabotagem.
+
+### Fix 2: Corrigir conversas stuck + dispatch jobs
+SQL para:
+- Cancelar flow states de Lucas Mugnol e Carlos Antônio (presos em ia_entrada)
+- Mover para `waiting_human` com departamento Suporte
+- Reabrir dispatch jobs `completed/already_assigned` para conversas sem agente como `pending`
+- Criar dispatch jobs para conversas copilot que não têm
+
+### Fix 3: Investigar dispatch-conversations "already_assigned"
+Verificar a lógica na edge function `dispatch-conversations` que retorna `already_assigned` para conversas sem agente. Possível race condition ou check incorreto.
+
+---
 
 ## Resultado Esperado
-- IA com 0 artigos KB → avança imediatamente para próximo nó (sem gerar resposta inútil)
-- Fallback do nó detectado → avança para próximo nó
-- Máximo 2 fallbacks antes de forçar avanço → sem loops infinitos
-- Conversas presas corrigidas imediatamente
+
+- Prefixo cautious sem markdown → ZERO contract violations auto-infligidas
+- Conversas stuck corrigidas → clientes recebem atendimento
+- Dispatch jobs reabertos → agentes recebem as conversas na fila
 

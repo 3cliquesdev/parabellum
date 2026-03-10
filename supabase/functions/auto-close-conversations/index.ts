@@ -521,7 +521,7 @@ Deno.serve(async (req) => {
     try {
       const { data: humanDepts, error: humanDeptError } = await supabase
         .from('departments')
-        .select('id, name, human_auto_close_minutes, send_rating_on_close')
+        .select('id, name, human_auto_close_minutes, send_rating_on_close, human_auto_close_tag_id')
         .not('human_auto_close_minutes', 'is', null);
 
       if (humanDeptError) {

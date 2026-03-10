@@ -45,6 +45,8 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
       setSendRatingOnClose(department.send_rating_on_close ?? true);
       setAiAutoCloseEnabled(department.ai_auto_close_minutes != null);
       setAiAutoCloseMinutes(department.ai_auto_close_minutes ?? "");
+      setHumanAutoCloseEnabled(department.human_auto_close_minutes != null);
+      setHumanAutoCloseMinutes(department.human_auto_close_minutes ?? "");
     } else {
       setName("");
       setDescription("");

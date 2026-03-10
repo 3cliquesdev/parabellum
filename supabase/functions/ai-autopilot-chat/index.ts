@@ -8655,6 +8655,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
           .from('conversations')
           .update({ 
             ai_mode: 'copilot',
+            department: conversation.department || '36ce66cd-7414-4fc8-bd4a-268fecc3f01a',
             last_message_at: new Date().toISOString()
           })
           .eq('id', conversationId);

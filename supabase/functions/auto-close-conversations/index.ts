@@ -241,12 +241,12 @@ Deno.serve(async (req) => {
               sender_type: 'user',
             });
 
-          // 6. Adicionar a tag "9.04 Desistência da conversa"
+           // 6. Adicionar a tag "9.98 Falta de Interação"
           await supabase
             .from('conversation_tags')
             .upsert({
               conversation_id: conversation.id,
-              tag_id: DESISTENCIA_TAG_ID,
+              tag_id: FALTA_INTERACAO_TAG_ID,
             }, {
               onConflict: 'conversation_id,tag_id',
               ignoreDuplicates: true

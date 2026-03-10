@@ -57,6 +57,8 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
       setSendRatingOnClose(true);
       setAiAutoCloseEnabled(false);
       setAiAutoCloseMinutes("");
+      setHumanAutoCloseEnabled(false);
+      setHumanAutoCloseMinutes("");
     }
   }, [department, open]);
 

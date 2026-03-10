@@ -128,6 +128,7 @@ async function fetchInboxData(options: FetchOptions = {}): Promise<InboxViewItem
     }
   }
 
+  const isArchivedScope = scope === 'archived';
   query = query
     .order("updated_at", { ascending: !isArchivedScope })
     .limit(isArchivedScope ? 1000 : 500);

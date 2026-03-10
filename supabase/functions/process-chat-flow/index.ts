@@ -1593,11 +1593,12 @@ serve(async (req) => {
             if (nextAfterOtp) {
               // Auto-traverse conditions
               let resolvedNode = nextAfterOtp;
-              while (resolvedNode && ['condition', 'input', 'start'].includes(resolvedNode.type)) {
-                if (resolvedNode.type === 'condition') {
+               // 🔧 FIX 3: Auto-traverse cobre condition_v2
+              while (resolvedNode && ['condition', 'condition_v2', 'input', 'start'].includes(resolvedNode.type)) {
+                if (resolvedNode.type === 'condition' || resolvedNode.type === 'condition_v2') {
                   const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
                   const afterCond = findNextNode(flowDef, resolvedNode, condPath);
-                  if (!afterCond || !['condition', 'input', 'start'].includes(afterCond.type)) {
+                  if (!afterCond || !['condition', 'condition_v2', 'input', 'start'].includes(afterCond.type)) {
                     resolvedNode = afterCond;
                     break;
                   }
@@ -1608,7 +1609,7 @@ serve(async (req) => {
               }
 
               if (resolvedNode) {
-                const nextStatus = resolvedNode.type.startsWith('ask_') || resolvedNode.type === 'condition' || resolvedNode.type === 'verify_customer_otp'
+                const nextStatus = resolvedNode.type.startsWith('ask_') || resolvedNode.type === 'condition' || resolvedNode.type === 'condition_v2' || resolvedNode.type === 'verify_customer_otp'
                   ? 'waiting_input' : 'active';
                 await supabaseClient.from('chat_flow_states').update({
                   collected_data: collectedData,

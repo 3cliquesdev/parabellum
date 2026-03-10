@@ -3020,6 +3020,7 @@ serve(async (req) => {
     // Se cliente SEM email envia uma mensagem contendo email válido,
     // processamos automaticamente como identificação
     // ============================================================
+    let emailWasVerifiedInThisRequest = false; // 🆕 Flag para evitar re-invoke do fluxo após validação de email
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
     const emailInMessage = customerMessage.match(emailRegex)?.[0];
     
@@ -3304,6 +3305,7 @@ serve(async (req) => {
           
           // 🆕 Se skipEarlyReturn = true, NÃO retornar early → deixar IA processar o original_intent
           if (skipEarlyReturn) {
+            emailWasVerifiedInThisRequest = true; // 🆕 Marcar que email foi verificado nesta request
             console.log('[ai-autopilot-chat] 🔄 skipEarlyReturn=true - IA vai processar a mensagem original após confirmação de email');
             // autoResponse já foi enviada via WhatsApp acima como confirmação
             // customerMessage foi substituído pelo original_intent
@@ -8154,12 +8156,13 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
             input_summary: customerMessage?.substring(0, 200) || '',
           }).then(() => {}).catch(err => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
           
-          return new Response(JSON.stringify({
+           return new Response(JSON.stringify({
             contractViolation: true,
             flowExit: true,
             reason: 'ai_contract_violation',
             violationType: 'escape_attempt',
             hasFlowContext: true,
+            emailVerified: emailWasVerifiedInThisRequest, // 🆕 Evita re-invoke do fluxo após validação de email
             flow_context: {
               flow_id: flow_context.flow_id,
               node_id: flow_context.node_id

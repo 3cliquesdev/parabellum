@@ -73,6 +73,10 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
       ? Number(aiAutoCloseMinutes)
       : null;
 
+    const humanAutoCloseMinutesValue = humanAutoCloseEnabled && humanAutoCloseMinutes !== ""
+      ? Number(humanAutoCloseMinutes)
+      : null;
+
     if (department) {
       await updateMutation.mutateAsync({
         id: department.id,

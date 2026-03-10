@@ -9908,6 +9908,10 @@ export type Database = {
           permission_key: string
         }[]
       }
+      auto_assign_on_send: {
+        Args: { p_conversation_id: string }
+        Returns: Json
+      }
       backfill_emails_from_messages: {
         Args: never
         Returns: {

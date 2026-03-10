@@ -992,7 +992,7 @@ function generateResponsePrefix(action: 'direct' | 'cautious' | 'handoff'): stri
     case 'direct':
       return ''; // Sem prefixo para respostas diretas
     case 'cautious':
-      return '**Baseado nas informações disponíveis:**\n\n';
+      return 'Baseado nas informações disponíveis:\n\n';
     case 'handoff':
       return ''; // Handoff usa mensagem própria
   }

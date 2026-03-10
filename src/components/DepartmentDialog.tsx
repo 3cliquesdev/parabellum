@@ -35,6 +35,7 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
   const [humanAutoCloseTagId, setHumanAutoCloseTagId] = useState<string>("");
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
+  const { data: tags } = useTags();
 
   useEffect(() => {
     if (department) {

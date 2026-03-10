@@ -167,22 +167,24 @@ function applyFilters(items: InboxViewItem[], filters?: InboxFilters, tagIdsSet?
   
   const hasActiveSearch = filters.search && filters.search.trim().length > 0;
 
-  // Date range filter
-  if (filters.dateRange?.from) {
-    result = result.filter(item => 
-      new Date(item.last_message_at) >= filters.dateRange!.from!
-    );
-  }
-  if (filters.dateRange?.to) {
-    const endOfDay = new Date(filters.dateRange.to);
-    endOfDay.setHours(23, 59, 59, 999);
-    result = result.filter(item => 
-      new Date(item.last_message_at) <= endOfDay
-    );
+  // Date range filter — skip for archived (already filtered at DB level)
+  if (scope !== 'archived') {
+    if (filters.dateRange?.from) {
+      result = result.filter(item => 
+        new Date(item.last_message_at) >= filters.dateRange!.from!
+      );
+    }
+    if (filters.dateRange?.to) {
+      const endOfDay = new Date(filters.dateRange.to);
+      endOfDay.setHours(23, 59, 59, 999);
+      result = result.filter(item => 
+        new Date(item.last_message_at) <= endOfDay
+      );
+    }
   }
 
-  // Channel filter
-  if (filters.channels.length > 0) {
+  // Channel filter — skip for archived (already filtered at DB level)
+  if (scope !== 'archived' && filters.channels.length > 0) {
     result = result.filter(item => 
       item.channels?.some(ch => filters.channels.includes(ch))
     );

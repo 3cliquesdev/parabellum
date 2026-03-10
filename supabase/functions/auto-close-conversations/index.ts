@@ -255,25 +255,20 @@ Deno.serve(async (req) => {
       throw deptError;
     }
 
-    if (!departments || departments.length === 0) {
-      console.log('[Auto-Close] No departments with auto_close_enabled found');
-      return new Response(
-        JSON.stringify({ success: true, closed_count: 0, message: 'No auto-close departments configured' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`[Auto-Close] Found ${departments.length} departments with auto-close enabled:`);
-    departments.forEach((dept: DepartmentConfig) => {
-      console.log(`  - ${dept.name}: ${dept.auto_close_minutes} min, CSAT: ${dept.send_rating_on_close}`);
-    });
-
     let totalClosedCount = 0;
     const closedIds: string[] = [];
     const results: { department: string; closed: number }[] = [];
 
-    // 2. Processar cada departamento com sua configuração específica
-    for (const dept of departments as DepartmentConfig[]) {
+    if (!departments || departments.length === 0) {
+      console.log('[Auto-Close] No departments with legacy auto_close_enabled — skipping Stage 2');
+    } else {
+      console.log(`[Auto-Close] Found ${departments.length} departments with auto-close enabled:`);
+      departments.forEach((dept: DepartmentConfig) => {
+        console.log(`  - ${dept.name}: ${dept.auto_close_minutes} min, CSAT: ${dept.send_rating_on_close}`);
+      });
+
+      // 2. Processar cada departamento com sua configuração específica
+      for (const dept of departments as DepartmentConfig[]) {
       if (!dept.auto_close_minutes) continue;
 
       const inactivityThreshold = new Date(Date.now() - dept.auto_close_minutes * 60 * 1000).toISOString();

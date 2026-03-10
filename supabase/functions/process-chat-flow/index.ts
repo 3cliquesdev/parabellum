@@ -3687,7 +3687,8 @@ serve(async (req) => {
         current_node_id: startNode.id,
         collected_data: {},
         // 🆕 condition (multi-regra parada) → waiting_input
-        status: startNode.type === 'condition' ? 'waiting_input' : 'active',
+        // 🔧 FIX 2: condition_v2 reconhecido como waiting_input
+        status: (startNode.type === 'condition' || startNode.type === 'condition_v2') ? 'waiting_input' : 'active',
       })
       .select()
       .single();

@@ -80,6 +80,17 @@ async function fetchInboxData(options: FetchOptions = {}): Promise<InboxViewItem
     query = query.neq("status", "closed");
   }
 
+  // ✅ Aplicar filtro de AI mode no nível do banco para archived (evita perder dados no limit)
+  if (scope === 'archived' && aiMode) {
+    if (aiMode === 'ai_only') {
+      query = query.eq("ai_mode", "autopilot");
+    } else if (aiMode === 'ai_all') {
+      query = query.in("ai_mode", ["autopilot", "copilot", "waiting_human"]);
+    } else {
+      query = query.eq("ai_mode", aiMode);
+    }
+  }
+
   const isArchivedScope = scope === 'archived';
   query = query
     .order("updated_at", { ascending: !isArchivedScope })

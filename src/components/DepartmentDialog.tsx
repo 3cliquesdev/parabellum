@@ -24,16 +24,21 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
   const [color, setColor] = useState("#3B82F6");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   
-  // Auto-close settings
-  const [autoCloseEnabled, setAutoCloseEnabled] = useState(false);
-  const [autoCloseMinutes, setAutoCloseMinutes] = useState<number | "">("");
-  const [sendRatingOnClose, setSendRatingOnClose] = useState(true);
+  // Slow response alert settings
+  const [slowResponseAlertEnabled, setSlowResponseAlertEnabled] = useState(false);
+  const [slowResponseAlertMinutes, setSlowResponseAlertMinutes] = useState<number | "">("");
+  const [slowResponseAlertTagId, setSlowResponseAlertTagId] = useState<string>("");
+
+  // AI auto-close settings
   const [aiAutoCloseEnabled, setAiAutoCloseEnabled] = useState(false);
   const [aiAutoCloseMinutes, setAiAutoCloseMinutes] = useState<number | "">("");
+  const [aiAutoCloseTagId, setAiAutoCloseTagId] = useState<string>("");
+
+  // Human auto-close settings
   const [humanAutoCloseEnabled, setHumanAutoCloseEnabled] = useState(false);
   const [humanAutoCloseMinutes, setHumanAutoCloseMinutes] = useState<number | "">("");
   const [humanAutoCloseTagId, setHumanAutoCloseTagId] = useState<string>("");
-  const [aiAutoCloseTagId, setAiAutoCloseTagId] = useState<string>("");
+
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
   const { data: tags } = useTags();
@@ -44,38 +49,34 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
       setDescription(department.description || "");
       setColor(department.color);
       setWhatsappNumber(department.whatsapp_number || "");
-      setAutoCloseEnabled(department.auto_close_enabled ?? false);
-      setAutoCloseMinutes(department.auto_close_minutes ?? "");
-      setSendRatingOnClose(department.send_rating_on_close ?? true);
+      setSlowResponseAlertEnabled(department.slow_response_alert_enabled ?? false);
+      setSlowResponseAlertMinutes(department.slow_response_alert_minutes ?? "");
+      setSlowResponseAlertTagId(department.slow_response_alert_tag_id ?? "");
       setAiAutoCloseEnabled(department.ai_auto_close_minutes != null);
       setAiAutoCloseMinutes(department.ai_auto_close_minutes ?? "");
+      setAiAutoCloseTagId(department.ai_auto_close_tag_id ?? "");
       setHumanAutoCloseEnabled(department.human_auto_close_minutes != null);
       setHumanAutoCloseMinutes(department.human_auto_close_minutes ?? "");
       setHumanAutoCloseTagId(department.human_auto_close_tag_id ?? "");
-      setAiAutoCloseTagId(department.ai_auto_close_tag_id ?? "");
     } else {
       setName("");
       setDescription("");
       setColor("#3B82F6");
       setWhatsappNumber("");
-      setAutoCloseEnabled(false);
-      setAutoCloseMinutes("");
-      setSendRatingOnClose(true);
+      setSlowResponseAlertEnabled(false);
+      setSlowResponseAlertMinutes("");
+      setSlowResponseAlertTagId("");
       setAiAutoCloseEnabled(false);
       setAiAutoCloseMinutes("");
+      setAiAutoCloseTagId("");
       setHumanAutoCloseEnabled(false);
       setHumanAutoCloseMinutes("");
       setHumanAutoCloseTagId("");
-      setAiAutoCloseTagId("");
     }
   }, [department, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const autoCloseMinutesValue = autoCloseEnabled && autoCloseMinutes !== "" 
-      ? Number(autoCloseMinutes) 
-      : null;
 
     const aiAutoCloseMinutesValue = aiAutoCloseEnabled && aiAutoCloseMinutes !== ""
       ? Number(aiAutoCloseMinutes)
@@ -85,41 +86,62 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
       ? Number(humanAutoCloseMinutes)
       : null;
 
+    const payload = {
+      name,
+      description,
+      color,
+      whatsapp_number: whatsappNumber || undefined,
+      // Keep auto_close fields for backward compat but no longer exposed in UI
+      auto_close_enabled: false,
+      auto_close_minutes: null as number | null,
+      send_rating_on_close: true,
+      // Slow response alert
+      slow_response_alert_enabled: slowResponseAlertEnabled,
+      slow_response_alert_minutes: slowResponseAlertEnabled && slowResponseAlertMinutes !== "" ? Number(slowResponseAlertMinutes) : null,
+      slow_response_alert_tag_id: slowResponseAlertEnabled && slowResponseAlertTagId ? slowResponseAlertTagId : null,
+      // AI auto-close
+      ai_auto_close_minutes: aiAutoCloseMinutesValue,
+      ai_auto_close_tag_id: aiAutoCloseEnabled && aiAutoCloseTagId ? aiAutoCloseTagId : null,
+      // Human auto-close
+      human_auto_close_minutes: humanAutoCloseMinutesValue,
+      human_auto_close_tag_id: humanAutoCloseEnabled && humanAutoCloseTagId ? humanAutoCloseTagId : null,
+    };
+
     if (department) {
-      await updateMutation.mutateAsync({
-        id: department.id,
-        name,
-        description,
-        color,
-        whatsapp_number: whatsappNumber || undefined,
-        auto_close_enabled: autoCloseEnabled,
-        auto_close_minutes: autoCloseMinutesValue,
-        send_rating_on_close: sendRatingOnClose,
-        ai_auto_close_minutes: aiAutoCloseMinutesValue,
-        ai_auto_close_tag_id: aiAutoCloseEnabled && aiAutoCloseTagId ? aiAutoCloseTagId : null,
-        human_auto_close_minutes: humanAutoCloseMinutesValue,
-        human_auto_close_tag_id: humanAutoCloseEnabled && humanAutoCloseTagId ? humanAutoCloseTagId : null,
-      });
+      await updateMutation.mutateAsync({ id: department.id, ...payload });
     } else {
-      await createMutation.mutateAsync({
-        name,
-        description,
-        color,
-        whatsapp_number: whatsappNumber || undefined,
-        auto_close_enabled: autoCloseEnabled,
-        auto_close_minutes: autoCloseMinutesValue,
-        send_rating_on_close: sendRatingOnClose,
-        ai_auto_close_minutes: aiAutoCloseMinutesValue,
-        ai_auto_close_tag_id: aiAutoCloseEnabled && aiAutoCloseTagId ? aiAutoCloseTagId : null,
-        human_auto_close_minutes: humanAutoCloseMinutesValue,
-        human_auto_close_tag_id: humanAutoCloseEnabled && humanAutoCloseTagId ? humanAutoCloseTagId : null,
-      });
+      await createMutation.mutateAsync(payload);
     }
 
     onOpenChange(false);
   };
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
+
+  const TagSelect = ({ value, onChange, label, helperText }: { value: string; onChange: (v: string) => void; label: string; helperText: string }) => (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue placeholder="Selecione uma tag (opcional)" />
+        </SelectTrigger>
+        <SelectContent>
+          {tags?.map((tag) => (
+            <SelectItem key={tag.id} value={tag.id}>
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-3 h-3 rounded-full inline-block"
+                  style={{ backgroundColor: tag.color || "#6B7280" }}
+                />
+                {tag.name}
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">{helperText}</p>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -188,56 +210,49 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
 
             <Separator className="my-4" />
 
-            {/* Auto-close settings */}
+            {/* Slow Response Alert */}
             <div className="space-y-4">
-              <h4 className="text-sm font-medium text-foreground">Encerramento Automático</h4>
+              <h4 className="text-sm font-medium text-foreground">Alerta e Encerramento Automático</h4>
               
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="autoCloseEnabled">Encerrar por inatividade</Label>
+                  <Label htmlFor="slowResponseAlertEnabled">Alerta de demora na resposta</Label>
                   <p className="text-xs text-muted-foreground">
-                    Fecha conversas automaticamente quando o cliente não responde
+                    Aplica uma tag automática quando a equipe demora para responder o cliente. A conversa NÃO será encerrada.
                   </p>
                 </div>
                 <Switch
-                  id="autoCloseEnabled"
-                  checked={autoCloseEnabled}
-                  onCheckedChange={setAutoCloseEnabled}
+                  id="slowResponseAlertEnabled"
+                  checked={slowResponseAlertEnabled}
+                  onCheckedChange={setSlowResponseAlertEnabled}
                 />
               </div>
 
-              {autoCloseEnabled && (
-                <>
+              {slowResponseAlertEnabled && (
+                <div className="space-y-4 pl-2 border-l-2 border-warning/30">
                   <div className="space-y-2">
-                    <Label htmlFor="autoCloseMinutes">Tempo de inatividade (minutos)</Label>
+                    <Label htmlFor="slowResponseAlertMinutes">Tempo máximo de resposta (minutos)</Label>
                     <Input
-                      id="autoCloseMinutes"
+                      id="slowResponseAlertMinutes"
                       type="number"
-                      min={5}
+                      min={1}
                       max={1440}
-                      placeholder="Ex: 30"
-                      value={autoCloseMinutes}
-                      onChange={(e) => setAutoCloseMinutes(e.target.value ? Number(e.target.value) : "")}
+                      placeholder="Ex: 10"
+                      value={slowResponseAlertMinutes}
+                      onChange={(e) => setSlowResponseAlertMinutes(e.target.value ? Number(e.target.value) : "")}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Mínimo 5 minutos. Deixe em branco para nunca encerrar automaticamente.
+                      Se a equipe não responder em X minutos, a tag de alerta será aplicada automaticamente. O atendente NÃO pode remover essa tag.
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="sendRatingOnClose">Enviar pesquisa de satisfação</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Envia pesquisa CSAT (1-5 estrelas) ao encerrar conversa
-                      </p>
-                    </div>
-                    <Switch
-                      id="sendRatingOnClose"
-                      checked={sendRatingOnClose}
-                      onCheckedChange={setSendRatingOnClose}
-                    />
-                  </div>
-                </>
+                  <TagSelect
+                    value={slowResponseAlertTagId}
+                    onChange={setSlowResponseAlertTagId}
+                    label="Tag de alerta"
+                    helperText="Tag aplicada quando a equipe demora para responder. Essa tag é protegida e não pode ser removida pelo atendente."
+                  />
+                </div>
               )}
 
               <Separator className="my-2" />
@@ -275,30 +290,12 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
                     </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="aiAutoCloseTagId">Tag ao encerrar (IA)</Label>
-                    <Select value={aiAutoCloseTagId} onValueChange={setAiAutoCloseTagId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma tag (opcional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tags?.map((tag) => (
-                          <SelectItem key={tag.id} value={tag.id}>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="w-3 h-3 rounded-full inline-block"
-                                style={{ backgroundColor: tag.color || "#6B7280" }}
-                              />
-                              {tag.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Tag aplicada quando o cliente não responde à IA (desinteresse). Se não selecionada, usa a tag padrão.
-                    </p>
-                  </div>
+                  <TagSelect
+                    value={aiAutoCloseTagId}
+                    onChange={setAiAutoCloseTagId}
+                    label="Tag ao encerrar (IA)"
+                    helperText="Tag aplicada quando o cliente não responde à IA (desinteresse). Se não selecionada, usa a tag padrão."
+                  />
                 </div>
               )}
 
@@ -337,30 +334,12 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
                     </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="humanAutoCloseTagId">Tag ao encerrar</Label>
-                    <Select value={humanAutoCloseTagId} onValueChange={setHumanAutoCloseTagId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma tag (opcional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tags?.map((tag) => (
-                          <SelectItem key={tag.id} value={tag.id}>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="w-3 h-3 rounded-full inline-block"
-                                style={{ backgroundColor: tag.color || "#6B7280" }}
-                              />
-                              {tag.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Tag aplicada automaticamente ao encerrar por inatividade humana. Se não selecionada, usa a tag padrão.
-                    </p>
-                  </div>
+                  <TagSelect
+                    value={humanAutoCloseTagId}
+                    onChange={setHumanAutoCloseTagId}
+                    label="Tag ao encerrar"
+                    helperText="Tag aplicada automaticamente ao encerrar por inatividade humana. Se não selecionada, usa a tag padrão."
+                  />
                 </div>
               )}
             </div>

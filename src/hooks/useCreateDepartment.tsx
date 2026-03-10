@@ -39,6 +39,9 @@ export function useCreateDepartment() {
           ai_auto_close_tag_id: params.ai_auto_close_tag_id ?? null,
           human_auto_close_minutes: params.human_auto_close_minutes ?? null,
           human_auto_close_tag_id: params.human_auto_close_tag_id ?? null,
+          slow_response_alert_enabled: params.slow_response_alert_enabled ?? false,
+          slow_response_alert_minutes: params.slow_response_alert_minutes ?? null,
+          slow_response_alert_tag_id: params.slow_response_alert_tag_id ?? null,
         })
         .select()
         .single();

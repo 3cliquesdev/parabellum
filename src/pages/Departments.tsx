@@ -171,16 +171,10 @@ export default function Departments() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {department.auto_close_enabled && department.auto_close_minutes && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        <span>Auto-fecha em {department.auto_close_minutes} min</span>
-                        {department.send_rating_on_close && (
-                          <>
-                            <MessageSquare className="h-4 w-4 ml-2" />
-                            <span>+ CSAT</span>
-                          </>
-                        )}
+                    {department.slow_response_alert_enabled && department.slow_response_alert_minutes && (
+                      <div className="flex items-center gap-2 text-sm text-warning">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span>Alerta demora {department.slow_response_alert_minutes} min</span>
                       </div>
                     )}
                     {department.ai_auto_close_minutes != null && (

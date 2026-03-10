@@ -1328,7 +1328,7 @@ serve(async (req) => {
         ).join('\n')
       : `👥 *MES — Time Comercial*\nNenhum fechamento no mes ainda`;
 
-    const channelsSummarySection = channelsSummary ? `\n📊 *Canais de Venda (Hoje):*\n${channelsSummary}` : '';
+    const channelsSummarySection = channelsSummary ? `\n📊 *Canais de Venda (${dateStr}):*\n${channelsSummary}` : '';
 
     const optionalSections = [tagsSummary, ticketsSummary].filter(Boolean).join('\n\n');
 

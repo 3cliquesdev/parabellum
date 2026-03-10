@@ -1,26 +1,20 @@
 
-# Dar autonomia à IA no Master Flow de Produção ✅
+# Bypass de Greeting no Strict RAG ✅
 
 ## Status: IMPLEMENTADO
 
-## Resumo
+## Problema
+Mensagens como "Olá, vim pelo site e gostaria de atendimento" eram rejeitadas pelo Strict RAG (0% confiança) → `flow_advance_needed` → fallback → auto-close.
 
-O nó `ia_entrada` do Master Flow foi atualizado para dar autonomia à IA.
+## Correção
+Adicionado bypass de greeting/contato genérico **antes** do check do Strict RAG no `ai-autopilot-chat/index.ts`.
 
-## Alterações aplicadas
-
-| Parâmetro | Antes | Depois |
-|---|---|---|
-| `forbid_questions` | `true` | `false` |
-| `exit_keywords` | 13 (incluía "menu", "opcoes", "pessoa") | 9 (apenas intenções humanas explícitas) |
-| `max_sentences` | `4` | `5` |
-| `context_prompt` | "não inventar" | "RESOLVER antes de transferir, fazer perguntas, 2-3 tentativas" |
-| `objective` | sem menção a perguntas | inclui "FAÇA PERGUNTAS ESCLARECEDORAS" |
+- `isSimpleGreetingEarly`: detecta saudações puras (oi, olá, bom dia, etc.)
+- `isGenericContactEarly`: detecta contatos genéricos ("vim pelo site", "gostaria de atendimento", etc.)
+- Se qualquer um for true → `isGreetingBypass = true` → Strict RAG é pulado
+- A execução continua até a lógica de boas-vindas existente (que já trata esses casos)
 
 ## Travas mantidas
-
-- `forbid_options: true` — IA não cria menus falsos
-- `forbid_financial: true` — IA não resolve financeiro
-- `forbid_commercial: true` — IA não faz vendas
-- `fallback_message` — rede de segurança
-- `flow_advance_needed` — funciona para casos extremos
+- Strict RAG continua ativo para perguntas reais
+- Bypass operacional (pedidos/tracking) preservado
+- Kill Switch, Shadow Mode, CSAT guard inalterados

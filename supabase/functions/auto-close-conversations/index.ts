@@ -39,6 +39,10 @@ interface DepartmentConfig {
   auto_close_minutes: number | null;
   send_rating_on_close: boolean;
   ai_auto_close_minutes: number | null;
+  human_auto_close_minutes: number | null;
+  slow_response_alert_enabled: boolean;
+  slow_response_alert_minutes: number | null;
+  slow_response_alert_tag_id: string | null;
 }
 
 interface ConversationToClose {
@@ -139,6 +143,102 @@ Deno.serve(async (req) => {
     console.log(`[Auto-Close] WhatsApp window expired step: closed ${windowExpiredCount} conversations`);
 
     // ============================
+    // ETAPA 1.5: Slow Response Alert (SLA) — NÃO encerra, apenas aplica tag protegida
+    // ============================
+    console.log('[Auto-Close] Starting slow response alert check (Stage 1.5)...');
+    let slaAlertCount = 0;
+
+    try {
+      const { data: slaDepts, error: slaDeptError } = await supabase
+        .from('departments')
+        .select('id, name, slow_response_alert_enabled, slow_response_alert_minutes, slow_response_alert_tag_id')
+        .eq('slow_response_alert_enabled', true)
+        .not('slow_response_alert_minutes', 'is', null)
+        .not('slow_response_alert_tag_id', 'is', null);
+
+      if (slaDeptError) {
+        console.error('[Auto-Close] Error fetching SLA departments:', slaDeptError);
+      } else if (slaDepts && slaDepts.length > 0) {
+        console.log(`[Auto-Close] Found ${slaDepts.length} departments with slow response alert enabled`);
+
+        for (const dept of slaDepts) {
+          const slaThreshold = new Date(Date.now() - dept.slow_response_alert_minutes! * 60 * 1000).toISOString();
+          console.log(`[Auto-Close] SLA check for "${dept.name}" - threshold: ${dept.slow_response_alert_minutes} min`);
+
+          // Find open conversations where the last message is from the contact (customer waiting)
+          const { data: slaConvos, error: slaConvError } = await supabase
+            .from('conversations')
+            .select('id, contact_id, last_message_at')
+            .eq('status', 'open')
+            .eq('department', dept.id)
+            .lt('last_message_at', slaThreshold);
+
+          if (slaConvError) {
+            console.error(`[Auto-Close] Error fetching SLA conversations for ${dept.name}:`, slaConvError);
+            continue;
+          }
+
+          if (!slaConvos || slaConvos.length === 0) {
+            console.log(`[Auto-Close] No SLA-breaching conversations in "${dept.name}"`);
+            continue;
+          }
+
+          for (const conv of slaConvos) {
+            try {
+              // Verify last message is from contact (customer is waiting for our response)
+              const { data: lastMsg } = await supabase
+                .from('messages')
+                .select('sender_type')
+                .eq('conversation_id', conv.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+              if (!lastMsg || lastMsg.sender_type !== 'contact') {
+                continue; // We already responded — skip
+              }
+
+              // Check if tag already applied to avoid duplicates
+              const { data: existingTag } = await supabase
+                .from('conversation_tags')
+                .select('id')
+                .eq('conversation_id', conv.id)
+                .eq('tag_id', dept.slow_response_alert_tag_id!)
+                .maybeSingle();
+
+              if (existingTag) {
+                continue; // Already tagged
+              }
+
+              // Apply the configured alert tag
+              await supabase.from('conversation_tags').upsert({
+                conversation_id: conv.id,
+                tag_id: dept.slow_response_alert_tag_id!,
+              }, { onConflict: 'conversation_id,tag_id', ignoreDuplicates: true });
+
+              // Mark as protected (agent cannot remove)
+              await supabase.from('protected_conversation_tags').upsert({
+                conversation_id: conv.id,
+                tag_id: dept.slow_response_alert_tag_id!,
+              }, { onConflict: 'conversation_id,tag_id', ignoreDuplicates: true });
+
+              slaAlertCount++;
+              console.log(`[Auto-Close] ⚠️ SLA alert applied to conversation ${conv.id} (${dept.name}) - NOT closed`);
+            } catch (err) {
+              console.error(`[Auto-Close] Error applying SLA alert to ${conv.id}:`, err);
+            }
+          }
+        }
+      } else {
+        console.log('[Auto-Close] No departments with slow response alert configured');
+      }
+    } catch (err) {
+      console.error('[Auto-Close] Error in slow response alert step:', err);
+    }
+
+    console.log(`[Auto-Close] ✅ Stage 1.5 complete - applied ${slaAlertCount} SLA alerts`);
+
+    // ============================
     // ETAPA 2: Auto-close por departamento (inatividade configurada)
     // ============================
     console.log('[Auto-Close] Starting department-based inactivity check...');
@@ -155,25 +255,20 @@ Deno.serve(async (req) => {
       throw deptError;
     }
 
-    if (!departments || departments.length === 0) {
-      console.log('[Auto-Close] No departments with auto_close_enabled found');
-      return new Response(
-        JSON.stringify({ success: true, closed_count: 0, message: 'No auto-close departments configured' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`[Auto-Close] Found ${departments.length} departments with auto-close enabled:`);
-    departments.forEach((dept: DepartmentConfig) => {
-      console.log(`  - ${dept.name}: ${dept.auto_close_minutes} min, CSAT: ${dept.send_rating_on_close}`);
-    });
-
     let totalClosedCount = 0;
     const closedIds: string[] = [];
     const results: { department: string; closed: number }[] = [];
 
-    // 2. Processar cada departamento com sua configuração específica
-    for (const dept of departments as DepartmentConfig[]) {
+    if (!departments || departments.length === 0) {
+      console.log('[Auto-Close] No departments with legacy auto_close_enabled — skipping Stage 2');
+    } else {
+      console.log(`[Auto-Close] Found ${departments.length} departments with auto-close enabled:`);
+      departments.forEach((dept: DepartmentConfig) => {
+        console.log(`  - ${dept.name}: ${dept.auto_close_minutes} min, CSAT: ${dept.send_rating_on_close}`);
+      });
+
+      // 2. Processar cada departamento com sua configuração específica
+      for (const dept of departments as DepartmentConfig[]) {
       if (!dept.auto_close_minutes) continue;
 
       const inactivityThreshold = new Date(Date.now() - dept.auto_close_minutes * 60 * 1000).toISOString();
@@ -301,10 +396,11 @@ Deno.serve(async (req) => {
       }
 
       results.push({ department: dept.name, closed: deptClosedCount });
-    }
+      }
 
-    console.log(`[Auto-Close] ✅ Stage 2 complete - closed ${totalClosedCount} conversations`);
-    console.log('[Auto-Close] Results by department:', JSON.stringify(results));
+      console.log(`[Auto-Close] ✅ Stage 2 complete - closed ${totalClosedCount} conversations`);
+      console.log('[Auto-Close] Results by department:', JSON.stringify(results));
+    } // end else (legacy auto_close_enabled)
 
     // ============================
     // ETAPA 3: AI inactivity auto-close (ai_auto_close_minutes por departamento)
@@ -316,7 +412,7 @@ Deno.serve(async (req) => {
     // Buscar departamentos com ai_auto_close_minutes configurado
     const { data: aiDepartments, error: aiDeptError } = await supabase
       .from('departments')
-      .select('id, name, ai_auto_close_minutes, send_rating_on_close')
+      .select('id, name, ai_auto_close_minutes, send_rating_on_close, ai_auto_close_tag_id')
       .not('ai_auto_close_minutes', 'is', null);
 
     if (aiDeptError) {
@@ -374,10 +470,11 @@ Deno.serve(async (req) => {
               sender_type: 'user',
             });
 
-            // Tag "9.98 Falta de Interação"
+            // Tag configurada pelo departamento ou fallback padrão
+            const aiTagId = dept.ai_auto_close_tag_id || FALTA_INTERACAO_TAG_ID;
             await supabase.from('conversation_tags').upsert({
               conversation_id: conv.id,
-              tag_id: FALTA_INTERACAO_TAG_ID,
+              tag_id: aiTagId,
             }, { onConflict: 'conversation_id,tag_id', ignoreDuplicates: true });
 
             // CSAT se configurado
@@ -511,10 +608,131 @@ Deno.serve(async (req) => {
     console.log(`[Auto-Close] ✅ Stage 3b complete - no-dept AI closed ${noDeptClosedCount} conversations`);
 
     // ============================
-    // ETAPA 4: Flow inactivity timeout check
+    // ETAPA 4: Human inactivity auto-close (human_auto_close_minutes por departamento)
+    // ============================
+    console.log('[Auto-Close] Starting human inactivity check (Stage 4 - Human)...');
+
+    let humanClosedCount = 0;
+
+    try {
+      const { data: humanDepts, error: humanDeptError } = await supabase
+        .from('departments')
+        .select('id, name, human_auto_close_minutes, send_rating_on_close, human_auto_close_tag_id')
+        .not('human_auto_close_minutes', 'is', null);
+
+      if (humanDeptError) {
+        console.error('[Auto-Close] Error fetching human auto-close departments:', humanDeptError);
+      } else if (humanDepts && humanDepts.length > 0) {
+        console.log(`[Auto-Close] Found ${humanDepts.length} departments with human auto-close configured`);
+
+        for (const dept of humanDepts) {
+          const humanThreshold = new Date(Date.now() - dept.human_auto_close_minutes! * 60 * 1000).toISOString();
+          console.log(`[Auto-Close] Human check for "${dept.name}" - threshold: ${dept.human_auto_close_minutes} min`);
+
+          // Buscar conversas abertas NÃO autopilot (humanas: copilot, disabled, waiting_human)
+          const { data: humanConvos, error: humanConvError } = await supabase
+            .from('conversations')
+            .select('id, contact_id, last_message_at, ai_mode, channel, department, whatsapp_instance_id, whatsapp_meta_instance_id, whatsapp_provider')
+            .eq('status', 'open')
+            .eq('department', dept.id)
+            .neq('ai_mode', 'autopilot')
+            .lt('last_message_at', humanThreshold);
+
+          if (humanConvError) {
+            console.error(`[Auto-Close] Error fetching human conversations for ${dept.name}:`, humanConvError);
+            continue;
+          }
+
+          if (!humanConvos || humanConvos.length === 0) {
+            console.log(`[Auto-Close] No human inactive conversations in "${dept.name}"`);
+            continue;
+          }
+
+          for (const conv of humanConvos as ConversationToClose[]) {
+            if (closedIds.includes(conv.id)) continue;
+
+            try {
+              // Verificar última mensagem - só fechar se agente humano respondeu e cliente não
+              const { data: lastMsg } = await supabase
+                .from('messages')
+                .select('sender_type')
+                .eq('conversation_id', conv.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+              if (!lastMsg || lastMsg.sender_type === 'contact') {
+                console.log(`[Auto-Close] Human skip ${conv.id} - last msg from contact`);
+                continue;
+              }
+
+              // Inserir mensagem de encerramento
+              await supabase.from('messages').insert({
+                conversation_id: conv.id,
+                content: INACTIVITY_CLOSE_MESSAGE,
+                sender_type: 'user',
+              });
+
+              // Tag configurada pelo departamento ou fallback padrão
+              const tagId = dept.human_auto_close_tag_id || FALTA_INTERACAO_TAG_ID;
+              await supabase.from('conversation_tags').upsert({
+                conversation_id: conv.id,
+                tag_id: tagId,
+              }, { onConflict: 'conversation_id,tag_id', ignoreDuplicates: true });
+
+              // CSAT se configurado
+              if (dept.send_rating_on_close) {
+                await supabase.from('messages').insert({
+                  conversation_id: conv.id,
+                  content: CSAT_MESSAGE,
+                  sender_type: 'user',
+                });
+
+                if (conv.channel === 'whatsapp') {
+                  await sendWhatsAppMessages(supabase, conv, INACTIVITY_CLOSE_MESSAGE, CSAT_MESSAGE);
+                }
+              } else if (conv.channel === 'whatsapp') {
+                await sendWhatsAppMessages(supabase, conv, INACTIVITY_CLOSE_MESSAGE, null);
+              }
+
+              // Fechar conversa
+              const closeData: Record<string, unknown> = {
+                status: 'closed',
+                auto_closed: true,
+                closed_at: new Date().toISOString(),
+                closed_reason: 'human_inactivity',
+                ai_mode: 'disabled',
+              };
+
+              if (dept.send_rating_on_close) {
+                closeData.awaiting_rating = true;
+                closeData.rating_sent_at = new Date().toISOString();
+              }
+
+              await supabase.from('conversations').update(closeData).eq('id', conv.id);
+
+              humanClosedCount++;
+              closedIds.push(conv.id);
+              console.log(`[Auto-Close] ✅ Human closed conversation ${conv.id} (${dept.name}) - human_inactivity`);
+            } catch (err) {
+              console.error(`[Auto-Close] Error human-closing ${conv.id}:`, err);
+            }
+          }
+        }
+      } else {
+        console.log('[Auto-Close] No departments with human auto-close configured');
+      }
+    } catch (err) {
+      console.error('[Auto-Close] Error in human inactivity step:', err);
+    }
+
+    console.log(`[Auto-Close] ✅ Stage 4 (Human) complete - closed ${humanClosedCount} conversations`);
+
+    // ============================
+    // ETAPA 5: Flow inactivity timeout check
     // Verifica flow states parados em nós de inatividade que excederam o timeout
     // ============================
-    console.log('[Auto-Close] Starting flow inactivity timeout check (Stage 4)...');
+    console.log('[Auto-Close] Starting flow inactivity timeout check (Stage 5)...');
     let flowInactivityCount = 0;
 
     try {
@@ -571,20 +789,22 @@ Deno.serve(async (req) => {
       console.error('[Auto-Close] Error in flow inactivity check:', err);
     }
 
-    console.log(`[Auto-Close] ✅ Stage 4 complete - processed ${flowInactivityCount} flow inactivity timeouts`);
-    console.log(`[Auto-Close] ✅ All stages complete - total: ${totalClosedCount + aiClosedCount + noDeptClosedCount} inactivity + ${windowExpiredCount} expired + ${flowInactivityCount} flow timeouts`);
+    console.log(`[Auto-Close] ✅ Stage 5 complete - processed ${flowInactivityCount} flow inactivity timeouts`);
+    console.log(`[Auto-Close] ✅ All stages complete - total: ${totalClosedCount + aiClosedCount + noDeptClosedCount + humanClosedCount} inactivity + ${windowExpiredCount} expired + ${slaAlertCount} SLA alerts + ${flowInactivityCount} flow timeouts`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        closed_count: totalClosedCount + aiClosedCount + noDeptClosedCount,
+        closed_count: totalClosedCount + aiClosedCount + noDeptClosedCount + humanClosedCount,
         whatsapp_window_expired_count: windowExpiredCount,
         ai_inactivity_closed_count: aiClosedCount,
+        human_inactivity_closed_count: humanClosedCount,
         no_dept_closed_count: noDeptClosedCount,
+        sla_alert_count: slaAlertCount,
         flow_inactivity_timeout_count: flowInactivityCount,
         closed_ids: closedIds,
         by_department: results,
-        message: `Closed ${totalClosedCount} by inactivity + ${aiClosedCount} by AI inactivity + ${noDeptClosedCount} no-dept AI + ${windowExpiredCount} by WhatsApp window expired + ${flowInactivityCount} flow inactivity timeouts` 
+        message: `Closed ${totalClosedCount} by inactivity + ${aiClosedCount} AI + ${humanClosedCount} human + ${noDeptClosedCount} no-dept + ${windowExpiredCount} expired + ${slaAlertCount} SLA alerts + ${flowInactivityCount} flow timeouts` 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

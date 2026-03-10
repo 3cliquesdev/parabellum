@@ -381,7 +381,13 @@ async function callPipeline(
       );
 
       if (!autopilotResponse.ok) {
-        console.error("[process-buffered-messages] ❌ ai-autopilot-chat error:", await autopilotResponse.text());
+        const errorText = await autopilotResponse.text();
+        console.error("[process-buffered-messages] ❌ ai-autopilot-chat error:", errorText);
+        // 🆕 Safety net: IA falhou com flow ativo → forçar avanço para não deixar conversa presa
+        if (flowContext || flowData?.aiNodeActive) {
+          console.log("[process-buffered-messages] 🔄 Safety net: IA falhou com flow ativo → re-invocando com forceAIExit");
+          await handleFlowReInvoke(supabase, conversationId, concatenatedMessage, instanceId, fromNumber, { forceAIExit: true });
+        }
         return false;
       }
 
@@ -399,6 +405,15 @@ async function callPipeline(
       // Handle flow_advance_needed
       if (autopilotData.status === "flow_advance_needed" && autopilotData.hasFlowContext) {
         await handleFlowReInvoke(supabase, conversationId, concatenatedMessage, instanceId, fromNumber, { forceAIExit: true });
+      }
+
+      // 🆕 Handle contractViolation / flowExit (IA fabricou transferência ou escape)
+      // 🆕 Pular re-invoke se email acabou de ser verificado (evita loop de reinício do fluxo)
+      if ((autopilotData.contractViolation || autopilotData.flowExit) && autopilotData.hasFlowContext && autopilotData.status !== "flow_advance_needed" && !autopilotData.emailVerified) {
+        console.log("[process-buffered-messages] 🔄 contractViolation/flowExit → re-invocando process-chat-flow com forceAIExit");
+        await handleFlowReInvoke(supabase, conversationId, concatenatedMessage, instanceId, fromNumber, { forceAIExit: true });
+      } else if (autopilotData.emailVerified && (autopilotData.contractViolation || autopilotData.flowExit)) {
+        console.log("[process-buffered-messages] ⏭️ Skipping flow re-invoke: email was just verified, flow should continue naturally");
       }
 
       // Handle financial/commercial blocked
@@ -527,7 +542,8 @@ async function handleFlowReInvoke(
       await supabase.from("messages").insert({
         conversation_id: conversationId,
         content: flowMessage,
-        sender_type: "system",
+        sender_type: "user",
+        is_ai_generated: true,
         message_type: "text",
       });
     }

@@ -59,8 +59,11 @@ const STATUS_OPTIONS = [
 ];
 
 const AI_MODE_OPTIONS = [
+  { value: "ai_all", label: "🤖 Todas da IA" },
+  { value: "ai_only", label: "🤖 Somente IA (sem humano)" },
   { value: "autopilot", label: "🤖 Autopilot" },
   { value: "copilot", label: "🧑‍✈️ Copilot" },
+  { value: "waiting_human", label: "⏳ Aguardando Humano" },
   { value: "disabled", label: "❌ Desabilitado" },
 ];
 

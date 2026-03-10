@@ -109,10 +109,12 @@ export default function Inbox() {
     hasAttachments: filters.hasAttachments,
     aiMode: filters.aiMode as InboxViewFiltersType['aiMode'],
     department: departmentFilter || undefined,
-    tagId: tagFilter || undefined,
+    tags: filters.tags && filters.tags.length > 0
+      ? filters.tags
+      : (tagFilter ? [tagFilter] : undefined),
   }), [filters.dateRange, filters.channels, filters.status, filters.assignedTo,
        filters.search, filters.slaExpired, filters.hasAudio, filters.hasAttachments,
-       filters.aiMode, departmentFilter, tagFilter]);
+       filters.aiMode, departmentFilter, tagFilter, filters.tags]);
   
   // ✅ FIX: Passar scope explícito — 2 caches brutos (active/archived)
   const isArchived = filter === "archived";
@@ -301,7 +303,7 @@ export default function Inbox() {
       case "sla":
         return result; // Já vem filtrado do hook dedicado
       case "unassigned":
-        return result.filter(c => !c.assigned_to && c.status !== 'closed');
+        return result.filter(c => !c.assigned_to && c.status !== 'closed' && c.ai_mode !== 'autopilot');
       case "archived":
         return result; // ✅ Cache já vem com scope=archived, sem re-filtrar
       default:

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Edit, Trash2, Loader2, Clock, MessageSquare, Timer, Tag } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, Clock, MessageSquare, Timer, Tag, UserCheck, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDepartments, type Department } from "@/hooks/useDepartments";
 import { useDeleteDepartment } from "@/hooks/useDeleteDepartment";
@@ -171,22 +171,22 @@ export default function Departments() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {department.auto_close_enabled && department.auto_close_minutes && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        <span>Auto-fecha em {department.auto_close_minutes} min</span>
-                        {department.send_rating_on_close && (
-                          <>
-                            <MessageSquare className="h-4 w-4 ml-2" />
-                            <span>+ CSAT</span>
-                          </>
-                        )}
+                    {department.slow_response_alert_enabled && department.slow_response_alert_minutes && (
+                      <div className="flex items-center gap-2 text-sm text-warning">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span>Alerta demora {department.slow_response_alert_minutes} min</span>
                       </div>
                     )}
                     {department.ai_auto_close_minutes != null && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Timer className="h-4 w-4" />
                         <span>IA auto-fecha em {department.ai_auto_close_minutes} min</span>
+                      </div>
+                    )}
+                    {department.human_auto_close_minutes != null && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <UserCheck className="h-4 w-4" />
+                        <span>Humano auto-fecha em {department.human_auto_close_minutes} min</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between">

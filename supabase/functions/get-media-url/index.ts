@@ -143,42 +143,43 @@ serve(async (req) => {
       );
     }
 
-    // Verify user has access to the conversation
-    const { data: conversation, error: convError } = await supabase
-      .from('conversations')
-      .select('id, assigned_to')
-      .eq('id', attachment.conversation_id)
-      .single();
-
-    if (convError || !conversation) {
-      console.error('[get-media-url] Conversation not found:', convError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Conversation not found', retriable: false }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check user has permission (via RLS or role)
+    // Check user has permission (via role or conversation assignment)
     const { data: userRoles } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id);
 
     const roles = userRoles?.map(r => r.role) || [];
-    const hasAccess = 
-      conversation.assigned_to === user.id ||
+    const isPrivileged = 
       roles.includes('admin') ||
       roles.includes('manager') ||
       roles.includes('support_manager') ||
       roles.includes('general_manager') ||
-      roles.includes('agent'); // Allow agents to view media
+      roles.includes('agent');
 
-    if (!hasAccess) {
-      console.warn('[get-media-url] Access denied for user:', user.id);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Access denied to this attachment', retriable: false }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // If not privileged, verify conversation access
+    if (!isPrivileged) {
+      const { data: conversation, error: convError } = await supabase
+        .from('conversations')
+        .select('id, assigned_to')
+        .eq('id', attachment.conversation_id)
+        .single();
+
+      if (convError || !conversation) {
+        console.error('[get-media-url] Conversation not found:', convError);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Conversation not found', retriable: false }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (conversation.assigned_to !== user.id) {
+        console.warn('[get-media-url] Access denied for user:', user.id);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Access denied to this attachment', retriable: false }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Use transcoded path if available, otherwise original

@@ -1,24 +1,32 @@
 
-# Ajustar tag e mensagem de inatividade no auto-close ✅
+# 6 Correções Cirúrgicas no process-chat-flow — CONCLUÍDO (10/03/2026)
 
-## Status: IMPLEMENTADO
+## Arquivo: `supabase/functions/process-chat-flow/index.ts`
 
-## Resumo
+### FIX 1 ✅ — Proteção contra loop flow-to-flow
+### FIX 2 ✅ — condition_v2 reconhecido como waiting_input
+### FIX 3 ✅ — Auto-traverse cobre condition_v2
+### FIX 4 ✅ — Transfer node atualiza conversations.department
+### FIX 5 ✅ — startMessage com replaceVariables
+### FIX 6 ✅ — financialIntentPattern simplificado
 
-Encerramento por inatividade agora usa tag **9.98 Falta de Interação** e mensagem dinâmica com horário de atendimento.
+---
 
-## Alterações
+# FIX 7 ✅ — aiExitForced segue próximo nó do chat flow (10/03/2026)
 
-| Local | Mudança |
-|-------|---------|
-| `auto-close-conversations/index.ts` | Import `getBusinessHoursInfo`, constante `FALTA_INTERACAO_TAG_ID`, mensagem dinâmica `buildInactivityCloseMessage()` |
-| Etapa 2 (dept inatividade) | Tag 9.04 → 9.98, mensagem com horário |
-| Etapa 3 (AI inatividade) | Tag 9.04 → 9.98, mensagem unificada com horário |
-| Etapa 3b (sem dept) | Tag 9.04 → 9.98, mensagem unificada com horário |
-| Etapa 1 (WhatsApp expired) | Mantém tag 9.04 (cenário diferente: janela expirada) |
+## Problema
+Quando a IA no nó `ia_entrada` faz handoff (`forceAIExit`), o `findNextNode` busca edge `ai_exit` que não existe no Master Flow → conversa fica presa.
 
-## Garantias
+## Correções aplicadas
 
-- `DESISTENCIA_TAG_ID` mantido no código para uso futuro
-- Horário buscado uma vez no início via `getBusinessHoursInfo`
-- Fallback em `buildScheduleSummary` se sem config: "Sem horário configurado"
+### 7a — Fallback edge default (process-chat-flow ~L2273)
+Se `aiExitForced && !nextNode && path === 'ai_exit'`, tenta `findNextNode` com `path=undefined` (edge default).
+
+### 7b — Guard final sem nó (process-chat-flow ~L2336)
+Se mesmo com fallback não encontrou próximo nó, força handoff genérico com `department_id` do nó ou null.
+
+### 7c — Safety net IA falha (process-buffered-messages ~L383)
+Quando `ai-autopilot-chat` retorna HTTP error com flow ativo, re-invoca `process-chat-flow` com `forceAIExit: true`.
+
+### 7d — Safety net IA falha (handle-whatsapp-event ~L1272)
+Mesmo safety net no webhook Evolution: se `aiError` com flow context, re-invoca e envia mensagem do próximo nó.

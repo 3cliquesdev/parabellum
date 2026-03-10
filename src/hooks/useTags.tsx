@@ -205,6 +205,18 @@ export function useRemoveConversationTag() {
 
   return useMutation({
     mutationFn: async ({ conversationId, tagId }: { conversationId: string; tagId: string }) => {
+      // Check if tag is protected (added by SLA alert system)
+      const { data: protectedTag } = await supabase
+        .from("protected_conversation_tags")
+        .select("id")
+        .eq("conversation_id", conversationId)
+        .eq("tag_id", tagId)
+        .maybeSingle();
+
+      if (protectedTag) {
+        throw new Error("Esta tag foi adicionada automaticamente pelo sistema de alerta e não pode ser removida.");
+      }
+
       const { error } = await supabase
         .from("conversation_tags")
         .delete()

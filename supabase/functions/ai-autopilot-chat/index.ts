@@ -673,6 +673,17 @@ const FALLBACK_PHRASES = [
   'num sei',
   'n sei',
   'nao sei',
+  // 🆕 FIX LOOP ia_entrada: Frases de redirecionamento que a IA gera como fallback
+  'direcionar para',
+  'encontrar o especialista',
+  'menu de atendimento',
+  'vou te direcionar',
+  'vou te encaminhar',
+  'encaminhar para o setor',
+  'transferir para o setor',
+  'redirecionar para',
+  'encaminhar você',
+  'direcionar você',
 ];
 
 // 🔐 BARREIRA FINANCEIRA - Palavras que identificam contexto FINANCEIRO (sem OTP obrigatório)
@@ -745,7 +756,7 @@ interface ConfidenceResult {
 // Valores abaixo são FALLBACK apenas - a função calculateConfidenceScore usa config dinâmica
 const SCORE_DIRECT = 0.75;   // Fallback: Alta confiança - responde direto
 const SCORE_CAUTIOUS = 0.40; // Fallback: Média confiança - responde com cautela 
-const SCORE_MINIMUM = 0.10;  // Fallback: Mínimo - IA tenta responder, handoff só manual
+const SCORE_MINIMUM = 0.25;  // Fallback: Mínimo raised - evita respostas com < 25% de confiança
 
 // 🆕 Thresholds do MODO RAG ESTRITO (Anti-Alucinação) - mais conservador
 const STRICT_SCORE_MINIMUM = 0.50;   // Modo estrito mais tolerante
@@ -981,7 +992,7 @@ function generateResponsePrefix(action: 'direct' | 'cautious' | 'handoff'): stri
     case 'direct':
       return ''; // Sem prefixo para respostas diretas
     case 'cautious':
-      return '**Baseado nas informações disponíveis:**\n\n';
+      return 'Baseado nas informações disponíveis:\n\n';
     case 'handoff':
       return ''; // Handoff usa mensagem própria
   }
@@ -1095,17 +1106,17 @@ async function createTicketSuccessMessage(
     if (saqueTemplate) return saqueTemplate;
     
     // Fallback se template não existir
-    return `**Solicitação de saque registrada!**
+    return `Solicitação de saque registrada!
 
-**Protocolo:** #${formattedId}
-**Valor Solicitado:** R$ ${withdrawalData.amount.toFixed(2)}
-${withdrawalData.cpf_last4 ? `**CPF (final):** ...${withdrawalData.cpf_last4}` : ''}
-**Prazo:** até 7 dias úteis
+Protocolo: #${formattedId}
+Valor Solicitado: R$ ${withdrawalData.amount.toFixed(2)}
+${withdrawalData.cpf_last4 ? `CPF (final): ...${withdrawalData.cpf_last4}` : ''}
+Prazo: até 7 dias úteis
 
-**Você receberá um email confirmando a abertura do chamado.**
-**Quando o saque for processado, você será notificado por email também.**
+Você receberá um email confirmando a abertura do chamado.
+Quando o saque for processado, você será notificado por email também.
 
-**IMPORTANTE:** O saque será creditado via PIX na chave informada, vinculada ao seu CPF. Não é possível transferir para conta de terceiros.`;
+IMPORTANTE: O saque será creditado via PIX na chave informada, vinculada ao seu CPF. Não é possível transferir para conta de terceiros.`;
   }
   
   const ticketMessages: Record<string, string> = {
@@ -1119,7 +1130,7 @@ ${withdrawalData.cpf_last4 ? `**CPF (final):** ...${withdrawalData.cpf_last4}` :
   };
   
   const baseMessage = ticketMessages[issueType] || ticketMessages['default'];
-  const orderInfo = orderId ? `\n\n**Pedido:** ${orderId}` : '';
+  const orderInfo = orderId ? `\n\nPedido: ${orderId}` : '';
   
   return `${baseMessage}${orderInfo}`;
 }
@@ -1179,14 +1190,16 @@ Você PODE: coletar dados (email, CPF, ID do pedido) e resumir o caso. NÃO PODE
   restrictions += `
 NÃO sugira transferência para humano.
 NÃO invente informações.
+NÃO use markdown: sem negrito (**), sem # títulos, sem listas com - ou *.
+Use apenas texto simples, sem formatação.
 Se não houver dados suficientes, responda exatamente:
 "No momento não tenho essa informação."
 
 A resposta deve ser curta, clara e objetiva.
 
-**Contexto do Cliente:**
-- Nome: ${contactName}
-- Status: ${contactStatus}`;
+Contexto do Cliente:
+Nome: ${contactName}
+Status: ${contactStatus}`;
 
   return restrictions;
 }
@@ -1197,9 +1210,15 @@ function validateResponseRestrictions(
   forbidQuestions: boolean, 
   forbidOptions: boolean
 ): { valid: boolean; violation?: string } {
-  // Verificar perguntas (qualquer ? no texto)
-  if (forbidQuestions && response.includes('?')) {
-    return { valid: false, violation: 'question_detected' };
+  // Verificar perguntas — só bloqueia se uma FRASE termina com ?
+  // Evita falso positivo com ? dentro de parênteses ou observações
+  if (forbidQuestions) {
+    const hasRealQuestion = response
+      .split(/(?<=[.!])\s+/)
+      .some(sentence => sentence.trim().endsWith('?'));
+    if (hasRealQuestion) {
+      return { valid: false, violation: 'question_detected' };
+    }
   }
   
   // Verificar opções (padrões comuns de múltipla escolha)
@@ -3009,6 +3028,7 @@ serve(async (req) => {
     // Se cliente SEM email envia uma mensagem contendo email válido,
     // processamos automaticamente como identificação
     // ============================================================
+    let emailWasVerifiedInThisRequest = false; // 🆕 Flag para evitar re-invoke do fluxo após validação de email
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
     const emailInMessage = customerMessage.match(emailRegex)?.[0];
     
@@ -3293,6 +3313,7 @@ serve(async (req) => {
           
           // 🆕 Se skipEarlyReturn = true, NÃO retornar early → deixar IA processar o original_intent
           if (skipEarlyReturn) {
+            emailWasVerifiedInThisRequest = true; // 🆕 Marcar que email foi verificado nesta request
             console.log('[ai-autopilot-chat] 🔄 skipEarlyReturn=true - IA vai processar a mensagem original após confirmação de email');
             // autoResponse já foi enviada via WhatsApp acima como confirmação
             // customerMessage foi substituído pelo original_intent
@@ -4139,11 +4160,21 @@ Responda APENAS: skip ou search`
     const detectedDept = pickDepartment(customerMessage);
     const isOperationalTopic = ['suporte_pedidos'].includes(detectedDept);
     
+    // 🆕 BYPASS: Detectar saudações e contatos genéricos ANTES do Strict RAG
+    // Evita que mensagens como "Olá, vim pelo site" sejam rejeitadas por 0% confiança
+    const isSimpleGreetingEarly = /^(oi|olá|ola|hey|boa?\s*(dia|tarde|noite)|obrigad[oa]|valeu|ok)[\s!?.,]*$/i.test(customerMessage.trim());
+    const isGenericContactEarly = /^(ol[aá]|oi|hey|boa?\s*(dia|tarde|noite))?[,!.\s]*(vim|cheguei|estou|preciso|quero|gostaria|queria|buscando|procurando|entrei|acessei).{0,80}(atendimento|ajuda|suporte|falar|contato|informação|informações|saber|conhecer|entender|site|página|pagina|indicação|indicacao)/i.test(customerMessage.trim());
+    const isGreetingBypass = isSimpleGreetingEarly || isGenericContactEarly;
+    
+    if (isGreetingBypass) {
+      console.log('[ai-autopilot-chat] 👋 Greeting/contato genérico detectado — BYPASS Strict RAG para resposta natural');
+    }
+    
     if (isOperationalTopic && isStrictRAGMode) {
       console.log('[ai-autopilot-chat] 📦 Tema operacional (pedidos/tracking) detectado - BYPASS do Strict RAG para usar CRM/Tracking');
     }
     
-    if (isStrictRAGMode && !isOperationalTopic && OPENAI_API_KEY && knowledgeArticles.length > 0) {
+    if (isStrictRAGMode && !isOperationalTopic && !isGreetingBypass && OPENAI_API_KEY && knowledgeArticles.length > 0) {
       console.log('[ai-autopilot-chat] 🎯 STRICT RAG MODE ATIVO - Usando GPT-4o exclusivo');
       
       const strictResult = await callStrictRAG(
@@ -4708,6 +4739,41 @@ Se foram pagos recentemente, pode ser que ainda não tenham entrado em preparaç
       customerMessage: customerMessage.substring(0, 60)
     });
     
+    // ============================================================
+    // 🆕 GUARD: 0 artigos + 0% confiança + flow_context → avançar fluxo IMEDIATAMENTE
+    // Não há motivo para chamar o modelo se não tem nenhum artigo para fundamentar
+    // ============================================================
+    if (flow_context && confidenceResult.score === 0 && knowledgeArticles.length === 0 && !shouldSkipHandoff) {
+      console.log('[ai-autopilot-chat] 🚨 ZERO CONFIDENCE + ZERO ARTICLES + flow_context → flow_advance_needed IMEDIATO', {
+        score: confidenceResult.score,
+        articles: knowledgeArticles.length,
+        flow_id: flow_context.flow_id,
+        node_id: flow_context.node_id
+      });
+      
+      // Log de qualidade
+      await supabaseClient.from('ai_quality_logs').insert({
+        conversation_id: conversationId,
+        contact_id: contact.id,
+        customer_message: customerMessage,
+        action_taken: 'flow_advance',
+        handoff_reason: 'zero_confidence_zero_articles',
+        confidence_score: 0,
+        articles_count: 0
+      });
+      
+      return new Response(JSON.stringify({
+        status: 'flow_advance_needed',
+        reason: 'zero_confidence_zero_articles',
+        hasFlowContext: true,
+        score: 0,
+        articles: 0
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+
     // 🆕 MUDANÇA CRÍTICA: Só fazer handoff se cliente PEDIR EXPLICITAMENTE
     // OU se action é 'handoff' E cliente pediu humano
     // REMOVIDO: handoff automático por baixa confiança
@@ -6335,7 +6401,7 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
     // 🎯 PREFIXO DE RESPOSTA CAUTELOSA (confiança média)
     if (confidenceResult.action === 'cautious' && !toolCalls.length) {
       const cautiousPrefix = generateResponsePrefix('cautious');
-      if (cautiousPrefix && !assistantMessage.startsWith('**Baseado')) {
+      if (cautiousPrefix && !assistantMessage.startsWith('Baseado nas informações')) {
         assistantMessage = cautiousPrefix + assistantMessage;
         console.log('[ai-autopilot-chat] ⚠️ Prefixo cauteloso adicionado à resposta');
       }
@@ -6833,7 +6899,7 @@ Para liberar operações financeiras como saque, preciso transferir você para u
               // Handoff para humano
               await supabaseClient
                 .from('conversations')
-                .update({ ai_mode: 'copilot' })
+                .update({ ai_mode: 'copilot', department: conversation.department || '36ce66cd-7414-4fc8-bd4a-268fecc3f01a' })
                 .eq('id', conversationId);
 
               await supabaseClient.functions.invoke('route-conversation', {
@@ -7401,7 +7467,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
               if (!flow_context) {
                 await supabaseClient
                   .from('conversations')
-                  .update({ ai_mode: 'copilot' })
+                  .update({ ai_mode: 'copilot', department: conversation.department || '36ce66cd-7414-4fc8-bd4a-268fecc3f01a' })
                   .eq('id', conversationId);
                 console.log('[ai-autopilot-chat] ✅ ai_mode mudado para copilot');
               } else {
@@ -7779,6 +7845,55 @@ Conversa: ${conversationId}`;
       assistantMessage.toLowerCase().includes(phrase)
     );
 
+    // 🆕 FIX LOOP: Detectar fallback configurado no nó comparando com fallbackMessage
+    if (!isFallbackResponse && flow_context?.fallbackMessage) {
+      const fallbackPrefix = flow_context.fallbackMessage.substring(0, 30).toLowerCase();
+      if (fallbackPrefix.length > 5 && assistantMessage.toLowerCase().includes(fallbackPrefix)) {
+        console.log('[ai-autopilot-chat] 🚨 FALLBACK DETECTADO via fallbackMessage do nó:', fallbackPrefix);
+        isFallbackResponse = true;
+      }
+    }
+
+    // 🆕 FIX LOOP: Anti-loop counter - máximo 2 fallbacks consecutivos no mesmo nó AI
+    if (!isFallbackResponse && flow_context) {
+      const existingMetadata = conversation.customer_metadata || {};
+      const aiNodeFallbackCount = existingMetadata.ai_node_fallback_count || 0;
+      const aiNodeId = existingMetadata.ai_node_current_id || null;
+      
+      // Se mudou de nó, resetar contador
+      if (aiNodeId !== flow_context.node_id) {
+        // Novo nó, resetar
+      } else if (aiNodeFallbackCount >= 2) {
+        console.log('[ai-autopilot-chat] 🚨 ANTI-LOOP: Máximo de 2 fallbacks atingido no nó AI → forçando flow_advance_needed', {
+          node_id: flow_context.node_id,
+          fallback_count: aiNodeFallbackCount
+        });
+        isFallbackResponse = true;
+      }
+    }
+
+    // 🆕 FIX LOOP: Atualizar contador de fallbacks no customer_metadata
+    if (flow_context) {
+      const existingMetadata = conversation.customer_metadata || {};
+      const aiNodeId = existingMetadata.ai_node_current_id || null;
+      let newCount = 0;
+      
+      if (isFallbackResponse) {
+        newCount = (aiNodeId === flow_context.node_id) ? ((existingMetadata.ai_node_fallback_count || 0) + 1) : 1;
+      }
+      // Sempre atualizar o nó atual e o contador
+      await supabaseClient
+        .from('conversations')
+        .update({
+          customer_metadata: {
+            ...existingMetadata,
+            ai_node_current_id: flow_context.node_id,
+            ai_node_fallback_count: isFallbackResponse ? newCount : 0
+          }
+        })
+        .eq('id', conversationId);
+    }
+
     if (isFallbackResponse) {
       console.log('[ai-autopilot-chat] 🚨 FALLBACK DETECTADO');
 
@@ -8049,12 +8164,13 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
             input_summary: customerMessage?.substring(0, 200) || '',
           }).then(() => {}).catch(err => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
           
-          return new Response(JSON.stringify({
+           return new Response(JSON.stringify({
             contractViolation: true,
             flowExit: true,
             reason: 'ai_contract_violation',
             violationType: 'escape_attempt',
             hasFlowContext: true,
+            emailVerified: emailWasVerifiedInThisRequest, // 🆕 Evita re-invoke do fluxo após validação de email
             flow_context: {
               flow_id: flow_context.flow_id,
               node_id: flow_context.node_id
@@ -8645,6 +8761,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
           .from('conversations')
           .update({ 
             ai_mode: 'copilot',
+            department: conversation.department || '36ce66cd-7414-4fc8-bd4a-268fecc3f01a',
             last_message_at: new Date().toISOString()
           })
           .eq('id', conversationId);

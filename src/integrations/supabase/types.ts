@@ -3158,55 +3158,94 @@ export type Database = {
       departments: {
         Row: {
           ai_auto_close_minutes: number | null
+          ai_auto_close_tag_id: string | null
           auto_close_enabled: boolean | null
           auto_close_minutes: number | null
           color: string | null
           created_at: string
           description: string | null
+          human_auto_close_minutes: number | null
+          human_auto_close_tag_id: string | null
           id: string
           is_active: boolean
           name: string
           parent_id: string | null
           send_rating_on_close: boolean | null
+          slow_response_alert_enabled: boolean
+          slow_response_alert_minutes: number | null
+          slow_response_alert_tag_id: string | null
           updated_at: string
           whatsapp_number: string | null
         }
         Insert: {
           ai_auto_close_minutes?: number | null
+          ai_auto_close_tag_id?: string | null
           auto_close_enabled?: boolean | null
           auto_close_minutes?: number | null
           color?: string | null
           created_at?: string
           description?: string | null
+          human_auto_close_minutes?: number | null
+          human_auto_close_tag_id?: string | null
           id?: string
           is_active?: boolean
           name: string
           parent_id?: string | null
           send_rating_on_close?: boolean | null
+          slow_response_alert_enabled?: boolean
+          slow_response_alert_minutes?: number | null
+          slow_response_alert_tag_id?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }
         Update: {
           ai_auto_close_minutes?: number | null
+          ai_auto_close_tag_id?: string | null
           auto_close_enabled?: boolean | null
           auto_close_minutes?: number | null
           color?: string | null
           created_at?: string
           description?: string | null
+          human_auto_close_minutes?: number | null
+          human_auto_close_tag_id?: string | null
           id?: string
           is_active?: boolean
           name?: string
           parent_id?: string | null
           send_rating_on_close?: boolean | null
+          slow_response_alert_enabled?: boolean
+          slow_response_alert_minutes?: number | null
+          slow_response_alert_tag_id?: string | null
           updated_at?: string
           whatsapp_number?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "departments_ai_auto_close_tag_id_fkey"
+            columns: ["ai_auto_close_tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "departments_human_auto_close_tag_id_fkey"
+            columns: ["human_auto_close_tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "departments_parent_id_fkey"
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "departments_slow_response_alert_tag_id_fkey"
+            columns: ["slow_response_alert_tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
             referencedColumns: ["id"]
           },
         ]
@@ -7424,6 +7463,42 @@ export type Database = {
           },
         ]
       }
+      protected_conversation_tags: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protected_conversation_tags_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "protected_conversation_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       public_ticket_portal_config: {
         Row: {
           created_at: string | null
@@ -9832,6 +9907,10 @@ export type Database = {
           granted_by_roles: string[]
           permission_key: string
         }[]
+      }
+      auto_assign_on_send: {
+        Args: { p_conversation_id: string }
+        Returns: Json
       }
       backfill_emails_from_messages: {
         Args: never

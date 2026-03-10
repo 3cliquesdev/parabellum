@@ -14,6 +14,13 @@ export interface Department {
   auto_close_minutes: number | null;
   send_rating_on_close: boolean;
   ai_auto_close_minutes: number | null;
+  ai_auto_close_tag_id: string | null;
+  human_auto_close_minutes: number | null;
+  human_auto_close_tag_id: string | null;
+  // Slow response alert
+  slow_response_alert_enabled: boolean;
+  slow_response_alert_minutes: number | null;
+  slow_response_alert_tag_id: string | null;
   created_at: string;
   updated_at: string;
 }

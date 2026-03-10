@@ -692,8 +692,8 @@ Deno.serve(async (req) => {
       console.error('[Auto-Close] Error in flow inactivity check:', err);
     }
 
-    console.log(`[Auto-Close] ✅ Stage 4 complete - processed ${flowInactivityCount} flow inactivity timeouts`);
-    console.log(`[Auto-Close] ✅ All stages complete - total: ${totalClosedCount + aiClosedCount + noDeptClosedCount} inactivity + ${windowExpiredCount} expired + ${flowInactivityCount} flow timeouts`);
+    console.log(`[Auto-Close] ✅ Stage 5 complete - processed ${flowInactivityCount} flow inactivity timeouts`);
+    console.log(`[Auto-Close] ✅ All stages complete - total: ${totalClosedCount + aiClosedCount + noDeptClosedCount + humanClosedCount} inactivity + ${windowExpiredCount} expired + ${flowInactivityCount} flow timeouts`);
 
     return new Response(
       JSON.stringify({ 

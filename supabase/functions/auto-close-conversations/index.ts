@@ -396,10 +396,11 @@ Deno.serve(async (req) => {
       }
 
       results.push({ department: dept.name, closed: deptClosedCount });
-    }
+      }
 
-    console.log(`[Auto-Close] ✅ Stage 2 complete - closed ${totalClosedCount} conversations`);
-    console.log('[Auto-Close] Results by department:', JSON.stringify(results));
+      console.log(`[Auto-Close] ✅ Stage 2 complete - closed ${totalClosedCount} conversations`);
+      console.log('[Auto-Close] Results by department:', JSON.stringify(results));
+    } // end else (legacy auto_close_enabled)
 
     // ============================
     // ETAPA 3: AI inactivity auto-close (ai_auto_close_minutes por departamento)

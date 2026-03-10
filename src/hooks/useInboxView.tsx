@@ -109,7 +109,25 @@ async function fetchInboxData(options: FetchOptions = {}): Promise<InboxViewItem
     }
   }
 
-  const isArchivedScope = scope === 'archived';
+  // ✅ Aplicar filtro de channels no nível do banco para archived
+  if (scope === 'archived' && channels && channels.length > 0) {
+    query = query.overlaps("channels", channels);
+  }
+
+  // ✅ Aplicar filtro de department no nível do banco para archived
+  if (scope === 'archived' && department) {
+    query = query.eq("department", department);
+  }
+
+  // ✅ Aplicar filtro de assignedTo no nível do banco para archived
+  if (scope === 'archived' && assignedTo) {
+    if (assignedTo === 'unassigned') {
+      query = query.is("assigned_to", null);
+    } else {
+      query = query.eq("assigned_to", assignedTo);
+    }
+  }
+
   query = query
     .order("updated_at", { ascending: !isArchivedScope })
     .limit(isArchivedScope ? 1000 : 500);

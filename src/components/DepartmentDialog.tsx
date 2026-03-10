@@ -32,7 +32,7 @@ export default function DepartmentDialog({ open, onOpenChange, department }: Dep
   const [aiAutoCloseMinutes, setAiAutoCloseMinutes] = useState<number | "">("");
   const [humanAutoCloseEnabled, setHumanAutoCloseEnabled] = useState(false);
   const [humanAutoCloseMinutes, setHumanAutoCloseMinutes] = useState<number | "">("");
-
+  const [humanAutoCloseTagId, setHumanAutoCloseTagId] = useState<string>("");
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
 

@@ -197,8 +197,8 @@ function applyFilters(items: InboxViewItem[], filters?: InboxFilters, tagIdsSet?
     result = result.filter(item => item.status !== 'closed');
   }
 
-  // Assigned to filter
-  if (filters.assignedTo) {
+  // Assigned to filter — skip for archived (already filtered at DB level)
+  if (scope !== 'archived' && filters.assignedTo) {
     if (filters.assignedTo === "unassigned") {
       result = result.filter(item => !item.assigned_to);
     } else {

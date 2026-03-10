@@ -3747,7 +3747,20 @@ serve(async (req) => {
       );
     }
 
-    const startMessage = startNode.data?.message || "";
+    // 🔧 FIX 5: startMessage com replaceVariables no novo fluxo
+    const { data: trigConv } = await supabaseClient
+      .from('conversations')
+      .select('id, contact_id, channel, status, priority, protocol_number, created_at')
+      .eq('id', conversationId).maybeSingle();
+    let trigContactData: any = null;
+    if (trigConv?.contact_id) {
+      const { data: ct } = await supabaseClient
+        .from('contacts').select('*').eq('id', trigConv.contact_id).maybeSingle();
+      trigContactData = ct;
+      enrichContactIsCustomer(trigContactData);
+    }
+    const trigVarCtx = await buildVariablesContext({}, trigContactData, trigConv, supabaseClient);
+    const startMessage = replaceVariables(startNode.data?.message || "", trigVarCtx);
     const options = startNode.type === 'ask_options' 
       ? (startNode.data?.options || []).map((opt: any) => ({ label: opt.label, value: opt.value }))
       : null;

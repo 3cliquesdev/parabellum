@@ -1295,8 +1295,8 @@ serve(async (req) => {
 
     // ═══ HOJE — Pipeline ═══
     const pipelineSummaryToday = salesMetrics.newLeadsToday > 0
-      ? `📥 *HOJE — Pipeline*\n${(salesMetrics.topNewSources ?? []).join('\n')}\nTotal: ${salesMetrics.newLeadsToday} leads entraram`
-      : `📥 *HOJE — Pipeline*\nNenhum lead novo capturado`;
+      ? `📥 *${dateStr} — Pipeline*\n${(salesMetrics.topNewSources ?? []).join('\n')}\nTotal: ${salesMetrics.newLeadsToday} leads entraram`
+      : `📥 *${dateStr} — Pipeline*\nNenhum lead novo capturado`;
 
     // ═══ HOJE — Tags de Conversas ═══
     const tagsSummary = (metrics.topConversationTags ?? []).length > 0

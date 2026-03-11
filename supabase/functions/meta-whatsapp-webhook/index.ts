@@ -1936,12 +1936,30 @@ serve(async (req) => {
                                 if (retryResponse.ok) {
                                   const retryData = await retryResponse.json();
                                   console.log("[meta-whatsapp-webhook] ✅ forceAIExit retry succeeded");
-                                  const retryMessage = retryData.response || retryData.message;
+                                  // 🔧 BUG 1 FIX: Alinhar retry com primeira tentativa (skip_db_save: false, is_bot_message: true, formatOptionsAsText)
+                                  const retryMessageRaw = retryData.response || retryData.message;
+                                  const retryMessage = retryMessageRaw
+                                    ? retryMessageRaw + formatOptionsAsText(retryData.options)
+                                    : null;
                                   if (retryMessage) {
                                     await supabase.functions.invoke("send-meta-whatsapp", {
-                                      body: { instance_id: instance.id, phone_number: fromNumber, message: retryMessage, conversation_id: conversation.id, skip_db_save: true },
+                                      body: { instance_id: instance.id, phone_number: fromNumber, message: retryMessage, conversation_id: conversation.id, skip_db_save: false, is_bot_message: true },
                                     });
-                                    await supabase.from("messages").insert({ conversation_id: conversation.id, content: retryMessage, sender_type: "system", message_type: "text" });
+                                  }
+                                  // 🔧 BUG 3 FIX: Se retry retornou aiNodeActive, chamar IA com novo contexto
+                                  if (retryData.useAI && retryData.aiNodeActive && retryData.flow_context) {
+                                    console.log("[meta-whatsapp-webhook] 🔄 forceAIExit retry → new AI node detected, calling autopilot");
+                                    try {
+                                      await supabase.functions.invoke("ai-autopilot-chat", {
+                                        body: {
+                                          conversationId: conversation.id,
+                                          userMessage: messageContent,
+                                          flow_context: retryData.flow_context,
+                                        },
+                                      });
+                                    } catch (aiErr) {
+                                      console.error("[meta-whatsapp-webhook] ❌ AI call after retry AI node failed:", aiErr);
+                                    }
                                   }
                                   const retryDept = retryData.departmentId || retryData.department;
                                   if ((retryData.transfer === true || retryData.action === 'transfer') && retryDept) {

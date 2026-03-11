@@ -716,21 +716,23 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
               {selectedNode.type === "ask_options" && (
                 <div className="space-y-3">
                   <Label className="text-xs">Opções de resposta</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    O cliente escolhe digitando o número (1, 2, 3...). Preencha apenas o rótulo.
+                  </p>
                   {(selectedNode.data.options || []).map((opt: any, idx: number) => (
-                    <div key={opt.id} className="flex gap-2">
+                    <div key={opt.id} className="flex gap-2 items-center">
+                      <span className="text-xs font-bold text-muted-foreground w-5 text-center shrink-0">{idx + 1}</span>
                       <Input
                         value={opt.label}
-                        onChange={(e) => updateOption(idx, "label", e.target.value)}
-                        placeholder="Rótulo"
+                        onChange={(e) => {
+                          updateOption(idx, "label", e.target.value);
+                          // Auto-generate value from label
+                          updateOption(idx, "value", slugify(e.target.value));
+                        }}
+                        placeholder={`Opção ${idx + 1} (ex: Rastreio)`}
                         className="flex-1 text-sm"
                       />
-                      <Input
-                        value={opt.value}
-                        onChange={(e) => updateOption(idx, "value", e.target.value)}
-                        placeholder="Valor"
-                        className="flex-1 text-sm"
-                      />
-                      <Button variant="ghost" size="icon" onClick={() => removeOption(idx)} className="shrink-0">
+                      <Button variant="ghost" size="icon" onClick={() => removeOption(idx)} className="shrink-0 h-8 w-8">
                         <X className="h-4 w-4" />
                       </Button>
                     </div>

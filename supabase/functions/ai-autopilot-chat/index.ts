@@ -4095,6 +4095,47 @@ Responda APENAS: skip ou search`
     const contactCompany = contact.company ? ` da empresa ${contact.company}` : '';
     const contactStatus = contact.status || 'lead';
     
+    // 🆕 CROSS-SESSION MEMORY: Buscar últimas 3 conversas fechadas do mesmo contato
+    let crossSessionContext = '';
+    try {
+      const { data: previousConversations } = await supabaseClient
+        .from('conversations')
+        .select('id, closed_at, customer_metadata')
+        .eq('contact_id', contact.id)
+        .eq('status', 'closed')
+        .neq('id', conversationId)
+        .order('closed_at', { ascending: false })
+        .limit(3);
+      
+      if (previousConversations && previousConversations.length > 0) {
+        const summaries = previousConversations
+          .map((conv: any) => {
+            const summary = conv.customer_metadata?.ai_summary;
+            if (!summary) return null;
+            const date = conv.closed_at ? new Date(conv.closed_at).toLocaleDateString('pt-BR') : '?';
+            return `- ${date}: ${summary}`;
+          })
+          .filter(Boolean);
+        
+        if (summaries.length > 0) {
+          crossSessionContext = `\n\n**Histórico de conversas anteriores deste cliente:**\n${summaries.join('\n')}\nUse este contexto para não repetir perguntas já respondidas e personalizar o atendimento.`;
+          console.log(`[ai-autopilot-chat] 🧠 Cross-session memory: ${summaries.length} conversas anteriores encontradas`);
+        }
+      }
+    } catch (memErr) {
+      console.warn('[ai-autopilot-chat] ⚠️ Erro ao buscar memória cross-session:', memErr);
+    }
+    
+    // 🆕 PERSONA CONTEXTUAL: Variar tom baseado no status/contexto do contato
+    let personaToneInstruction = '';
+    if (contact.status === 'vip' || contact.subscription_plan) {
+      personaToneInstruction = '\n\nTom: Extremamente cordial e proativo. Este é um cliente VIP/assinante. Ofereça assistência premium e priorize a resolução rápida.';
+    } else if (contact.status === 'churn_risk' || contact.status === 'inactive') {
+      personaToneInstruction = '\n\nTom: Empático e acolhedor. Este cliente pode estar insatisfeito. Demonstre cuidado genuíno e resolva com atenção especial.';
+    } else if (contact.lead_score && contact.lead_score >= 80) {
+      personaToneInstruction = '\n\nTom: Entusiasmado e consultivo. Este é um lead quente com alta pontuação. Seja proativo em ajudar e guiar.';
+    }
+    
     // 🆕 CORREÇÃO: Cliente é "conhecido" se tem email OU se foi validado via Kiwify OU se está na base como customer
     const isKiwifyValidated = contact.kiwify_validated === true;
     const isCustomerInDatabase = contact.status === 'customer';
@@ -6136,6 +6177,7 @@ ${knowledgeContext}${identityWallNote}
 ${contactEmail ? `- Email: ${safeEmail}` : (flow_context ? '- Email: Não identificado (a IA pode ajudar sem email)' : '- Email: NÃO CADASTRADO - SOLICITAR')}
 ${contact.phone ? `- Telefone: ${safePhone}` : ''}
 - CPF: ${maskedCPF}
+${crossSessionContext}${personaToneInstruction}
 
 Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
 

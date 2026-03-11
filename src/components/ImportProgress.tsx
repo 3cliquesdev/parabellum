@@ -7,15 +7,15 @@ import { useState } from "react";
 
 interface ImportProgressProps {
   total: number;
-  totalCsvRows: number;
+  totalCsvRows?: number;
   processed: number;
   created: number;
   updated: number;
-  contactsCreated: number;
-  contactsReused: number;
-  skippedNoTitle: number;
-  vendorNotFound: Array<{ row: number; title: string; vendor_name: string }>;
-  productNotFound: Array<{ row: number; title: string; product_name: string }>;
+  contactsCreated?: number;
+  contactsReused?: number;
+  skippedNoTitle?: number;
+  vendorNotFound?: Array<{ row: number; title: string; vendor_name: string }>;
+  productNotFound?: Array<{ row: number; title: string; product_name: string }>;
   errors: Array<{ row: number; email: string; error: string }>;
 }
 

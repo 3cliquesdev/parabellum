@@ -4326,28 +4326,13 @@ Responda APENAS: skip ou search`
         // 🆕 GUARD: Se flow_context existe, NÃO executar handoff direto
         // Devolver controle ao process-chat-flow para avançar ao próximo nó
         if (flow_context) {
-          console.log('[ai-autopilot-chat] 🔄 STRICT RAG + flow_context → retornando flow_advance_needed (soberania do fluxo)');
-          
-          // Log de qualidade
-          await supabaseClient.from('ai_quality_logs').insert({
-            conversation_id: conversationId,
-            contact_id: contact.id,
-            customer_message: customerMessage,
-            ai_response: strictResult.response,
-            action_taken: 'flow_advance',
-            handoff_reason: `strict_rag_flow_advance: ${strictResult.reason}`,
-            confidence_score: 0,
-            articles_count: knowledgeArticles.length
-          });
-          
-          return new Response(JSON.stringify({
-            status: 'flow_advance_needed',
+          console.log('[ai-autopilot-chat] ⚠️ STRICT RAG + flow_context → IGNORANDO handoff, IA permanece no nó e responde com conhecimento geral', {
             reason: strictResult.reason,
-            hasFlowContext: true,
-            strict_mode: true
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            flow_id: flow_context.flow_id,
+            node_id: flow_context.node_id
           });
+          // NÃO retorna flow_advance_needed — continua execução normal
+          // A IA responderá usando persona + contexto da conversa + conhecimento geral
         }
         
         // Executar handoff direto (sem flow_context — comportamento original preservado)
@@ -4875,37 +4860,20 @@ Se foram pagos recentemente, pode ser que ainda não tenham entrado em preparaç
     });
     
     // ============================================================
-    // 🆕 GUARD: 0 artigos + 0% confiança + flow_context → avançar fluxo IMEDIATAMENTE
-    // Não há motivo para chamar o modelo se não tem nenhum artigo para fundamentar
+    // 🆕 FIX: 0 artigos + 0% confiança + flow_context → NÃO SAIR, forçar modo cautious
+    // A IA deve sempre tentar responder usando persona + contexto + conhecimento geral
     // ============================================================
     if (flow_context && confidenceResult.score === 0 && knowledgeArticles.length === 0 && !shouldSkipHandoff) {
-      console.log('[ai-autopilot-chat] 🚨 ZERO CONFIDENCE + ZERO ARTICLES + flow_context → flow_advance_needed IMEDIATO', {
+      console.log('[ai-autopilot-chat] ⚠️ ZERO CONFIDENCE + ZERO ARTICLES + flow_context → forçando modo CAUTIOUS (permanece no nó)', {
         score: confidenceResult.score,
         articles: knowledgeArticles.length,
         flow_id: flow_context.flow_id,
         node_id: flow_context.node_id
       });
       
-      // Log de qualidade
-      await supabaseClient.from('ai_quality_logs').insert({
-        conversation_id: conversationId,
-        contact_id: contact.id,
-        customer_message: customerMessage,
-        action_taken: 'flow_advance',
-        handoff_reason: 'zero_confidence_zero_articles',
-        confidence_score: 0,
-        articles_count: 0
-      });
-      
-      return new Response(JSON.stringify({
-        status: 'flow_advance_needed',
-        reason: 'zero_confidence_zero_articles',
-        hasFlowContext: true,
-        score: 0,
-        articles: 0
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      // Forçar modo cautious em vez de sair do nó
+      confidenceResult.action = 'cautious';
+      // Continua execução normalmente — a IA será chamada com persona + contexto
     }
 
 
@@ -7994,7 +7962,7 @@ Conversa: ${conversationId}`;
       }
     }
 
-    // 🆕 FIX LOOP: Anti-loop counter - máximo 2 fallbacks consecutivos no mesmo nó AI
+    // 🆕 FIX LOOP: Anti-loop counter - máximo 5 fallbacks consecutivos no mesmo nó AI
     if (!isFallbackResponse && flow_context) {
       const existingMetadata = conversation.customer_metadata || {};
       const aiNodeFallbackCount = existingMetadata.ai_node_fallback_count || 0;
@@ -8003,8 +7971,8 @@ Conversa: ${conversationId}`;
       // Se mudou de nó, resetar contador
       if (aiNodeId !== flow_context.node_id) {
         // Novo nó, resetar
-      } else if (aiNodeFallbackCount >= 2) {
-        console.log('[ai-autopilot-chat] 🚨 ANTI-LOOP: Máximo de 2 fallbacks atingido no nó AI → forçando flow_advance_needed', {
+      } else if (aiNodeFallbackCount >= 5) {
+        console.log('[ai-autopilot-chat] 🚨 ANTI-LOOP: Máximo de 5 fallbacks atingido no nó AI → forçando flow_advance_needed', {
           node_id: flow_context.node_id,
           fallback_count: aiNodeFallbackCount
         });
@@ -8037,27 +8005,59 @@ Conversa: ${conversationId}`;
     if (isFallbackResponse) {
       console.log('[ai-autopilot-chat] 🚨 FALLBACK DETECTADO');
 
-      // 🆕 GUARD: Se flow_context existe, devolver ao fluxo (soberania do Master Flow)
+      // 🆕 FIX: Se flow_context existe, NÃO sair do nó — limpar fallback phrases e continuar
       if (flow_context) {
-        console.log('[ai-autopilot-chat] 🔄 FALLBACK + flow_context → retornando flow_advance_needed');
+        console.log('[ai-autopilot-chat] ⚠️ FALLBACK + flow_context → limpando fallback phrases e permanecendo no nó');
 
+        // Strip fallback phrases da resposta
+        const FALLBACK_STRIP_PATTERNS = [
+          /vou\s+(te\s+)?transferir\s+(para|a)\s+\w+/gi,
+          /encaminh(ar|ando|o)\s+(para|a|você)\s+\w+/gi,
+          /passar\s+(para|a)\s+um\s+(especialista|atendente|humano|agente)/gi,
+          /um\s+(especialista|atendente|humano|agente)\s+(vai|irá|poderá)\s+(te\s+)?(atender|ajudar)/gi,
+          /\[\[FLOW_EXIT\]\]/gi,
+        ];
+        
+        let cleanedMessage = assistantMessage;
+        for (const pattern of FALLBACK_STRIP_PATTERNS) {
+          cleanedMessage = cleanedMessage.replace(pattern, '').trim();
+        }
+        
+        // Se a mensagem ficou vazia após limpeza, usar fallback genérico
+        if (!cleanedMessage || cleanedMessage.length < 5) {
+          cleanedMessage = 'Entendi! Poderia me dar mais detalhes sobre o que precisa? Estou aqui para ajudar.';
+        }
+        
+        // Persistir versão limpa no banco
+        if (cleanedMessage !== assistantMessage) {
+          console.log('[ai-autopilot-chat] 🧹 Mensagem limpa de fallback phrases:', { original: assistantMessage.substring(0, 100), cleaned: cleanedMessage.substring(0, 100) });
+          assistantMessage = cleanedMessage;
+          
+          // Atualizar mensagem no banco com versão limpa
+          await supabaseClient
+            .from('messages')
+            .update({ content: cleanedMessage })
+            .eq('conversation_id', conversationId)
+            .eq('is_bot_message', true)
+            .order('created_at', { ascending: false })
+            .limit(1);
+        }
+        
+        // Log de qualidade (sem sair do nó)
         await supabaseClient.from('ai_quality_logs').insert({
           conversation_id: conversationId,
           contact_id: contact.id,
           customer_message: customerMessage,
-          ai_response: assistantMessage,
-          action_taken: 'flow_advance',
-          handoff_reason: 'fallback_flow_advance',
+          ai_response: cleanedMessage,
+          action_taken: 'fallback_cleaned_stay_in_node',
+          handoff_reason: 'fallback_stripped_flow_context',
           confidence_score: 0,
           articles_count: knowledgeArticles.length
         });
-
-        return new Response(JSON.stringify({
-          status: 'flow_advance_needed',
-          reason: 'fallback_detected',
-          hasFlowContext: true,
-          fallback_message: assistantMessage
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        
+        // Resetar flag — NÃO é mais fallback após limpeza
+        isFallbackResponse = false;
+        // Continua execução normal — NÃO retorna flow_advance_needed
       }
 
       console.log('[ai-autopilot-chat] 🚨 Sem flow_context - Executando handoff REAL');

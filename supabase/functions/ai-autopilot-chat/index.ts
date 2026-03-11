@@ -8315,20 +8315,10 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
             input_summary: customerMessage?.substring(0, 200) || '',
           }).then(() => {}).catch(err => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
           
-           return new Response(JSON.stringify({
-            contractViolation: true,
-            flowExit: true,
-            reason: 'ai_contract_violation',
-            violationType: 'escape_attempt',
-            hasFlowContext: true,
-            emailVerified: emailWasVerifiedInThisRequest, // 🆕 Evita re-invoke do fluxo após validação de email
-            flow_context: {
-              flow_id: flow_context.flow_id,
-              node_id: flow_context.node_id
-            }
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
+          // 🆕 FIX: Substituir mensagem e FICAR no nó (não retornar flowExit)
+          console.log('[ai-autopilot-chat] 🔄 Contract violation + flow_context → substituindo mensagem e permanecendo no nó');
+          assistantMessage = 'Entendi! Poderia me dar mais detalhes sobre o que precisa? Estou aqui para ajudar.';
+          // Continua execução normal — mensagem será persistida abaixo
         }
       }
       

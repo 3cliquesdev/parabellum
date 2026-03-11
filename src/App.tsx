@@ -50,6 +50,7 @@ const SetupPassword = lazy(() => import("./pages/SetupPassword"));
 const Goals = lazy(() => import("./pages/Goals"));
 const GoalsManagement = lazy(() => import("./pages/GoalsManagement"));
 const ImportClients = lazy(() => import("./pages/ImportClients"));
+const ImportDeals = lazy(() => import("./pages/ImportDeals"));
 const Support = lazy(() => import("./pages/Support"));
 const TicketDetail = lazy(() => import("./pages/TicketDetail"));
 const Knowledge = lazy(() => import("./pages/Knowledge"));
@@ -240,6 +241,7 @@ const App = () => {
               <Route path="/knowledge/gaps" element={<ProtectedRoute requiredPermission="knowledge.manage_articles"><Layout><KBGapsDashboard /></Layout></ProtectedRoute>} />
               <Route path="/ai-studio/personas" element={<ProtectedRoute requiredPermission="ai.manage_personas"><Layout><AIStudio /></Layout></ProtectedRoute>} />
               <Route path="/import-clients" element={<ProtectedRoute requiredPermission="contacts.import"><Layout><ImportClients /></Layout></ProtectedRoute>} />
+              <Route path="/import-deals" element={<ProtectedRoute requiredPermission="deals.create"><Layout><ImportDeals /></Layout></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute requiredPermission="settings.view"><Layout><Settings /></Layout></ProtectedRoute>} />
               <Route path="/settings/integrations" element={<ProtectedRoute requiredPermission="settings.integrations"><Layout><IntegrationsSettings /></Layout></ProtectedRoute>} />
               <Route path="/settings/email" element={<ProtectedRoute requiredPermission="email.manage_templates"><EmailSettingsPage /></ProtectedRoute>} />

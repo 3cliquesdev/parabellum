@@ -129,6 +129,25 @@ async function fetchInboxData(options: FetchOptions = {}): Promise<InboxViewItem
     }
   }
 
+  // ✅ Filtro de tags no nível do banco (evita limite de 1000 do client-side)
+  if (tags && tags.length > 0) {
+    const { data: tagRows } = await supabase
+      .from('conversation_tags')
+      .select('conversation_id')
+      .in('tag_id', tags)
+      .limit(5000);
+
+    const tagConvIds = [...new Set(tagRows?.map(r => r.conversation_id) || [])];
+
+    if (tagConvIds.length === 0) {
+      console.log(`[InboxView] tag filter returned 0 conversation_ids — returning empty`);
+      return [];
+    }
+
+    // Supabase .in() supports up to ~2000 IDs; slice to be safe
+    query = query.in('conversation_id', tagConvIds.slice(0, 2000));
+  }
+
   const isArchivedScope = scope === 'archived';
   query = query
     .order("updated_at", { ascending: !isArchivedScope })

@@ -86,6 +86,7 @@ export const CONDITION_CONTACT_FIELDS = [
   { value: "consultant_id", label: "Tem Consultor?" },
   { value: "is_customer", label: "É Cliente? (Kiwify Validado)" },
   { value: "organization_id", label: "Tem Organização?" },
+  { value: "onboarding_completed", label: "Onboarding Concluído?" },
 ];
 
 // Conversation fields for condition selector

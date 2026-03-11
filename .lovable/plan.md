@@ -1,26 +1,28 @@
 
 
-# Executar queries corrigidas em sequência
+# Fix: pg_cron matando flows ativos prematuramente
 
-O usuário apontou corretamente que `cron.unschedule` falha se o job não existe. A solução é usar `DELETE FROM cron.job WHERE jobname = ...` que é seguro (não dá erro se não existir).
+## Problema raiz
 
-## Execução em 3 passos
+O pg_cron `cleanup-stuck-flow-states` usa `started_at < now() - 3 minutes`, mas `started_at` é imutável (definido na criação do flow). Qualquer fluxo que dure mais de 3 minutos (ex: usuário demora para responder menu) é marcado como `transferred` pelo cron **antes de chegar ao nó de transfer**.
 
-### Query 1 — Liberar flow states presos agora
+Resultado: conversa vai para `waiting_human` sem executar o nó de transferência do canvas (sem departamento correto, sem mensagem, sem consultor).
+
+## Solução
+
+### 1. Adicionar coluna `updated_at` na tabela `chat_flow_states`
+
 ```sql
-UPDATE public.chat_flow_states
-SET status = 'transferred', completed_at = now()
-WHERE status IN ('waiting_input', 'active', 'in_progress')
-  AND started_at < now() - INTERVAL '3 minutes'
-  AND conversation_id IN (
-    SELECT id FROM public.conversations WHERE status = 'open'
-  );
+ALTER TABLE public.chat_flow_states 
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+
+-- Preencher registros existentes
+UPDATE public.chat_flow_states SET updated_at = COALESCE(completed_at, started_at);
 ```
 
-### Query 2 — Criar pg_cron job (com DELETE seguro em vez de unschedule)
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_cron;
+### 2. Atualizar o pg_cron para usar `updated_at` em vez de `started_at`
 
+```sql
 DELETE FROM cron.job WHERE jobname = 'cleanup-stuck-flow-states';
 
 SELECT cron.schedule(
@@ -30,7 +32,7 @@ SELECT cron.schedule(
     UPDATE public.chat_flow_states
     SET status = 'transferred', completed_at = now()
     WHERE status IN ('waiting_input', 'active', 'in_progress')
-      AND started_at < now() - INTERVAL '3 minutes'
+      AND updated_at < now() - INTERVAL '15 minutes'
       AND conversation_id IN (
         SELECT id FROM public.conversations WHERE status = 'open'
       );
@@ -38,21 +40,24 @@ SELECT cron.schedule(
 );
 ```
 
-### Query 3 — Confirmar job criado
-```sql
-SELECT jobid, jobname, schedule, active FROM cron.job WHERE jobname = 'cleanup-stuck-flow-states';
-```
+Mudanças chave:
+- **`updated_at`** em vez de `started_at` — reflete última interação real
+- **15 minutos** em vez de 3 — margem realista para fluxos com múltiplos passos
 
-### Query 4 — Verificação final de conversas órfãs
-```sql
-SELECT COUNT(*) AS sem_dispatch FROM public.conversations c
-LEFT JOIN public.conversation_dispatch_jobs cj
-  ON cj.conversation_id = c.id AND cj.status = 'pending'
-WHERE c.ai_mode IN ('waiting_human', 'copilot')
-  AND c.assigned_to IS NULL AND c.status = 'open' AND cj.id IS NULL;
-```
+### 3. Atualizar `updated_at` no `process-chat-flow/index.ts`
 
-## Implementação
+Em TODOS os `.update()` do `chat_flow_states`, adicionar `updated_at: new Date().toISOString()` para que cada interação renove o timestamp. São ~10 pontos no código onde o estado é atualizado.
 
-Executar cada query separadamente via insert tool (data operations, não schema) na ordem acima. Usar `DELETE FROM cron.job` em vez de `cron.unschedule` para evitar erro na primeira execução.
+## Arquivos afetados
+
+| Componente | Mudança |
+|---|---|
+| Database | Nova coluna `updated_at` + cron atualizado |
+| `process-chat-flow/index.ts` | Adicionar `updated_at` em todos os `.update()` de `chat_flow_states` |
+
+## Resultado esperado
+
+- Flows ativos com interação recente NÃO são mortos pelo cron
+- Flows genuinamente presos (sem interação há 15 min) são limpos
+- Transferências seguem o caminho correto do canvas (nó transfer com departamento/consultor)
 

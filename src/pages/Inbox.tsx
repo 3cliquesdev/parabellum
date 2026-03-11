@@ -617,11 +617,14 @@ export default function Inbox() {
           />
         )}
         
-        {hasHiddenConversations && (
+        {orderedConversations.length === 0 && !isPageLoading && (
           <div className="flex-none px-3 py-2 bg-warning/10 border-b border-warning/30">
             <p className="text-xs text-warning-foreground">
-              Nenhuma conversa neste filtro.
-              {sidebarCounts.closed > 0 && (
+              Nenhuma conversa encontrada com essa combinação de filtros.
+              {(filters.channels.length > 0 || filters.tags.length > 0 || filters.assignedTo || filters.aiMode) && (
+                <span className="ml-1">Tente remover algum filtro acima.</span>
+              )}
+              {sidebarCounts.closed > 0 && !isArchived && (
                 <button 
                   onClick={() => navigate('/inbox?filter=archived')}
                   className="ml-1 underline hover:no-underline font-medium"

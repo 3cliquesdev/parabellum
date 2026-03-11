@@ -8035,23 +8035,15 @@ Conversa: ${conversationId}`;
           cleanedMessage = 'Entendi! Poderia me dar mais detalhes sobre o que precisa? Estou aqui para ajudar.';
         }
         
-        // Persistir versão limpa no banco
         if (cleanedMessage !== assistantMessage) {
           console.log('[ai-autopilot-chat] 🧹 Mensagem limpa de fallback phrases:', { original: assistantMessage.substring(0, 100), cleaned: cleanedMessage.substring(0, 100) });
-          assistantMessage = cleanedMessage;
-          
-          // Atualizar mensagem no banco com versão limpa
-          await supabaseClient
-            .from('messages')
-            .update({ content: cleanedMessage })
-            .eq('conversation_id', conversationId)
-            .eq('is_bot_message', true)
-            .order('created_at', { ascending: false })
-            .limit(1);
         }
         
+        // Atualizar assistantMessage com versão limpa — será persistida e enviada pelo pipeline normal abaixo
+        assistantMessage = cleanedMessage;
+        
         // Log de qualidade (sem sair do nó)
-        await supabaseClient.from('ai_quality_logs').insert({
+        supabaseClient.from('ai_quality_logs').insert({
           conversation_id: conversationId,
           contact_id: contact.id,
           customer_message: customerMessage,
@@ -8060,25 +8052,13 @@ Conversa: ${conversationId}`;
           handoff_reason: 'fallback_stripped_flow_context',
           confidence_score: 0,
           articles_count: knowledgeArticles.length
-        });
+        }).catch((e: any) => console.error('[ai-autopilot-chat] ⚠️ Falha ao logar fallback_cleaned:', e));
         
         // Resetar flag — NÃO é mais fallback após limpeza
         isFallbackResponse = false;
         
-        // 🆕 FIX: RETURN imediato — não cair no handoff abaixo
-        return new Response(JSON.stringify({
-          status: 'sent',
-          message: cleanedMessage,
-          fallback_cleaned: true,
-          flow_context: {
-            flow_id: flow_context.flow_id,
-            node_id: flow_context.node_id
-          }
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
+        // 🆕 FIX: NÃO return — deixa cair no pipeline normal de persistência + envio WhatsApp
+      } else {
       console.log('[ai-autopilot-chat] 🚨 Sem flow_context - Executando handoff REAL');
       
       // 🛡️ ANTI-RACE-CONDITION: Marcar handoff executado PRIMEIRO

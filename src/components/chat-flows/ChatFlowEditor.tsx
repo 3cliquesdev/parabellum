@@ -156,31 +156,31 @@ const slugify = (text: string) =>
 // Save-as suggestions per node type
 const SAVE_AS_SUGGESTIONS: Record<string, { value: string; label: string }[]> = {
   ask_name: [
-    { value: "name", label: "name (padrão)" },
-    { value: "full_name", label: "full_name" },
-    { value: "customer_name", label: "customer_name" },
+    { value: "name", label: "Nome do contato" },
+    { value: "full_name", label: "Nome completo" },
+    { value: "customer_name", label: "Nome do cliente" },
   ],
   ask_email: [
-    { value: "email", label: "email (padrão)" },
-    { value: "customer_email", label: "customer_email" },
+    { value: "email", label: "E-mail do contato" },
+    { value: "customer_email", label: "E-mail do cliente" },
   ],
   ask_phone: [
-    { value: "phone", label: "phone (padrão)" },
-    { value: "customer_phone", label: "customer_phone" },
+    { value: "phone", label: "Telefone do contato" },
+    { value: "customer_phone", label: "Telefone do cliente" },
   ],
   ask_cpf: [
-    { value: "cpf", label: "cpf (padrão)" },
-    { value: "document", label: "document" },
+    { value: "cpf", label: "CPF do contato" },
+    { value: "document", label: "Documento (genérico)" },
   ],
   ask_text: [
-    { value: "response", label: "response (padrão)" },
-    { value: "feedback", label: "feedback" },
-    { value: "description", label: "description" },
+    { value: "response", label: "Resposta do usuário" },
+    { value: "feedback", label: "Feedback / Opinião" },
+    { value: "description", label: "Descrição / Detalhes" },
   ],
   ask_options: [
-    { value: "choice", label: "choice (padrão)" },
-    { value: "option_selected", label: "option_selected" },
-    { value: "menu_choice", label: "menu_choice" },
+    { value: "choice", label: "Escolha do usuário" },
+    { value: "option_selected", label: "Opção selecionada" },
+    { value: "menu_choice", label: "Escolha do menu" },
   ],
 };
 
@@ -665,7 +665,10 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                 
                 return (
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Salvar como variável</Label>
+                  <Label className="text-xs font-medium">Salvar resposta como</Label>
+                  <p className="text-[10px] text-muted-foreground -mt-1">
+                    A resposta será guardada nesta variável para uso em nós seguintes.
+                  </p>
                   <Select
                     value={isCustom ? "__custom__" : (currentVal || suggestions[0]?.value || "")}
                     onValueChange={(v) => {
@@ -681,7 +684,12 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                     </SelectTrigger>
                     <SelectContent>
                       {suggestions.map((s) => (
-                        <SelectItem key={s.value} value={s.value}>💾 {s.label}</SelectItem>
+                        <SelectItem key={s.value} value={s.value}>
+                          <span className="flex items-center gap-1.5">
+                            <span>💾 {s.label}</span>
+                            <span className="text-[10px] text-muted-foreground font-mono">({s.value})</span>
+                          </span>
+                        </SelectItem>
                       ))}
                       <SelectItem value="__custom__">✏️ Nome personalizado...</SelectItem>
                     </SelectContent>
@@ -695,7 +703,7 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                     />
                   )}
                   <p className="text-[10px] text-muted-foreground">
-                    Essa variável pode ser usada nos próximos nós com {`{{${currentVal || "variável"}}}`}
+                    Use nos próximos nós com <code className="font-mono text-primary">{`{{${currentVal || "variável"}}}`}</code>
                   </p>
                 </div>
                 );

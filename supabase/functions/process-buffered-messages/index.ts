@@ -631,3 +631,35 @@ async function handleFlowReInvoke(
     console.error(`[process-buffered-messages] ❌ Flow re-invoke failed (${flagName}):`, await flowResponse.text());
   }
 }
+
+// 🆕 FIX 3: Contador de retries por conversa para evitar retry infinito em quota errors
+// Usa um campo em memória baseado nos buffers não-processados mais antigos
+async function incrementBufferRetryCount(
+  supabase: any,
+  conversationId: string
+): Promise<number> {
+  try {
+    // Contar quantos ciclos de cron este buffer já sobreviveu
+    // Aproximação: idade do buffer mais antigo não-processado / intervalo do cron (60s)
+    const { data: oldestBuffer } = await supabase
+      .from("message_buffer")
+      .select("created_at")
+      .eq("conversation_id", conversationId)
+      .eq("processed", false)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!oldestBuffer) return 0;
+
+    const ageSeconds = (Date.now() - new Date(oldestBuffer.created_at).getTime()) / 1000;
+    // Cada ciclo de cron é ~60s, batch delay ~8s
+    // Retry count = quantos ciclos completos já passaram
+    const retryCount = Math.floor(ageSeconds / 60);
+    console.log(`[process-buffered-messages] 📊 Conv ${conversationId}: buffer age ${ageSeconds.toFixed(0)}s → ~${retryCount} retries`);
+    return retryCount;
+  } catch (err) {
+    console.error("[process-buffered-messages] ⚠️ Error counting retries:", err);
+    return 0;
+  }
+}

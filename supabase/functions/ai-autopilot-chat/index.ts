@@ -8056,7 +8056,19 @@ Conversa: ${conversationId}`;
         
         // Resetar flag — NÃO é mais fallback após limpeza
         isFallbackResponse = false;
-        // Continua execução normal — NÃO retorna flow_advance_needed
+        
+        // 🆕 FIX: RETURN imediato — não cair no handoff abaixo
+        return new Response(JSON.stringify({
+          status: 'sent',
+          message: cleanedMessage,
+          fallback_cleaned: true,
+          flow_context: {
+            flow_id: flow_context.flow_id,
+            node_id: flow_context.node_id
+          }
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
       console.log('[ai-autopilot-chat] 🚨 Sem flow_context - Executando handoff REAL');

@@ -1145,24 +1145,42 @@ function ChatFlowEditorInner({ initialFlow, onSave, onCancel, onFlowChange, isSa
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Tag</Label>
-                        <Input
-                          value={selectedNode.data.action_data?.tag_name || ""}
-                          onChange={(e) => updateNodeData("action_data", { ...selectedNode.data.action_data, tag_name: e.target.value })}
-                          placeholder="Nome da tag (ex: 9.98)"
-                          className="text-sm"
-                        />
-                        <p className="text-[10px] text-muted-foreground">
-                          Digite o nome exato da tag cadastrada no sistema.
-                        </p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">ID da Tag</Label>
-                        <Input
-                          value={selectedNode.data.action_data?.tag_id || ""}
-                          onChange={(e) => updateNodeData("action_data", { ...selectedNode.data.action_data, tag_id: e.target.value })}
-                          placeholder="UUID da tag"
-                          className="text-sm font-mono"
-                        />
+                        {allTags.length > 0 ? (
+                          <Select
+                            value={selectedNode.data.action_data?.tag_id || ""}
+                            onValueChange={(tagId) => {
+                              const tag = allTags.find((t: any) => t.id === tagId);
+                              if (tag) {
+                                updateNodeData("action_data", {
+                                  ...selectedNode.data.action_data,
+                                  tag_id: tag.id,
+                                  tag_name: tag.name,
+                                });
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione uma tag" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allTags.map((tag: any) => (
+                                <SelectItem key={tag.id} value={tag.id}>
+                                  <span className="flex items-center gap-2">
+                                    <span
+                                      className="w-3 h-3 rounded-full shrink-0"
+                                      style={{ backgroundColor: tag.color || '#888' }}
+                                    />
+                                    {tag.name}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground p-2 bg-muted/50 rounded">
+                            Nenhuma tag cadastrada. Crie tags no menu Configurações → Tags.
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}

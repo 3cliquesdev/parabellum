@@ -382,10 +382,45 @@ async function callPipeline(
 
       if (!autopilotResponse.ok) {
         const errorText = await autopilotResponse.text();
-        console.error("[process-buffered-messages] ❌ ai-autopilot-chat error:", errorText);
-        // 🆕 Safety net: IA falhou com flow ativo → forçar avanço para não deixar conversa presa
+        console.error("[process-buffered-messages] ❌ ai-autopilot-chat error:", autopilotResponse.status, errorText);
+
+        // 🆕 FIX 1: Distinguir quota error (temporário) de erro técnico real
+        let isQuotaError = autopilotResponse.status === 503 || autopilotResponse.status === 429;
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.status === 'quota_error' || errorData.code === 'QUOTA_EXCEEDED' || errorData.retry_suggested === true) {
+            isQuotaError = true;
+          }
+        } catch { /* non-JSON */ }
+
+        if (isQuotaError) {
+          console.warn("[process-buffered-messages] ⚠️ QUOTA ERROR — NÃO disparar forceAIExit, retry no próximo ciclo");
+          // 🆕 FIX 3: Anti-retry infinito — contar tentativas via retry_count
+          const retryCount = await incrementBufferRetryCount(supabase, conversationId);
+          if (retryCount >= 3) {
+            console.warn(`[process-buffered-messages] 🚨 Conv ${conversationId}: ${retryCount} retries — enviando msg de alta demanda e avançando`);
+            // Enviar mensagem de alta demanda para o contato
+            if (instanceId && fromNumber) {
+              await supabase.functions.invoke("send-meta-whatsapp", {
+                body: {
+                  instance_id: instanceId,
+                  phone_number: fromNumber,
+                  message: "Estamos com alta demanda no momento. Sua mensagem será respondida em breve. Agradecemos a paciência! 🙏",
+                  conversation_id: conversationId,
+                  skip_db_save: false,
+                  is_bot_message: true,
+                },
+              });
+            }
+            // Marcar como processed para não ficar retentando infinitamente
+            return true; // caller marcará processed=true
+          }
+          return false; // Não marcar como processed → retry no próximo cron
+        }
+
+        // Erro técnico real → safety net (forceAIExit)
         if (flowContext || flowData?.aiNodeActive) {
-          console.log("[process-buffered-messages] 🔄 Safety net: IA falhou com flow ativo → re-invocando com forceAIExit");
+          console.log("[process-buffered-messages] 🔄 Safety net: IA falhou com erro técnico → re-invocando com forceAIExit");
           await handleFlowReInvoke(supabase, conversationId, concatenatedMessage, instanceId, fromNumber, { forceAIExit: true });
         }
         return false;

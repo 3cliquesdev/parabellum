@@ -80,10 +80,99 @@ Substituído UUID hardcoded `36ce66cd-...` por busca dinâmica do departamento "
 Removido `**bold**` de todas as notas internas (linhas 78, 97, 174-181). Notas agora usam texto plano com emojis para compatibilidade cross-canal (WhatsApp).
 
 ### 10c — ai-autopilot-chat: Memória cross-session
-Ao montar o contexto, busca as últimas 3 conversas fechadas do mesmo `contact_id` e injeta os `ai_summary` no system prompt. IA agora lembra conversas anteriores do mesmo cliente.
+Busca últimas 3 conversas fechadas do mesmo contact_id e injeta última mensagem de agente/sistema no system prompt. IA agora lembra conversas anteriores do mesmo cliente.
 
 ### 10d — ai-autopilot-chat: Persona contextual
 Tom da IA varia automaticamente baseado no status do contato:
 - VIP/assinante → tom premium e proativo
 - Churn risk/inativo → tom empático e acolhedor
 - Lead quente (score ≥ 80) → tom entusiasmado e consultivo
+
+---
+
+# FIX 11 ✅ — Passive Learning ativado + Cron Job (11/03/2026)
+
+## O que foi feito
+
+### 11a — Flag `ai_passive_learning_enabled` = true
+Inserido na tabela `system_configurations` com categoria `ai`.
+
+### 11b — Cron job `passive-learning-hourly`
+pg_cron agendado para rodar a cada hora (`0 * * * *`), invocando a edge function `passive-learning-cron` via `net.http_post`.
+
+### Estado confirmado
+- `ai_global_enabled` = true
+- `ai_shadow_mode` = false
+- `ai_passive_learning_enabled` = true
+
+---
+
+# FIX 12 ✅ — Cron job corrigido: anon key no gateway (11/03/2026)
+
+## Problema
+`current_setting('supabase.service_role_key', true)` retorna NULL neste projeto → cron enviava `Authorization: Bearer null` → edge function não autenticava.
+
+## Correção
+Recriado cron job `passive-learning-hourly` (jobid 13) usando anon key no header Authorization. A anon key é suficiente para passar pelo API gateway; a função internamente usa `SUPABASE_SERVICE_ROLE_KEY` do ambiente Deno para operações admin.
+
+---
+
+# FIX 13 ✅ — Auto-KB Gap Detection (11/03/2026)
+
+## O que foi feito
+
+### 13a — Edge function `detect-kb-gaps`
+Criada edge function que:
+1. Busca eventos de IA das últimas 24h onde a IA fez handoff/exit (tipos: `ai_handoff_exit`, `contract_violation_blocked`, `flow_exit_clean`, `ai_exit_intent`)
+2. Clusteriza por similaridade textual (primeiras 3 palavras normalizadas)
+3. Filtra clusters com >= 2 ocorrências (gaps recorrentes)
+4. Cria `knowledge_candidates` com `status: 'pending'` + tag `'gap_detected'` (CHECK constraint impede valor custom)
+5. Notifica admins/managers via tabela `notifications`
+
+### 13b — Cron job `detect-kb-gaps-daily`
+Agendado para rodar diariamente às 8h UTC (`0 8 * * *`) usando anon key no gateway.
+
+### 13c — Workaround CHECK constraint
+`knowledge_candidates.status` só aceita `pending | approved | rejected`. Gaps usam `status: 'pending'` com tag `'gap_detected'` no array de tags para diferenciação.
+
+---
+
+# FIX 14 ✅ — transition-conversation-state: State Machine centralizado (11/03/2026)
+
+## Problema
+Mudanças de estado de conversas (ai_mode, department, assigned_to, dispatch jobs) eram feitas em múltiplos pontos do código (auto-handoff, process-chat-flow, etc.), causando inconsistências como conversa sem departamento, ai_mode errado, ou dispatch job desatualizado.
+
+## Correções aplicadas
+
+### 14a — Edge function `transition-conversation-state`
+Nova edge function que é a ÚNICA fonte da verdade para transições de estado. Suporta 7 tipos:
+- `handoff_to_human`: autopilot → waiting_human + cria dispatch job
+- `assign_agent`: qualquer → copilot + atribui agente + fecha dispatch
+- `unassign_agent`: copilot → waiting_human + reabre dispatch
+- `engage_ai`: qualquer → autopilot + fecha dispatch
+- `set_copilot`: qualquer → copilot
+- `update_department`: atualiza dept + dispatch job
+- `close`: qualquer → closed + fecha dispatch
+
+Cada transição:
+1. Busca estado atual da conversa
+2. Aplica update atômico
+3. Gerencia dispatch jobs (create/close/reopen)
+4. Loga em `ai_events` como `state_transition_{tipo}`
+5. Fallback dinâmico para dept "Suporte"
+
+### 14b — auto-handoff refatorado
+Substituída toda lógica de update direto (fallback dept + update ai_mode) por chamada única:
+```typescript
+supabaseClient.functions.invoke('transition-conversation-state', {
+  body: { conversationId, transition: 'handoff_to_human', reason, metadata }
+});
+```
+
+### 14c — process-chat-flow: 5 blocos de transfer refatorados
+Todos os blocos de update direto de `conversations` em transfer nodes substituídos por `fetch()` para `transition-conversation-state`:
+1. Contract violation handler (~L726)
+2. Handoff sem próximo nó (~L2326)
+3. aiExitForced sem nó (~L2365)
+4. Transfer node principal (~L2808)
+5. Transfer node msg chain (~L3061)

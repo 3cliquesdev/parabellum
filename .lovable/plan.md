@@ -1,30 +1,57 @@
 
+# 6 Correções Cirúrgicas no process-chat-flow — CONCLUÍDO (10/03/2026)
 
-# Fix: pg_cron matando flows ativos prematuramente
+## Arquivo: `supabase/functions/process-chat-flow/index.ts`
 
-## Problema raiz
+### FIX 1 ✅ — Proteção contra loop flow-to-flow
+### FIX 2 ✅ — condition_v2 reconhecido como waiting_input
+### FIX 3 ✅ — Auto-traverse cobre condition_v2
+### FIX 4 ✅ — Transfer node atualiza conversations.department
+### FIX 5 ✅ — startMessage com replaceVariables
+### FIX 6 ✅ — financialIntentPattern simplificado
 
-O pg_cron `cleanup-stuck-flow-states` usa `started_at < now() - 3 minutes`, mas `started_at` é imutável (definido na criação do flow). Qualquer fluxo que dure mais de 3 minutos (ex: usuário demora para responder menu) é marcado como `transferred` pelo cron **antes de chegar ao nó de transfer**.
+---
 
-Resultado: conversa vai para `waiting_human` sem executar o nó de transferência do canvas (sem departamento correto, sem mensagem, sem consultor).
+# FIX 7 ✅ — aiExitForced segue próximo nó do chat flow (10/03/2026)
 
-## Solução
+## Problema
+Quando a IA no nó `ia_entrada` faz handoff (`forceAIExit`), o `findNextNode` busca edge `ai_exit` que não existe no Master Flow → conversa fica presa.
 
-### 1. Adicionar coluna `updated_at` na tabela `chat_flow_states`
+## Correções aplicadas
 
-```sql
-ALTER TABLE public.chat_flow_states 
-  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+### 7a — Fallback edge default (process-chat-flow ~L2273)
+Se `aiExitForced && !nextNode && path === 'ai_exit'`, tenta `findNextNode` com `path=undefined` (edge default).
 
--- Preencher registros existentes
-UPDATE public.chat_flow_states SET updated_at = COALESCE(completed_at, started_at);
-```
+### 7b — Guard final sem nó (process-chat-flow ~L2336)
+Se mesmo com fallback não encontrou próximo nó, força handoff genérico com `department_id` do nó ou null.
 
-### 2. Atualizar o pg_cron para usar `updated_at` em vez de `started_at`
+### 7c — Safety net IA falha (process-buffered-messages ~L383)
+Quando `ai-autopilot-chat` retorna HTTP error com flow ativo, re-invoca `process-chat-flow` com `forceAIExit: true`.
 
+### 7d — Safety net IA falha (handle-whatsapp-event ~L1272)
+Mesmo safety net no webhook Evolution: se `aiError` com flow context, re-invoca e envia mensagem do próximo nó.
+
+---
+
+# FIX 8 ✅ — pg_cron matando flows prematuramente (11/03/2026)
+
+## Problema
+O pg_cron `cleanup-stuck-flow-states` usava `started_at < now() - 3 min`, mas `started_at` é imutável. Flows com múltiplos passos (>3min) eram mortos antes de chegar ao nó de transfer.
+
+## Correções aplicadas
+
+### 8a — Coluna `updated_at` em `chat_flow_states`
+Nova coluna `updated_at timestamptz DEFAULT now()` adicionada via migration. Registros existentes backfilled com `COALESCE(completed_at, started_at)`.
+
+### 8b — `updated_at` em todos os `.update()` do process-chat-flow
+21 pontos de atualização no `process-chat-flow/index.ts` agora incluem `updated_at: new Date().toISOString()`, renovando o timestamp a cada interação.
+
+### 8c — pg_cron precisa ser atualizado manualmente
+O cron deve usar `updated_at < now() - INTERVAL '15 minutes'` em vez de `started_at < now() - 3 min`.
+
+SQL para executar manualmente no SQL Editor:
 ```sql
 DELETE FROM cron.job WHERE jobname = 'cleanup-stuck-flow-states';
-
 SELECT cron.schedule(
   'cleanup-stuck-flow-states',
   '*/3 * * * *',
@@ -39,25 +66,3 @@ SELECT cron.schedule(
   $$
 );
 ```
-
-Mudanças chave:
-- **`updated_at`** em vez de `started_at` — reflete última interação real
-- **15 minutos** em vez de 3 — margem realista para fluxos com múltiplos passos
-
-### 3. Atualizar `updated_at` no `process-chat-flow/index.ts`
-
-Em TODOS os `.update()` do `chat_flow_states`, adicionar `updated_at: new Date().toISOString()` para que cada interação renove o timestamp. São ~10 pontos no código onde o estado é atualizado.
-
-## Arquivos afetados
-
-| Componente | Mudança |
-|---|---|
-| Database | Nova coluna `updated_at` + cron atualizado |
-| `process-chat-flow/index.ts` | Adicionar `updated_at` em todos os `.update()` de `chat_flow_states` |
-
-## Resultado esperado
-
-- Flows ativos com interação recente NÃO são mortos pelo cron
-- Flows genuinamente presos (sem interação há 15 min) são limpos
-- Transferências seguem o caminho correto do canvas (nó transfer com departamento/consultor)
-

@@ -546,6 +546,14 @@ export default function Deals() {
               </Button>
             )}
             {canManagePipelines && <PipelineDialog />}
+            {hasFullAccess && (
+              <Button variant="outline" asChild className="gap-2">
+                <Link to="/import-deals">
+                  <Upload className="h-4 w-4" />
+                  Importar
+                </Link>
+              </Button>
+            )}
             <DealDialog
               trigger={
                 <Button className="gap-2">

@@ -806,26 +806,61 @@ serve(async (req) => {
                 if (flowData.reason === 'ai_mode_waiting_human' && !hasAssignedAgent) {
                   console.log("[meta-whatsapp-webhook] 📨 Verificando rate limit para mensagem de aguarde...");
                   
-                  // 🛡️ ANTI-SPAM: Verificar última mensagem do sistema (bot)
-                  const { data: lastBotMsg } = await supabase
+                  // 🛡️ ANTI-SPAM: Verificar última mensagem de fila pelo CONTEÚDO (não por is_ai_generated)
+                  // FIX: send-meta-whatsapp salva com is_ai_generated=false, então filtrar por conteúdo
+                  const { data: lastQueueMsg } = await supabase
                     .from("messages")
                     .select("created_at, content")
                     .eq("conversation_id", conversation.id)
                     .eq("sender_type", "user") // "user" = bot/sistema no modelo atual
-                    .eq("is_ai_generated", true)
+                    .ilike("content", "%fila de atendimento%")
                     .order("created_at", { ascending: false })
                     .limit(1)
                     .maybeSingle();
                   
-                  // Só enviar se última mensagem do bot foi há mais de 2 minutos
+                  // Só enviar se última mensagem de fila foi há mais de 2 minutos
                   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-                  const lastMsgDate = lastBotMsg?.created_at ? new Date(lastBotMsg.created_at) : null;
+                  const lastMsgDate = lastQueueMsg?.created_at ? new Date(lastQueueMsg.created_at) : null;
                   const shouldSendQueueMsg = !lastMsgDate || lastMsgDate < twoMinutesAgo;
                   
                   if (shouldSendQueueMsg) {
                     console.log("[meta-whatsapp-webhook] ✅ Rate limit OK, enviando mensagem de aguarde...");
                     
-                    const queueMessage = "💬 Sua conversa já está na fila de atendimento.\n\nFique tranquilo, em breve um especialista irá te atender. 🙂";
+                    // 🆕 FIX #2: Verificar se há agentes ONLINE no departamento
+                    let queueMessage = "💬 Sua conversa já está na fila de atendimento.\n\nFique tranquilo, em breve um especialista irá te atender. 🙂";
+                    
+                    if (conversation.department_id) {
+                      const { data: onlineAgents } = await supabase
+                        .from("profiles")
+                        .select("id")
+                        .eq("availability_status", "online")
+                        .in("id", 
+                          supabase
+                            .from("agent_departments")
+                            .select("profile_id")
+                            .eq("department_id", conversation.department_id)
+                        );
+                      
+                      // Se query falhou ou retornou vazio, tentar contagem direta
+                      let hasOnlineAgents = (onlineAgents && onlineAgents.length > 0);
+                      
+                      if (!hasOnlineAgents) {
+                        // Fallback: query direta nos agent_departments + profiles
+                        const { data: deptAgents } = await supabase
+                          .from("agent_departments")
+                          .select("profile_id, profiles!inner(availability_status)")
+                          .eq("department_id", conversation.department_id)
+                          .eq("profiles.availability_status", "online")
+                          .limit(1);
+                        
+                        hasOnlineAgents = (deptAgents && deptAgents.length > 0);
+                      }
+                      
+                      if (!hasOnlineAgents) {
+                        console.log("[meta-whatsapp-webhook] ⚠️ Nenhum agente online no departamento:", conversation.department_id);
+                        queueMessage = "⏳ Nosso time de atendimento não está disponível no momento.\n\nAssim que um especialista ficar online, você será atendido automaticamente. Obrigado pela paciência! 🙏";
+                      }
+                    }
                     
                     try {
                       await supabase.functions.invoke("send-meta-whatsapp", {
@@ -835,7 +870,7 @@ serve(async (req) => {
                           message: queueMessage,
                           conversation_id: conversation.id,
                           skip_db_save: false,
-                          is_bot_message: true, // 🆕 Mensagem automática - NÃO mudar ai_mode
+                          is_bot_message: true,
                         },
                       });
                       console.log("[meta-whatsapp-webhook] ✅ Mensagem de aguarde enviada");
@@ -843,7 +878,7 @@ serve(async (req) => {
                       console.error("[meta-whatsapp-webhook] ⚠️ Erro ao enviar mensagem de aguarde:", queueErr);
                     }
                   } else {
-                    console.log("[meta-whatsapp-webhook] ⏱️ Rate limit ativo, última msg do bot:", lastMsgDate?.toISOString());
+                    console.log("[meta-whatsapp-webhook] ⏱️ Rate limit ativo, última msg de fila:", lastMsgDate?.toISOString());
                   }
                 }
 

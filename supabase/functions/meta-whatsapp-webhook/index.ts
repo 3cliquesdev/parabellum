@@ -1668,7 +1668,7 @@ serve(async (req) => {
                                 console.log("[meta-whatsapp-webhook] ✅ Flow next-node message sent (flowExit/contractViolation)");
                               }
                               
-                              // Transfer handling (reusing forceAIExit pattern)
+                              // Transfer handling — 🔧 BUG 2 FIX: Adicionar preferred transfer (paridade com CASO 2)
                               const DEPT_SUPORTE_FALLBACK_CV = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a';
                               const cvTransferDept = cvFlowResult.departmentId || cvFlowResult.department;
                               if (cvFlowResult.transfer === true || cvFlowResult.action === 'transfer') {
@@ -1680,15 +1680,65 @@ serve(async (req) => {
                                 };
                                 
                                 const isConsultantTransferCV = cvFlowResult.transferType === 'consultant';
+                                const isPreferredTransferCV = cvFlowResult.transferType === 'preferred';
+                                
                                 const { data: contactConsultantCV } = await supabase
                                   .from('contacts')
-                                  .select('consultant_id, consultant_manually_removed')
+                                  .select('consultant_id, consultant_manually_removed, preferred_agent_id, preferred_department_id, organization_id')
                                   .eq('id', contact.id)
                                   .maybeSingle();
-                                
-                                let consultantIdCV = (contactConsultantCV?.consultant_manually_removed && !isConsultantTransferCV)
-                                  ? null
-                                  : (contactConsultantCV?.consultant_id || null);
+
+                                // 🔧 BUG 2 FIX: Preferred transfer chain (paridade com CASO 2)
+                                if (isPreferredTransferCV && contactConsultantCV) {
+                                  let resolvedCV = false;
+                                  // 1. Atendente preferido
+                                  if (contactConsultantCV.preferred_agent_id) {
+                                    const { data: agentStatusCV } = await supabase
+                                      .from('profiles')
+                                      .select('id, availability_status')
+                                      .eq('id', contactConsultantCV.preferred_agent_id)
+                                      .maybeSingle();
+                                    if (agentStatusCV) {
+                                      cvUpdateData.assigned_to = agentStatusCV.id;
+                                      cvUpdateData.ai_mode = 'copilot';
+                                      console.log("[meta-whatsapp-webhook] 👤 Preferred (flowExit/CV): atendente preferido:", agentStatusCV.id);
+                                      resolvedCV = true;
+                                    }
+                                  }
+                                  // 2. Departamento preferido
+                                  if (!resolvedCV && contactConsultantCV.preferred_department_id) {
+                                    cvUpdateData.department = contactConsultantCV.preferred_department_id;
+                                    console.log("[meta-whatsapp-webhook] 🏢 Preferred (flowExit/CV): dept preferido:", contactConsultantCV.preferred_department_id);
+                                    resolvedCV = true;
+                                  }
+                                  // 3. Departamento padrão da organização
+                                  if (!resolvedCV && contactConsultantCV.organization_id) {
+                                    const { data: orgDataCV } = await supabase
+                                      .from('organizations')
+                                      .select('default_department_id')
+                                      .eq('id', contactConsultantCV.organization_id)
+                                      .maybeSingle();
+                                    if (orgDataCV?.default_department_id) {
+                                      cvUpdateData.department = orgDataCV.default_department_id;
+                                      console.log("[meta-whatsapp-webhook] 🏢 Preferred (flowExit/CV): org default dept:", orgDataCV.default_department_id);
+                                      resolvedCV = true;
+                                    }
+                                  }
+                                  if (!resolvedCV) {
+                                    console.log("[meta-whatsapp-webhook] 🔄 Preferred (flowExit/CV): usando fallback do nó:", cvUpdateData.department);
+                                  }
+                                }
+
+                                // 🛡️ consultantId só quando transfer_type=consultant
+                                let consultantIdCV: string | null = null;
+                                if (isConsultantTransferCV) {
+                                  consultantIdCV = (contactConsultantCV?.consultant_manually_removed)
+                                    ? null
+                                    : (contactConsultantCV?.consultant_id || null);
+                                } else if (!isPreferredTransferCV) {
+                                  // Nem consultant nem preferred: pool genérico
+                                  consultantIdCV = null;
+                                }
                                 
                                 if (consultantIdCV) {
                                   cvUpdateData.assigned_to = consultantIdCV;
@@ -1698,9 +1748,9 @@ serve(async (req) => {
                                 }
                                 
                                 await supabase.from('conversations').update(cvUpdateData).eq('id', conversation.id);
-                                console.log("[meta-whatsapp-webhook] ✅ Transfer (flowExit/contractViolation) → dept:", cvDeptToUse);
+                                console.log("[meta-whatsapp-webhook] ✅ Transfer (flowExit/contractViolation) → dept:", cvUpdateData.department, "type:", cvFlowResult.transferType);
                                 
-                                if (!consultantIdCV) {
+                                if (!consultantIdCV && !cvUpdateData.assigned_to) {
                                   try {
                                     await fetch(
                                       `${Deno.env.get("SUPABASE_URL")}/functions/v1/route-conversation`,
@@ -1716,6 +1766,22 @@ serve(async (req) => {
                                   } catch (routeErr) {
                                     console.error("[meta-whatsapp-webhook] ⚠️ route-conversation exception (flowExit/contractViolation):", routeErr);
                                   }
+                                }
+                              }
+                              
+                              // 🔧 BUG 3 FIX: Se flowExit/CV retornou aiNodeActive, chamar IA com novo contexto
+                              if (cvFlowResult.useAI && cvFlowResult.aiNodeActive && cvFlowResult.flow_context) {
+                                console.log("[meta-whatsapp-webhook] 🔄 flowExit/CV → new AI node detected, calling autopilot");
+                                try {
+                                  await supabase.functions.invoke("ai-autopilot-chat", {
+                                    body: {
+                                      conversationId: conversation.id,
+                                      userMessage: messageContent,
+                                      flow_context: cvFlowResult.flow_context,
+                                    },
+                                  });
+                                } catch (aiErr) {
+                                  console.error("[meta-whatsapp-webhook] ❌ AI call after flowExit/CV AI node failed:", aiErr);
                                 }
                               }
                               

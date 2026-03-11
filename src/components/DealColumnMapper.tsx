@@ -32,13 +32,15 @@ type AssignedMode = 'csv' | 'fixed';
 
 export function DealColumnMapper({ csvHeaders, mapping, onMappingChange, fixedAssignedTo, onFixedAssignedToChange }: DealColumnMapperProps) {
   const { data: salesReps } = useSalesReps();
-  const assignedMode: AssignedMode = fixedAssignedTo !== undefined && fixedAssignedTo !== null ? 'fixed' : (mapping['assigned_to'] ? 'csv' : 'csv');
+  const [assignedMode, setAssignedMode] = useState<AssignedMode>(
+    fixedAssignedTo !== undefined && fixedAssignedTo !== null ? 'fixed' : 'csv'
+  );
 
   const handleModeChange = (mode: AssignedMode) => {
+    setAssignedMode(mode);
     if (mode === 'csv') {
       onFixedAssignedToChange?.(null);
     } else {
-      // Switch to fixed: clear CSV mapping for assigned_to
       onMappingChange('assigned_to', '__none__');
     }
   };

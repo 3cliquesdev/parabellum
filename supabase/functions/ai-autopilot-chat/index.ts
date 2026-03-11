@@ -4333,8 +4333,7 @@ Responda APENAS: skip ou search`
           });
           // NÃO retorna flow_advance_needed — continua execução normal
           // A IA responderá usando persona + contexto da conversa + conhecimento geral
-        }
-        
+        } else {
         // Executar handoff direto (sem flow_context — comportamento original preservado)
         const handoffTimestamp = new Date().toISOString();
         await supabaseClient
@@ -4434,6 +4433,7 @@ Responda APENAS: skip ou search`
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
+        } // end else (no flow_context)
       }
       
       // Resposta validada - enviar ao cliente
@@ -8057,7 +8057,19 @@ Conversa: ${conversationId}`;
         
         // Resetar flag — NÃO é mais fallback após limpeza
         isFallbackResponse = false;
-        // Continua execução normal — NÃO retorna flow_advance_needed
+        
+        // 🆕 FIX: RETURN imediato — não cair no handoff abaixo
+        return new Response(JSON.stringify({
+          status: 'sent',
+          message: cleanedMessage,
+          fallback_cleaned: true,
+          flow_context: {
+            flow_id: flow_context.flow_id,
+            node_id: flow_context.node_id
+          }
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
       console.log('[ai-autopilot-chat] 🚨 Sem flow_context - Executando handoff REAL');
@@ -8304,20 +8316,10 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
             input_summary: customerMessage?.substring(0, 200) || '',
           }).then(() => {}).catch(err => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
           
-           return new Response(JSON.stringify({
-            contractViolation: true,
-            flowExit: true,
-            reason: 'ai_contract_violation',
-            violationType: 'escape_attempt',
-            hasFlowContext: true,
-            emailVerified: emailWasVerifiedInThisRequest, // 🆕 Evita re-invoke do fluxo após validação de email
-            flow_context: {
-              flow_id: flow_context.flow_id,
-              node_id: flow_context.node_id
-            }
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
+          // 🆕 FIX: Substituir mensagem e FICAR no nó (não retornar flowExit)
+          console.log('[ai-autopilot-chat] 🔄 Contract violation + flow_context → substituindo mensagem e permanecendo no nó');
+          assistantMessage = 'Entendi! Poderia me dar mais detalhes sobre o que precisa? Estou aqui para ajudar.';
+          // Continua execução normal — mensagem será persistida abaixo
         }
       }
       
@@ -8331,34 +8333,22 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
         console.warn('[ai-autopilot-chat] ⚠️ VIOLAÇÃO DE RESTRIÇÃO (pré-save):', restrictionCheck.violation);
         const fallbackMessage = flow_context.fallbackMessage || 'No momento não tenho essa informação.';
         
-        // 🆕 FIX: Com flow_context ativo, violação de restrição → avançar o fluxo
-        // Sem isso, a IA substitui pelo fallback, mas o fluxo não avança → loop infinito
-        // Padrão: se a IA tentou perguntar (forbid_questions) ou deu menu (forbid_options),
-        // ela já sinalizou que não consegue responder → o processo-chat-flow deve avançar ao próximo nó
-        console.log('[ai-autopilot-chat] 🔄 VIOLAÇÃO DE RESTRIÇÃO + flow_context → retornando flow_advance_needed');
+        // 🆕 FIX: Substituir mensagem pelo fallback e FICAR no nó (não retornar flow_advance_needed)
+        console.log('[ai-autopilot-chat] 🔄 VIOLAÇÃO DE RESTRIÇÃO + flow_context → substituindo mensagem e permanecendo no nó');
+        assistantMessage = fallbackMessage;
         
-        await supabaseClient.from('ai_quality_logs').insert({
+        supabaseClient.from('ai_quality_logs').insert({
           conversation_id: conversationId,
           contact_id: contact.id,
           customer_message: customerMessage,
           ai_response: fallbackMessage,
-          action_taken: 'flow_advance',
+          action_taken: 'restriction_cleaned_stay_in_node',
           handoff_reason: `restriction_violation_${restrictionCheck.violation}`,
           confidence_score: 0,
           articles_count: knowledgeArticles.length
         }).catch((e: any) => console.error('[ai-autopilot-chat] ⚠️ Falha ao logar restriction_violation:', e));
         
-        return new Response(JSON.stringify({
-          status: 'flow_advance_needed',
-          reason: 'restriction_violation',
-          violationType: restrictionCheck.violation,
-          hasFlowContext: true,
-          fallback_message: fallbackMessage,
-          flow_context: {
-            flow_id: flow_context.flow_id,
-            node_id: flow_context.node_id
-          }
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        // Continua execução — mensagem será persistida abaixo
       } else if (forbidFinancial) {
         const financialResolutionPattern = /(j[áa] processei|foi estornado|solicitei reembolso|vou reembolsar|pode sacar|liberei o saque|reembolso aprovado|estorno realizado|cancelamento confirmado|pagamento devolvido|já estornei|processando.*reembolso|aprovei.*devolu[çc][ãa]o|cancelar.*assinatura|sacar.*saldo|saque.*(realizado|solicitado)|op[çc][ãa]o.*(saque|reembolso|estorno)|para\s+prosseguir\s+com\s+o\s+(saque|reembolso|estorno)|confirmar.*dados.*(saque|reembolso|estorno)|devolver.*dinheiro)/i;
         if (financialResolutionPattern.test(assistantMessage)) {

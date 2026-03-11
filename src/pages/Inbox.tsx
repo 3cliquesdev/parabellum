@@ -15,6 +15,7 @@ import ChatWindow from "@/components/ChatWindow";
 import ContactDetailsSidebar from "@/components/ContactDetailsSidebar";
 import { InboxSidebar } from "@/components/inbox/InboxSidebar";
 import InboxFilterPopover, { type InboxFilters } from "@/components/inbox/InboxFilterPopover";
+import { ActiveFilterChips } from "@/components/inbox/ActiveFilterChips";
 import { BulkActionsBar } from "@/components/inbox/BulkActionsBar";
 import { InboxBulkDistributeBar } from "@/components/inbox/InboxBulkDistributeBar";
 import { InboxBulkDistributeDialog } from "@/components/inbox/InboxBulkDistributeDialog";

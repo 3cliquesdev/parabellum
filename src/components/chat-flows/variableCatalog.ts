@@ -27,6 +27,8 @@ export const CONTACT_VARS: VariableItem[] = [
   { value: "contact_document", label: "Documento", group: "contact" },
   { value: "contact_consultant_id", label: "Consultor do Contato", group: "contact" },
   { value: "contact_is_customer", label: "É Cliente? (Kiwify Validado)", group: "contact" },
+  { value: "contact_onboarding_completed", label: "Onboarding Concluído", group: "contact" },
+  { value: "contact_organization_id", label: "Organização", group: "contact" },
 ];
 
 // Business hours & SLA variables (injected by engine at runtime)

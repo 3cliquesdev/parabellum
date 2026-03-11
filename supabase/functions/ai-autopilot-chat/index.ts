@@ -4326,28 +4326,13 @@ Responda APENAS: skip ou search`
         // 🆕 GUARD: Se flow_context existe, NÃO executar handoff direto
         // Devolver controle ao process-chat-flow para avançar ao próximo nó
         if (flow_context) {
-          console.log('[ai-autopilot-chat] 🔄 STRICT RAG + flow_context → retornando flow_advance_needed (soberania do fluxo)');
-          
-          // Log de qualidade
-          await supabaseClient.from('ai_quality_logs').insert({
-            conversation_id: conversationId,
-            contact_id: contact.id,
-            customer_message: customerMessage,
-            ai_response: strictResult.response,
-            action_taken: 'flow_advance',
-            handoff_reason: `strict_rag_flow_advance: ${strictResult.reason}`,
-            confidence_score: 0,
-            articles_count: knowledgeArticles.length
-          });
-          
-          return new Response(JSON.stringify({
-            status: 'flow_advance_needed',
+          console.log('[ai-autopilot-chat] ⚠️ STRICT RAG + flow_context → IGNORANDO handoff, IA permanece no nó e responde com conhecimento geral', {
             reason: strictResult.reason,
-            hasFlowContext: true,
-            strict_mode: true
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            flow_id: flow_context.flow_id,
+            node_id: flow_context.node_id
           });
+          // NÃO retorna flow_advance_needed — continua execução normal
+          // A IA responderá usando persona + contexto da conversa + conhecimento geral
         }
         
         // Executar handoff direto (sem flow_context — comportamento original preservado)

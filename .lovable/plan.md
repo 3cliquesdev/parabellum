@@ -46,23 +46,23 @@ Nova coluna `updated_at timestamptz DEFAULT now()` adicionada via migration. Reg
 ### 8b — `updated_at` em todos os `.update()` do process-chat-flow
 21 pontos de atualização no `process-chat-flow/index.ts` agora incluem `updated_at: new Date().toISOString()`, renovando o timestamp a cada interação.
 
-### 8c — pg_cron precisa ser atualizado manualmente
-O cron deve usar `updated_at < now() - INTERVAL '15 minutes'` em vez de `started_at < now() - 3 min`.
+### 8c — pg_cron atualizado
+Cron usa `updated_at < now() - INTERVAL '15 minutes'` em vez de `started_at < now() - 3 min`.
 
-SQL para executar manualmente no SQL Editor:
-```sql
-DELETE FROM cron.job WHERE jobname = 'cleanup-stuck-flow-states';
-SELECT cron.schedule(
-  'cleanup-stuck-flow-states',
-  '*/3 * * * *',
-  $$
-    UPDATE public.chat_flow_states
-    SET status = 'transferred', completed_at = now()
-    WHERE status IN ('waiting_input', 'active', 'in_progress')
-      AND updated_at < now() - INTERVAL '15 minutes'
-      AND conversation_id IN (
-        SELECT id FROM public.conversations WHERE status = 'open'
-      );
-  $$
-);
-```
+---
+
+# FIX 9 ✅ — IA não responde: safety net mata flow em quota error (11/03/2026)
+
+## Problema
+O `process-buffered-messages` tratava erros 429/503 (quota/rate limit) como falha fatal, disparando `forceAIExit` e matando o flow antes da IA ter chance de responder.
+
+## Correções aplicadas
+
+### 9a — Distinguir quota error de erro técnico real
+Na safety net do `process-buffered-messages`, erros 429/503 com `quota_error` ou `retry_suggested: true` NÃO disparam `forceAIExit`. Buffer fica como `processed=false` para retry no próximo ciclo.
+
+### 9b — Refresh `updated_at` do flow state após buffer processing com sucesso
+Após `ai-autopilot-chat` retornar OK via buffer, o `updated_at` do `chat_flow_states` é atualizado para evitar morte prematura pelo cron de 15 min.
+
+### 9c — Anti-retry infinito (3 ciclos)
+Buffers que falham por quota por 3+ ciclos de cron (~3 min) enviam mensagem de "alta demanda" ao contato e são marcados como processed.

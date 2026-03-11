@@ -1905,7 +1905,7 @@ serve(async (req) => {
                                 }
                               }
                               
-                              // Bug 3 fix: transfer com lógica completa de consultor (como CASO 2)
+                              // 🔧 BUG 2+3 FIX: transfer com lógica completa (consultant + preferred) como CASO 2
                               const DEPT_SUPORTE_FALLBACK_AIX = '36ce66cd-7414-4fc8-bd4a-268fecc3f01a';
                               const transferDept = flowResult.departmentId || flowResult.department;
                               if (flowResult.transfer === true || flowResult.action === 'transfer') {
@@ -1917,20 +1917,62 @@ serve(async (req) => {
                                 };
                                 
                                 const isConsultantTransfer = flowResult.transferType === 'consultant';
+                                const isPreferredTransfer = flowResult.transferType === 'preferred';
                                 
                                 const { data: contactConsultantData } = await supabase
                                   .from('contacts')
-                                  .select('consultant_id, consultant_manually_removed')
+                                  .select('consultant_id, consultant_manually_removed, preferred_agent_id, preferred_department_id, organization_id')
                                   .eq('id', contact.id)
                                   .maybeSingle();
-                                
-                                if (contactConsultantData?.consultant_manually_removed && !isConsultantTransfer) {
-                                  console.log("[meta-whatsapp-webhook] 🚫 consultant_manually_removed=true (forceAIExit), pulando consultor");
+
+                                // 🔧 BUG 2 FIX: Preferred transfer chain (paridade com CASO 2)
+                                if (isPreferredTransfer && contactConsultantData) {
+                                  let resolvedPref = false;
+                                  if (contactConsultantData.preferred_agent_id) {
+                                    const { data: agentStatusPref } = await supabase
+                                      .from('profiles')
+                                      .select('id, availability_status')
+                                      .eq('id', contactConsultantData.preferred_agent_id)
+                                      .maybeSingle();
+                                    if (agentStatusPref) {
+                                      updateData.assigned_to = agentStatusPref.id;
+                                      updateData.ai_mode = 'copilot';
+                                      console.log("[meta-whatsapp-webhook] 👤 Preferred (forceAIExit): atendente preferido:", agentStatusPref.id);
+                                      resolvedPref = true;
+                                    }
+                                  }
+                                  if (!resolvedPref && contactConsultantData.preferred_department_id) {
+                                    updateData.department = contactConsultantData.preferred_department_id;
+                                    console.log("[meta-whatsapp-webhook] 🏢 Preferred (forceAIExit): dept preferido:", contactConsultantData.preferred_department_id);
+                                    resolvedPref = true;
+                                  }
+                                  if (!resolvedPref && contactConsultantData.organization_id) {
+                                    const { data: orgDataPref } = await supabase
+                                      .from('organizations')
+                                      .select('default_department_id')
+                                      .eq('id', contactConsultantData.organization_id)
+                                      .maybeSingle();
+                                    if (orgDataPref?.default_department_id) {
+                                      updateData.department = orgDataPref.default_department_id;
+                                      console.log("[meta-whatsapp-webhook] 🏢 Preferred (forceAIExit): org default dept:", orgDataPref.default_department_id);
+                                      resolvedPref = true;
+                                    }
+                                  }
+                                  if (!resolvedPref) {
+                                    console.log("[meta-whatsapp-webhook] 🔄 Preferred (forceAIExit): usando fallback do nó:", updateData.department);
+                                  }
                                 }
                                 
-                                let consultantId = (contactConsultantData?.consultant_manually_removed && !isConsultantTransfer)
-                                  ? null
-                                  : (contactConsultantData?.consultant_id || null);
+                                // 🛡️ consultantId só quando transfer_type=consultant
+                                let consultantId: string | null = null;
+                                if (isConsultantTransfer) {
+                                  if (contactConsultantData?.consultant_manually_removed) {
+                                    console.log("[meta-whatsapp-webhook] 🚫 consultant_manually_removed=true (forceAIExit), pulando consultor");
+                                  }
+                                  consultantId = (contactConsultantData?.consultant_manually_removed)
+                                    ? null
+                                    : (contactConsultantData?.consultant_id || null);
+                                }
                                 
                                 if (consultantId) {
                                   updateData.assigned_to = consultantId;
@@ -1951,9 +1993,9 @@ serve(async (req) => {
                                 if (updateError) {
                                   console.error("[meta-whatsapp-webhook] ❌ Transfer error (forceAIExit):", updateError);
                                 } else {
-                                  console.log("[meta-whatsapp-webhook] ✅ Transfer (forceAIExit) → dept:", deptToUse, "assigned:", consultantId || 'pool');
+                                  console.log("[meta-whatsapp-webhook] ✅ Transfer (forceAIExit) → dept:", updateData.department, "type:", flowResult.transferType, "assigned:", updateData.assigned_to || 'pool');
                                   
-                                  if (!consultantId) {
+                                  if (!consultantId && !updateData.assigned_to) {
                                     try {
                                       const routeResp = await fetch(
                                         `${Deno.env.get("SUPABASE_URL")}/functions/v1/route-conversation`,
@@ -1975,6 +2017,22 @@ serve(async (req) => {
                                       console.error("[meta-whatsapp-webhook] ⚠️ route-conversation exception (forceAIExit):", routeErr);
                                     }
                                   }
+                                }
+                              }
+                              
+                              // 🔧 BUG 3 FIX: Se forceAIExit retornou aiNodeActive, chamar IA com novo contexto
+                              if (flowResult.useAI && flowResult.aiNodeActive && flowResult.flow_context) {
+                                console.log("[meta-whatsapp-webhook] 🔄 forceAIExit → new AI node detected, calling autopilot");
+                                try {
+                                  await supabase.functions.invoke("ai-autopilot-chat", {
+                                    body: {
+                                      conversationId: conversation.id,
+                                      userMessage: messageContent,
+                                      flow_context: flowResult.flow_context,
+                                    },
+                                  });
+                                } catch (aiErr) {
+                                  console.error("[meta-whatsapp-webhook] ❌ AI call after forceAIExit AI node failed:", aiErr);
                                 }
                               }
                               

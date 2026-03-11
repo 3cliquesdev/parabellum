@@ -546,7 +546,7 @@ export default function Deals() {
               </Button>
             )}
             {canManagePipelines && <PipelineDialog />}
-            {hasFullAccess && (
+            {canManagePipelines && (
               <Button variant="outline" asChild className="gap-2">
                 <Link to="/import-deals">
                   <Upload className="h-4 w-4" />

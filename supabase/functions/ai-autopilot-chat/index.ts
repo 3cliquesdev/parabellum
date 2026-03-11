@@ -8005,27 +8005,59 @@ Conversa: ${conversationId}`;
     if (isFallbackResponse) {
       console.log('[ai-autopilot-chat] 🚨 FALLBACK DETECTADO');
 
-      // 🆕 GUARD: Se flow_context existe, devolver ao fluxo (soberania do Master Flow)
+      // 🆕 FIX: Se flow_context existe, NÃO sair do nó — limpar fallback phrases e continuar
       if (flow_context) {
-        console.log('[ai-autopilot-chat] 🔄 FALLBACK + flow_context → retornando flow_advance_needed');
+        console.log('[ai-autopilot-chat] ⚠️ FALLBACK + flow_context → limpando fallback phrases e permanecendo no nó');
 
+        // Strip fallback phrases da resposta
+        const FALLBACK_STRIP_PATTERNS = [
+          /vou\s+(te\s+)?transferir\s+(para|a)\s+\w+/gi,
+          /encaminh(ar|ando|o)\s+(para|a|você)\s+\w+/gi,
+          /passar\s+(para|a)\s+um\s+(especialista|atendente|humano|agente)/gi,
+          /um\s+(especialista|atendente|humano|agente)\s+(vai|irá|poderá)\s+(te\s+)?(atender|ajudar)/gi,
+          /\[\[FLOW_EXIT\]\]/gi,
+        ];
+        
+        let cleanedMessage = assistantMessage;
+        for (const pattern of FALLBACK_STRIP_PATTERNS) {
+          cleanedMessage = cleanedMessage.replace(pattern, '').trim();
+        }
+        
+        // Se a mensagem ficou vazia após limpeza, usar fallback genérico
+        if (!cleanedMessage || cleanedMessage.length < 5) {
+          cleanedMessage = 'Entendi! Poderia me dar mais detalhes sobre o que precisa? Estou aqui para ajudar.';
+        }
+        
+        // Persistir versão limpa no banco
+        if (cleanedMessage !== assistantMessage) {
+          console.log('[ai-autopilot-chat] 🧹 Mensagem limpa de fallback phrases:', { original: assistantMessage.substring(0, 100), cleaned: cleanedMessage.substring(0, 100) });
+          assistantMessage = cleanedMessage;
+          
+          // Atualizar mensagem no banco com versão limpa
+          await supabaseClient
+            .from('messages')
+            .update({ content: cleanedMessage })
+            .eq('conversation_id', conversationId)
+            .eq('is_bot_message', true)
+            .order('created_at', { ascending: false })
+            .limit(1);
+        }
+        
+        // Log de qualidade (sem sair do nó)
         await supabaseClient.from('ai_quality_logs').insert({
           conversation_id: conversationId,
           contact_id: contact.id,
           customer_message: customerMessage,
-          ai_response: assistantMessage,
-          action_taken: 'flow_advance',
-          handoff_reason: 'fallback_flow_advance',
+          ai_response: cleanedMessage,
+          action_taken: 'fallback_cleaned_stay_in_node',
+          handoff_reason: 'fallback_stripped_flow_context',
           confidence_score: 0,
           articles_count: knowledgeArticles.length
         });
-
-        return new Response(JSON.stringify({
-          status: 'flow_advance_needed',
-          reason: 'fallback_detected',
-          hasFlowContext: true,
-          fallback_message: assistantMessage
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        
+        // Resetar flag — NÃO é mais fallback após limpeza
+        isFallbackResponse = false;
+        // Continua execução normal — NÃO retorna flow_advance_needed
       }
 
       console.log('[ai-autopilot-chat] 🚨 Sem flow_context - Executando handoff REAL');

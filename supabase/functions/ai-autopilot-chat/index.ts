@@ -1158,7 +1158,7 @@ interface FlowContext {
 
 // 🆕 FASE 1: Função para gerar prompt RESTRITIVO baseado no flow_context
 // Substitui o prompt extenso quando flow_context tem controles ativos
-function generateRestrictedPrompt(flowContext: FlowContext, contactName: string, contactStatus: string): string {
+function generateRestrictedPrompt(flowContext: FlowContext, contactName: string, contactStatus: string, enrichment?: { orgName?: string | null; consultantName?: string | null; sellerName?: string | null; tags?: string[] }): string {
   const maxSentences = flowContext.maxSentences ?? 3;
   const objective = flowContext.objective || 'Responder a dúvida do cliente';
   const forbidQuestions = flowContext.forbidQuestions ?? true;
@@ -1199,7 +1199,7 @@ A resposta deve ser curta, clara e objetiva.
 
 Contexto do Cliente:
 Nome: ${contactName}
-Status: ${contactStatus}`;
+Status: ${contactStatus}${enrichment?.orgName ? `\nOrganização: ${enrichment.orgName}` : ''}${enrichment?.consultantName ? `\nConsultor: ${enrichment.consultantName}` : ''}${enrichment?.sellerName ? `\nVendedor: ${enrichment.sellerName}` : ''}${enrichment?.tags && enrichment.tags.length > 0 ? `\nTags: ${enrichment.tags.join(', ')}` : ''}`;
 
   // Persona contextual baseada em perfil do contato
   if (contactStatus === 'customer' || contactStatus === 'vip') {
@@ -1512,7 +1512,7 @@ serve(async (req) => {
         .select(`
           *,
           contacts!inner(
-            id, first_name, last_name, email, phone, whatsapp_id, company, status, document, kiwify_validated, kiwify_validated_at
+            id, first_name, last_name, email, phone, whatsapp_id, company, status, document, kiwify_validated, kiwify_validated_at, organization_id, consultant_id, assigned_to
           )
         `)
         .eq('id', conversationId)
@@ -1529,6 +1529,81 @@ serve(async (req) => {
       conversation = conversationData;
       contact = conversation.contacts as any;
       department = conversation.department || null;
+
+      // 🆕 ENRIQUECIMENTO DE CONTEXTO: Buscar organização, consultor, vendedor e tags do contato
+      let contactOrgName: string | null = null;
+      let contactConsultantName: string | null = null;
+      let contactSellerName: string | null = null;
+      let contactTagsList: string[] = [];
+
+      try {
+        const enrichPromises: Promise<any>[] = [];
+
+        // Organização
+        if (contact.organization_id) {
+          enrichPromises.push(
+            supabaseClient
+              .from('organizations')
+              .select('name')
+              .eq('id', contact.organization_id)
+              .maybeSingle()
+              .then((r: any) => ({ type: 'org', data: r.data }))
+          );
+        }
+
+        // Consultor
+        if (contact.consultant_id) {
+          enrichPromises.push(
+            supabaseClient
+              .from('profiles')
+              .select('full_name')
+              .eq('id', contact.consultant_id)
+              .maybeSingle()
+              .then((r: any) => ({ type: 'consultant', data: r.data }))
+          );
+        }
+
+        // Vendedor (assigned_to)
+        if (contact.assigned_to) {
+          enrichPromises.push(
+            supabaseClient
+              .from('profiles')
+              .select('full_name')
+              .eq('id', contact.assigned_to)
+              .maybeSingle()
+              .then((r: any) => ({ type: 'seller', data: r.data }))
+          );
+        }
+
+        // Tags do contato
+        enrichPromises.push(
+          supabaseClient
+            .from('contact_tags')
+            .select('tags:tag_id(name)')
+            .eq('contact_id', contact.id)
+            .then((r: any) => ({ type: 'tags', data: r.data }))
+        );
+
+        const enrichResults = await Promise.all(enrichPromises);
+
+        for (const result of enrichResults) {
+          if (result.type === 'org' && result.data?.name) contactOrgName = result.data.name;
+          if (result.type === 'consultant' && result.data?.full_name) contactConsultantName = result.data.full_name;
+          if (result.type === 'seller' && result.data?.full_name) contactSellerName = result.data.full_name;
+          if (result.type === 'tags' && result.data) {
+            contactTagsList = result.data.map((t: any) => t.tags?.name).filter(Boolean);
+          }
+        }
+
+        console.log('[ai-autopilot-chat] 🏷️ Contexto enriquecido:', {
+          org: contactOrgName,
+          consultant: contactConsultantName,
+          seller: contactSellerName,
+          tags: contactTagsList
+        });
+      } catch (enrichErr) {
+        console.error('[ai-autopilot-chat] ⚠️ Erro ao enriquecer contexto do contato:', enrichErr);
+      }
 
       // 🆕 BUSINESS HOURS: Buscar info de horário comercial para contexto da IA
       let businessHoursInfo: BusinessHoursResult | null = null;
@@ -6196,6 +6271,10 @@ ${knowledgeContext}${identityWallNote}
 ${contactEmail ? `- Email: ${safeEmail}` : (flow_context ? '- Email: Não identificado (a IA pode ajudar sem email)' : '- Email: NÃO CADASTRADO - SOLICITAR')}
 ${contact.phone ? `- Telefone: ${safePhone}` : ''}
 - CPF: ${maskedCPF}
+${contactOrgName ? `- Organização: ${contactOrgName}` : ''}
+${contactConsultantName ? `- Consultor responsável: ${contactConsultantName}` : ''}
+${contactSellerName ? `- Vendedor responsável: ${contactSellerName}` : ''}
+${contactTagsList.length > 0 ? `- Tags: ${contactTagsList.join(', ')}` : ''}
 ${crossSessionContext}${personaToneInstruction}
 
 Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;

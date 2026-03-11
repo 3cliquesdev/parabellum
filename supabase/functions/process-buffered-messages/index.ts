@@ -457,6 +457,13 @@ async function callPipeline(
         await handleFlowReInvoke(supabase, conversationId, concatenatedMessage, instanceId, fromNumber, { [exitType]: true });
       }
 
+      // 🆕 FIX 2: Refresh updated_at do flow state após sucesso do buffer
+      await supabase
+        .from('chat_flow_states')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('conversation_id', conversationId)
+        .in('status', ['active', 'in_progress', 'waiting_input']);
+
       return true;
     } else {
       // Global autopilot path — call process-chat-flow first

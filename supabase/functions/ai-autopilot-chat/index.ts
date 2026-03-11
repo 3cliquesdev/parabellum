@@ -8230,6 +8230,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
       });
       
       console.log('[ai-autopilot-chat] ✅ Nota interna de handoff registrada');
+      } // end else (no flow_context — handoff real)
     }
     // ========== FIM DETECTOR DE FALLBACK ==========
 

@@ -67,6 +67,7 @@ interface FetchOptions {
   channels?: string[];
   department?: string;
   assignedTo?: string;
+  tags?: string[];
 }
 
 // Função para buscar dados do inbox com filtros de role

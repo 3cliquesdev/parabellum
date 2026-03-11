@@ -1285,7 +1285,10 @@ serve(async (req) => {
                                   if (retryResponse.ok) {
                                     const retryData = await retryResponse.json();
                                     console.log("[meta-whatsapp-webhook] ✅ Retry succeeded:", JSON.stringify({ transfer: retryData.transfer, hasResponse: !!retryData.response, nodeType: retryData.nodeType }));
-                                    const retryMessage = retryData.response || retryData.message;
+                                    const retryMessageRaw = retryData.response || retryData.message;
+                                    const retryMessage = retryMessageRaw
+                                      ? retryMessageRaw + formatOptionsAsText(retryData.options)
+                                      : null;
                                     if (retryMessage) {
                                       await supabase.functions.invoke("send-meta-whatsapp", {
                                         body: {
@@ -1293,10 +1296,11 @@ serve(async (req) => {
                                           phone_number: fromNumber,
                                           message: retryMessage,
                                           conversation_id: conversation.id,
-                                          skip_db_save: true,
+                                          skip_db_save: false,
+                                          is_bot_message: true,
+                                          metadata: retryData.flowName ? { flow_id: retryData.flowId, flow_name: retryData.flowName } : undefined,
                                         },
                                       });
-                                      await supabase.from("messages").insert({ conversation_id: conversation.id, content: retryMessage, sender_type: "system", message_type: "text" });
                                     }
                                     const retryDept = retryData.departmentId || retryData.department;
                                     if ((retryData.transfer === true || retryData.action === 'transfer') && retryDept) {

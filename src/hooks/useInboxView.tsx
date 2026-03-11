@@ -354,21 +354,24 @@ export function useInboxView(filters?: InboxFilters, scope: InboxScope = 'active
     assignedTo: filters?.assignedTo,
   } : {};
 
+  const tagsKey = filters?.tags && filters.tags.length > 0 ? [...filters.tags].sort().join(',') : undefined;
+
   const fetchOptions = useMemo(() => ({
     userId: user?.id,
     role,
     departmentIds,
     scope,
+    tags: filters?.tags,
     ...archivedFilters,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [user?.id, role, departmentIds, scope, filters?.aiMode, filters?.dateRange, filters?.channels?.join(','), filters?.department, filters?.assignedTo]);
+  }), [user?.id, role, departmentIds, scope, filters?.aiMode, filters?.dateRange, filters?.channels?.join(','), filters?.department, filters?.assignedTo, tagsKey]);
 
   const fetchOptionsRef = useRef(fetchOptions);
   fetchOptionsRef.current = fetchOptions;
 
-  // ✅ queryKey inclui todos os filtros aplicados no banco para archived
+  // ✅ queryKey inclui todos os filtros aplicados no banco para archived + tags
   const query = useQuery({
-    queryKey: [...QUERY_KEY, user?.id, role, deptKey, scope,
+    queryKey: [...QUERY_KEY, user?.id, role, deptKey, scope, tagsKey,
       ...(scope === 'archived' ? [
         filters?.aiMode,
         filters?.dateRange?.from?.toISOString(),
@@ -396,13 +399,10 @@ export function useInboxView(filters?: InboxFilters, scope: InboxScope = 'active
     enabled: !!user && !roleLoading && !deptLoading,
   });
 
-  // ✅ Tag lookup separado (async -> próprio hook/query)
-  const tagIdsSet = useTagConversationIds(filters?.tags);
-
   // ✅ Filtragem instantânea via useMemo (0ms, sem rede)
   const filteredData = useMemo(
-    () => applyFilters(query.data ?? [], filters, tagIdsSet, scope),
-    [query.data, filters, tagIdsSet, scope]
+    () => applyFilters(query.data ?? [], filters, undefined, scope),
+    [query.data, filters, scope]
   );
 
   // Realtime subscription com merge incremental e catch-up

@@ -4333,8 +4333,7 @@ Responda APENAS: skip ou search`
           });
           // NÃO retorna flow_advance_needed — continua execução normal
           // A IA responderá usando persona + contexto da conversa + conhecimento geral
-        }
-        
+        } else {
         // Executar handoff direto (sem flow_context — comportamento original preservado)
         const handoffTimestamp = new Date().toISOString();
         await supabaseClient

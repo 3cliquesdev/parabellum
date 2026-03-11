@@ -51,8 +51,27 @@ function matchAskOption(
     opt.label.toLowerCase() === normalized ||
     (opt.value && opt.value.toLowerCase() === normalized)
   );
-  
-  return exactMatch || null;
+  if (exactMatch) return exactMatch;
+
+  // 3️⃣ Resposta começa com o label da opção
+  // Ex: "Não sou cliente" → match "Não"
+  const startsWithMatch = options.find(opt => {
+    const label = opt.label.toLowerCase();
+    return normalized.startsWith(label + ' ') || normalized.startsWith(label + ',') || normalized.startsWith(label + '.');
+  });
+  if (startsWithMatch) return startsWithMatch;
+
+  // 4️⃣ Label contido na resposta como palavra (somente se unambíguo)
+  // Ex: "eu quero sim" → match "Sim" (mas só se 1 opção bate)
+  const containsMatches = options.filter(opt => {
+    const label = opt.label.toLowerCase();
+    if (label.length < 2) return false; // Evita match de labels muito curtos
+    const regex = new RegExp(`\\b${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    return regex.test(normalized);
+  });
+  if (containsMatches.length === 1) return containsMatches[0];
+
+  return null;
 }
 
 // Validadores

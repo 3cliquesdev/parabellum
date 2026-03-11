@@ -513,7 +513,37 @@ async function callPipeline(
         );
 
         if (!autopilotResponse.ok) {
-          console.error("[process-buffered-messages] ❌ ai-autopilot-chat error:", await autopilotResponse.text());
+          const gErrorText = await autopilotResponse.text();
+          console.error("[process-buffered-messages] ❌ ai-autopilot-chat (global) error:", autopilotResponse.status, gErrorText);
+          // FIX 1 (global path): Não matar em quota error
+          let isGlobalQuotaError = autopilotResponse.status === 503 || autopilotResponse.status === 429;
+          try {
+            const gErr = JSON.parse(gErrorText);
+            if (gErr.status === 'quota_error' || gErr.code === 'QUOTA_EXCEEDED' || gErr.retry_suggested === true) {
+              isGlobalQuotaError = true;
+            }
+          } catch { /* non-JSON */ }
+          if (isGlobalQuotaError) {
+            console.warn("[process-buffered-messages] ⚠️ QUOTA ERROR (global) — retry no próximo ciclo");
+            const retryCount = await incrementBufferRetryCount(supabase, conversationId);
+            if (retryCount >= 3) {
+              console.warn(`[process-buffered-messages] 🚨 Conv ${conversationId}: ${retryCount} retries (global) — enviando msg`);
+              if (instanceId && fromNumber) {
+                await supabase.functions.invoke("send-meta-whatsapp", {
+                  body: {
+                    instance_id: instanceId,
+                    phone_number: fromNumber,
+                    message: "Estamos com alta demanda no momento. Sua mensagem será respondida em breve. Agradecemos a paciência! 🙏",
+                    conversation_id: conversationId,
+                    skip_db_save: false,
+                    is_bot_message: true,
+                  },
+                });
+              }
+              return true;
+            }
+            return false;
+          }
           return false;
         }
       } else if (flowResult.response && instanceId && fromNumber) {

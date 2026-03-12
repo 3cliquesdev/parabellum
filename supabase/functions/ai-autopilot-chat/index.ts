@@ -1311,12 +1311,14 @@ Se for apenas dúvida → responda normalmente usando a Base de Conhecimento.`;
     restrictions += `\n\n💼 TRAVA CONSULTOR ATIVA:
 Se o cliente solicitar FALAR COM CONSULTOR claramente (ex: "quero meu consultor", "falar com consultor"), responda:
 "Certo! Vou te conectar com seu consultor."
-E retorne [[FLOW_EXIT]] imediatamente.
+E retorne [[FLOW_EXIT:consultor]] imediatamente.
 
 🔍 DESAMBIGUAÇÃO CONSULTOR OBRIGATÓRIA:
 Se o cliente mencionar termos como consultor, assessor, gestor ou estratégia sem deixar claro a intenção, você DEVE perguntar:
 "Você deseja falar com um consultor para saber estratégias de vendas? Ou quer um atendimento normal pela equipe de suporte?"
-Nunca assuma a intenção do cliente — sempre pergunte quando houver ambiguidade.`;
+Nunca assuma a intenção do cliente — sempre pergunte quando houver ambiguidade.
+Se o cliente confirmar que quer FALAR COM CONSULTOR → responda com [[FLOW_EXIT:consultor]]
+Se for apenas dúvida → responda normalmente usando a Base de Conhecimento.`;
   }
   
   restrictions += `

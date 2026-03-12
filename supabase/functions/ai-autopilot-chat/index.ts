@@ -3972,8 +3972,8 @@ serve(async (req) => {
       
       const tryModel = async (model: string, attempt: string, overridePayload?: Record<string, any>) => {
         const attemptPayload = overridePayload ? { ...overridePayload } : { ...finalPayload };
-        // Reasoning models não suportam max_tokens nem temperature
-        if (REASONING_MODELS.has(model)) {
+        // Models that don't support max_tokens / temperature
+        if (MAX_COMPLETION_TOKEN_MODELS.has(model)) {
           if (attemptPayload.max_tokens) {
             attemptPayload.max_completion_tokens = attemptPayload.max_tokens;
             delete attemptPayload.max_tokens;

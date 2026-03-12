@@ -50,7 +50,7 @@ async function getConfiguredAIModel(supabase: any): Promise<string> {
     return model;
   } catch (error) {
     console.error('[sandbox-chat] Error fetching AI model config:', error);
-    return 'gpt-4o-mini';
+    return 'gpt-5-mini';
   }
 }
 

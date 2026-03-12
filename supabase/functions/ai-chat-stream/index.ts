@@ -20,16 +20,7 @@ interface StreamRequest {
 
 // Helper: Buscar modelo AI configurado
 async function getConfiguredAIModel(supabaseClient: any): Promise<string> {
-  try {
-    const { data } = await supabaseClient
-      .from('system_configurations')
-      .select('value')
-      .eq('key', 'ai_default_model')
-      .maybeSingle();
-    return data?.value || 'google/gemini-3-flash-preview';
-  } catch {
-    return 'google/gemini-3-flash-preview';
-  }
+  return 'gpt-4o-mini';
 }
 
 // Helper: Buscar persona ativa

@@ -2328,6 +2328,34 @@ serve(async (req) => {
           delete collectedData.__ai;
         }
 
+        if (consultorIntentMatch) {
+          console.log(`[process-chat-flow] 💼 TRAVA CONSULTOR: Intenção de consultor detectada no nó AI, tratando como exit`);
+          
+          try {
+            await supabaseClient
+              .from('ai_events')
+              .insert({
+                entity_type: 'conversation',
+                entity_id: conversationId,
+                event_type: 'ai_blocked_consultant',
+                model: 'process-chat-flow',
+                output_json: {
+                  phase: 'flow_node_exit',
+                  node_id: currentNode.id,
+                  flow_id: activeState.flow_id,
+                  interaction_count: aiCount,
+                  has_consultant: consultorHasConsultant,
+                  message_preview: (userMessage || '').substring(0, 200),
+                },
+                input_summary: (userMessage || '').substring(0, 200),
+              });
+          } catch (logErr) {
+            console.error('[process-chat-flow] ⚠️ Failed to log consultant block event:', logErr);
+          }
+
+          delete collectedData.__ai;
+        }
+
         // Verificar exit keyword (word-boundary match — evita falso positivo por substring)
         const keywordMatch = !financialIntentMatch && !commercialIntentMatch && !cancellationIntentMatch && !supportIntentMatch && exitKeywords.length > 0 && exitKeywords.some((kw: string) => {
           const kwClean = String(kw || '').toLowerCase().trim();

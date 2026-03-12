@@ -3766,8 +3766,8 @@ serve(async (req) => {
     const configuredAIModel = ragConfig.model;
     console.log(`[ai-autopilot-chat] Using AI model: ${configuredAIModel}`);
     
-    if (!OPENAI_API_KEY && !LOVABLE_API_KEY) {
-      throw new Error('Nenhuma API key configurada (OPENAI_API_KEY ou LOVABLE_API_KEY)');
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY não configurada');
     }
     
     // Helper: Fetch com timeout de 60 segundos
@@ -3786,54 +3786,25 @@ serve(async (req) => {
       }
     };
 
-    // Helper: Chamar IA com fallback resiliente OpenAI → Lovable AI
+    // Helper: Chamar IA com OpenAI direta
     const callAIWithFallback = async (payload: any) => {
-      if (OPENAI_API_KEY) {
-        try {
-          const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${OPENAI_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ model: 'gpt-4o-mini', ...payload }),
-          }, 60000);
-          
-          if (response.ok) {
-            return await response.json();
-          }
-          
-          if (response.status === 429 || response.status === 401) {
-            throw new Error('OpenAI unavailable');
-          }
-          
-          throw new Error(`OpenAI error: ${response.status}`);
-        } catch (error) {
-          // Continue para fallback
-        }
-      }
-      
-      if (!LOVABLE_API_KEY) {
-        throw new Error('Nenhuma API key configurada');
-      }
-      
-      const fallbackResponse = await fetchWithTimeout('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ model: configuredAIModel, ...payload }),
+        body: JSON.stringify({ model: 'gpt-4o-mini', ...payload }),
       }, 60000);
       
-      if (!fallbackResponse.ok) {
-        if (fallbackResponse.status === 429) {
+      if (!response.ok) {
+        if (response.status === 429) {
           throw new Error('QUOTA_ERROR: Erro de Saldo/Cota na IA.');
         }
-        throw new Error(`Lovable AI failed: ${fallbackResponse.status}`);
+        throw new Error(`OpenAI error: ${response.status}`);
       }
       
-      return await fallbackResponse.json();
+      return await response.json();
     }
     
     // ============================================================

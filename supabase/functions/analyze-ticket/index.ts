@@ -6,31 +6,8 @@ const corsHeaders = {
 };
 
 // Helper: Buscar modelo AI configurado no banco
-async function getConfiguredAIModel(): Promise<string> {
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    // Se as envs não existirem, não tentar inicializar client (evita falha no boot)
-    if (!supabaseUrl || !serviceRoleKey) {
-      console.warn('[analyze-ticket] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY; using default model');
-      return 'google/gemini-2.5-flash-lite';
-    }
-
-    const supabaseClient = createClient(supabaseUrl, serviceRoleKey);
-    
-    const { data } = await supabaseClient
-      .from('system_configurations')
-      .select('value')
-      .eq('key', 'ai_default_model')
-      .maybeSingle();
-    
-    return data?.value || 'google/gemini-2.5-flash-lite';
-  } catch (error) {
-    console.error('[analyze-ticket] Error fetching AI model config:', error);
-    return 'google/gemini-2.5-flash-lite';
-  }
-}
+// Modelo padrão OpenAI
+const DEFAULT_MODEL = 'gpt-4o-mini';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -39,14 +16,13 @@ Deno.serve(async (req) => {
 
   try {
     const { mode, messages, description, ticketSubject } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured');
     }
     
-    // Buscar modelo configurado dinamicamente
-    const aiModel = await getConfiguredAIModel();
+    const aiModel = DEFAULT_MODEL;
     console.log(`[analyze-ticket] Using AI model: ${aiModel}`);
 
     let systemPrompt = '';
@@ -142,11 +118,11 @@ Responda apenas com as tags separadas por vírgula (ex: Bug, Técnico, Urgente)`
       ]);
     };
 
-    // Call AI Gateway with timeout protection
-    const response = await fetchWithTimeout('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Call OpenAI with timeout protection
+    const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

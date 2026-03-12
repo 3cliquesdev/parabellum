@@ -148,7 +148,7 @@ Responda APENAS: skip ou search`
         };
 
         let intentResponse;
-        if (aiProvider === 'openai' && OPENAI_API_KEY) {
+        if (OPENAI_API_KEY) {
           const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -156,16 +156,6 @@ Responda APENAS: skip ou search`
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ model: 'gpt-4o-mini', ...intentPayload }),
-          });
-          intentResponse = await res.json();
-        } else if (LOVABLE_API_KEY) {
-          const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ model: 'openai/gpt-5-mini', ...intentPayload }),
           });
           intentResponse = await res.json();
         }
@@ -404,77 +394,36 @@ Você está conversando com um cliente identificado. Use essas informações par
     let actualProvider = aiProvider;
     let aiResponse: Response | null = null;
 
-    if (aiProvider === 'openai') {
+    if (aiProvider === 'openai' || !aiResponse) {
       if (!OPENAI_API_KEY) {
-        console.log('[sandbox-chat] OpenAI key not found, falling back to Lovable AI');
-        actualProvider = 'lovable';
-      } else {
-        console.log('[sandbox-chat] Calling OpenAI (gpt-4o-mini)');
-        
-        const openaiPayload: any = {
-          model: "gpt-4o-mini",
-          messages: aiMessages,
-          temperature: persona.temperature || 0.7,
-          max_completion_tokens: persona.max_tokens || 500,
-        };
-
-        if (tools.length > 0) {
-          openaiPayload.tools = tools;
-        }
-
-        aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(openaiPayload),
-        });
-
-        if (!aiResponse.ok) {
-          console.log('[sandbox-chat] OpenAI failed, falling back to Lovable AI');
-          actualProvider = 'lovable';
-        }
-      }
-    }
-
-    if (actualProvider === 'lovable' || !aiResponse) {
-      if (!LOVABLE_API_KEY) {
-        throw new Error('LOVABLE_API_KEY not configured');
+        throw new Error('OPENAI_API_KEY not configured');
       }
 
-      console.log(`[sandbox-chat] Calling Lovable AI (${configuredModel})`);
-
-      // Modelos OpenAI via Lovable AI não suportam temperature customizada
-      const isOpenAIModel = configuredModel.startsWith('openai/');
+      console.log('[sandbox-chat] Calling OpenAI (gpt-4o-mini)');
       
-      const aiPayload: any = {
-        model: configuredModel,
+      const openaiPayload: any = {
+        model: "gpt-4o-mini",
         messages: aiMessages,
+        temperature: persona.temperature || 0.7,
         max_completion_tokens: persona.max_tokens || 500,
       };
 
-      // Apenas adicionar temperature para modelos que suportam (Gemini)
-      if (!isOpenAIModel) {
-        aiPayload.temperature = persona.temperature ?? 0.7;
-      }
-
       if (tools.length > 0) {
-        aiPayload.tools = tools;
+        openaiPayload.tools = tools;
       }
 
-      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(aiPayload),
+        body: JSON.stringify(openaiPayload),
       });
     }
 
     if (!aiResponse) {
-      throw new Error('No AI response received from any provider');
+      throw new Error('No AI response received');
     }
 
     if (!aiResponse.ok) {

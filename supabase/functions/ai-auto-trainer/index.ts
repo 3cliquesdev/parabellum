@@ -8,16 +8,7 @@ const corsHeaders = {
 
 // Helper para buscar modelo AI configurado
 async function getConfiguredAIModel(supabase: any): Promise<string> {
-  try {
-    const { data } = await supabase
-      .from('system_configurations')
-      .select('value')
-      .eq('key', 'ai_model_analysis')
-      .single();
-    return data?.value || 'openai/gpt-5-mini';
-  } catch {
-    return 'openai/gpt-5-mini';
-  }
+  return 'gpt-4o-mini';
 }
 
 // Gerar embedding usando OpenAI

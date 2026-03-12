@@ -306,6 +306,42 @@ function logSourceViolationIfAny(
 }
 
 // ============================================================
+// 🛡️ HELPER: Safe JSON parse para argumentos de tool calls do LLM
+// Limpa markdown fences, trailing commas, control chars
+// ============================================================
+function safeParseToolArgs(rawArgs: string): any {
+  let cleaned = rawArgs;
+  
+  // 1. Remover markdown code fences (```json ... ```)
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+  
+  // 2. Remover BOM e control characters (exceto \n, \r, \t)
+  cleaned = cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  
+  // 3. Tentar parse direto
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {
+    // continuar para correções
+  }
+  
+  // 4. Corrigir trailing commas antes de } ou ]
+  cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+  
+  // 5. Tentar novamente
+  try {
+    return JSON.parse(cleaned);
+  } catch (finalErr) {
+    console.error('[safeParseToolArgs] ❌ Parse falhou mesmo após limpeza:', {
+      original: rawArgs.substring(0, 200),
+      cleaned: cleaned.substring(0, 200),
+      error: finalErr instanceof Error ? finalErr.message : String(finalErr)
+    });
+    throw new Error(`Failed to parse tool arguments: ${finalErr instanceof Error ? finalErr.message : 'unknown'}`);
+  }
+}
+
+// ============================================================
 // 🔢 HELPER: Formatar opções de múltipla escolha como texto
 // Transforma array de opções em lista numerada com emojis
 // ============================================================

@@ -419,11 +419,14 @@ Você está conversando com um cliente identificado. Use essas informações par
 
       console.log('[sandbox-chat] Calling OpenAI with model:', configuredModel);
       
+      const isReasoningModel = ['o3', 'o3-mini', 'o4-mini'].includes(configuredModel);
       const openaiPayload: any = {
         model: configuredModel,
         messages: aiMessages,
-        temperature: persona.temperature || 0.7,
-        max_completion_tokens: persona.max_tokens || 500,
+        temperature: isReasoningModel ? undefined : (persona.temperature || 0.7),
+        ...(isReasoningModel
+          ? { max_completion_tokens: persona.max_tokens || 500 }
+          : { max_tokens: persona.max_tokens || 500 }),
       };
 
       if (tools.length > 0) {

@@ -937,7 +937,7 @@ serve(async (req) => {
       // até encontrar o primeiro nó executável (message/ask_options/ai_response/transfer)
       // Reutiliza a mesma lógica do Master Flow para consistência
       // ============================================================
-      const NO_CONTENT_MANUAL = new Set(['input', 'start', 'condition', 'condition_v2']);
+      const NO_CONTENT_MANUAL = new Set(['input', 'start', 'condition', 'condition_v2', 'validate_customer']);
       const MAX_TRAVERSAL_MANUAL = 12;
 
       // Carregar dados de contato/conversa para avaliação de condições
@@ -1077,6 +1077,81 @@ serve(async (req) => {
 
           if (!next) {
             console.log('[process-chat-flow] ⚠️ Manual traversal: no next node for condition');
+            break;
+          }
+          contentNode = next;
+        } else if (contentNode.type === 'validate_customer') {
+          // 🛡️ Execute Kiwify validation inline during manual traversal
+          console.log('[process-chat-flow] 🛡️ Manual traverse: executing validate_customer inline');
+          const vcSupabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const vcSupabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          
+          const vcValidatedKey = contentNode.data?.save_validated_as || 'customer_validated';
+          const vcNameKey = contentNode.data?.save_customer_name_as || 'customer_name_found';
+          const vcEmailKey = contentNode.data?.save_customer_email_as || 'customer_email_found';
+          
+          let vcFound = false;
+          let vcName = '';
+          let vcEmail = '';
+
+          if (manualContactData && !manualContactData.kiwify_validated) {
+            const vcPromises: Promise<any>[] = [];
+            if (contentNode.data?.validate_phone !== false && (manualContactData.phone || manualContactData.whatsapp_id)) {
+              vcPromises.push(
+                fetch(`${vcSupabaseUrl}/functions/v1/validate-by-kiwify-phone`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${vcSupabaseKey}` },
+                  body: JSON.stringify({ phone: manualContactData.phone, whatsapp_id: manualContactData.whatsapp_id, contact_id: manualConversation?.contact_id })
+                }).then(r => r.json()).catch(() => ({ found: false }))
+              );
+            }
+            if (contentNode.data?.validate_email !== false && manualContactData.email) {
+              vcPromises.push(
+                fetch(`${vcSupabaseUrl}/functions/v1/verify-customer-email`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${vcSupabaseKey}` },
+                  body: JSON.stringify({ email: manualContactData.email, contact_id: manualConversation?.contact_id })
+                }).then(r => r.json()).catch(() => ({ found: false }))
+              );
+            }
+            if (contentNode.data?.validate_cpf === true && manualContactData.document) {
+              vcPromises.push(
+                fetch(`${vcSupabaseUrl}/functions/v1/validate-by-cpf`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${vcSupabaseKey}` },
+                  body: JSON.stringify({ cpf: manualContactData.document, contact_id: manualConversation?.contact_id })
+                }).then(r => r.json()).catch(() => ({ found: false }))
+              );
+            }
+            if (vcPromises.length > 0) {
+              const results = await Promise.allSettled(vcPromises);
+              for (const r of results) {
+                if (r.status === 'fulfilled' && r.value?.found) {
+                  vcFound = true;
+                  if (r.value.customer?.name) vcName = r.value.customer.name;
+                  if (r.value.customer?.email) vcEmail = r.value.customer.email;
+                }
+              }
+            }
+            if (vcFound && manualConversation?.contact_id) {
+              await supabaseClient.from('contacts').update({ kiwify_validated: true, status: 'customer' }).eq('id', manualConversation.contact_id);
+              manualContactData.kiwify_validated = true;
+              console.log('[process-chat-flow] ✅ Manual traverse: contact promoted to customer');
+            }
+          } else if (manualContactData?.kiwify_validated) {
+            vcFound = true;
+            vcName = [manualContactData.first_name, manualContactData.last_name].filter(Boolean).join(' ');
+            vcEmail = manualContactData.email || '';
+          }
+
+          manualCollectedData[vcValidatedKey] = vcFound;
+          manualCollectedData[vcNameKey] = vcName;
+          manualCollectedData[vcEmailKey] = vcEmail;
+          console.log('[process-chat-flow] 🛡️ Manual validate result:', { vcFound, vcName, vcEmail });
+
+          const next = findNextNode(flowDef, contentNode);
+          if (!next) {
+            console.log('[process-chat-flow] ⚠️ Manual traversal: no next node after validate_customer');
             break;
           }
           contentNode = next;
@@ -3836,7 +3911,7 @@ serve(async (req) => {
         // 4. Logs fortes para diagnóstico
         // ============================================================
         
-        const NO_CONTENT = new Set(['input', 'start', 'condition', 'condition_v2']);
+        const NO_CONTENT = new Set(['input', 'start', 'condition', 'condition_v2', 'validate_customer']);
         const MAX_TRAVERSAL = 12;
 
         // 1) Descobrir startNode
@@ -3954,6 +4029,83 @@ serve(async (req) => {
 
             if (!next) {
               console.log('[process-chat-flow] ⚠️ No next node for condition - stopping traversal');
+              break;
+            }
+            node = next;
+          } else if (node.type === 'validate_customer') {
+            // 🛡️ Execute Kiwify validation inline during traversal
+            console.log('[process-chat-flow] 🛡️ Master traverse: executing validate_customer inline');
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+            const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+            
+            const validatedKey = node.data?.save_validated_as || 'customer_validated';
+            const nameKey = node.data?.save_customer_name_as || 'customer_name_found';
+            const emailKey = node.data?.save_customer_email_as || 'customer_email_found';
+            
+            let vcFound = false;
+            let vcName = '';
+            let vcEmail = '';
+
+            if (contactData && !contactData.kiwify_validated) {
+              const vcPromises: Promise<any>[] = [];
+              if (node.data?.validate_phone !== false && (contactData.phone || contactData.whatsapp_id)) {
+                vcPromises.push(
+                  fetch(`${supabaseUrl}/functions/v1/validate-by-kiwify-phone`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+                    body: JSON.stringify({ phone: contactData.phone, whatsapp_id: contactData.whatsapp_id, contact_id: conversation?.contact_id })
+                  }).then(r => r.json()).catch(() => ({ found: false }))
+                );
+              }
+              if (node.data?.validate_email !== false && contactData.email) {
+                vcPromises.push(
+                  fetch(`${supabaseUrl}/functions/v1/verify-customer-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+                    body: JSON.stringify({ email: contactData.email, contact_id: conversation?.contact_id })
+                  }).then(r => r.json()).catch(() => ({ found: false }))
+                );
+              }
+              if (node.data?.validate_cpf === true && contactData.document) {
+                vcPromises.push(
+                  fetch(`${supabaseUrl}/functions/v1/validate-by-cpf`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+                    body: JSON.stringify({ cpf: contactData.document, contact_id: conversation?.contact_id })
+                  }).then(r => r.json()).catch(() => ({ found: false }))
+                );
+              }
+              if (vcPromises.length > 0) {
+                const results = await Promise.allSettled(vcPromises);
+                for (const r of results) {
+                  if (r.status === 'fulfilled' && r.value?.found) {
+                    vcFound = true;
+                    if (r.value.customer?.name) vcName = r.value.customer.name;
+                    if (r.value.customer?.email) vcEmail = r.value.customer.email;
+                  }
+                }
+              }
+              if (vcFound && conversation?.contact_id) {
+                await supabaseClient.from('contacts').update({ kiwify_validated: true, status: 'customer' }).eq('id', conversation.contact_id);
+                // Refresh contactData
+                contactData.kiwify_validated = true;
+                contactData.status = 'customer';
+                console.log('[process-chat-flow] ✅ Master traverse: contact promoted to customer');
+              }
+            } else if (contactData?.kiwify_validated) {
+              vcFound = true;
+              vcName = [contactData.first_name, contactData.last_name].filter(Boolean).join(' ');
+              vcEmail = contactData.email || '';
+            }
+
+            collectedData[validatedKey] = vcFound;
+            collectedData[nameKey] = vcName;
+            collectedData[emailKey] = vcEmail;
+            console.log('[process-chat-flow] 🛡️ Validate result:', { vcFound, vcName, vcEmail });
+
+            const next = findNextNode(flowDef, node);
+            if (!next) {
+              console.log('[process-chat-flow] ⚠️ No next node after validate_customer');
               break;
             }
             node = next;

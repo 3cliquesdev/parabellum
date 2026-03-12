@@ -734,7 +734,7 @@ serve(async (req) => {
                     },
                     body: JSON.stringify({
                       conversationId: conversation.id,
-                      userMessage: messageContent,
+                      customerMessage: messageContent,
                     }),
                   }
                 );
@@ -1250,7 +1250,7 @@ serve(async (req) => {
                                   },
                                   body: JSON.stringify({
                                     conversationId: conversation.id,
-                                    userMessage: messageContent,
+                                    customerMessage: messageContent,
                                     forceFinancialExit: true,
                                     intentData: { ai_exit_intent: 'financeiro' },
                                   }),
@@ -1317,7 +1317,7 @@ serve(async (req) => {
                                       },
                                       body: JSON.stringify({
                                         conversationId: conversation.id,
-                                        userMessage: messageContent,
+                                        customerMessage: messageContent,
                                         forceFinancialExit: true,
                                         intentData: { ai_exit_intent: 'financeiro' },
                                       }),
@@ -1458,7 +1458,7 @@ serve(async (req) => {
                                   },
                                   body: JSON.stringify({
                                     conversationId: conversation.id,
-                                    userMessage: messageContent,
+                                    customerMessage: messageContent,
                                     forceCommercialExit: true,
                                     intentData: { ai_exit_intent: 'comercial' },
                                   }),
@@ -1522,7 +1522,7 @@ serve(async (req) => {
                                       },
                                       body: JSON.stringify({
                                         conversationId: conversation.id,
-                                        userMessage: messageContent,
+                                        customerMessage: messageContent,
                                         forceCommercialExit: true,
                                         intentData: { ai_exit_intent: 'comercial' },
                                       }),
@@ -1633,7 +1633,7 @@ serve(async (req) => {
                                   },
                                   body: JSON.stringify({
                                     conversationId: conversation.id,
-                                    userMessage: messageContent,
+                                    customerMessage: messageContent,
                                     forceCancellationExit: true,
                                     intentData: { ai_exit_intent: 'cancelamento' },
                                   }),
@@ -1697,7 +1697,7 @@ serve(async (req) => {
                                       },
                                       body: JSON.stringify({
                                         conversationId: conversation.id,
-                                        userMessage: messageContent,
+                                        customerMessage: messageContent,
                                         forceCancellationExit: true,
                                         intentData: { ai_exit_intent: 'cancelamento' },
                                       }),
@@ -1824,7 +1824,7 @@ serve(async (req) => {
                                 },
                                 body: JSON.stringify({
                                   conversationId: conversation.id,
-                                  userMessage: messageContent,
+                                  customerMessage: messageContent,
                                   forceAIExit: true,
                                   ...(autopilotData?.ai_exit_intent ? { intentData: { ai_exit_intent: autopilotData.ai_exit_intent } } : {}),
                                 }),
@@ -1966,7 +1966,7 @@ serve(async (req) => {
                                   await supabase.functions.invoke("ai-autopilot-chat", {
                                     body: {
                                       conversationId: conversation.id,
-                                      userMessage: messageContent,
+                                      customerMessage: messageContent,
                                       flow_context: cvFlowResult.flow_context,
                                     },
                                   });
@@ -2002,7 +2002,7 @@ serve(async (req) => {
                                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
                                 body: JSON.stringify({
                                   conversationId: conversation.id,
-                                  userMessage: messageContent,
+                                  customerMessage: messageContent,
                                   forceAIExit: true,
                                   intentData: { ai_exit_intent: autopilotData.intentType },
                                 }),
@@ -2053,7 +2053,7 @@ serve(async (req) => {
                                 },
                                 body: JSON.stringify({
                                   conversationId: conversation.id,
-                                  userMessage: messageContent,
+                                  customerMessage: messageContent,
                                   forceAIExit: true,
                                 }),
                               }
@@ -2217,7 +2217,7 @@ serve(async (req) => {
                                   await supabase.functions.invoke("ai-autopilot-chat", {
                                     body: {
                                       conversationId: conversation.id,
-                                      userMessage: messageContent,
+                                      customerMessage: messageContent,
                                       flow_context: flowResult.flow_context,
                                     },
                                   });
@@ -2242,7 +2242,7 @@ serve(async (req) => {
                                     },
                                     body: JSON.stringify({
                                       conversationId: conversation.id,
-                                      userMessage: messageContent,
+                                      customerMessage: messageContent,
                                       forceAIExit: true,
                                     }),
                                   }
@@ -2267,7 +2267,7 @@ serve(async (req) => {
                                       await supabase.functions.invoke("ai-autopilot-chat", {
                                         body: {
                                           conversationId: conversation.id,
-                                          userMessage: messageContent,
+                                          customerMessage: messageContent,
                                           flow_context: retryData.flow_context,
                                         },
                                       });

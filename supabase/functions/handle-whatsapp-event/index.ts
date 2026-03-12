@@ -1251,7 +1251,7 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
       const { data: flowResult, error: flowError } = await supabase.functions.invoke('process-chat-flow', {
         body: {
           conversationId: conversationId,
-          userMessage: messageText
+          customerMessage: messageText
         }
       });
 
@@ -1353,7 +1353,7 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
               const { data: safetyResult, error: safetyError } = await supabase.functions.invoke('process-chat-flow', {
                 body: {
                   conversationId: conversationId,
-                  userMessage: messageText,
+                  customerMessage: messageText,
                   forceAIExit: true,
                 }
               });
@@ -1410,7 +1410,7 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
                 const { data: exitFlowResult, error: exitFlowError } = await supabase.functions.invoke('process-chat-flow', {
                   body: {
                     conversationId: conversationId,
-                    userMessage: messageText,
+                    customerMessage: messageText,
                     ...(aiResponse.financialBlocked ? { forceFinancialExit: true, intentData: { ai_exit_intent: 'financeiro' } } : {}),
                     ...(aiResponse.commercialBlocked ? { forceCommercialExit: true, intentData: { ai_exit_intent: 'comercial' } } : {}),
                     ...(aiResponse.cancellationBlocked ? { forceCancellationExit: true, intentData: { ai_exit_intent: 'cancelamento' } } : {}),

@@ -57,6 +57,38 @@ interface ConversationToClose {
   whatsapp_provider: string | null;
 }
 
+/**
+ * Verifica se o contato enviou mensagem recente (dentro do threshold de inatividade).
+ * Busca as últimas 3 mensagens para evitar que mensagens automáticas de bot
+ * (ex: "Sua conversa já está na fila") mascarem a atividade real do cliente.
+ * 
+ * Retorna true se o contato está ativo (NÃO deve fechar).
+ */
+async function isContactRecentlyActive(
+  supabase: any,
+  conversationId: string,
+  inactivityThresholdISO: string
+): Promise<boolean> {
+  const { data: recentMsgs } = await supabase
+    .from('messages')
+    .select('sender_type, created_at')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(3);
+
+  if (!recentMsgs || recentMsgs.length === 0) return false;
+
+  // Se qualquer uma das últimas 3 mensagens for do contato E foi enviada
+  // DEPOIS do threshold de inatividade, o contato está ativo
+  for (const msg of recentMsgs) {
+    if (msg.sender_type === 'contact' && msg.created_at > inactivityThresholdISO) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -310,18 +342,10 @@ Deno.serve(async (req) => {
 
       for (const conversation of conversations as ConversationToClose[]) {
         try {
-          // 4. Verificar se a última mensagem foi da IA (user/system) e não do cliente
-          const { data: lastMessage } = await supabase
-            .from('messages')
-            .select('sender_type, created_at')
-            .eq('conversation_id', conversation.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-          // Só fechar se a última mensagem foi da IA/sistema (cliente não respondeu)
-          if (!lastMessage || lastMessage.sender_type === 'contact') {
-            console.log(`[Auto-Close] Skipping ${conversation.id} - last message was from contact or no messages`);
+          // 4. Verificar se o contato enviou mensagem recente (últimas 3 msgs)
+          const contactActive = await isContactRecentlyActive(supabase, conversation.id, inactivityThreshold);
+          if (contactActive) {
+            console.log(`[Auto-Close] Skipping ${conversation.id} - contact recently active (last 3 msgs check)`);
             continue;
           }
 
@@ -447,17 +471,10 @@ Deno.serve(async (req) => {
           if (closedIds.includes(conv.id)) continue;
 
           try {
-            // Verificar última mensagem - só fechar se IA/sistema respondeu e cliente não
-            const { data: lastMsg } = await supabase
-              .from('messages')
-              .select('sender_type')
-              .eq('conversation_id', conv.id)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single();
-
-            if (!lastMsg || lastMsg.sender_type === 'contact') {
-              console.log(`[Auto-Close] AI skip ${conv.id} - last msg from contact`);
+            // Verificar se o contato enviou mensagem recente (últimas 3 msgs)
+            const contactActive = await isContactRecentlyActive(supabase, conv.id, aiThreshold);
+            if (contactActive) {
+              console.log(`[Auto-Close] AI skip ${conv.id} - contact recently active (last 3 msgs check)`);
               continue;
             }
 
@@ -548,17 +565,10 @@ Deno.serve(async (req) => {
           if (closedIds.includes(conv.id)) continue;
 
           try {
-            // Verificar última mensagem - só fechar se IA/sistema respondeu e cliente não
-            const { data: lastMsg } = await supabase
-              .from('messages')
-              .select('sender_type')
-              .eq('conversation_id', conv.id)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single();
-
-            if (!lastMsg || lastMsg.sender_type === 'contact') {
-              console.log(`[Auto-Close] No-dept skip ${conv.id} - last msg from contact`);
+            // Verificar se o contato enviou mensagem recente (últimas 3 msgs)
+            const contactActive = await isContactRecentlyActive(supabase, conv.id, noDeptThreshold);
+            if (contactActive) {
+              console.log(`[Auto-Close] No-dept skip ${conv.id} - contact recently active (last 3 msgs check)`);
               continue;
             }
 
@@ -652,17 +662,10 @@ Deno.serve(async (req) => {
             if (closedIds.includes(conv.id)) continue;
 
             try {
-              // Verificar última mensagem - só fechar se agente humano respondeu e cliente não
-              const { data: lastMsg } = await supabase
-                .from('messages')
-                .select('sender_type')
-                .eq('conversation_id', conv.id)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-
-              if (!lastMsg || lastMsg.sender_type === 'contact') {
-                console.log(`[Auto-Close] Human skip ${conv.id} - last msg from contact`);
+              // Verificar se o contato enviou mensagem recente (últimas 3 msgs)
+              const contactActive = await isContactRecentlyActive(supabase, conv.id, humanThreshold);
+              if (contactActive) {
+                console.log(`[Auto-Close] Human skip ${conv.id} - contact recently active (last 3 msgs check)`);
                 continue;
               }
 

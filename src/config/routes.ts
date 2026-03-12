@@ -1,11 +1,13 @@
 import {
   Activity,
-  LayoutDashboard, 
+  LayoutDashboard,
+  LayoutGrid,
   Inbox,
   Users, 
   Building2, 
   TrendingUp, 
   FileText,
+  FileBarChart,
   Settings,
   UserCog,
   Zap,
@@ -25,7 +27,7 @@ import {
   Receipt,
   RefreshCw,
   CheckCircle2,
-  
+  CreditCard,
   AlertTriangle,
   Crown,
   ClipboardList,
@@ -55,9 +57,9 @@ export const universalMenuGroups: MenuGroup[] = [
     label: "Visão Geral",
     items: [
       { title: "Dashboard", href: "/", icon: LayoutDashboard, permission: "dashboard.view" },
-      { title: "Painéis Dinâmicos", href: "/dashboards", icon: LayoutDashboard, permission: "analytics.view" },
-      { title: "Assinaturas", href: "/subscriptions", icon: RefreshCw, permission: "analytics.view" },
-      { title: "Report Builder", href: "/report-builder", icon: FileText, permission: "analytics.view" },
+      { title: "Painéis Dinâmicos", href: "/dashboards", icon: LayoutGrid, permission: "analytics.view" },
+      { title: "Assinaturas", href: "/subscriptions", icon: CreditCard, permission: "analytics.view" },
+      { title: "Report Builder", href: "/report-builder", icon: FileBarChart, permission: "analytics.view" },
     ]
   },
   {

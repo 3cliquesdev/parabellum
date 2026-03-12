@@ -7,6 +7,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Valid OpenAI models
+const VALID_OPENAI_MODELS = new Set([
+  'gpt-4o', 'gpt-4o-mini',
+  'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
+  'gpt-5', 'gpt-5-mini', 'gpt-5-nano',
+  'o3', 'o3-mini', 'o4-mini',
+]);
+
+const REASONING_MODELS = new Set(['o3', 'o3-mini', 'o4-mini']);
+
 // Helper: Buscar modelo AI configurado no banco
 async function getConfiguredAIModel(supabase: any): Promise<string> {
   try {
@@ -16,8 +26,9 @@ async function getConfiguredAIModel(supabase: any): Promise<string> {
       .eq('key', 'ai_default_model')
       .maybeSingle();
     
-    // Converter modelos gateway para modelos OpenAI reais
     const model = data?.value || 'gpt-4o-mini';
+    if (VALID_OPENAI_MODELS.has(model)) return model;
+    // Legacy gateway names → fallback
     if (model.startsWith('openai/') || model.startsWith('google/')) {
       return 'gpt-4o-mini';
     }

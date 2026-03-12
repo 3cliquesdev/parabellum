@@ -3824,15 +3824,24 @@ serve(async (req) => {
       }
     };
 
-    // Helper: Chamar IA com OpenAI direta
+    // Helper: Chamar IA com OpenAI direta (usa modelo configurado)
     const callAIWithFallback = async (payload: any) => {
+      const configuredModel = sanitizeModelName(ragConfig.model);
+      
+      // Reasoning models: convert max_tokens → max_completion_tokens
+      const finalPayload = { ...payload };
+      if (REASONING_MODELS.has(configuredModel) && finalPayload.max_tokens) {
+        finalPayload.max_completion_tokens = finalPayload.max_tokens;
+        delete finalPayload.max_tokens;
+      }
+      
       const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ model: 'gpt-4o-mini', ...payload }),
+        body: JSON.stringify({ model: configuredModel, ...finalPayload }),
       }, 60000);
       
       if (!response.ok) {

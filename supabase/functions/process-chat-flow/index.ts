@@ -1386,11 +1386,13 @@ serve(async (req) => {
           }).eq('id', newState.id);
 
           // Enviar código OTP
-          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
+          const otpSendResZ1 = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
-            body: JSON.stringify({ email: preEmail }),
+            body: JSON.stringify({ email: preEmail, type: 'customer' }),
           });
+          const otpSendBodyZ1 = await otpSendResZ1.text();
+          if (!otpSendResZ1.ok) { console.error('[process-chat-flow] ⚠️ Failed to send OTP [manual]:', otpSendBodyZ1); }
 
           const otpSentMsg = contentNode.data?.message_otp_sent
             ? contentNode.data.message_otp_sent.replace(/\{\{email\}\}/g, preEmail)
@@ -1719,11 +1721,13 @@ serve(async (req) => {
               collectedData.__otp_customer_name = verifyData.customer?.name || '';
               collectedData.__otp_customer_id = verifyData.customer?.id || '';
 
-              await fetch(`${supabaseUrl}/functions/v1/send-verification-code`, {
+              const otpSendResWC = await fetch(`${supabaseUrl}/functions/v1/send-verification-code`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
-                body: JSON.stringify({ email: emailInput }),
+                body: JSON.stringify({ email: emailInput, type: 'customer' }),
               });
+              const otpSendBodyWC = await otpSendResWC.text();
+              if (!otpSendResWC.ok) { console.error('[process-chat-flow] ⚠️ Failed to send OTP [wait_code]:', otpSendBodyWC); }
 
               collectedData.__otp_step = 'wait_code';
               collectedData.__otp_attempts = 0;
@@ -2598,10 +2602,12 @@ serve(async (req) => {
             await supabaseClient.from('chat_flow_states').update({
               collected_data: collectedData, current_node_id: nextNode.id, status: 'waiting_input', updated_at: new Date().toISOString(),
             }).eq('id', activeState.id);
-            await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
+            const otpSendResZ2 = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
               method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
-              body: JSON.stringify({ email: preEmail }),
+              body: JSON.stringify({ email: preEmail, type: 'customer' }),
             });
+            const otpSendBodyZ2 = await otpSendResZ2.text();
+            if (!otpSendResZ2.ok) { console.error('[process-chat-flow] ⚠️ Failed to send OTP [generic]:', otpSendBodyZ2); }
             const otpSentMsg = nextNode.data?.message_otp_sent
               ? nextNode.data.message_otp_sent.replace(/\{\{email\}\}/g, preEmail)
               : `Enviamos um código de verificação para seu email de cadastro. Digite o código:`;
@@ -2796,10 +2802,12 @@ serve(async (req) => {
               collectedData.__otp_email = preEmail;
               collectedData.__otp_customer_name = collectedData.customer_name_found || '';
               await supabaseClient.from('chat_flow_states').update({ collected_data: collectedData, current_node_id: nextNode.id, status: 'waiting_input', updated_at: new Date().toISOString() }).eq('id', activeState.id);
-              await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
+              const otpSendResZ3 = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
-                body: JSON.stringify({ email: preEmail }),
+                body: JSON.stringify({ email: preEmail, type: 'customer' }),
               });
+              const otpSendBodyZ3 = await otpSendResZ3.text();
+              if (!otpSendResZ3.ok) { console.error('[process-chat-flow] ⚠️ Failed to send OTP [auto-advance]:', otpSendBodyZ3); }
               const otpSentMsg = nextNode.data?.message_otp_sent
                 ? nextNode.data.message_otp_sent.replace(/\{\{email\}\}/g, preEmail)
                 : `Enviamos um código de verificação para seu email de cadastro. Digite o código:`;
@@ -3826,10 +3834,12 @@ serve(async (req) => {
           collectedData.__otp_email = preEmail;
           collectedData.__otp_customer_name = collectedData.customer_name_found || '';
           await supabaseClient.from('chat_flow_states').update({ collected_data: collectedData, current_node_id: nextNode.id, status: 'waiting_input' }).eq('id', activeState.id);
-          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
+          const otpSendResZ4 = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
-            body: JSON.stringify({ email: preEmail }),
+            body: JSON.stringify({ email: preEmail, type: 'customer' }),
           });
+          const otpSendBodyZ4 = await otpSendResZ4.text();
+          if (!otpSendResZ4.ok) { console.error('[process-chat-flow] ⚠️ Failed to send OTP [options handler]:', otpSendBodyZ4); }
           const otpSentMsg = nextNode.data?.message_otp_sent
             ? nextNode.data.message_otp_sent.replace(/\{\{email\}\}/g, preEmail)
             : `Enviamos um código de verificação para seu email de cadastro. Digite o código:`;
@@ -5106,10 +5116,12 @@ serve(async (req) => {
             console.log('[process-chat-flow] 🔐 OTP pre-check [master]: customer validated, sending OTP to:', preEmail);
             const otpData = { ...collectedData, __otp_step: 'wait_code', __otp_attempts: 0, __otp_email: preEmail, __otp_customer_name: collectedData.customer_name_found || '' };
             await supabaseClient.from('chat_flow_states').update({ collected_data: otpData, status: 'waiting_input' }).eq('id', stateId);
-            await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
+            const otpSendResZ5 = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
               method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
-              body: JSON.stringify({ email: preEmail }),
+              body: JSON.stringify({ email: preEmail, type: 'customer' }),
             });
+            const otpSendBodyZ5 = await otpSendResZ5.text();
+            if (!otpSendResZ5.ok) { console.error('[process-chat-flow] ⚠️ Failed to send OTP [master]:', otpSendBodyZ5); }
             const otpSentMsg = node.data?.message_otp_sent
               ? node.data.message_otp_sent.replace(/\{\{email\}\}/g, preEmail)
               : `Enviamos um código de verificação para seu email de cadastro. Digite o código:`;

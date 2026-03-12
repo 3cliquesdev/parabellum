@@ -4790,6 +4790,15 @@ Responda APENAS: skip ou search`
           articles_found: knowledgeArticles.length,
           timestamp: new Date().toISOString()
         }));
+        // Persist telemetry to ai_events (non-blocking)
+        supabaseClient.from('ai_events').insert({
+          entity_type: 'conversation',
+          entity_id: conversationId,
+          event_type: 'ai_decision_strict_rag_handoff',
+          model: 'system',
+          score: 0,
+          output_json: { reason: 'strict_rag_handoff', exitType: 'handoff', fallback_used: false, articles_found: knowledgeArticles.length, hasFlowContext: !!flow_context },
+        }).then(() => {}).catch(() => {});
         
         return new Response(JSON.stringify({
           status: 'strict_rag_handoff',
@@ -5256,6 +5265,14 @@ Se foram pagos recentemente, pode ser que ainda não tenham entrado em preparaç
         articles_found: knowledgeArticles.length,
         timestamp: new Date().toISOString()
       }));
+      supabaseClient.from('ai_events').insert({
+        entity_type: 'conversation',
+        entity_id: conversationId,
+        event_type: 'ai_decision_zero_confidence_cautious',
+        model: 'system',
+        score: confidenceResult.score,
+        output_json: { reason: 'zero_confidence_cautious', exitType: 'stay_in_node', fallback_used: false, articles_found: knowledgeArticles.length, hasFlowContext: true },
+      }).then(() => {}).catch(() => {});
       
       // Forçar modo cautious em vez de sair do nó
       confidenceResult.action = 'cautious';
@@ -5429,6 +5446,14 @@ Se foram pagos recentemente, pode ser que ainda não tenham entrado em preparaç
           articles_found: knowledgeArticles.length,
           timestamp: new Date().toISOString()
         }));
+        supabaseClient.from('ai_events').insert({
+          entity_type: 'conversation',
+          entity_id: conversationId,
+          event_type: 'ai_decision_confidence_flow_advance',
+          model: 'system',
+          score: confidenceResult.score,
+          output_json: { reason: 'confidence_flow_advance', exitType: 'flow_advance_needed', fallback_used: false, articles_found: knowledgeArticles.length, hasFlowContext: true },
+        }).then(() => {}).catch(() => {});
         
         return new Response(JSON.stringify({
           status: 'flow_advance_needed',
@@ -8456,6 +8481,14 @@ Conversa: ${conversationId}`;
           articles_found: 0,
           timestamp: new Date().toISOString()
         }));
+        supabaseClient.from('ai_events').insert({
+          entity_type: 'conversation',
+          entity_id: conversationId,
+          event_type: 'ai_decision_anti_loop_max_fallbacks',
+          model: 'system',
+          score: 0,
+          output_json: { reason: 'anti_loop_max_fallbacks', exitType: 'flow_advance_needed', fallback_used: true, articles_found: 0, hasFlowContext: true },
+        }).then(() => {}).catch(() => {});
         isFallbackResponse = true;
       }
     }
@@ -8496,6 +8529,14 @@ Conversa: ${conversationId}`;
         articles_found: 0,
         timestamp: new Date().toISOString()
       }));
+      supabaseClient.from('ai_events').insert({
+        entity_type: 'conversation',
+        entity_id: conversationId,
+        event_type: 'ai_decision_fallback_phrase_detected',
+        model: 'system',
+        score: 0,
+        output_json: { reason: 'fallback_phrase_detected', exitType: flow_context ? 'stay_in_node' : 'handoff', fallback_used: true, articles_found: 0, hasFlowContext: !!flow_context },
+      }).then(() => {}).catch(() => {});
 
       // 🆕 FIX: Se flow_context existe, NÃO sair do nó — limpar fallback phrases e continuar
       if (flow_context) {
@@ -8826,6 +8867,14 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
           articles_found: 0,
           timestamp: new Date().toISOString()
         }));
+        supabaseClient.from('ai_events').insert({
+          entity_type: 'conversation',
+          entity_id: conversationId,
+          event_type: 'ai_decision_restriction_violation_' + restrictionCheck.violation,
+          model: 'system',
+          score: 0,
+          output_json: { reason: 'restriction_violation_' + restrictionCheck.violation, exitType: 'stay_in_node', fallback_used: true, articles_found: 0, hasFlowContext: true },
+        }).then(() => {}).catch(() => {});
         
         // 🆕 FIX: Substituir mensagem pelo fallback e FICAR no nó (não retornar flow_advance_needed)
         console.log('[ai-autopilot-chat] 🔄 VIOLAÇÃO DE RESTRIÇÃO + flow_context → substituindo mensagem e permanecendo no nó');

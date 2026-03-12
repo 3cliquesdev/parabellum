@@ -461,9 +461,23 @@ function evaluateConditionPath(nodeData: any, collectedData: Record<string, any>
         const fieldValue = getVar(rule.field, collectedData, contactData, conversationData);
         const checkType = rule.check_type || 'has_data';
         const hasValue = fieldValue !== null && fieldValue !== undefined && fieldValue !== false && String(fieldValue).trim().length > 0;
-        console.log(`[process-chat-flow] 📋 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: ${checkType} | value: ${fieldValue} | has: ${hasValue}`);
-        if (checkType === 'has_data' && hasValue) {
-          console.log(`[process-chat-flow] 🎯 MATCH on Rule ${i + 1}: "${rule.label}" — field "${rule.field}" has data`);
+        let fieldMatch = false;
+        
+        if (checkType === 'equals') {
+          const expectedValues = (rule.keywords || rule.label || '').split(',').map((v: string) => v.trim().toLowerCase()).filter(Boolean);
+          const actualValue = String(fieldValue || '').toLowerCase().trim();
+          fieldMatch = expectedValues.some((ev: string) => actualValue === ev);
+          console.log(`[process-chat-flow] 📋 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: equals | actual: "${actualValue}" | expected: [${expectedValues.join(', ')}] | match: ${fieldMatch}`);
+        } else if (checkType === 'no_data' || checkType === 'not_has_data') {
+          fieldMatch = !hasValue;
+          console.log(`[process-chat-flow] 📋 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: ${checkType} | value: ${fieldValue} | match: ${fieldMatch}`);
+        } else {
+          fieldMatch = hasValue;
+          console.log(`[process-chat-flow] 📋 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: ${checkType} | value: ${fieldValue} | has: ${hasValue}`);
+        }
+        
+        if (fieldMatch) {
+          console.log(`[process-chat-flow] 🎯 MATCH on Rule ${i + 1}: "${rule.label}" — field "${rule.field}" matched (${checkType})`);
           return rule.id;
         }
         continue;
@@ -513,8 +527,16 @@ function evaluateConditionV2Path(nodeData: any, collectedData: Record<string, an
       const fieldValue = getVar(rule.field, collectedData, contactData, conversationData);
       const checkType = rule.check_type || 'has_data';
       const hasValue = fieldValue !== null && fieldValue !== undefined && fieldValue !== false && String(fieldValue).trim().length > 0;
-      isMatch = checkType === 'has_data' ? hasValue : !hasValue;
-      console.log(`[process-chat-flow] 📋 V2 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: ${checkType} | value: ${fieldValue} | match: ${isMatch}`);
+      
+      if (checkType === 'equals') {
+        const expectedValues = (rule.keywords || rule.label || '').split(',').map((v: string) => v.trim().toLowerCase()).filter(Boolean);
+        const actualValue = String(fieldValue || '').toLowerCase().trim();
+        isMatch = expectedValues.some((ev: string) => actualValue === ev);
+        console.log(`[process-chat-flow] 📋 V2 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: equals | actual: "${actualValue}" | expected: [${expectedValues.join(', ')}] | match: ${isMatch}`);
+      } else {
+        isMatch = checkType === 'has_data' ? hasValue : !hasValue;
+        console.log(`[process-chat-flow] 📋 V2 Rule ${i + 1}/${rules.length}: "${rule.label}" (id: ${rule.id}) | field: ${rule.field} | check: ${checkType} | value: ${fieldValue} | match: ${isMatch}`);
+      }
     } else {
       // Keyword-based rule
       const rawKw = (rule.keywords || "").trim() || (rule.label || "").trim();

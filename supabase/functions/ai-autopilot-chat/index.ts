@@ -785,8 +785,8 @@ const FINANCIAL_BARRIER_KEYWORDS = [
 // OTP é necessário APENAS quando cliente quer SACAR dinheiro da carteira
 // Cancelamentos, reembolsos de pedidos Kiwify NÃO precisam de OTP
 const OTP_REQUIRED_KEYWORDS = [
-  'saque',
-  'sacar',
+  // 🆕 Removidos 'saque' e 'sacar' isolados — termos ambíguos devem ser desambiguados pela IA
+  // A detecção de saque composto já é coberta por WITHDRAWAL_ACTION_PATTERNS
   'retirar saldo',
   'retirar dinheiro',
   'transferir saldo',

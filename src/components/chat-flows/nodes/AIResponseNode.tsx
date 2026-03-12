@@ -261,6 +261,14 @@ export const AIResponseNode = memo(({ data, selected }: NodeProps<AIResponseNode
           </Badge>
         )}
 
+        {/* Badge de Trava Consultor */}
+        {data.forbid_consultant && (
+          <Badge variant="default" className="text-[9px] px-1 py-0 h-4 gap-0.5 bg-violet-600/90">
+            <Briefcase className="h-2.5 w-2.5" />
+            Consultor
+          </Badge>
+        )}
+
         {/* Badge de fallback configurado */}
         {data.fallback_message && (
           <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 opacity-60">

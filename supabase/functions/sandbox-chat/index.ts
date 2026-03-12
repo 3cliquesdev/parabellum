@@ -485,7 +485,7 @@ Você está conversando com um cliente identificado. Use essas informações par
           temperature: persona.temperature,
         },
         debug: {
-          model: actualProvider === 'openai' ? 'gpt-4o-mini' : configuredModel,
+          model: configuredModel,
           ai_provider: actualProvider,
           intent_classification: intentType,
           queries_executed: queriesExecuted,

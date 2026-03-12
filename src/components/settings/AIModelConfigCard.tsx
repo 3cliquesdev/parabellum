@@ -63,6 +63,33 @@ const AI_MODELS: AIModel[] = [
     badge: "Novo",
     badgeVariant: "outline",
   },
+  {
+    id: "gpt-5-nano",
+    name: "GPT-5 Nano",
+    category: "chat",
+    description: "⚡ Velocidade + economia máxima",
+    icon: Zap,
+    badge: "Econômico",
+    badgeVariant: "outline",
+  },
+  {
+    id: "gpt-5-mini",
+    name: "GPT-5 Mini",
+    category: "chat",
+    description: "🎯 Forte performance - Custo moderado",
+    icon: Target,
+    badge: "Balanceado",
+    badgeVariant: "default",
+  },
+  {
+    id: "gpt-5",
+    name: "GPT-5",
+    category: "chat",
+    description: "👑 Máxima capacidade - Raciocínio + multimodal",
+    icon: Crown,
+    badge: "Premium+",
+    badgeVariant: "secondary",
+  },
   // Reasoning Models
   {
     id: "o4-mini",

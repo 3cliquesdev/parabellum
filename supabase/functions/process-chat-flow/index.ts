@@ -3584,7 +3584,8 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-    }
+
+
 
     // 🧪 MODO TESTE: Bloquear triggers e Master Flow automáticos
     // Em modo teste, APENAS fluxos iniciados manualmente devem rodar

@@ -3834,10 +3834,12 @@ serve(async (req) => {
           collectedData.__otp_email = preEmail;
           collectedData.__otp_customer_name = collectedData.customer_name_found || '';
           await supabaseClient.from('chat_flow_states').update({ collected_data: collectedData, current_node_id: nextNode.id, status: 'waiting_input' }).eq('id', activeState.id);
-          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
+          const otpSendResZ4 = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-verification-code`, {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
-            body: JSON.stringify({ email: preEmail }),
+            body: JSON.stringify({ email: preEmail, type: 'customer' }),
           });
+          const otpSendBodyZ4 = await otpSendResZ4.text();
+          if (!otpSendResZ4.ok) { console.error('[process-chat-flow] ⚠️ Failed to send OTP [options handler]:', otpSendBodyZ4); }
           const otpSentMsg = nextNode.data?.message_otp_sent
             ? nextNode.data.message_otp_sent.replace(/\{\{email\}\}/g, preEmail)
             : `Enviamos um código de verificação para seu email de cadastro. Digite o código:`;

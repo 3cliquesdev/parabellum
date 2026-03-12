@@ -2679,7 +2679,9 @@ serve(async (req) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+      } // end else if (ai_response)
 
+      // 🔧 FIX: findNextNode agora acessível para TODOS os tipos (condition, condition_v2, ai_response)
       nextNode = findNextNode(flowDef, currentNode, path);
       // findNextNode já tem fallback hierárquico (path → ai_exit → default → any)
       console.log(`[process-chat-flow] ➡️ Transition: from=${currentNode.type}(${currentNode.id}) path=${path || 'default'} → next=${nextNode?.type || 'null'}(${nextNode?.id || 'none'})`);

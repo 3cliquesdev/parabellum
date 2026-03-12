@@ -1457,6 +1457,18 @@ serve(async (req) => {
     );
 
     const { conversationId, customerMessage, maxHistory = 50, customer_context, flow_context }: AutopilotChatRequest = parsedBody;
+
+    // 🔒 FIX 1: Hard validation — customerMessage obrigatório (exceto warmup)
+    if (!customerMessage || typeof customerMessage !== 'string' || customerMessage.trim() === '') {
+      console.error('[ai-autopilot-chat] ❌ BAD_REQUEST: customerMessage ausente ou vazio');
+      return new Response(JSON.stringify({ 
+        error: 'BAD_REQUEST', 
+        detail: 'customerMessage is required and must be a non-empty string' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     // 🆕 Carregar RAGConfig uma única vez para todo o handler
     const ragConfig = await getRAGConfig(supabaseClient);
@@ -4766,6 +4778,19 @@ Responda APENAS: skip ou search`
           articles_count: knowledgeArticles.length
         });
         
+        // 📊 FIX 4: Telemetria anti-alucinação — Strict RAG handoff
+        console.log(JSON.stringify({
+          event: 'ai_decision',
+          conversation_id: conversationId,
+          reason: 'strict_rag_handoff',
+          score: 0,
+          hasFlowContext: !!flow_context,
+          exitType: 'handoff',
+          fallback_used: false,
+          articles_found: knowledgeArticles.length,
+          timestamp: new Date().toISOString()
+        }));
+        
         return new Response(JSON.stringify({
           status: 'strict_rag_handoff',
           message: strictHandoffMessage,
@@ -5219,6 +5244,19 @@ Se foram pagos recentemente, pode ser que ainda não tenham entrado em preparaç
         node_id: flow_context.node_id
       });
       
+      // 📊 FIX 4: Telemetria anti-alucinação — Zero confidence guard
+      console.log(JSON.stringify({
+        event: 'ai_decision',
+        conversation_id: conversationId,
+        reason: 'zero_confidence_cautious',
+        score: confidenceResult.score,
+        hasFlowContext: true,
+        exitType: 'stay_in_node',
+        fallback_used: false,
+        articles_found: knowledgeArticles.length,
+        timestamp: new Date().toISOString()
+      }));
+      
       // Forçar modo cautious em vez de sair do nó
       confidenceResult.action = 'cautious';
       // Continua execução normalmente — a IA será chamada com persona + contexto
@@ -5378,6 +5416,19 @@ Se foram pagos recentemente, pode ser que ainda não tenham entrado em preparaç
           confidence_score: confidenceResult.score,
           articles_count: knowledgeArticles.length
         });
+        
+        // 📊 FIX 4: Telemetria anti-alucinação — Confidence handoff (flow_advance_needed)
+        console.log(JSON.stringify({
+          event: 'ai_decision',
+          conversation_id: conversationId,
+          reason: 'confidence_flow_advance',
+          score: confidenceResult.score,
+          hasFlowContext: true,
+          exitType: 'flow_advance_needed',
+          fallback_used: false,
+          articles_found: knowledgeArticles.length,
+          timestamp: new Date().toISOString()
+        }));
         
         return new Response(JSON.stringify({
           status: 'flow_advance_needed',
@@ -8393,6 +8444,18 @@ Conversa: ${conversationId}`;
           node_id: flow_context.node_id,
           fallback_count: aiNodeFallbackCount
         });
+        // 📊 FIX 4: Telemetria anti-alucinação — Anti-loop
+        console.log(JSON.stringify({
+          event: 'ai_decision',
+          conversation_id: conversationId,
+          reason: 'anti_loop_max_fallbacks',
+          score: 0,
+          hasFlowContext: true,
+          exitType: 'flow_advance_needed',
+          fallback_used: true,
+          articles_found: 0,
+          timestamp: new Date().toISOString()
+        }));
         isFallbackResponse = true;
       }
     }
@@ -8421,6 +8484,18 @@ Conversa: ${conversationId}`;
 
     if (isFallbackResponse) {
       console.log('[ai-autopilot-chat] 🚨 FALLBACK DETECTADO');
+      // 📊 FIX 4: Telemetria anti-alucinação — Fallback phrase detection
+      console.log(JSON.stringify({
+        event: 'ai_decision',
+        conversation_id: conversationId,
+        reason: 'fallback_phrase_detected',
+        score: 0,
+        hasFlowContext: !!flow_context,
+        exitType: flow_context ? 'stay_in_node' : 'handoff',
+        fallback_used: true,
+        articles_found: 0,
+        timestamp: new Date().toISOString()
+      }));
 
       // 🆕 FIX: Se flow_context existe, NÃO sair do nó — limpar fallback phrases e continuar
       if (flow_context) {
@@ -8738,6 +8813,19 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
       if (!restrictionCheck.valid) {
         console.warn('[ai-autopilot-chat] ⚠️ VIOLAÇÃO DE RESTRIÇÃO (pré-save):', restrictionCheck.violation);
         const fallbackMessage = flow_context.fallbackMessage || 'No momento não tenho essa informação.';
+        
+        // 📊 FIX 4: Telemetria anti-alucinação — Restriction violation
+        console.log(JSON.stringify({
+          event: 'ai_decision',
+          conversation_id: conversationId,
+          reason: 'restriction_violation_' + restrictionCheck.violation,
+          score: 0,
+          hasFlowContext: true,
+          exitType: 'stay_in_node',
+          fallback_used: true,
+          articles_found: 0,
+          timestamp: new Date().toISOString()
+        }));
         
         // 🆕 FIX: Substituir mensagem pelo fallback e FICAR no nó (não retornar flow_advance_needed)
         console.log('[ai-autopilot-chat] 🔄 VIOLAÇÃO DE RESTRIÇÃO + flow_context → substituindo mensagem e permanecendo no nó');

@@ -285,18 +285,18 @@ async function mineFailureCorrection(
   }
 
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: aiModel,
-        messages: [
-          {
-            role: 'system',
-            content: `Você é um Agente de Correção de IA. A IA não soube responder uma pergunta e um humano resolveu.
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: aiModel,
+          messages: [
+            {
+              role: 'system',
+              content: `Você é um Agente de Correção de IA. A IA não soube responder uma pergunta e um humano resolveu.
 
 SUA TAREFA:
 Crie uma regra de conhecimento para que a IA saiba responder da próxima vez.
@@ -309,14 +309,14 @@ RETORNE JSON VÁLIDO:
   "confidence_score": 0-100,
   "reasoning": "Por que esta regra é útil"
 }`
-          },
-          {
-            role: 'user',
-            content: `PERGUNTA DO CLIENTE:\n${customerQuestion}\n\nRESPOSTA DO HUMANO:\n${humanResponse}`
-          }
-        ],
-      }),
-    });
+            },
+            {
+              role: 'user',
+              content: `PERGUNTA DO CLIENTE:\n${customerQuestion}\n\nRESPOSTA DO HUMANO:\n${humanResponse}`
+            }
+          ],
+        }),
+      });
 
     if (!response.ok) {
       return { item: null, skipped: true, reason: 'ai_error' };

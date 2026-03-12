@@ -4120,7 +4120,7 @@ ${a.content}`).join('\n\n---\n\n')}`;
         const data = await response.json();
         const aiMessage = data.choices?.[0]?.message?.content || '';
         
-        console.log('[callStrictRAG] 📝 Resposta GPT-4o recebida:', aiMessage.substring(0, 100) + '...');
+        console.log('[callStrictRAG] 📝 Resposta GPT-5 recebida:', aiMessage.substring(0, 100) + '...');
         
         // Validação pós-geração: detectar indicadores de incerteza/alucinação
         const hasUncertainty = HALLUCINATION_INDICATORS.some(

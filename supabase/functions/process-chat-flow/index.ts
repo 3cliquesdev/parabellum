@@ -3471,12 +3471,14 @@ serve(async (req) => {
           }
         }
 
+        // 🆕 BUG 1 FIX: Adicionado completed_at no transfer principal
         await supabaseClient
           .from('chat_flow_states')
           .update({
             collected_data: collectedData,
             current_node_id: nextNode.id,
             status: 'transferred',
+            completed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq('id', activeState.id);

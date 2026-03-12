@@ -33,17 +33,17 @@ function generatePseudoEmbedding(keywords: string[]): number[] {
   return embedding.map(x => x / (norm || 1));
 }
 
-// Extract keywords from text using Lovable AI
-async function extractKeywordsWithLovableAI(text: string, lovableApiKey: string): Promise<string[]> {
+// Extract keywords from text using OpenAI
+async function extractKeywordsWithOpenAI(text: string, openaiApiKey: string): Promise<string[]> {
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-5-nano',
+        model: 'gpt-4o-mini',
         messages: [
           { 
             role: 'system', 
@@ -57,7 +57,7 @@ async function extractKeywordsWithLovableAI(text: string, lovableApiKey: string)
     });
 
     if (!response.ok) {
-      console.error('[extractKeywords] Lovable AI error:', await response.text());
+      console.error('[extractKeywords] OpenAI error:', await response.text());
       return [];
     }
 

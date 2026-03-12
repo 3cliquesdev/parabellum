@@ -148,7 +148,7 @@ Responda APENAS: skip ou search`
         };
 
         let intentResponse;
-        if (aiProvider === 'openai' && OPENAI_API_KEY) {
+        if (OPENAI_API_KEY) {
           const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -156,16 +156,6 @@ Responda APENAS: skip ou search`
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ model: 'gpt-4o-mini', ...intentPayload }),
-          });
-          intentResponse = await res.json();
-        } else if (LOVABLE_API_KEY) {
-          const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ model: 'openai/gpt-5-mini', ...intentPayload }),
           });
           intentResponse = await res.json();
         }

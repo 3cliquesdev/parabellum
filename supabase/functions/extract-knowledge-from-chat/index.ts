@@ -160,7 +160,7 @@ Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5-nano',
         messages: [
           {
             role: 'system',
@@ -172,7 +172,7 @@ Se não houver conhecimento útil, retorne: { "extracted_items": [], "confidence
           }
         ],
         temperature: 0.3,
-        max_tokens: 3000,
+        max_completion_tokens: 3000,
         response_format: { type: "json_object" }
       }),
     });

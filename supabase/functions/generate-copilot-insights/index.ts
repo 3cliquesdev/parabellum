@@ -216,12 +216,12 @@ ${JSON.stringify(kbGaps || [], null, 2)}
         "Authorization": `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-5-mini",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: dataContext },
         ],
-        max_tokens: 1000,
+        max_completion_tokens: 1000,
         response_format: { type: "json_object" },
       }),
     });

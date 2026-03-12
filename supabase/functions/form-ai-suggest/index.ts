@@ -112,7 +112,7 @@ serve(async (req) => {
       .eq('key', 'ai_model_sandbox')
       .single();
 
-    const model = 'gpt-4o-mini';
+    const model = 'gpt-5-mini';
 
     // Fetch persona if provided
     let personaPrompt = '';
@@ -172,7 +172,7 @@ Responda APENAS com um JSON no formato:
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: aiPrompt }],
-        max_tokens: 200,
+        max_completion_tokens: 200,
         temperature: 0.3,
       }),
     });

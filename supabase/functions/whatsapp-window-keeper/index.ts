@@ -186,7 +186,7 @@ async function processConversation(
       if (aiResult.content) {
         messageContent = aiResult.content;
         messageSource = "ai_generated";
-        aiModel = "gpt-4o-mini";
+        aiModel = "gpt-5-nano";
         aiTokens = aiResult.tokens || null;
       }
       aiLatency = Date.now() - aiStart;
@@ -292,7 +292,7 @@ async function generateAIFollowUp(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-5-nano",
       messages: [
         {
           role: "system",
@@ -308,7 +308,7 @@ Responda APENAS com o texto da mensagem, sem aspas nem prefixos.`,
           content: `Histórico da conversa:\n${context}`,
         },
       ],
-      max_tokens: 150,
+      max_completion_tokens: 150,
       temperature: 0.7,
     }),
   });

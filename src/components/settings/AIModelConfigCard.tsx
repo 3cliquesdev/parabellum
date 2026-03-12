@@ -153,7 +153,7 @@ export default function AIModelConfigCard() {
                 <div className="text-sm text-muted-foreground">{selectedModel?.description}</div>
               </div>
               <Badge variant="outline" className="text-xs">
-                {selectedModel?.provider === "google" ? "Google" : "OpenAI"}
+                OpenAI
               </Badge>
             </div>
 
@@ -166,27 +166,9 @@ export default function AIModelConfigCard() {
                 </SelectTrigger>
                 <SelectContent>
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                    Google Gemini
-                  </div>
-                  {AI_MODELS.filter(m => m.provider === "google").map((model) => {
-                    const Icon = model.icon;
-                    return (
-                      <SelectItem key={model.id} value={model.id}>
-                        <div className="flex items-center gap-2">
-                          <Icon className="h-4 w-4" />
-                          <span>{model.name}</span>
-                          {model.id === currentModel && (
-                            <Check className="h-3 w-3 text-primary ml-auto" />
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                  
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
                     OpenAI
                   </div>
-                  {AI_MODELS.filter(m => m.provider === "openai").map((model) => {
+                  {AI_MODELS.map((model) => {
                     const Icon = model.icon;
                     return (
                       <SelectItem key={model.id} value={model.id}>
@@ -213,8 +195,8 @@ export default function AIModelConfigCard() {
 
             {/* Info */}
             <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">
-              💡 <strong>Dica:</strong> Use Gemini Flash para economia ou GPT-5 quando precisar de máxima precisão.
-              A mudança é aplicada imediatamente em todas as Edge Functions.
+              💡 <strong>Dica:</strong> Use GPT-4o Mini para economia ou GPT-4o quando precisar de máxima precisão.
+              A mudança é aplicada imediatamente em todas as funções de IA.
             </div>
           </>
         )}

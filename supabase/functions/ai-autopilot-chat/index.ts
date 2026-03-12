@@ -125,8 +125,11 @@ const VALID_OPENAI_MODELS = new Set([
   'o3', 'o3-mini', 'o4-mini',
 ]);
 
-// Reasoning models use max_completion_tokens instead of max_tokens
-const REASONING_MODELS = new Set(['o3', 'o3-mini', 'o4-mini']);
+// Models that require max_completion_tokens instead of max_tokens
+const MAX_COMPLETION_TOKEN_MODELS = new Set([
+  'o3', 'o3-mini', 'o4-mini',
+  'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.2',
+]);
 
 function sanitizeModelName(model: string): string {
   // If it's already a valid OpenAI model, pass through

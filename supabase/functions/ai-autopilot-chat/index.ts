@@ -1525,6 +1525,15 @@ serve(async (req) => {
     // 🆕 TRAVA CANCELAMENTO — Separada do financeiro para roteamento independente
     const cancellationActionPattern = /cancelar\s*(minha\s*)?(assinatura|cobran[çc]a|pagamento|plano|conta|servi[çc]o)|quero\s+cancelar|desistir\s*(do|da|de)\s*(plano|assinatura|servi[çc]o|conta)|n[ãa]o\s+quero\s+mais\s*(o\s*)?(plano|assinatura|servi[çc]o)|encerrar\s*(minha\s*)?(conta|assinatura|plano)/i;
     const isCancellationAction = cancellationActionPattern.test(customerMessage || '');
+    // 🆕 Regex para termos de cancelamento AMBÍGUOS (palavra isolada, sem verbo de ação nem contexto informativo)
+    const cancellationAmbiguousPattern = /\b(cancelar|cancelamento|desistir|encerrar|rescindir|rescis[ãa]o)\b/i;
+    const isCancellationAmbiguous = !isCancellationAction && !isFinancialInfo && cancellationAmbiguousPattern.test(customerMessage || '');
+    
+    // Flag para injetar instrução de desambiguação de cancelamento no prompt quando termo é ambíguo
+    const ambiguousCancellationDetected = flowForbidCancellation && isCancellationAmbiguous;
+    if (ambiguousCancellationDetected) {
+      console.log('[ai-autopilot-chat] 🔍 DESAMBIGUAÇÃO CANCELAMENTO: Termo ambíguo detectado, IA vai perguntar ao cliente:', customerMessage?.substring(0, 80));
+    }
     
     // Só bloquear AÇÕES financeiras. Info passa para LLM responder via KB. Ambíguo → IA pergunta.
     if (ragConfig.blockFinancial && flowForbidFinancial && customerMessage && customerMessage.trim().length > 0 && isFinancialAction && !isFinancialInfo) {

@@ -1184,7 +1184,12 @@ Você NÃO PODE executar ou prometer AÇÕES financeiras (saque, reembolso, esto
 Se o cliente solicitar uma AÇÃO financeira (ex: "quero sacar", "faz meu reembolso", "quero meu dinheiro de volta"), responda:
 "Entendi sua solicitação. Vou te encaminhar para o setor responsável que poderá te ajudar com isso."
 E retorne [[FLOW_EXIT]] imediatamente.
-Você PODE: coletar dados (email, CPF, ID do pedido), resumir o caso, e responder dúvidas informativas. NÃO PODE: instruir processos financeiros, prometer resolução ou executar ações.`;
+Você PODE: coletar dados (email, CPF, ID do pedido), resumir o caso, e responder dúvidas informativas. NÃO PODE: instruir processos financeiros, prometer resolução ou executar ações.
+
+⚠️ ANTI-ALUCINAÇÃO FINANCEIRA (REGRA ABSOLUTA):
+NÃO cite valores monetários, prazos em dias, datas específicas ou percentuais sobre saques, reembolsos, estornos ou devoluções A MENOS que essa informação EXATA exista na base de conhecimento fornecida.
+Se a KB não contiver a informação, responda: "Não tenho essa informação no momento. O setor financeiro poderá te orientar com detalhes."
+NUNCA invente ou estime valores, prazos ou condições financeiras.`;
   }
   
   restrictions += `

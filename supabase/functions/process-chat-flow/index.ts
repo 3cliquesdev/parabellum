@@ -2127,7 +2127,7 @@ serve(async (req) => {
         }
 
         if (financialIntentMatch) {
-          console.log(`[process-chat-flow] 🔒 TRAVA FINANCEIRA: Intenção financeira detectada no nó AI, tratando como exit`);
+          console.log(`[process-chat-flow] 🔒 TRAVA FINANCEIRA: Intenção financeira AÇÃO detectada no nó AI, tratando como exit | msg="${(userMessage || '').substring(0, 100)}" | forceExit=${forceFinancialExit} | actionMatch=${isFinancialAction} | infoMatch=${isFinancialInfo}`);
           
           try {
             await supabaseClient

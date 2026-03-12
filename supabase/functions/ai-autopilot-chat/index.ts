@@ -9062,7 +9062,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
           entity_type: 'conversation',
           entity_id: conversationId,
           event_type: 'ai_response',
-          model: configuredAIModel || 'gpt-4o-mini',
+          model: configuredAIModel || 'gpt-5-mini',
           output_json: {
             confidence_score: confidenceResult?.score ?? null,
             confidence_action: confidenceResult?.action ?? null,

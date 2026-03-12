@@ -2186,7 +2186,13 @@ serve(async (req) => {
           console.log(`[process-chat-flow] 🧑 TRAVA SUPORTE: Pedido de atendente detectado | msg="${(userMessage || '').substring(0, 100)}"`);
         }
 
-        if (financialIntentMatch) {
+        // 🛒 TRAVA COMERCIAL: Detectar intenção de compra como exit do nó AI
+        const commercialIntentPattern = /comprar|quero comprar|quanto custa|pre[çc]o|proposta|or[çc]amento|cat[aá]logo|assinar|plano|tabela de pre[çc]o|conhecer.*produto|demonstra[çc][aã]o|demo|trial|teste gr[aá]tis|upgrade|downgrade|mudar.*plano/i;
+        const commercialIntentMatch = (forceCommercialExit && forbidCommercial) || (forbidCommercial && msgLower.length > 0 && commercialIntentPattern.test(userMessage || ''));
+        if (forceCommercialExit) {
+          console.log('[process-chat-flow] 🛒 forceCommercialExit=true recebido do webhook, forçando exit do nó AI');
+        }
+
           console.log(`[process-chat-flow] 🔒 TRAVA FINANCEIRA: Intenção financeira AÇÃO detectada no nó AI, tratando como exit | msg="${(userMessage || '').substring(0, 100)}" | forceExit=${forceFinancialExit} | actionMatch=${isFinancialAction} | infoMatch=${isFinancialInfo}`);
           
           try {

@@ -4363,6 +4363,16 @@ serve(async (req) => {
               break;
             }
             node = next;
+          } else if (node.type === 'fetch_order') {
+            // 📦 BUG B FIX: fetch_order inline during master flow traversal
+            console.log('[process-chat-flow] 📦 Master traverse: executing fetch_order inline');
+            collectedData = await handleFetchOrderNode(node, collectedData, userMessage);
+            const next = findNextNode(flowDef, node);
+            if (!next) {
+              console.log('[process-chat-flow] ⚠️ No next node after fetch_order');
+              break;
+            }
+            node = next;
           } else {
             const next = findNextNode(flowDef, node);
             if (!next) {

@@ -4790,6 +4790,15 @@ Responda APENAS: skip ou search`
           articles_found: knowledgeArticles.length,
           timestamp: new Date().toISOString()
         }));
+        // Persist telemetry to ai_events (non-blocking)
+        supabaseClient.from('ai_events').insert({
+          entity_type: 'conversation',
+          entity_id: conversationId,
+          event_type: 'ai_decision_strict_rag_handoff',
+          model: 'system',
+          score: 0,
+          output_json: { reason: 'strict_rag_handoff', exitType: 'handoff', fallback_used: false, articles_found: knowledgeArticles.length, hasFlowContext: !!flow_context },
+        }).then(() => {}).catch(() => {});
         
         return new Response(JSON.stringify({
           status: 'strict_rag_handoff',

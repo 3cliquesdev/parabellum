@@ -5231,6 +5231,19 @@ Se foram pagos recentemente, pode ser que ainda não tenham entrado em preparaç
         node_id: flow_context.node_id
       });
       
+      // 📊 FIX 4: Telemetria anti-alucinação — Zero confidence guard
+      console.log(JSON.stringify({
+        event: 'ai_decision',
+        conversation_id: conversationId,
+        reason: 'zero_confidence_cautious',
+        score: confidenceResult.score,
+        hasFlowContext: true,
+        exitType: 'stay_in_node',
+        fallback_used: false,
+        articles_found: knowledgeArticles.length,
+        timestamp: new Date().toISOString()
+      }));
+      
       // Forçar modo cautious em vez de sair do nó
       confidenceResult.action = 'cautious';
       // Continua execução normalmente — a IA será chamada com persona + contexto

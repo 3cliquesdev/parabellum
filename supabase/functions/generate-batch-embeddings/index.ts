@@ -154,24 +154,20 @@ serve(async (req) => {
 
     // Get API keys
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
-    // Check if at least one provider is available
-    if (!OPENAI_API_KEY && !LOVABLE_API_KEY) {
-      console.error('[generate-batch-embeddings] No embedding provider configured');
+    // Check if provider is available
+    if (!OPENAI_API_KEY) {
+      console.error('[generate-batch-embeddings] OPENAI_API_KEY not configured');
       return new Response(
         JSON.stringify({ 
-          error: 'No embedding provider configured. Please set OPENAI_API_KEY or LOVABLE_API_KEY.',
+          error: 'OPENAI_API_KEY not configured.',
           success: false 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[generate-batch-embeddings] Providers available:', {
-      openai: !!OPENAI_API_KEY,
-      lovable: !!LOVABLE_API_KEY
-    });
+    console.log('[generate-batch-embeddings] Provider: OpenAI');
 
     // Fetch all articles without embeddings
     const { data: articles, error: fetchError } = await supabase

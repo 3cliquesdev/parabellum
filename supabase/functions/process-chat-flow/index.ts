@@ -2274,7 +2274,7 @@ serve(async (req) => {
         }
 
         // Verificar exit keyword (word-boundary match — evita falso positivo por substring)
-        const keywordMatch = !financialIntentMatch && !commercialIntentMatch && !cancellationIntentMatch && exitKeywords.length > 0 && exitKeywords.some((kw: string) => {
+        const keywordMatch = !financialIntentMatch && !commercialIntentMatch && !cancellationIntentMatch && !supportIntentMatch && exitKeywords.length > 0 && exitKeywords.some((kw: string) => {
           const kwClean = String(kw || '').toLowerCase().trim();
           if (!kwClean) return false;
           try {
@@ -2286,7 +2286,7 @@ serve(async (req) => {
         });
 
         // Verificar max interações
-        const maxReached = !financialIntentMatch && !commercialIntentMatch && !cancellationIntentMatch && maxInteractions > 0 && aiCount >= maxInteractions;
+        const maxReached = !financialIntentMatch && !commercialIntentMatch && !cancellationIntentMatch && !supportIntentMatch && maxInteractions > 0 && aiCount >= maxInteractions;
 
         // 🆕 forceAIExit: IA detectou handoff (strict RAG ou confidence) e quer sair do nó
         if (forceAIExit) {

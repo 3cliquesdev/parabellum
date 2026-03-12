@@ -118,11 +118,11 @@ Responda apenas com as tags separadas por vírgula (ex: Bug, Técnico, Urgente)`
       ]);
     };
 
-    // Call AI Gateway with timeout protection
-    const response = await fetchWithTimeout('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Call OpenAI with timeout protection
+    const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

@@ -1202,11 +1202,7 @@ serve(async (req) => {
             const vcPromises: Promise<any>[] = [];
             if (contentNode.data?.validate_phone !== false && (manualContactData.phone || manualContactData.whatsapp_id)) {
               vcPromises.push(
-                fetch(`${vcSupabaseUrl}/functions/v1/validate-by-kiwify-phone`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${vcSupabaseKey}` },
-                  body: JSON.stringify({ phone: manualContactData.phone, whatsapp_id: manualContactData.whatsapp_id, contact_id: manualConversation?.contact_id })
-                }).then(r => r.json()).catch(() => ({ found: false }))
+                inlineKiwifyValidation(supabaseClient, manualContactData.phone, manualContactData.whatsapp_id, manualConversation?.contact_id)
               );
             }
             if (contentNode.data?.validate_email !== false && manualContactData.email) {

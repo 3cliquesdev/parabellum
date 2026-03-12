@@ -81,8 +81,7 @@ async function extractKeywordsWithOpenAI(text: string, openaiApiKey: string): Pr
 // Generate embedding with OpenAI or fallback to Lovable AI
 async function generateEmbedding(
   text: string, 
-  openaiApiKey: string | undefined, 
-  lovableApiKey: string | undefined
+  openaiApiKey: string | undefined
 ): Promise<number[] | null> {
   // Try OpenAI first (native embeddings - best quality)
   if (openaiApiKey) {

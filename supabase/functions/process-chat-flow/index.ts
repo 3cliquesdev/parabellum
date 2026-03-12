@@ -1514,7 +1514,7 @@ serve(async (req) => {
               const v2Path = evaluateConditionV2Path(nextNode.data, manualCollectedData, '', undefined, manualContactData, manualConversation, flowDef.edges || []);
               condNext = findNextNode(flowDef, nextNode, v2Path);
             } else if (hasMultiRules) {
-              const path = evaluateConditionPath(nextNode.data, manualCollectedData, '');
+              const path = evaluateConditionPath(nextNode.data, manualCollectedData, '', undefined, manualContactData, manualConversation);
               condNext = findNextNode(flowDef, nextNode, path);
             } else {
               const result = manualEvalCond(nextNode.data);

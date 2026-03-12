@@ -111,10 +111,10 @@ async function generateEmbedding(
     }
   }
 
-  // Fallback: Lovable AI + pseudo-embedding (keyword-based)
-  if (lovableApiKey) {
-    console.log('[generateEmbedding] Using Lovable AI fallback...');
-    const keywords = await extractKeywordsWithLovableAI(text, lovableApiKey);
+  // Fallback: keyword-based pseudo-embedding using OpenAI
+  if (openaiApiKey) {
+    console.log('[generateEmbedding] Using keyword-based fallback...');
+    const keywords = await extractKeywordsWithOpenAI(text, openaiApiKey);
     
     if (keywords.length > 0) {
       console.log(`[generateEmbedding] ✅ Generated pseudo-embedding from ${keywords.length} keywords`);

@@ -1277,6 +1277,8 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
             forbidOptions: flowResult.forbidOptions ?? true,
             forbidFinancial: flowResult.forbidFinancial ?? false,
             forbidCommercial: flowResult.forbidCommercial ?? false,
+            forbidCancellation: flowResult.forbidCancellation ?? false,
+            forbidConsultant: flowResult.forbidConsultant ?? false,
             collectedData: flowResult.collectedData || null,
           };
 

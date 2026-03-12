@@ -4552,7 +4552,7 @@ serve(async (req) => {
     let attempts = 0;
     const maxAttempts = 10; // Evitar loop infinito
     
-    while (attempts < maxAttempts && (trigCurrentNode.type === 'input' || trigCurrentNode.type === 'condition' || trigCurrentNode.type === 'condition_v2')) {
+    while (attempts < maxAttempts && (trigCurrentNode.type === 'input' || trigCurrentNode.type === 'condition' || trigCurrentNode.type === 'condition_v2' || trigCurrentNode.type === 'validate_customer' || trigCurrentNode.type === 'fetch_order')) {
       attempts++;
       console.log('[process-chat-flow] ⏩ Nó sem conteúdo (', trigCurrentNode.type, ') - avançando...');
       
@@ -4571,6 +4571,15 @@ serve(async (req) => {
         const v2Path = evaluateConditionV2Path(trigCurrentNode.data, {}, userMessage, undefined, undefined, undefined, trigFlowDef.edges || []);
         console.log('[process-chat-flow] 🔍 Condição V2 avaliada → path:', v2Path);
         trigCurrentNode = findNextNode(trigFlowDef, trigCurrentNode, v2Path);
+      } else if (trigCurrentNode.type === 'validate_customer') {
+        // 🛡️ BUG D FIX: validate_customer inline no trigger match traversal
+        console.log('[process-chat-flow] 🛡️ [trigger-match] validate_customer inline — skipping validation (no state yet)');
+        // During trigger match traversal we don't have a flow state yet, just advance past it
+        trigCurrentNode = findNextNode(trigFlowDef, trigCurrentNode, undefined);
+      } else if (trigCurrentNode.type === 'fetch_order') {
+        // 📦 BUG D FIX: fetch_order inline no trigger match traversal
+        console.log('[process-chat-flow] 📦 [trigger-match] fetch_order inline — skipping fetch (no state yet)');
+        trigCurrentNode = findNextNode(trigFlowDef, trigCurrentNode, undefined);
       } else {
         // Para nó input, apenas seguir para o próximo
         trigCurrentNode = findNextNode(trigFlowDef, trigCurrentNode, undefined);

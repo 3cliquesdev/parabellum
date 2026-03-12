@@ -792,10 +792,10 @@ serve(async (req) => {
               if (flowData.skipAutoResponse) {
                 console.log("[AUTO-DECISION] [WhatsApp Meta] Flow skipAutoResponse → waiting_human, reason:", flowData.reason);
                 
-                // 🧪 TEST MODE: Silêncio total — sem mensagem de aguarde, sem mudar ai_mode
-                if (flowData.reason === 'test_mode_manual_only') {
-                  console.log("[meta-whatsapp-webhook] 🧪 TEST MODE: Ignorando - apenas fluxos manuais");
-                  continue;
+                // 🧪 TEST MODE: IA permitida — não silenciar
+                if (flowData.reason === 'test_mode_ai_allowed') {
+                  console.log("[meta-whatsapp-webhook] 🧪 TEST MODE: IA permitida, continuando processamento normal");
+                  // Não faz continue — permite o webhook seguir para chamar ai-autopilot-chat
                 }
                 
                 // 🆕 MENSAGEM DE AGUARDE: Enviar confirmação ao cliente na fila

@@ -1195,8 +1195,8 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
     console.log('[handle-whatsapp-event] 🧪 Kill Switch ativo, mas MODO TESTE permite processar');
   }
 
-  // 7. Se ai_mode = 'autopilot' E IA global está ativada, disparar AI
-  if (isAIGloballyEnabled && conversationAIMode === 'autopilot') {
+  // 7. Se ai_mode = 'autopilot' E IA global está ativada (ou test mode), disparar AI
+  if ((isAIGloballyEnabled || isTestMode) && conversationAIMode === 'autopilot') {
     console.log('[handle-whatsapp-event] Triggering AI autopilot...');
     
     // ============================================================

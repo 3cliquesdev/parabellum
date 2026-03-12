@@ -4556,15 +4556,15 @@ serve(async (req) => {
 
     // 🧪 MODO TESTE: Bloquear triggers e Master Flow automáticos
     // Em modo teste, APENAS fluxos iniciados manualmente devem rodar
+    // MAS a IA deve continuar respondendo normalmente (useAI: true)
     // 🔧 FIX: Movido para FORA do if(activeState) — antes estava como código morto (unreachable)
     if (isTestMode && !manualTrigger) {
-      console.log('[process-chat-flow] 🧪 TEST MODE: Bloqueando auto-triggers e Master Flow');
+      console.log('[process-chat-flow] 🧪 TEST MODE: Bloqueando auto-triggers/Master Flow, permitindo IA');
       return new Response(JSON.stringify({
-        useAI: false,
+        useAI: true,
         aiNodeActive: false,
-        skipAutoResponse: true,
-        reason: 'test_mode_manual_only',
-        message: 'Modo teste ativo - apenas fluxos manuais permitidos'
+        reason: 'test_mode_ai_allowed',
+        message: 'Modo teste ativo - auto-triggers bloqueados, IA permitida'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });

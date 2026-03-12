@@ -5100,8 +5100,9 @@ serve(async (req) => {
           const otpVerifiedKeyMF = node.data?.save_verified_as || 'customer_verified';
 
           // 🆕 PRE-CHECK: Se validate_customer já rodou na travessia do master flow
-          if (collectedData.customer_validated === true && collectedData.customer_email_found) {
-            const preEmail = collectedData.customer_email_found;
+          const preEmailZ5 = collectedData.customer_email_found || contactData?.email;
+          if (collectedData.customer_validated === true && preEmailZ5) {
+            const preEmail = preEmailZ5;
             console.log('[process-chat-flow] 🔐 OTP pre-check [master]: customer validated, sending OTP to:', preEmail);
             const otpData = { ...collectedData, __otp_step: 'wait_code', __otp_attempts: 0, __otp_email: preEmail, __otp_customer_name: collectedData.customer_name_found || '' };
             await supabaseClient.from('chat_flow_states').update({ collected_data: otpData, status: 'waiting_input' }).eq('id', stateId);

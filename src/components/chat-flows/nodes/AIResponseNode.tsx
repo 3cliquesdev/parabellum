@@ -235,6 +235,20 @@ export const AIResponseNode = memo(({ data, selected }: NodeProps<AIResponseNode
           </Badge>
         )}
 
+        {/* Badge de Trava Cancelamento */}
+        {data.forbid_cancellation && (
+          <Badge variant="destructive" className="text-[9px] px-1 py-0 h-4 gap-0.5">
+            ❌ Cancelamento
+          </Badge>
+        )}
+
+        {/* Badge de Trava Suporte */}
+        {data.forbid_support && (
+          <Badge variant="default" className="text-[9px] px-1 py-0 h-4 gap-0.5 bg-blue-600/90">
+            🧑 Suporte
+          </Badge>
+        )}
+
         {/* Badge de fallback configurado */}
         {data.fallback_message && (
           <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 opacity-60">

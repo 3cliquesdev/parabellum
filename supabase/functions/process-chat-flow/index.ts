@@ -2124,6 +2124,8 @@ serve(async (req) => {
         const maxInteractions: number = currentNode.data?.max_ai_interactions ?? 0;
         let forbidFinancial: boolean = currentNode.data?.forbid_financial ?? false;
         const forbidCommercial: boolean = currentNode.data?.forbid_commercial ?? false;
+        const forbidCancellation: boolean = currentNode.data?.forbid_cancellation ?? forbidFinancial; // fallback: se forbid_financial=true, cancelamento também ativo (backward compat)
+        const forbidSupport: boolean = currentNode.data?.forbid_support ?? false;
 
         // 🆕 INFERÊNCIA AUTOMÁTICA: Se o nó tem edge para condition_v2 com regra ai_exit_intent=financeiro, forçar forbidFinancial
         if (!forbidFinancial) {

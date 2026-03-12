@@ -8814,6 +8814,19 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
         console.warn('[ai-autopilot-chat] ⚠️ VIOLAÇÃO DE RESTRIÇÃO (pré-save):', restrictionCheck.violation);
         const fallbackMessage = flow_context.fallbackMessage || 'No momento não tenho essa informação.';
         
+        // 📊 FIX 4: Telemetria anti-alucinação — Restriction violation
+        console.log(JSON.stringify({
+          event: 'ai_decision',
+          conversation_id: conversationId,
+          reason: 'restriction_violation_' + restrictionCheck.violation,
+          score: 0,
+          hasFlowContext: true,
+          exitType: 'stay_in_node',
+          fallback_used: true,
+          articles_found: 0,
+          timestamp: new Date().toISOString()
+        }));
+        
         // 🆕 FIX: Substituir mensagem pelo fallback e FICAR no nó (não retornar flow_advance_needed)
         console.log('[ai-autopilot-chat] 🔄 VIOLAÇÃO DE RESTRIÇÃO + flow_context → substituindo mensagem e permanecendo no nó');
         assistantMessage = fallbackMessage;

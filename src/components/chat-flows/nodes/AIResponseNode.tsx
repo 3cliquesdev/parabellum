@@ -27,6 +27,8 @@ interface AIResponseNodeData {
   max_ai_interactions?: number;
   exit_keywords?: string[];
   forbid_commercial?: boolean;
+  forbid_cancellation?: boolean;
+  forbid_support?: boolean;
 }
 
 export const AIResponseNode = memo(({ data, selected }: NodeProps<AIResponseNodeData>) => {

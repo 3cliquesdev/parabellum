@@ -222,7 +222,7 @@ export default function Inbox() {
         external_ids: null,
         kiwify_customer_id: null,
         kiwify_subscription_id: null,
-        kiwify_validated: null,
+        kiwify_validated: (item as any).contact_kiwify_validated ?? null,
         kiwify_validated_at: null,
         last_contact_date: null,
         last_kiwify_event: null,

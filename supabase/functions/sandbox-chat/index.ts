@@ -171,7 +171,7 @@ Responda APENAS: skip ou search`
               'Authorization': `Bearer ${OPENAI_API_KEY}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ model: 'gpt-4o-mini', ...intentPayload }),
+            body: JSON.stringify({ model: configuredModel, ...intentPayload }),
           });
           intentResponse = await res.json();
         }

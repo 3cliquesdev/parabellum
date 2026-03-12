@@ -4035,7 +4035,7 @@ Responda APENAS: skip ou search`
       
       try {
         // FASE 5: Query Expansion + Semantic Search Múltiplo
-        if (OPENAI_API_KEY || LOVABLE_API_KEY) {
+        if (OPENAI_API_KEY) {
           console.log('[ai-autopilot-chat] 🚀 Iniciando Query Expansion...');
           
           // Step 1: Expandir query para múltiplas variações

@@ -246,7 +246,7 @@ async function mineFailureCorrection(
   supabase: any,
   conversationId: string,
   aiModel: string,
-  LOVABLE_API_KEY: string
+  OPENAI_API_KEY: string
 ): Promise<{ item: any | null; skipped: boolean; reason?: string }> {
   const { data: messages, error } = await supabase
     .from('messages')

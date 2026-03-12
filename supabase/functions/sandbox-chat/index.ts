@@ -460,7 +460,7 @@ Você está conversando com um cliente identificado. Use essas informações par
       
       if (aiResponse.status === 402) {
         return new Response(
-          JSON.stringify({ error: 'Payment required. Please add credits to your Lovable workspace.' }),
+          JSON.stringify({ error: 'Erro de billing na API OpenAI. Verifique sua conta OpenAI.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

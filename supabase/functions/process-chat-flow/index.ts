@@ -5346,6 +5346,12 @@ serve(async (req) => {
     const trigVarCtx = await buildVariablesContext({}, trigContactData, trigConv, supabaseClient);
     // 🛡️ BUG M FIX: Trigger Match → verify_customer_otp inicializa OTP
     if (startNode.type === 'verify_customer_otp') {
+      // Trigger match: collectedData é fresco, então customer_validated não existirá normalmente
+      // Mas manter o pre-check para consistência futura
+      const trigCollectedData: any = {};
+      const otpVerifiedKeyTM = startNode.data?.save_verified_as || 'customer_verified';
+
+      // Fallback: pedir email normalmente (trigger match não tem validate_customer prévio)
       await supabaseClient.from('chat_flow_states').update({
         collected_data: { __otp_step: 'ask_email', __otp_attempts: 0 },
         status: 'waiting_input',

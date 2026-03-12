@@ -39,7 +39,7 @@ import { ContactsBulkActions } from "@/components/contacts/ContactsBulkActions";
 import { ChangeConsultantDialog } from "@/components/playbooks/ChangeConsultantDialog";
 import { ConsultantClientsSheet } from "@/components/contacts/ConsultantClientsSheet";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useProfiles } from "@/hooks/useProfiles";
+import { useConsultants } from "@/hooks/useConsultants";
 import { LeadScoreBadge } from "@/components/scoring/LeadScoreBadge";
 import type { Tables } from "@/integrations/supabase/types";
 

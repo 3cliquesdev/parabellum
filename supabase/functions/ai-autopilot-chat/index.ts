@@ -4629,7 +4629,7 @@ Responda APENAS: skip ou search`
     console.log('[ai-autopilot-chat] 🎯 Modo RAG Estrito:', isStrictRAGMode ? 'ATIVADO' : 'desativado');
     
     // ============================================================
-    // 🆕 MODO RAG ESTRITO - Processamento exclusivo com GPT-4o
+    // 🆕 MODO RAG ESTRITO - Processamento exclusivo com GPT-5
     // Bypass: temas operacionais (pedidos/tracking) pulam o Strict RAG
     // para que a IA possa usar CRM + Tracking lookup
     // ============================================================

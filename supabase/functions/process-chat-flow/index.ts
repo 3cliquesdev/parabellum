@@ -2363,7 +2363,7 @@ serve(async (req) => {
           try {
             const kwRegex = new RegExp(`\\b${kwClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
             return kwRegex.test(msgLower);
-          } catch {
+          } catch (_kwErr) {
             return msgLower.includes(kwClean);
           }
         });

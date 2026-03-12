@@ -224,6 +224,10 @@ export default function Dashboard() {
           <TabsContent value="advanced">
             <AdvancedTab startDate={startDate} endDate={endDate} />
           </TabsContent>
+          
+          <TabsContent value="ai-telemetry">
+            <AITelemetryContent />
+          </TabsContent>
         </Tabs>
         
         {/* Onboarding Widget - aparece em todas as tabs se não completou */}

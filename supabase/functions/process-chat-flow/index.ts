@@ -3822,11 +3822,7 @@ serve(async (req) => {
           // Phone validation
           if (nextNode.data?.validate_phone !== false && (vcContact.phone || vcContact.whatsapp_id)) {
             validationPromises.push(
-              fetch(`${supabaseUrl}/functions/v1/validate-by-kiwify-phone`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
-                body: JSON.stringify({ phone: vcContact.phone, whatsapp_id: vcContact.whatsapp_id, contact_id: vcConv?.contact_id })
-              }).then(r => r.json()).catch(() => ({ found: false }))
+              inlineKiwifyValidation(supabaseClient, vcContact.phone, vcContact.whatsapp_id, vcConv?.contact_id)
             );
           }
           

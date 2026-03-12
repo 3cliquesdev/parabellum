@@ -306,6 +306,42 @@ function logSourceViolationIfAny(
 }
 
 // ============================================================
+// 🛡️ HELPER: Safe JSON parse para argumentos de tool calls do LLM
+// Limpa markdown fences, trailing commas, control chars
+// ============================================================
+function safeParseToolArgs(rawArgs: string): any {
+  let cleaned = rawArgs;
+  
+  // 1. Remover markdown code fences (```json ... ```)
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+  
+  // 2. Remover BOM e control characters (exceto \n, \r, \t)
+  cleaned = cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  
+  // 3. Tentar parse direto
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {
+    // continuar para correções
+  }
+  
+  // 4. Corrigir trailing commas antes de } ou ]
+  cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+  
+  // 5. Tentar novamente
+  try {
+    return JSON.parse(cleaned);
+  } catch (finalErr) {
+    console.error('[safeParseToolArgs] ❌ Parse falhou mesmo após limpeza:', {
+      original: rawArgs.substring(0, 200),
+      cleaned: cleaned.substring(0, 200),
+      error: finalErr instanceof Error ? finalErr.message : String(finalErr)
+    });
+    throw new Error(`Failed to parse tool arguments: ${finalErr instanceof Error ? finalErr.message : 'unknown'}`);
+  }
+}
+
+// ============================================================
 // 🔢 HELPER: Formatar opções de múltipla escolha como texto
 // Transforma array de opções em lista numerada com emojis
 // ============================================================
@@ -3824,7 +3860,7 @@ serve(async (req) => {
       }
     };
 
-    // Helper: Chamar IA com OpenAI direta (usa modelo configurado)
+    // Helper: Chamar IA com OpenAI direta (usa modelo configurado + fallback automático)
     const callAIWithFallback = async (payload: any) => {
       const configuredModel = sanitizeModelName(ragConfig.model);
       
@@ -3835,23 +3871,72 @@ serve(async (req) => {
         delete finalPayload.max_tokens;
       }
       
-      const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ model: configuredModel, ...finalPayload }),
-      }, 60000);
+      // Remove campos não suportados por modelos mais novos
+      delete finalPayload.stream;
       
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error('QUOTA_ERROR: Erro de Saldo/Cota na IA.');
+      const tryModel = async (model: string, attempt: string) => {
+        const attemptPayload = { ...finalPayload };
+        // Reasoning models não suportam max_tokens
+        if (REASONING_MODELS.has(model) && attemptPayload.max_tokens) {
+          attemptPayload.max_completion_tokens = attemptPayload.max_tokens;
+          delete attemptPayload.max_tokens;
         }
-        throw new Error(`OpenAI error: ${response.status}`);
-      }
+        
+        console.log(`[callAIWithFallback] 🤖 ${attempt} com modelo: ${model}`);
+        
+        const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ model, ...attemptPayload }),
+        }, 60000);
+        
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => 'Unable to read error body');
+          console.error(`[callAIWithFallback] ❌ ${attempt} falhou: ${response.status}`, errorBody);
+          
+          if (response.status === 429) {
+            throw new Error('QUOTA_ERROR: Erro de Saldo/Cota na IA.');
+          }
+          throw new Error(`OpenAI error: ${response.status} | ${errorBody.substring(0, 200)}`);
+        }
+        
+        return await response.json();
+      };
       
-      return await response.json();
+      // Tentativa 1: modelo configurado
+      try {
+        return await tryModel(configuredModel, 'Tentativa principal');
+      } catch (primaryError) {
+        const errMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
+        
+        // Se é erro de quota, não tentar fallback
+        if (errMsg.includes('QUOTA_ERROR')) throw primaryError;
+        
+        // Se é erro 400/422 (payload inválido), tentar modelo de contingência seguro
+        if (errMsg.includes('400') || errMsg.includes('422')) {
+          console.warn(`[callAIWithFallback] ⚠️ Erro ${errMsg.includes('400') ? '400' : '422'} com ${configuredModel}, tentando fallback gpt-4o-mini`);
+          
+          try {
+            // Fallback: modelo mais estável e tolerante
+            const safeFallbackPayload = { ...finalPayload };
+            // Remover campos problemáticos para modelos antigos
+            delete safeFallbackPayload.max_completion_tokens;
+            if (!safeFallbackPayload.max_tokens) {
+              safeFallbackPayload.max_tokens = 1024;
+            }
+            
+            return await tryModel('gpt-4o-mini', 'Fallback técnico');
+          } catch (fallbackError) {
+            console.error('[callAIWithFallback] ❌ Fallback gpt-4o-mini também falhou:', fallbackError);
+            throw primaryError; // Propagar erro original
+          }
+        }
+        
+        throw primaryError;
+      }
     }
     
     // ============================================================
@@ -6709,7 +6794,7 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
         // FASE 2: Handle email verification and send OTP
         if (toolCall.function.name === 'verify_customer_email' || toolCall.function.name === 'update_customer_email') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             const emailInformado = args.email.toLowerCase().trim();
             console.log('[ai-autopilot-chat] 📧 Verificando email na base:', emailInformado);
 
@@ -6946,7 +7031,7 @@ Por favor, digite o codigo que voce recebeu para confirmar sua identidade.`;
         // TOOL: Confirmar email não encontrado - transferir para comercial ou pedir novo email
         else if (toolCall.function.name === 'confirm_email_not_found') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             const confirmed = args.confirmed;
             const currentMetadata = conversation.customer_metadata || {};
             const pendingEmail = currentMetadata.pending_email_confirmation;
@@ -7123,7 +7208,7 @@ Assim que retornarmos, um consultor vai te ajudar!`;
         // FASE 2: Handle OTP verification
         else if (toolCall.function.name === 'verify_otp_code') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 🔐 Verificando código OTP:', args.code);
 
             // Buscar email do contato
@@ -7230,7 +7315,7 @@ Você quer:
         }
         else if (toolCall.function.name === 'create_ticket') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 🎫 Criando ticket automaticamente:', args);
 
             // 🔒 HARD GUARD: Bloquear criação de ticket financeiro quando forbidFinancial ativo
@@ -7448,7 +7533,7 @@ Via: Atendimento Automatizado (IA)`;
         // TOOL: check_order_status - Consultar pedidos do cliente
         else if (toolCall.function.name === 'check_order_status') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             const customerEmail = args.customer_email?.toLowerCase().trim();
             console.log('[ai-autopilot-chat] 📦 Consultando pedidos para:', customerEmail);
 
@@ -7519,7 +7604,7 @@ Sobre qual pedido você gostaria de saber mais?`;
           console.log('[ai-autopilot-chat] 🚚 Argumentos brutos:', toolCall.function.arguments);
           
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 🚚 Argumentos parseados:', args);
             
             // Suporta tanto tracking_codes (array) quanto tracking_code (string legado)
@@ -7722,7 +7807,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
         // TOOL: request_human_agent - Handoff manual
         else if (toolCall.function.name === 'request_human_agent') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 👤 Executando handoff manual:', args);
 
             // 🆕 VALIDAÇÃO: Bloquear handoff se cliente não está identificado por email
@@ -7914,7 +7999,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
         // TOOL: close_conversation - Encerramento autônomo com confirmação
         else if (toolCall.function.name === 'close_conversation') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 🔒 close_conversation chamado:', args);
             
             const currentMeta = conversation.customer_metadata || {};
@@ -7944,7 +8029,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
         // TOOL: classify_and_resolve_ticket - Classificação pós-encerramento
         else if (toolCall.function.name === 'classify_and_resolve_ticket') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 📋 classify_and_resolve_ticket chamado:', args);
 
             // 1. Buscar configs globais
@@ -9003,7 +9088,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
         
         // 2. Enviar mensagem de fallback ao cliente
         const fallbackMessage = "Desculpe, estou com dificuldades técnicas no momento. Vou te conectar com um atendente humano!";
-        const { data: fallbackMsgData } = await supabaseClient
+        const { data: fallbackMsgData, error: fallbackSaveError } = await supabaseClient
           .from('messages')
           .insert({
             conversation_id: conversationId,
@@ -9012,12 +9097,16 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
             sender_id: null,
             is_ai_generated: true,
             channel: responseChannel,
-            status: 'pending'
+            status: 'sending'
           })
           .select('id')
           .single();
         
-        console.log('[ai-autopilot-chat] 💬 Mensagem de fallback salva no banco:', fallbackMsgData?.id);
+        if (fallbackSaveError) {
+          console.error('[ai-autopilot-chat] ❌ Falha ao salvar fallback no banco:', fallbackSaveError);
+        } else {
+          console.log('[ai-autopilot-chat] 💬 Mensagem de fallback salva no banco:', fallbackMsgData?.id);
+        }
 
         // 2b. Se WhatsApp, enviar via send-meta-whatsapp
         if (responseChannel === 'whatsapp' && contact?.phone && conversation) {

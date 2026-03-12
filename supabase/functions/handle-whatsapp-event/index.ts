@@ -1287,6 +1287,8 @@ async function handleMessageUpsert(supabase: any, payload: EvolutionWebhook, ins
             node_id: flowContext.node_id,
             forbidFinancial: flowContext.forbidFinancial,
             forbidCommercial: flowContext.forbidCommercial,
+            forbidCancellation: flowContext.forbidCancellation,
+            forbidConsultant: flowContext.forbidConsultant,
           }));
 
           const { data: aiResponse, error: aiError } = await supabase.functions.invoke('ai-autopilot-chat', {

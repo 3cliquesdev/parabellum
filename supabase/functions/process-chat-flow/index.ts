@@ -3019,9 +3019,8 @@ serve(async (req) => {
 
           if (validateFields.includes('phone') && (activeContactData.phone || activeContactData.whatsapp_id)) {
             validationPromises.push(
-              supabaseClient.functions.invoke('validate-by-kiwify-phone', {
-                body: { phone: activeContactData.phone, whatsapp_id: activeContactData.whatsapp_id, contact_id: activeContactData.id }
-              }).then(r => ({ type: 'phone', ...r })).catch(e => ({ type: 'phone', error: e }))
+              inlineKiwifyValidation(supabaseClient, activeContactData.phone, activeContactData.whatsapp_id, activeContactData.id)
+                .then(r => ({ type: 'phone', data: r })).catch(e => ({ type: 'phone', error: e }))
             );
           }
 

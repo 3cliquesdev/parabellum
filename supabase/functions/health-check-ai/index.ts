@@ -66,7 +66,7 @@ serve(async (req) => {
     const { count: staleQueueCount } = await supabase
       .from('conversation_queue')
       .select('id, conversations!inner(status)', { count: 'exact', head: true })
-      .in('conversations.status', ['closed']);
+      .in('conversations.status', ['closed', 'resolved', 'finished']);
 
     // 4. Last 100 ai_events with state_transition breakdown
     const { data: recentEvents } = await supabase

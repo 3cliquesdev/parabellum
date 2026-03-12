@@ -104,7 +104,7 @@ serve(async (req) => {
       const { data: closedConvs } = await supabase
         .from('conversation_queue')
         .select('id, conversation_id, conversations!inner(status)')
-        .in('conversations.status', ['closed']);
+        .in('conversations.status', ['closed', 'resolved', 'finished']);
 
       if (closedConvs && closedConvs.length > 0) {
         const ids = closedConvs.map((e: any) => e.id);

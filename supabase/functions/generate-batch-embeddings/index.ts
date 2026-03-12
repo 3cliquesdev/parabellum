@@ -43,7 +43,7 @@ async function extractKeywordsWithOpenAI(text: string, openaiApiKey: string): Pr
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5-nano',
         messages: [
           { 
             role: 'system', 

@@ -123,7 +123,7 @@ async function mineSuccessConversation(
   supabase: any,
   conversationId: string,
   aiModel: string,
-  LOVABLE_API_KEY: string,
+  OPENAI_API_KEY: string,
   departmentId?: string
 ): Promise<{ items: any[]; skipped: boolean; reason?: string; confidence?: number; reasoning?: string; messageCount?: number }> {
   // Buscar mensagens da conversa

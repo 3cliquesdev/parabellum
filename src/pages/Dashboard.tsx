@@ -38,6 +38,9 @@ import { ChurnAnalysisTab } from "@/components/analytics/ChurnAnalysisTab";
 import { PerformanceTab } from "@/components/analytics/PerformanceTab";
 import { AdvancedTab } from "@/components/analytics/AdvancedTab";
 
+// AI Telemetry (absorbed into dashboard)
+import { AITelemetryContent } from "@/pages/AITelemetry";
+
 export default function Dashboard() {
   const [searchParams] = useSearchParams();
   const view = searchParams.get("view") || "overview";

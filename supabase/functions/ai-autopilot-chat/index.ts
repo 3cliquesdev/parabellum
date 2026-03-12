@@ -1507,7 +1507,7 @@ serve(async (req) => {
     const financialActionPattern = /quero\s*(sacar|retirar|meu\s*(reembolso|dinheiro|estorno|saldo))|fa(z|ça)\s*(meu\s*)?(reembolso|estorno|saque|devolu[çc][ãa]o)|(sacar|retirar|tirar)\s*(meu\s*)?(saldo|dinheiro|valor)|(solicitar|pedir|fazer|realizar|efetuar|estornar)\s*(saque|reembolso|estorno|devolu[çc][ãa]o|pagamento)|(quero|preciso|necessito)\s*(meu\s+dinheiro|devolu[çc][ãa]o|reembolso|estorno|ressarcimento)|transferir\s*(meu\s*)?saldo|devolver\s*(meu\s*)?dinheiro|cobran[çc]a\s*indevida|contestar\s*(cobran[çc]a|pagamento)|cad[êe]\s*(meu\s*)?(dinheiro|saldo|reembolso)|n[ãa]o\s+recebi\s*(meu\s*)?(reembolso|estorno|saque|pagamento|dinheiro)|me\s+(devolvam|reembolsem|paguem)|preciso\s+do\s+meu\s+(saque|reembolso|saldo)|quero\s+receber\s*(meu\s*)?(pagamento|dinheiro|saldo)/i;
     const financialInfoPattern = /qual\s*(o\s*)?(prazo|tempo|data)|como\s*(funciona|fa[çc]o|solicito|pe[çc]o)|onde\s*(vejo|consulto|acompanho)|quando\s*(posso|vou|ser[áa])|pol[ií]tica\s*de\s*(reembolso|devolu[çc][ãa]o|estorno|saque|cancelamento)|regras?\s*(de|para|do)\s*(saque|reembolso|estorno|devolu[çc][ãa]o)|d[úu]vida\s+(sobre|com|de|do|da)\s+(saque|reembolso|estorno|devolu|financ|saldo|cobran)|saber\s+sobre|informar\s+sobre|informa[çc][ãa]o\s+(sobre|de|do|da)|perguntar\s+sobre|entender\s+(como|sobre|o\s+que)|explicar?\s+(como|sobre|o\s+que)|gostaria\s+de\s+(saber|entender|me\s+informar)|o\s+que\s+[ée]\s*(saque|reembolso|estorno|devolu[çc][ãa]o)|confirma[çc][ãa]o\s+de/i;
     // 🆕 Regex para termos financeiros AMBÍGUOS (palavra isolada, sem verbo de ação nem contexto informativo)
-    const financialAmbiguousPattern = /\b(saque|saldo|reembolso|estorno|devolu[çc][ãa]o|ressarcimento|cobran[çc]a)\b/i;
+    const financialAmbiguousPattern = /\b(saque|sacar|saldo|reembolso|estorno|devolu[çc][ãa]o|ressarcimento|cobran[çc]a)\b/i;
     
     const isFinancialAction = financialActionPattern.test(customerMessage || '');
     const isFinancialInfo = financialInfoPattern.test(customerMessage || '');
@@ -5984,30 +5984,47 @@ Digite **"reenviar"** se precisar de um novo código.`;
     // - Qualquer outra coisa → Conversa normal (sem OTP)
     // ============================================================
     if (contactHasEmail && isWithdrawalRequest && !hasRecentOTPVerification) {
-      // 🆕 GUARD: Se forbidFinancial + flow_context → devolver ao fluxo (soberania do motor de fluxos)
+      // 🆕 GUARD: Se forbidFinancial + flow_context → verificar se é ação clara ou termo ambíguo
       // O ramo Financeiro do fluxo tem seu próprio nó OTP nativo — NÃO duplicar aqui
       if (flow_context?.forbidFinancial) {
-        console.log('[ai-autopilot-chat] 🔒 OTP SAQUE BLOQUEADO: forbidFinancial + flow_context → devolvendo ao fluxo financeiro', {
-          is_withdrawal_request: isWithdrawalRequest,
-          has_flow_context: true,
-          forbid_financial: true,
-          action: 'flow_advance_needed_financeiro'
-        });
+        // 🆕 DESAMBIGUAÇÃO: Verificar se é AÇÃO CLARA (padrão composto) ou TERMO AMBÍGUO (palavra isolada)
+        const isWithdrawalActionClear = WITHDRAWAL_ACTION_PATTERNS.some(pattern =>
+          pattern.test(customerMessage)
+        );
         
-        return new Response(JSON.stringify({
-          ok: true,
-          financialBlocked: true,
-          exitKeywordDetected: true,
-          flow_advance_needed: true,
-          hasFlowContext: true,
-          ai_exit_intent: 'financeiro',
-          response: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
-          message: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
-          aiResponse: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        if (isWithdrawalActionClear) {
+          // ✅ Ação clara (ex: "quero sacar meu saldo") → devolver ao fluxo financeiro
+          console.log('[ai-autopilot-chat] 🔒 OTP SAQUE BLOQUEADO: Ação clara + forbidFinancial → devolvendo ao fluxo financeiro', {
+            is_withdrawal_action_clear: true,
+            has_flow_context: true,
+            forbid_financial: true,
+            action: 'flow_advance_needed_financeiro'
+          });
+          
+          return new Response(JSON.stringify({
+            ok: true,
+            financialBlocked: true,
+            exitKeywordDetected: true,
+            flow_advance_needed: true,
+            hasFlowContext: true,
+            ai_exit_intent: 'financeiro',
+            response: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
+            message: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
+            aiResponse: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } else {
+          // 🔍 Termo ambíguo (ex: "sacar", "saque") → NÃO bloquear, deixar IA desambiguar
+          console.log('[ai-autopilot-chat] 🔍 OTP SAQUE AMBÍGUO: Termo isolado detectado, IA vai desambiguar em vez de bloquear', {
+            is_withdrawal_action_clear: false,
+            message_preview: customerMessage.substring(0, 80),
+            action: 'disambiguation_via_ai_prompt'
+          });
+          // NÃO retorna — continua execução normal, a flag ambiguousFinancialDetected
+          // já foi setada na linha ~1517 e vai injetar instrução de desambiguação no prompt
+        }
       }
       
       const maskedEmail = maskEmail(contactEmail);
@@ -6315,6 +6332,8 @@ ${ambiguousFinancialDetected ? `
 ⚠️ DESAMBIGUAÇÃO OBRIGATÓRIA: O cliente mencionou um termo financeiro sem deixar claro se quer informação ou realizar uma ação.
 Você DEVE perguntar de forma natural e empática: "Posso te ajudar com informações sobre [tema] ou você gostaria de fazer uma solicitação?"
 Nunca assuma a intenção do cliente. Essa pergunta é OBRIGATÓRIA antes de qualquer resposta.
+Se o cliente confirmar que quer SOLICITAR/FAZER a ação (ex: "quero sacar", "sim, quero solicitar") → responda com [[FLOW_EXIT:financeiro]]
+Se for apenas dúvida → responda normalmente usando a Base de Conhecimento.
 ` : ''}
 ` : '';
 

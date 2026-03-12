@@ -890,21 +890,22 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[Auto-Close] ✅ Stage 5 complete - processed ${flowInactivityCount} flow inactivity timeouts`);
-    console.log(`[Auto-Close] ✅ All stages complete - total: ${totalClosedCount + aiClosedCount + noDeptClosedCount + humanClosedCount} inactivity + ${windowExpiredCount} expired + ${slaAlertCount} SLA alerts + ${flowInactivityCount} flow timeouts`);
+    console.log(`[Auto-Close] ✅ All stages complete - total: ${totalClosedCount + aiClosedCount + noDeptClosedCount + humanClosedCount + awaitingCloseCount} inactivity + ${windowExpiredCount} expired + ${slaAlertCount} SLA alerts + ${flowInactivityCount} flow timeouts`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        closed_count: totalClosedCount + aiClosedCount + noDeptClosedCount + humanClosedCount,
+        closed_count: totalClosedCount + aiClosedCount + noDeptClosedCount + humanClosedCount + awaitingCloseCount,
         whatsapp_window_expired_count: windowExpiredCount,
         ai_inactivity_closed_count: aiClosedCount,
         human_inactivity_closed_count: humanClosedCount,
         no_dept_closed_count: noDeptClosedCount,
+        awaiting_confirmation_closed_count: awaitingCloseCount,
         sla_alert_count: slaAlertCount,
         flow_inactivity_timeout_count: flowInactivityCount,
         closed_ids: closedIds,
         by_department: results,
-        message: `Closed ${totalClosedCount} by inactivity + ${aiClosedCount} AI + ${humanClosedCount} human + ${noDeptClosedCount} no-dept + ${windowExpiredCount} expired + ${slaAlertCount} SLA alerts + ${flowInactivityCount} flow timeouts` 
+        message: `Closed ${totalClosedCount} by inactivity + ${aiClosedCount} AI + ${humanClosedCount} human + ${noDeptClosedCount} no-dept + ${awaitingCloseCount} awaiting-confirm + ${windowExpiredCount} expired + ${slaAlertCount} SLA alerts + ${flowInactivityCount} flow timeouts` 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

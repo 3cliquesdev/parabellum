@@ -4651,7 +4651,7 @@ Responda APENAS: skip ou search`
     }
     
     if (isStrictRAGMode && !isOperationalTopic && !isGreetingBypass && OPENAI_API_KEY && knowledgeArticles.length > 0) {
-      console.log('[ai-autopilot-chat] 🎯 STRICT RAG MODE ATIVO - Usando GPT-4o exclusivo');
+      console.log('[ai-autopilot-chat] 🎯 STRICT RAG MODE ATIVO - Usando GPT-5 exclusivo');
       
       const strictResult = await callStrictRAG(
         supabaseClient,

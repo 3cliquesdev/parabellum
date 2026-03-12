@@ -6794,7 +6794,7 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
         // FASE 2: Handle email verification and send OTP
         if (toolCall.function.name === 'verify_customer_email' || toolCall.function.name === 'update_customer_email') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             const emailInformado = args.email.toLowerCase().trim();
             console.log('[ai-autopilot-chat] 📧 Verificando email na base:', emailInformado);
 
@@ -7031,7 +7031,7 @@ Por favor, digite o codigo que voce recebeu para confirmar sua identidade.`;
         // TOOL: Confirmar email não encontrado - transferir para comercial ou pedir novo email
         else if (toolCall.function.name === 'confirm_email_not_found') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             const confirmed = args.confirmed;
             const currentMetadata = conversation.customer_metadata || {};
             const pendingEmail = currentMetadata.pending_email_confirmation;
@@ -7208,7 +7208,7 @@ Assim que retornarmos, um consultor vai te ajudar!`;
         // FASE 2: Handle OTP verification
         else if (toolCall.function.name === 'verify_otp_code') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 🔐 Verificando código OTP:', args.code);
 
             // Buscar email do contato
@@ -7315,7 +7315,7 @@ Você quer:
         }
         else if (toolCall.function.name === 'create_ticket') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 🎫 Criando ticket automaticamente:', args);
 
             // 🔒 HARD GUARD: Bloquear criação de ticket financeiro quando forbidFinancial ativo
@@ -7533,7 +7533,7 @@ Via: Atendimento Automatizado (IA)`;
         // TOOL: check_order_status - Consultar pedidos do cliente
         else if (toolCall.function.name === 'check_order_status') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             const customerEmail = args.customer_email?.toLowerCase().trim();
             console.log('[ai-autopilot-chat] 📦 Consultando pedidos para:', customerEmail);
 
@@ -7604,7 +7604,7 @@ Sobre qual pedido você gostaria de saber mais?`;
           console.log('[ai-autopilot-chat] 🚚 Argumentos brutos:', toolCall.function.arguments);
           
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 🚚 Argumentos parseados:', args);
             
             // Suporta tanto tracking_codes (array) quanto tracking_code (string legado)
@@ -7807,7 +7807,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
         // TOOL: request_human_agent - Handoff manual
         else if (toolCall.function.name === 'request_human_agent') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 👤 Executando handoff manual:', args);
 
             // 🆕 VALIDAÇÃO: Bloquear handoff se cliente não está identificado por email
@@ -7999,7 +7999,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
         // TOOL: close_conversation - Encerramento autônomo com confirmação
         else if (toolCall.function.name === 'close_conversation') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 🔒 close_conversation chamado:', args);
             
             const currentMeta = conversation.customer_metadata || {};
@@ -8029,7 +8029,7 @@ Por favor, volte a consultar no **fim do dia** ou amanhã pela manhã para verif
         // TOOL: classify_and_resolve_ticket - Classificação pós-encerramento
         else if (toolCall.function.name === 'classify_and_resolve_ticket') {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args = safeParseToolArgs(toolCall.function.arguments);
             console.log('[ai-autopilot-chat] 📋 classify_and_resolve_ticket chamado:', args);
 
             // 1. Buscar configs globais

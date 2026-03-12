@@ -8444,6 +8444,18 @@ Conversa: ${conversationId}`;
           node_id: flow_context.node_id,
           fallback_count: aiNodeFallbackCount
         });
+        // 📊 FIX 4: Telemetria anti-alucinação — Anti-loop
+        console.log(JSON.stringify({
+          event: 'ai_decision',
+          conversation_id: conversationId,
+          reason: 'anti_loop_max_fallbacks',
+          score: 0,
+          hasFlowContext: true,
+          exitType: 'flow_advance_needed',
+          fallback_used: true,
+          articles_found: 0,
+          timestamp: new Date().toISOString()
+        }));
         isFallbackResponse = true;
       }
     }

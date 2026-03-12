@@ -4021,10 +4021,10 @@ serve(async (req) => {
           try {
             // Fallback: modelo mais estável e tolerante
             const safeFallbackPayload = { ...finalPayload };
-            // Remover campos problemáticos para modelos antigos
-            delete safeFallbackPayload.max_completion_tokens;
-            if (!safeFallbackPayload.max_tokens) {
-              safeFallbackPayload.max_tokens = 1024;
+            // gpt-5-nano usa max_completion_tokens
+            delete safeFallbackPayload.max_tokens;
+            if (!safeFallbackPayload.max_completion_tokens) {
+              safeFallbackPayload.max_completion_tokens = 1024;
             }
             
             return await tryModel('gpt-5-nano', 'Fallback técnico', safeFallbackPayload);
@@ -4039,9 +4039,9 @@ serve(async (req) => {
     }
     
     // ============================================================
-    // 🎯 MODO RAG ESTRITO - OpenAI GPT-4o Exclusivo (Anti-Alucinação)
+    // 🎯 MODO RAG ESTRITO - OpenAI GPT-5 Exclusivo (Anti-Alucinação)
     // ============================================================
-    // Quando ativo: usa APENAS OpenAI GPT-4o, sem fallback, com thresholds rígidos
+    // Quando ativo: usa APENAS OpenAI GPT-5, sem fallback, com thresholds rígidos
     // Cita fontes explicitamente e recusa responder quando não tem informação
     // ============================================================
     interface StrictRAGResult {
@@ -4058,7 +4058,7 @@ serve(async (req) => {
       contactName: string,
       openaiApiKey: string
     ): Promise<StrictRAGResult> {
-      console.log('[callStrictRAG] 🎯 Iniciando RAG Estrito com GPT-4o');
+      console.log('[callStrictRAG] 🎯 Iniciando RAG Estrito com GPT-5');
       
       // Filtrar apenas artigos com alta confiança (≥80%)
       const highConfidenceArticles = knowledgeArticles.filter(
@@ -4102,26 +4102,25 @@ ${a.content}`).join('\n\n---\n\n')}`;
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4o', // Modelo mais preciso (não gpt-4o-mini)
+            model: 'gpt-5', // Modelo mais preciso para Strict RAG
             messages: [
               { role: 'system', content: strictPrompt },
               { role: 'user', content: `${contactName}: ${customerMessage}` }
             ],
-            temperature: 0.3, // Baixa criatividade = alta fidelidade à KB
-            max_tokens: 400
+            max_completion_tokens: 400
           }),
         });
         
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('[callStrictRAG] ❌ OpenAI GPT-4o falhou:', response.status, errorText);
+          console.error('[callStrictRAG] ❌ OpenAI GPT-5 falhou:', response.status, errorText);
           throw new Error(`OpenAI strict RAG failed: ${response.status}`);
         }
         
         const data = await response.json();
         const aiMessage = data.choices?.[0]?.message?.content || '';
         
-        console.log('[callStrictRAG] 📝 Resposta GPT-4o recebida:', aiMessage.substring(0, 100) + '...');
+        console.log('[callStrictRAG] 📝 Resposta GPT-5 recebida:', aiMessage.substring(0, 100) + '...');
         
         // Validação pós-geração: detectar indicadores de incerteza/alucinação
         const hasUncertainty = HALLUCINATION_INDICATORS.some(
@@ -4630,7 +4629,7 @@ Responda APENAS: skip ou search`
     console.log('[ai-autopilot-chat] 🎯 Modo RAG Estrito:', isStrictRAGMode ? 'ATIVADO' : 'desativado');
     
     // ============================================================
-    // 🆕 MODO RAG ESTRITO - Processamento exclusivo com GPT-4o
+    // 🆕 MODO RAG ESTRITO - Processamento exclusivo com GPT-5
     // Bypass: temas operacionais (pedidos/tracking) pulam o Strict RAG
     // para que a IA possa usar CRM + Tracking lookup
     // ============================================================
@@ -4652,7 +4651,7 @@ Responda APENAS: skip ou search`
     }
     
     if (isStrictRAGMode && !isOperationalTopic && !isGreetingBypass && OPENAI_API_KEY && knowledgeArticles.length > 0) {
-      console.log('[ai-autopilot-chat] 🎯 STRICT RAG MODE ATIVO - Usando GPT-4o exclusivo');
+      console.log('[ai-autopilot-chat] 🎯 STRICT RAG MODE ATIVO - Usando GPT-5 exclusivo');
       
       const strictResult = await callStrictRAG(
         supabaseClient,

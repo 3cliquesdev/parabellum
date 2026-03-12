@@ -1764,11 +1764,27 @@ serve(async (req) => {
                     completed_at: new Date().toISOString(),
                   }).eq('id', activeState.id);
 
+                  // ✅ BUG E FIX: OTP not_customer transfer → transition-conversation-state
+                  const otpNcDeptId = resolvedNode.data?.department_id || null;
+                  const otpNcAiMode = resolvedNode.data?.ai_mode || 'waiting_human';
+                  const otpNcTransType =
+                    otpNcAiMode === 'copilot'   ? 'set_copilot' :
+                    otpNcAiMode === 'autopilot' ? 'engage_ai' :
+                    'handoff_to_human';
+                  await fetch(
+                    `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+                      body: JSON.stringify({ conversationId, transition: otpNcTransType, departmentId: otpNcDeptId, reason: 'flow_transfer_otp_not_customer', metadata: { node_id: resolvedNode.id, flow_id: activeState.flow_id, ai_mode: otpNcAiMode } })
+                    }
+                  );
+
                   return new Response(JSON.stringify({
                     useAI: false,
                     response: notCustomerMsg,
                     transfer: true,
-                    departmentId: resolvedNode.data?.department_id || null,
+                    departmentId: otpNcDeptId,
                     transferType: resolvedNode.data?.transfer_type,
                     collectedData,
                     flowId: activeState.flow_id,

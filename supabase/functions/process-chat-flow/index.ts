@@ -4050,7 +4050,7 @@ serve(async (req) => {
     let attempts = 0;
     const maxAttempts = 10; // Evitar loop infinito
     
-    while (attempts < maxAttempts && (trigCurrentNode.type === 'input' || trigCurrentNode.type === 'condition')) {
+    while (attempts < maxAttempts && (trigCurrentNode.type === 'input' || trigCurrentNode.type === 'condition' || trigCurrentNode.type === 'condition_v2')) {
       attempts++;
       console.log('[process-chat-flow] ⏩ Nó sem conteúdo (', trigCurrentNode.type, ') - avançando...');
       
@@ -4065,6 +4065,10 @@ serve(async (req) => {
         const path = evaluateConditionPath(trigCurrentNode.data, {}, userMessage);
         console.log('[process-chat-flow] 🔍 Condição avaliada → path:', path);
         trigCurrentNode = findNextNode(trigFlowDef, trigCurrentNode, path);
+      } else if (trigCurrentNode.type === 'condition_v2') {
+        const v2Path = evaluateConditionV2Path(trigCurrentNode.data, {}, userMessage, undefined, undefined, undefined, trigFlowDef.edges || []);
+        console.log('[process-chat-flow] 🔍 Condição V2 avaliada → path:', v2Path);
+        trigCurrentNode = findNextNode(trigFlowDef, trigCurrentNode, v2Path);
       } else {
         // Para nó input, apenas seguir para o próximo
         trigCurrentNode = findNextNode(trigFlowDef, trigCurrentNode, undefined);

@@ -4016,7 +4016,7 @@ serve(async (req) => {
         
         // Se é erro 400/422 (payload inválido), tentar modelo de contingência seguro
         if (errMsg.includes('400') || errMsg.includes('422')) {
-          console.warn(`[callAIWithFallback] ⚠️ Erro ${errMsg.includes('400') ? '400' : '422'} com ${configuredModel}, tentando fallback gpt-4o-mini`);
+          console.warn(`[callAIWithFallback] ⚠️ Erro ${errMsg.includes('400') ? '400' : '422'} com ${configuredModel}, tentando fallback gpt-5-nano`);
           
           try {
             // Fallback: modelo mais estável e tolerante

@@ -1389,7 +1389,7 @@ function validateResponseRestrictions(
 // 🆕 ESCAPE PATTERNS: Detectar quando IA tenta sair do contrato (semântico, agrupado por intenção)
 const ESCAPE_PATTERNS = [
   // Token explícito de saída (IA pediu exit limpo)
-  /\[\[FLOW_EXIT\]\]/i,
+  /\[\[FLOW_EXIT(:[a-zA-Z_]+)?\]\]/i,
   // Promessa de ação de transferência (vou/irei/posso + verbo)
   /(vou|irei|posso)\s+(te\s+)?(direcionar|redirecionar|transferir|encaminhar|conectar|passar)/i,
   // Ação em andamento (estou/estarei + gerúndio)

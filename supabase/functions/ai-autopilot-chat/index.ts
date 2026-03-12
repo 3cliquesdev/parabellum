@@ -1541,6 +1541,26 @@ serve(async (req) => {
       console.log('[ai-autopilot-chat] 🔍 DESAMBIGUAÇÃO CANCELAMENTO: Termo ambíguo detectado, IA vai perguntar ao cliente:', customerMessage?.substring(0, 80));
     }
     
+    // 🛒 DESAMBIGUAÇÃO COMERCIAL — Detectar termos comerciais ambíguos
+    const commercialAmbiguousPattern = /\b(comprar|pre[çc]o|or[çc]amento|plano|assinatura|upgrade|downgrade|cat[aá]logo|proposta|demonstra[çc][ãa]o)\b/i;
+    const commercialActionPattern = /comprar|quero comprar|quanto custa|pre[çc]o|proposta|or[çc]amento|cat[aá]logo|assinar|plano|tabela de pre[çc]o|conhecer.*produto|demonstra[çc][aã]o|demo|trial|teste gr[aá]tis|upgrade|downgrade|mudar.*plano/i;
+    const isCommercialAction = commercialActionPattern.test(customerMessage || '');
+    const isCommercialAmbiguous = !isCommercialAction && commercialAmbiguousPattern.test(customerMessage || '');
+    const ambiguousCommercialDetected = flowForbidCommercialPrompt && isCommercialAmbiguous;
+    if (ambiguousCommercialDetected) {
+      console.log('[ai-autopilot-chat] 🔍 DESAMBIGUAÇÃO COMERCIAL: Termo ambíguo detectado, IA vai perguntar ao cliente:', customerMessage?.substring(0, 80));
+    }
+
+    // 💼 DESAMBIGUAÇÃO CONSULTOR — Detectar termos de consultor ambíguos
+    const consultorAmbiguousPattern = /\b(consultor|assessor|meu\s+gerente|meu\s+consultor|falar\s+com\s+meu)\b/i;
+    const consultorActionPattern = /falar\s+com\s*(meu\s*)?(consultor|assessor|gerente)|quero\s*(meu\s*)?(consultor|assessor)|chamar\s*(meu\s*)?(consultor|assessor)|transferir\s+para\s*(meu\s*)?(consultor|assessor)/i;
+    const isConsultorAction = consultorActionPattern.test(customerMessage || '');
+    const isConsultorAmbiguous = !isConsultorAction && consultorAmbiguousPattern.test(customerMessage || '');
+    const ambiguousConsultorDetected = flowForbidConsultantPrompt && isConsultorAmbiguous;
+    if (ambiguousConsultorDetected) {
+      console.log('[ai-autopilot-chat] 🔍 DESAMBIGUAÇÃO CONSULTOR: Termo ambíguo detectado, IA vai perguntar ao cliente:', customerMessage?.substring(0, 80));
+    }
+    
     // Só bloquear AÇÕES financeiras. Info passa para LLM responder via KB. Ambíguo → IA pergunta.
     if (ragConfig.blockFinancial && flowForbidFinancial && customerMessage && customerMessage.trim().length > 0 && isFinancialAction && !isFinancialInfo) {
       console.warn('[ai-autopilot-chat] 🔒 TRAVA FINANCEIRA (ENTRADA): Intenção financeira detectada, bloqueando IA:', customerMessage.substring(0, 80));

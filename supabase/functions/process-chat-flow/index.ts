@@ -4085,9 +4085,9 @@ serve(async (req) => {
             if (tagScope === 'conversation') {
               console.log(`[process-chat-flow] 🏷️ Adding tag ${tagName} to conversation ${conversationId} (after msg chain)`);
               await supabaseClient.from('conversation_tags').upsert({ conversation_id: conversationId, tag_id: tagId }, { onConflict: 'conversation_id,tag_id' });
-            } else if (activeState.conversations?.contact_id) {
-              console.log(`[process-chat-flow] 🏷️ Adding tag ${tagName} to contact ${activeState.conversations.contact_id} (after msg chain)`);
-              await supabaseClient.from('contact_tags').upsert({ contact_id: activeState.conversations.contact_id, tag_id: tagId }, { onConflict: 'contact_id,tag_id' });
+            } else if (activeContactData?.id) {
+              console.log(`[process-chat-flow] 🏷️ Adding tag ${tagName} to contact ${activeContactData.id} (after msg chain)`);
+              await supabaseClient.from('contact_tags').upsert({ contact_id: activeContactData.id, tag_id: tagId }, { onConflict: 'contact_id,tag_id' });
             }
           }
         }

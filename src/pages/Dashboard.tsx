@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, TrendingUp, LayoutGrid, Headphones, DollarSign, Settings, UserMinus, Target, Sparkles } from "lucide-react";
+import { Loader2, TrendingUp, LayoutGrid, Headphones, DollarSign, Settings, UserMinus, Target, Sparkles, Activity } from "lucide-react";
 import { OnboardingWidget } from "@/components/widgets/OnboardingWidget";
 import { usePipelineValue } from "@/hooks/usePipelineValue";
 import { PageContainer, PageHeader, PageContent } from "@/components/ui/page-container";
@@ -38,6 +38,9 @@ import { ChurnAnalysisTab } from "@/components/analytics/ChurnAnalysisTab";
 import { PerformanceTab } from "@/components/analytics/PerformanceTab";
 import { AdvancedTab } from "@/components/analytics/AdvancedTab";
 
+// AI Telemetry (absorbed into dashboard)
+import { AITelemetryContent } from "@/pages/AITelemetry";
+
 export default function Dashboard() {
   const [searchParams] = useSearchParams();
   const view = searchParams.get("view") || "overview";
@@ -45,7 +48,7 @@ export default function Dashboard() {
   // Deep-link: /?tab=sales ou /?tab=vendas
   const tabParam = searchParams.get("tab");
   const TAB_ALIAS: Record<string, string> = { vendas: "sales" };
-  const VALID_TABS = ["overview", "sales", "support", "financial", "operations", "churn", "performance", "advanced"];
+  const VALID_TABS = ["overview", "sales", "support", "financial", "operations", "churn", "performance", "advanced", "ai-telemetry"];
   const resolvedTab = TAB_ALIAS[tabParam || ""] || tabParam || "";
   const initialTab = VALID_TABS.includes(resolvedTab) ? resolvedTab : "overview";
   const { role, loading } = useUserRole();
@@ -184,6 +187,10 @@ export default function Dashboard() {
               <Sparkles className="h-4 w-4" />
               Avançado
             </TabsTrigger>
+            <TabsTrigger value="ai-telemetry" className="gap-2">
+              <Activity className="h-4 w-4" />
+              AI Telemetria
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview">
@@ -216,6 +223,10 @@ export default function Dashboard() {
           
           <TabsContent value="advanced">
             <AdvancedTab startDate={startDate} endDate={endDate} />
+          </TabsContent>
+          
+          <TabsContent value="ai-telemetry">
+            <AITelemetryContent />
           </TabsContent>
         </Tabs>
         

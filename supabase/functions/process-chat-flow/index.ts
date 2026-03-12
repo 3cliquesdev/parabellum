@@ -2090,6 +2090,28 @@ serve(async (req) => {
           }
         }
 
+        // 🆕 BUG 3 FIX: Handler fetch_order inline no ask_* genérico
+        if (nextNode?.type === 'fetch_order') {
+          console.log('[process-chat-flow] 📦 [generic] Processing fetch_order after ask_*');
+          collectedData = await handleFetchOrderNode(nextNode, collectedData, userMessage);
+          await supabaseClient.from('chat_flow_states').update({
+            collected_data: collectedData, current_node_id: nextNode.id, updated_at: new Date().toISOString(),
+          }).eq('id', activeState.id);
+          // Auto-traverse after fetch_order
+          let afterFO = findNextNode(flowDef, nextNode);
+          let foSteps = 0;
+          while (afterFO && ['condition', 'condition_v2', 'input', 'start'].includes(afterFO.type) && foSteps < 20) {
+            foSteps++;
+            if (afterFO.type === 'condition' || afterFO.type === 'condition_v2') {
+              const cp2 = afterFO.type === 'condition_v2'
+                ? evaluateConditionV2Path(afterFO.data, collectedData, userMessage, undefined, activeContactData, activeConversationData, flowDef.edges || [])
+                : evaluateConditionPath(afterFO.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
+              afterFO = findNextNode(flowDef, afterFO, cp2);
+            } else { afterFO = findNextNode(flowDef, afterFO); }
+          }
+          if (afterFO) nextNode = afterFO;
+        }
+
         // Handler: validate_customer (silencioso + auto-traverse)
         if (nextNode?.type === 'validate_customer') {
           console.log('[process-chat-flow] 🛡️ [generic] Processing validate_customer after ask_*');

@@ -1982,6 +1982,16 @@ serve(async (req) => {
       let nextNode: any = null;
       let path: string | undefined;
 
+      // 🔧 FIX: Variáveis de intent declaradas fora do bloco ai_response
+      // para que condition/condition_v2 também alcancem o código de delivery
+      let financialIntentMatch = false;
+      let cancellationIntentMatch = false;
+      let supportIntentMatch = false;
+      let commercialIntentMatch = false;
+      let consultorIntentMatch = false;
+      let consultorHasConsultant = false;
+      let aiExitForced = false;
+
       // 🔧 FIX CRÍTICO: Nós genéricos ask_* (email, name, phone, cpf, text)
       // Antes, esses nós não entravam em nenhum branch do if/else if chain,
       // fazendo o motor cair no bloco de triggers e retornar "invalidOption".

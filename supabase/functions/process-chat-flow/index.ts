@@ -4003,7 +4003,7 @@ serve(async (req) => {
 
     // 4. Iniciar novo fluxo
     const trigFlowDef = matchedFlow.flow_definition as any;
-    if (!flowDef?.nodes?.length) {
+    if (!trigFlowDef?.nodes?.length) {
       return new Response(
         JSON.stringify({ useAI: true, reason: "Empty flow definition" }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -4011,8 +4011,8 @@ serve(async (req) => {
     }
 
     // Encontrar primeiro nó (sem edges apontando para ele)
-    const targetIds = new Set((flowDef.edges || []).map((e: any) => e.target));
-    let startNode = flowDef.nodes.find((n: any) => !targetIds.has(n.id)) || flowDef.nodes[0];
+    const targetIds = new Set((trigFlowDef.edges || []).map((e: any) => e.target));
+    let startNode = trigFlowDef.nodes.find((n: any) => !targetIds.has(n.id)) || trigFlowDef.nodes[0];
     
     console.log('[process-chat-flow] 🚀 Start node:', startNode.type, startNode.id);
 

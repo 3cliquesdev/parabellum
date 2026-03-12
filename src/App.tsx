@@ -61,8 +61,7 @@ const MyTickets = lazy(() => import("./pages/MyTickets"));
 const AIStudio = lazy(() => import("./pages/AIStudio"));
 const MyPortfolio = lazy(() => import("./pages/MyPortfolio"));
 const FraudDetection = lazy(() => import("./pages/reports/FraudDetection"));
-const CSManagement = lazy(() => import("./pages/CSManagement"));
-const SalesManagement = lazy(() => import("./pages/SalesManagement"));
+// CSManagement and SalesManagement removed — now inline redirects
 const AgentQualityDashboard = lazy(() => import("./pages/AgentQualityDashboard"));
 const CopilotImpactDashboard = lazy(() => import("./pages/CopilotImpactDashboard"));
 const SalesRepDetail = lazy(() => import("./pages/SalesRepDetail"));

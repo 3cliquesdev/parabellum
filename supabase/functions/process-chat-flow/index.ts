@@ -2173,7 +2173,16 @@ serve(async (req) => {
 
         // 🆕 TRAVA CANCELAMENTO: Separada do financeiro para roteamento independente
         const cancellationActionPattern = /cancelar\s*(minha\s*)?(assinatura|cobran[çc]a|pagamento|plano|conta|servi[çc]o)|quero\s+cancelar|desistir\s*(do|da|de)\s*(plano|assinatura|servi[çc]o|conta)|n[ãa]o\s+quero\s+mais\s*(o\s*)?(plano|assinatura|servi[çc]o)|encerrar\s*(minha\s*)?(conta|assinatura|plano)/i;
-        const cancellationIntentMatch = forbidCancellation && msgLower.length > 0 && cancellationActionPattern.test(userMessage || '') && !isFinancialInfo;
+        // 🆕 Ambíguo de cancelamento — termos isolados
+        const cancellationAmbiguousPattern = /\b(cancelar|cancelamento|desistir|encerrar)\b/i;
+        const isCancellationAction = cancellationActionPattern.test(userMessage || '') && !isFinancialInfo;
+        const isCancellationAmbiguous = !isCancellationAction && cancellationAmbiguousPattern.test(userMessage || '');
+        
+        if (isCancellationAmbiguous && forbidCancellation) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO CANCELAMENTO: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+        
+        const cancellationIntentMatch = forbidCancellation && msgLower.length > 0 && isCancellationAction;
         
         if (cancellationIntentMatch) {
           console.log(`[process-chat-flow] 🚫 TRAVA CANCELAMENTO: Intenção de cancelamento detectada | msg="${(userMessage || '').substring(0, 100)}"`);
@@ -2188,10 +2197,54 @@ serve(async (req) => {
         }
 
         // 🛒 TRAVA COMERCIAL: Detectar intenção de compra como exit do nó AI
-        const commercialIntentPattern = /comprar|quero comprar|quanto custa|pre[çc]o|proposta|or[çc]amento|cat[aá]logo|assinar|plano|tabela de pre[çc]o|conhecer.*produto|demonstra[çc][aã]o|demo|trial|teste gr[aá]tis|upgrade|downgrade|mudar.*plano/i;
-        const commercialIntentMatch = (forceCommercialExit && forbidCommercial) || (forbidCommercial && msgLower.length > 0 && commercialIntentPattern.test(userMessage || ''));
+        const commercialActionPattern = /comprar|quero comprar|quanto custa|pre[çc]o|proposta|or[çc]amento|cat[aá]logo|assinar|tabela de pre[çc]o|conhecer.*produto|demonstra[çc][aã]o|demo|trial|teste gr[aá]tis|upgrade|downgrade|mudar.*plano/i;
+        // 🆕 Ambíguo de comercial — termos isolados
+        const commercialAmbiguousPattern = /\b(plano|compra|pre[çc]o|assinatura)\b/i;
+        const isCommercialAction = commercialActionPattern.test(userMessage || '');
+        const isCommercialAmbiguous = !isCommercialAction && commercialAmbiguousPattern.test(userMessage || '');
+        
+        if (isCommercialAmbiguous && forbidCommercial) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO COMERCIAL: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+        
+        const commercialIntentMatch = (forceCommercialExit && forbidCommercial) || (forbidCommercial && msgLower.length > 0 && isCommercialAction);
         if (forceCommercialExit) {
           console.log('[process-chat-flow] 🛒 forceCommercialExit=true recebido do webhook, forçando exit do nó AI');
+        }
+
+        // 💼 TRAVA CONSULTOR: Detectar pedido de falar com consultor
+        const consultorActionPattern = /falar\s+com\s*(meu\s*)?(consultor|assessor|gestor)|quero\s+(meu\s*)?(consultor|assessor)|cad[êe]\s*(meu\s*)?(consultor|assessor)|consultor\s+de\s+vendas|estrat[ée]gia\s+de\s+vendas|meu\s+consultor|chamar?\s+(meu\s*)?(consultor|assessor)/i;
+        const consultorAmbiguousPattern = /\b(consultor|assessor|gestor|estrat[ée]gia)\b/i;
+        const isConsultorAction = consultorActionPattern.test(userMessage || '');
+        const isConsultorAmbiguous = !isConsultorAction && consultorAmbiguousPattern.test(userMessage || '');
+        
+        if (isConsultorAmbiguous && forbidConsultant) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO CONSULTOR: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+        
+        let consultorIntentMatch = forbidConsultant && msgLower.length > 0 && isConsultorAction;
+        let consultorHasConsultant = false;
+        
+        // Verificar se contato tem consultant_id
+        if (consultorIntentMatch) {
+          try {
+            const { data: contactRow } = await supabaseClient
+              .from('contacts')
+              .select('consultant_id')
+              .eq('id', activeConversationData?.contact_id)
+              .maybeSingle();
+            consultorHasConsultant = !!(contactRow?.consultant_id);
+            if (!consultorHasConsultant) {
+              console.log(`[process-chat-flow] 💼 CONSULTOR: Intenção detectada mas contato não tem consultant_id → roteando para suporte`);
+              // Sem consultor → redireciona para suporte ao invés de consultor
+              consultorIntentMatch = false;
+            } else {
+              console.log(`[process-chat-flow] 💼 CONSULTOR: Intenção detectada e contato tem consultant_id → saída consultor`);
+            }
+          } catch (err) {
+            console.error('[process-chat-flow] ⚠️ Erro verificando consultant_id:', err);
+            consultorIntentMatch = false;
+          }
         }
 
         if (financialIntentMatch) {

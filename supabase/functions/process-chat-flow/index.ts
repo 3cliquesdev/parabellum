@@ -2194,6 +2194,28 @@ serve(async (req) => {
         
         if (supportIntentMatch) {
           console.log(`[process-chat-flow] 🧑 TRAVA SUPORTE: Pedido de atendente detectado | msg="${(userMessage || '').substring(0, 100)}"`);
+          
+          // 🆕 FIX: Log ai_blocked_support (paridade com financeiro, cancelamento, comercial, consultor)
+          try {
+            await supabaseClient
+              .from('ai_events')
+              .insert({
+                entity_type: 'conversation',
+                entity_id: conversationId,
+                event_type: 'ai_blocked_support',
+                model: 'process-chat-flow',
+                output_json: {
+                  phase: 'flow_node_exit',
+                  node_id: currentNode.id,
+                  flow_id: activeState.flow_id,
+                  interaction_count: aiCount,
+                  message_preview: (userMessage || '').substring(0, 200),
+                },
+                input_summary: (userMessage || '').substring(0, 200),
+              });
+          } catch (logErr) {
+            console.error('[process-chat-flow] ⚠️ Failed to log support block event:', logErr);
+          }
         }
 
         // 🛒 TRAVA COMERCIAL: Detectar intenção de compra como exit do nó AI

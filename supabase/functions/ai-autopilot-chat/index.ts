@@ -1435,11 +1435,24 @@ serve(async (req) => {
         console.error('[ai-autopilot-chat] ⚠️ Failed to log financial block event:', logErr);
       }
 
+      // Correção 2: Quando fluxo ativo, NÃO enviar mensagem fixa — delegar 100% ao process-chat-flow
+      if (hasFlowContext) {
+        return new Response(JSON.stringify({
+          ok: true,
+          financialBlocked: true,
+          exitKeywordDetected: true,
+          hasFlowContext: true,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       return new Response(JSON.stringify({
         ok: true,
         financialBlocked: true,
         exitKeywordDetected: true,
-        hasFlowContext,
+        hasFlowContext: false,
         response: fixedMessage,
         message: fixedMessage,
         aiResponse: fixedMessage,

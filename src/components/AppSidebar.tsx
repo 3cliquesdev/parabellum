@@ -273,7 +273,7 @@ export function AppSidebar() {
             to={item.href}
             end={item.href === "/"}
             className="flex items-center gap-3 px-3 py-2 rounded-md text-slate-700 dark:text-slate-300 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors relative"
-            activeClassName="bg-primary/10 text-primary font-medium border-l-2 border-primary hover:bg-primary/10 hover:text-primary"
+            activeClassName="bg-primary/15 text-primary font-medium border-l-[3px] border-primary hover:bg-primary/15 hover:text-primary"
             onMouseEnter={() => handlePrefetch(item.href)}
             onFocus={() => handlePrefetch(item.href)}
           >

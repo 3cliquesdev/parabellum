@@ -1201,6 +1201,45 @@ Se o cliente mencionar termos como saque, saldo, reembolso, estorno ou devoluç�
 "Posso te ajudar com informações sobre [tema] ou você gostaria de fazer uma solicitação?"
 Nunca assuma a intenção do cliente — sempre pergunte quando houver ambiguidade.`;
   }
+
+  const forbidCancellation = flowContext.forbidCancellation ?? false;
+  if (forbidCancellation) {
+    restrictions += `\n\n🚫 TRAVA CANCELAMENTO ATIVA:
+Se o cliente solicitar CANCELAR claramente (ex: "quero cancelar meu plano"), responda:
+"Entendi sua solicitação de cancelamento. Vou te encaminhar para o setor responsável."
+E retorne [[FLOW_EXIT]] imediatamente.
+
+🔍 DESAMBIGUAÇÃO CANCELAMENTO OBRIGATÓRIA:
+Se o cliente mencionar termos como cancelar, cancelamento, desistir ou encerrar sem deixar claro se quer uma INFORMAÇÃO ou realizar uma AÇÃO, você DEVE perguntar:
+"Você tem dúvidas sobre cancelamento ou deseja cancelar um produto/serviço?"
+Nunca assuma a intenção do cliente — sempre pergunte quando houver ambiguidade.`;
+  }
+
+  const forbidCommercial = flowContext.forbidCommercial ?? false;
+  if (forbidCommercial) {
+    restrictions += `\n\n🛒 TRAVA COMERCIAL ATIVA:
+Se o cliente solicitar COMPRAR claramente (ex: "quero comprar", "quanto custa"), responda:
+"Ótimo interesse! Vou te conectar com nosso time comercial."
+E retorne [[FLOW_EXIT]] imediatamente.
+
+🔍 DESAMBIGUAÇÃO COMERCIAL OBRIGATÓRIA:
+Se o cliente mencionar termos como plano, compra, preço ou assinatura sem deixar claro se quer uma INFORMAÇÃO ou realizar uma COMPRA, você DEVE perguntar:
+"Você deseja comprar algum plano ou tem dúvidas sobre seu plano atual?"
+Nunca assuma a intenção do cliente — sempre pergunte quando houver ambiguidade.`;
+  }
+
+  const forbidConsultant = flowContext.forbidConsultant ?? false;
+  if (forbidConsultant) {
+    restrictions += `\n\n💼 TRAVA CONSULTOR ATIVA:
+Se o cliente solicitar FALAR COM CONSULTOR claramente (ex: "quero meu consultor", "falar com consultor"), responda:
+"Certo! Vou te conectar com seu consultor."
+E retorne [[FLOW_EXIT]] imediatamente.
+
+🔍 DESAMBIGUAÇÃO CONSULTOR OBRIGATÓRIA:
+Se o cliente mencionar termos como consultor, assessor, gestor ou estratégia sem deixar claro a intenção, você DEVE perguntar:
+"Você deseja falar com um consultor para saber estratégias de vendas? Ou quer um atendimento normal pela equipe de suporte?"
+Nunca assuma a intenção do cliente — sempre pergunte quando houver ambiguidade.`;
+  }
   
   restrictions += `
 NÃO sugira transferência para humano.

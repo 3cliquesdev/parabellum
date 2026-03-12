@@ -69,16 +69,31 @@ serve(async (req) => {
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // 2. Buscar TODOS os eventos Kiwify relevantes
-    const { data: kiwifyEvents, error: kiwifyErr } = await supabaseClient
-      .from('kiwify_events')
-      .select('id, payload, customer_email, created_at')
-      .in('event_type', ['paid', 'order_approved', 'subscription_renewed'])
-      .limit(10000);
+    // 2. Buscar TODOS os eventos Kiwify relevantes (paginado - Supabase limita 1000/query)
+    const kiwifyEvents: Array<{ id: string; payload: any; customer_email: string; created_at: string }> = [];
+    const PAGE_SIZE = 1000;
+    let offset = 0;
+    let hasMore = true;
 
-    if (kiwifyErr) throw kiwifyErr;
+    while (hasMore) {
+      const { data: page, error: kiwifyErr } = await supabaseClient
+        .from('kiwify_events')
+        .select('id, payload, customer_email, created_at')
+        .in('event_type', ['paid', 'order_approved', 'subscription_renewed'])
+        .range(offset, offset + PAGE_SIZE - 1);
 
-    console.log(`[batch-validate] Eventos Kiwify carregados: ${kiwifyEvents?.length || 0}`);
+      if (kiwifyErr) throw kiwifyErr;
+
+      if (page && page.length > 0) {
+        kiwifyEvents.push(...page);
+        offset += page.length;
+        hasMore = page.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    console.log(`[batch-validate] Eventos Kiwify carregados (paginado): ${kiwifyEvents.length}`);
 
     // 3. Criar mapa: últimos 9 dígitos → dados do cliente Kiwify
     const kiwifyMap = new Map<string, { email: string; name: string; products: string[] }>();

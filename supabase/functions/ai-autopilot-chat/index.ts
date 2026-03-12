@@ -3931,7 +3931,7 @@ serve(async (req) => {
               safeFallbackPayload.max_tokens = 1024;
             }
             
-            return await tryModel('gpt-4o-mini', 'Fallback técnico');
+            return await tryModel('gpt-4o-mini', 'Fallback técnico', safeFallbackPayload);
           } catch (fallbackError) {
             console.error('[callAIWithFallback] ❌ Fallback gpt-4o-mini também falhou:', fallbackError);
             throw primaryError; // Propagar erro original

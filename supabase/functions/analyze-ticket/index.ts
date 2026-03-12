@@ -147,10 +147,10 @@ Responda apenas com as tags separadas por vírgula (ex: Bug, Técnico, Urgente)`
         const errorReason = response.status === 429 ? 'rate_limit' : 
                            response.status === 503 ? 'service_unavailable' :
                            response.status === 502 ? 'bad_gateway' : 
-                           response.status === 402 ? 'credits_depleted' :
-                           response.status === 500 ? 'server_error' : 'unknown';
+                            response.status === 402 ? 'payment_error' :
+                            response.status === 500 ? 'server_error' : 'unknown';
         
-        console.warn(`[analyze-ticket] ⚠️ AI Gateway error ${response.status}, returning fallback for mode: ${mode}`);
+        console.warn(`[analyze-ticket] ⚠️ OpenAI API error ${response.status}, returning fallback for mode: ${mode}`);
         
         let fallbackResult = '';
         let fallbackMessage = '';

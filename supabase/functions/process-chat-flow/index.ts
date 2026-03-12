@@ -4044,39 +4044,39 @@ serve(async (req) => {
 
     // 🆕 CORREÇÃO: Se o nó inicial é "input" ou "condition", seguir para o próximo nó
     // Esses nós não têm conteúdo para enviar ao usuário
-    let currentNode = startNode;
+    let trigCurrentNode = startNode;
     let attempts = 0;
     const maxAttempts = 10; // Evitar loop infinito
     
-    while (attempts < maxAttempts && (currentNode.type === 'input' || currentNode.type === 'condition')) {
+    while (attempts < maxAttempts && (trigCurrentNode.type === 'input' || trigCurrentNode.type === 'condition')) {
       attempts++;
-      console.log('[process-chat-flow] ⏩ Nó sem conteúdo (', currentNode.type, ') - avançando...');
+      console.log('[process-chat-flow] ⏩ Nó sem conteúdo (', trigCurrentNode.type, ') - avançando...');
       
-      if (currentNode.type === 'condition') {
+      if (trigCurrentNode.type === 'condition') {
         // 🆕 FIX: Multi-regra com keywords precisa de mensagem real
-        const hasMultiRules = currentNode.data?.condition_rules?.length > 0;
-        const hasFieldRules = hasMultiRules && currentNode.data.condition_rules.some((r: any) => !!r.field);
+        const hasMultiRules = trigCurrentNode.data?.condition_rules?.length > 0;
+        const hasFieldRules = hasMultiRules && trigCurrentNode.data.condition_rules.some((r: any) => !!r.field);
         if (hasMultiRules && !hasFieldRules && (!userMessage || userMessage.trim().length === 0)) {
           console.log('[process-chat-flow] 🛑 New flow: multi-rule keyword condition without userMessage — stopping as waiting_input');
           break;
         }
-        const path = evaluateConditionPath(currentNode.data, {}, userMessage);
+        const path = evaluateConditionPath(trigCurrentNode.data, {}, userMessage);
         console.log('[process-chat-flow] 🔍 Condição avaliada → path:', path);
-        currentNode = findNextNode(trigFlowDef, currentNode, path);
+        trigCurrentNode = findNextNode(trigFlowDef, trigCurrentNode, path);
       } else {
         // Para nó input, apenas seguir para o próximo
-        currentNode = findNextNode(trigFlowDef, currentNode, undefined);
+        trigCurrentNode = findNextNode(trigFlowDef, trigCurrentNode, undefined);
       }
       
-      if (!currentNode) {
+      if (!trigCurrentNode) {
         console.log('[process-chat-flow] ❌ Sem próximo nó após avançar');
         break;
       }
       
-      console.log('[process-chat-flow] 📍 Novo nó:', currentNode.type, currentNode.id);
+      console.log('[process-chat-flow] 📍 Novo nó:', trigCurrentNode.type, trigCurrentNode.id);
     }
 
-    if (!currentNode) {
+    if (!trigCurrentNode) {
       console.log('[process-chat-flow] ❌ Não encontrou nó com conteúdo');
       return new Response(
         JSON.stringify({ useAI: true, reason: "Flow has no content nodes" }),
@@ -4085,7 +4085,7 @@ serve(async (req) => {
     }
 
     // Atualizar startNode para o nó com conteúdo real
-    startNode = currentNode;
+    startNode = trigCurrentNode;
     
     console.log('[process-chat-flow] ✅ Nó final com conteúdo:', startNode.type, startNode.id);
 

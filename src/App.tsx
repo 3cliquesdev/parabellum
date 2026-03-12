@@ -185,7 +185,7 @@ const App = () => {
               <Route path="/" element={<ProtectedRoute requiredPermission="dashboard.view"><Layout><Dashboard /></Layout></ProtectedRoute>} />
               <Route path="/inbox" element={<ProtectedRoute requiredPermission="inbox.access"><Layout><Inbox /></Layout></ProtectedRoute>} />
               <Route path="/my-portfolio" element={<ProtectedRoute requiredPermission="cs.view_own_portfolio"><Layout><MyPortfolio /></Layout></ProtectedRoute>} />
-              <Route path="/cs-management" element={<ProtectedRoute requiredPermission="cs.view_management"><Layout><CSManagement /></Layout></ProtectedRoute>} />
+              <Route path="/cs-management" element={<Navigate to="/?tab=overview" replace />} />
               <Route path="/cs-management/consultant/:id" element={<ProtectedRoute requiredPermission="cs.view_management"><Layout><ConsultantDetail /></Layout></ProtectedRoute>} />
               <Route path="/consultants" element={<ProtectedRoute requiredPermission="cadastros.view_consultants"><Layout><Consultants /></Layout></ProtectedRoute>} />
               <Route path="/sales-management" element={<ProtectedRoute requiredPermission="sales.view_management"><Layout><SalesManagement /></Layout></ProtectedRoute>} />

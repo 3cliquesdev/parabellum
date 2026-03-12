@@ -57,6 +57,38 @@ interface ConversationToClose {
   whatsapp_provider: string | null;
 }
 
+/**
+ * Verifica se o contato enviou mensagem recente (dentro do threshold de inatividade).
+ * Busca as últimas 3 mensagens para evitar que mensagens automáticas de bot
+ * (ex: "Sua conversa já está na fila") mascarem a atividade real do cliente.
+ * 
+ * Retorna true se o contato está ativo (NÃO deve fechar).
+ */
+async function isContactRecentlyActive(
+  supabase: any,
+  conversationId: string,
+  inactivityThresholdISO: string
+): Promise<boolean> {
+  const { data: recentMsgs } = await supabase
+    .from('messages')
+    .select('sender_type, created_at')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(3);
+
+  if (!recentMsgs || recentMsgs.length === 0) return false;
+
+  // Se qualquer uma das últimas 3 mensagens for do contato E foi enviada
+  // DEPOIS do threshold de inatividade, o contato está ativo
+  for (const msg of recentMsgs) {
+    if (msg.sender_type === 'contact' && msg.created_at > inactivityThresholdISO) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });

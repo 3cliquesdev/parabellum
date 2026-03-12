@@ -9,9 +9,10 @@ const corsHeaders = {
 function normalizePhone(phone: string): string {
   if (!phone) return '';
   const digits = phone.replace(/\D/g, '');
+  // Skip LID-format and non-numeric identifiers
+  if (!/^\d{10,13}$/.test(digits)) return '';
   if (digits.startsWith('55') && digits.length >= 12 && digits.length <= 13) return digits;
   if (digits.length >= 10 && digits.length <= 11) return '55' + digits;
-  if (digits.length < 10) return '';
   return digits;
 }
 
@@ -26,33 +27,54 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    console.log("[batch-validate] Iniciando validação em massa...");
+    // Parse optional body for specific contact IDs
+    let specificIds: string[] | null = null;
+    try {
+      const body = await req.json();
+      if (body?.contact_ids && Array.isArray(body.contact_ids)) {
+        specificIds = body.contact_ids;
+      }
+    } catch { /* no body, process all */ }
 
-    // 1. Buscar contatos não validados que têm telefone
-    const { data: contacts, error: contactsErr } = await supabaseClient
+    console.log("[batch-validate] Iniciando validação em massa...", specificIds ? `IDs específicos: ${specificIds.length}` : "Todos pendentes");
+
+    // 1. Buscar contatos não validados que têm telefone válido (skip LID format)
+    let query = supabaseClient
       .from('contacts')
       .select('id, phone, whatsapp_id, first_name, last_name, email')
-      .or('kiwify_validated.is.null,kiwify_validated.eq.false')
-      .or('phone.neq.,whatsapp_id.neq.')
-      .limit(1000);
+      .or('kiwify_validated.is.null,kiwify_validated.eq.false');
+
+    if (specificIds && specificIds.length > 0) {
+      query = query.in('id', specificIds);
+    }
+
+    const { data: allContacts, error: contactsErr } = await query.limit(2000);
 
     if (contactsErr) throw contactsErr;
 
-    console.log(`[batch-validate] Contatos para validar: ${contacts?.length || 0}`);
+    // Filter out contacts with LID/invalid phone numbers
+    const contacts = (allContacts || []).filter(c => {
+      const phone = c.phone || c.whatsapp_id || '';
+      const normalized = normalizePhone(phone);
+      return normalized.length > 0;
+    });
 
-    if (!contacts || contacts.length === 0) {
+    console.log(`[batch-validate] Contatos com telefone válido: ${contacts.length} (de ${allContacts?.length || 0} total)`);
+
+    if (contacts.length === 0) {
       return new Response(JSON.stringify({
         success: true, validated: 0, not_found: 0, total: 0,
-        message: "Nenhum contato pendente de validação"
+        skipped_invalid_phones: (allContacts?.length || 0),
+        message: "Nenhum contato com telefone válido pendente de validação"
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // 2. Buscar TODOS os eventos Kiwify relevantes (mobile do customer)
+    // 2. Buscar TODOS os eventos Kiwify relevantes
     const { data: kiwifyEvents, error: kiwifyErr } = await supabaseClient
       .from('kiwify_events')
       .select('id, payload, customer_email, created_at')
       .in('event_type', ['paid', 'order_approved', 'subscription_renewed'])
-      .limit(5000);
+      .limit(10000);
 
     if (kiwifyErr) throw kiwifyErr;
 
@@ -146,6 +168,7 @@ serve(async (req) => {
       total: contacts.length,
       validated,
       not_found: notFound,
+      skipped_invalid_phones: (allContacts?.length || 0) - contacts.length,
       kiwify_numbers_available: kiwifyMap.size,
       details: results,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

@@ -3738,8 +3738,8 @@ serve(async (req) => {
               } else {
                 console.log(`[process-chat-flow] ✅ Tag ${tagName} added to conversation`);
               }
-            } else if (activeState.conversations?.contact_id) {
-              const contactId = activeState.conversations.contact_id;
+            } else if (activeContactData?.id) {
+              const contactId = activeContactData.id;
               console.log(`[process-chat-flow] 🏷️ Adding tag ${tagName} to contact ${contactId}`);
               const { error: tagError } = await supabaseClient
                 .from('contact_tags')

@@ -9052,7 +9052,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
         
         // 2. Enviar mensagem de fallback ao cliente
         const fallbackMessage = "Desculpe, estou com dificuldades técnicas no momento. Vou te conectar com um atendente humano!";
-        const { data: fallbackMsgData } = await supabaseClient
+        const { data: fallbackMsgData, error: fallbackSaveError } = await supabaseClient
           .from('messages')
           .insert({
             conversation_id: conversationId,
@@ -9061,12 +9061,16 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
             sender_id: null,
             is_ai_generated: true,
             channel: responseChannel,
-            status: 'pending'
+            status: 'sending'
           })
           .select('id')
           .single();
         
-        console.log('[ai-autopilot-chat] 💬 Mensagem de fallback salva no banco:', fallbackMsgData?.id);
+        if (fallbackSaveError) {
+          console.error('[ai-autopilot-chat] ❌ Falha ao salvar fallback no banco:', fallbackSaveError);
+        } else {
+          console.log('[ai-autopilot-chat] 💬 Mensagem de fallback salva no banco:', fallbackMsgData?.id);
+        }
 
         // 2b. Se WhatsApp, enviar via send-meta-whatsapp
         if (responseChannel === 'whatsapp' && contact?.phone && conversation) {

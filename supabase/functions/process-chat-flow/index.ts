@@ -1951,8 +1951,9 @@ serve(async (req) => {
       else if (currentNode.type === 'ask_phone') validationType = 'phone';
       else if (currentNode.type === 'ask_cpf') validationType = 'cpf';
       
-      // Executar validação se necessário
-      if (currentNode.data?.validate !== false && validators[validationType]) {
+      // Executar validação APENAS para nós ask_* (não para condition, condition_v2, ask_options, ai_response)
+      const shouldValidate = ['ask_name', 'ask_email', 'ask_phone', 'ask_cpf', 'ask_text'].includes(currentNode.type);
+      if (shouldValidate && currentNode.data?.validate !== false && validators[validationType]) {
         const validation = validators[validationType](userMessage);
         if (!validation.valid) {
           console.log(`[process-chat-flow] ❌ Validation failed: type=${validationType} node=${currentNode.id} error="${validation.error}" input="${(userMessage || '').slice(0, 40)}"`);

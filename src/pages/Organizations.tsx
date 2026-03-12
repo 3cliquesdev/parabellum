@@ -100,12 +100,14 @@ export default function Organizations() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredOrganizations.map((org) => (
-            <Card key={org.id} className="hover:border-primary transition-colors">
+            <Card key={org.id} className="hover:border-primary hover:shadow-md cursor-pointer transition-all">
               <CardHeader>
                 <div className="mb-4 flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                    <Building2 className="h-6 w-6 text-primary" />
-                  </div>
+                  <Avatar className="h-12 w-12">
+                    <AvatarFallback style={{ backgroundColor: stringToColor(org.name) }} className="text-white font-semibold text-sm">
+                      {getInitials(org.name)}
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="flex gap-1">
                     <OrganizationDialog
                       organization={org}

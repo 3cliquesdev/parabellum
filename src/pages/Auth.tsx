@@ -161,7 +161,7 @@ export default function Auth() {
 
           {/* Header */}
           <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-foreground mb-2">Bem-vindo de ao Q.G</h2>
+            <h2 className="text-3xl font-bold text-foreground mb-2">Bem-vindo ao Q.G</h2>
             <p className="text-muted-foreground">Insira suas credenciais </p>
           </div>
 

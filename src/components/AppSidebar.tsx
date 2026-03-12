@@ -355,9 +355,10 @@ export function AppSidebar() {
         ) : (
           <>
             {/* Render all menu groups dynamically based on permissions */}
-            {menuGroups.map((group) => (
+            {menuGroups.map((group, index) => (
               <SidebarGroup key={group.label}>
-                {!collapsed && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+                {!collapsed && index > 0 && <div className="border-t border-border/50 mx-2 mb-1" />}
+                {!collapsed && <SidebarGroupLabel className="uppercase tracking-widest text-xs text-muted-foreground pt-4">{group.label}</SidebarGroupLabel>}
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {group.items.map(renderMenuItem)}

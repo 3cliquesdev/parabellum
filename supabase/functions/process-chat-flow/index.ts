@@ -2653,7 +2653,7 @@ serve(async (req) => {
           if (vcContactG && !vcContactG.kiwify_validated) {
             const vPromises: Promise<any>[] = [];
             if (nextNode.data?.validate_phone !== false && (vcContactG.phone || vcContactG.whatsapp_id)) {
-              vPromises.push(fetch(`${vcUrl}/functions/v1/validate-by-kiwify-phone`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${vcKey}` }, body: JSON.stringify({ phone: vcContactG.phone, whatsapp_id: vcContactG.whatsapp_id, contact_id: vcConvG?.contact_id }) }).then(r => r.json()).catch(() => ({ found: false })));
+              vPromises.push(inlineKiwifyValidation(supabaseClient, vcContactG.phone, vcContactG.whatsapp_id, vcConvG?.contact_id));
             }
             if (nextNode.data?.validate_email !== false && vcContactG.email) {
               vPromises.push(fetch(`${vcUrl}/functions/v1/verify-customer-email`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${vcKey}` }, body: JSON.stringify({ email: vcContactG.email, contact_id: vcConvG?.contact_id }) }).then(r => r.json()).catch(() => ({ found: false })));

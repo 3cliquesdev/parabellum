@@ -4036,10 +4036,10 @@ serve(async (req) => {
         }
         const path = evaluateConditionPath(currentNode.data, {}, userMessage);
         console.log('[process-chat-flow] 🔍 Condição avaliada → path:', path);
-        currentNode = findNextNode(flowDef, currentNode, path);
+        currentNode = findNextNode(trigFlowDef, currentNode, path);
       } else {
         // Para nó input, apenas seguir para o próximo
-        currentNode = findNextNode(flowDef, currentNode, undefined);
+        currentNode = findNextNode(trigFlowDef, currentNode, undefined);
       }
       
       if (!currentNode) {

@@ -1389,7 +1389,7 @@ function validateResponseRestrictions(
 // 🆕 ESCAPE PATTERNS: Detectar quando IA tenta sair do contrato (semântico, agrupado por intenção)
 const ESCAPE_PATTERNS = [
   // Token explícito de saída (IA pediu exit limpo)
-  /\[\[FLOW_EXIT\]\]/i,
+  /\[\[FLOW_EXIT(:[a-zA-Z_]+)?\]\]/i,
   // Promessa de ação de transferência (vou/irei/posso + verbo)
   /(vou|irei|posso)\s+(te\s+)?(direcionar|redirecionar|transferir|encaminhar|conectar|passar)/i,
   // Ação em andamento (estou/estarei + gerúndio)
@@ -6016,17 +6016,23 @@ Digite **"reenviar"** se precisar de um novo código.`;
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         } else {
-          // 🔍 Termo ambíguo (ex: "sacar", "saque") → NÃO bloquear, deixar IA desambiguar
-          console.log('[ai-autopilot-chat] 🔍 OTP SAQUE AMBÍGUO: Termo isolado detectado, IA vai desambiguar em vez de bloquear', {
+          // 🔍 Termo ambíguo (ex: "sacar", "saque") → NÃO bloquear, NÃO enviar OTP, deixar IA desambiguar
+          console.log('[ai-autopilot-chat] 🔍 OTP SAQUE AMBÍGUO: Termo isolado detectado, IA vai desambiguar em vez de bloquear/enviar OTP', {
             is_withdrawal_action_clear: false,
             message_preview: customerMessage.substring(0, 80),
-            action: 'disambiguation_via_ai_prompt'
+            action: 'disambiguation_via_ai_prompt',
+            skipping_otp: true
           });
           // NÃO retorna — continua execução normal, a flag ambiguousFinancialDetected
           // já foi setada na linha ~1517 e vai injetar instrução de desambiguação no prompt
+          // 🆕 SKIP: Pular TODO o bloco OTP abaixo — ir direto para a IA
         }
+        // 🆕 FIX BUG CRÍTICO: Se forbidFinancial e NÃO é ação clara, PULAR o bloco OTP inteiro
+        // Sem isso, o código continuava para enviar OTP mesmo em termos ambíguos
       }
       
+      if (!flow_context?.forbidFinancial || WITHDRAWAL_ACTION_PATTERNS.some(p => p.test(customerMessage))) {
+      // 🔒 Bloco OTP: só executa se NÃO estamos em forbidFinancial OU se é ação clara de saque
       const maskedEmail = maskEmail(contactEmail);
       
       console.log('[ai-autopilot-chat] 🔐 OTP SAQUE - Solicitação de saque detectada:', {
@@ -6133,6 +6139,7 @@ Por favor, **digite o código** que você recebeu para continuar com o saque.`;
         console.error('[ai-autopilot-chat] ❌ Erro ao disparar OTP financeiro:', error);
         // Se falhar, continua para IA tentar lidar
       }
+      } // 🆕 Fim do guard: if (!forbidFinancial || isWithdrawalActionClear)
     }
     
     // Cliente identificado sem solicitação financeira - atendimento normal (não precisa OTP)
@@ -8381,7 +8388,7 @@ Conversa: ${conversationId}`;
           /encaminh(ar|ando|o)\s+(para|a|você)\s+\w+/gi,
           /passar\s+(para|a)\s+um\s+(especialista|atendente|humano|agente)/gi,
           /um\s+(especialista|atendente|humano|agente)\s+(vai|irá|poderá)\s+(te\s+)?(atender|ajudar)/gi,
-          /\[\[FLOW_EXIT\]\]/gi,
+          /\[\[FLOW_EXIT(:[a-zA-Z_]+)?\]\]/gi,
         ];
         
         let cleanedMessage = assistantMessage;
@@ -8616,10 +8623,16 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
       const escapeAttempt = ESCAPE_PATTERNS.some(pattern => pattern.test(assistantMessage));
       
       if (escapeAttempt) {
-        const isCleanExit = /^\s*\[\[FLOW_EXIT\]\]\s*$/.test(assistantMessage);
+        const isCleanExit = /^\s*\[\[FLOW_EXIT(:[a-zA-Z_]+)?\]\]\s*$/.test(assistantMessage);
         
         if (isCleanExit) {
-          console.log('[ai-autopilot-chat] ✅ [[FLOW_EXIT]] detectado ANTES de salvar — saída limpa');
+          // 🆕 Extrair intent do token [[FLOW_EXIT:financeiro]] → "financeiro"
+          const exitIntentMatch = assistantMessage.match(/\[\[FLOW_EXIT:([a-zA-Z_]+)\]\]/i);
+          const aiExitIntent = exitIntentMatch ? exitIntentMatch[1].toLowerCase() : undefined;
+          
+          console.log('[ai-autopilot-chat] ✅ [[FLOW_EXIT]] detectado ANTES de salvar — saída limpa', {
+            ai_exit_intent: aiExitIntent || 'none',
+          });
           // Log auditoria non-blocking
           supabaseClient.from('ai_events').insert({
             entity_type: 'conversation',
@@ -8631,6 +8644,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
               flow_id: flow_context.flow_id,
               node_id: flow_context.node_id,
               reason: 'ai_requested_exit',
+              ai_exit_intent: aiExitIntent,
             },
             input_summary: customerMessage?.substring(0, 200) || '',
           }).then(() => {}).catch(err => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
@@ -8638,6 +8652,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
             flowExit: true,
             reason: 'ai_requested_exit',
             hasFlowContext: true,
+            ...(aiExitIntent ? { ai_exit_intent: aiExitIntent } : {}),
             flow_context: {
               flow_id: flow_context.flow_id,
               node_id: flow_context.node_id

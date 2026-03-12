@@ -6024,10 +6024,11 @@ Digite **"reenviar"** se precisar de um novo código.`;
     // - Reembolso de pedido → Sem OTP (explica processo)
     // - Qualquer outra coisa → Conversa normal (sem OTP)
     // ============================================================
-    if (contactHasEmail && isWithdrawalRequest && !hasRecentOTPVerification) {
-      // 🆕 GUARD: Se forbidFinancial + flow_context → verificar se é ação clara ou termo ambíguo
-      // O ramo Financeiro do fluxo tem seu próprio nó OTP nativo — NÃO duplicar aqui
-      if (flow_context?.forbidFinancial) {
+    if (contactHasEmail && isWithdrawalRequest && !hasRecentOTPVerification && !flow_context) {
+      // 🆕 GUARD: Se existe flow_context (qualquer), PULAR o bloco OTP inteiro.
+      // O fluxo visual é soberano e tem seu próprio ramo financeiro com OTP nativo.
+      // Ref: flow-sovereignty-principle
+      if (false) { // guard desativado — flow_context já é filtrado na linha acima
         // 🆕 DESAMBIGUAÇÃO: Verificar se é AÇÃO CLARA (padrão composto) ou TERMO AMBÍGUO (palavra isolada)
         const isWithdrawalActionClear = WITHDRAWAL_ACTION_PATTERNS.some(pattern =>
           pattern.test(customerMessage)

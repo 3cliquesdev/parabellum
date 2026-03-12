@@ -132,6 +132,7 @@ const AnalyticsPremium = lazy(() => import("./pages/AnalyticsPremium"));
 const DashboardsList = lazy(() => import("./pages/DashboardsList"));
 const InboxTimeReport = lazy(() => import("./pages/InboxTimeReport"));
 const DashboardView = lazy(() => import("./pages/DashboardView"));
+const AITelemetry = lazy(() => import("./pages/AITelemetry"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

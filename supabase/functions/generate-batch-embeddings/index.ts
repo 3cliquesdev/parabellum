@@ -206,7 +206,7 @@ serve(async (req) => {
         console.log(`[generate-batch-embeddings] Processing article: ${article.title}`);
         
         const text = `${article.title}\n\n${article.content}`;
-        const embedding = await generateEmbedding(text, OPENAI_API_KEY, LOVABLE_API_KEY);
+        const embedding = await generateEmbedding(text, OPENAI_API_KEY);
 
         if (!embedding) {
           console.error(`[generate-batch-embeddings] Failed to generate embedding for article ${article.id}`);

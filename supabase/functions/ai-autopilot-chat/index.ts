@@ -6398,7 +6398,37 @@ Se for apenas dúvida → responda normalmente usando a Base de Conhecimento.
 ` : ''}
 ` : '';
 
-    const contextualizedSystemPrompt = `${priorityInstruction}${flowAntiTransferInstruction}${antiHallucinationInstruction}${businessHoursPrompt}${financialGuardInstruction}${cancellationGuardInstruction}
+    // 🛒 TRAVA COMERCIAL: Injetar instruções diretamente no prompt da LLM
+    const commercialGuardInstruction = flowForbidCommercialPrompt ? `
+
+🛒 TRAVA COMERCIAL ATIVA — REGRAS OBRIGATÓRIAS:
+- Se o cliente quiser COMPRAR, ASSINAR, ver PREÇOS ou fazer UPGRADE, responda: "Ótimo! Vou te conectar com nosso time comercial para te ajudar com isso." e retorne [[FLOW_EXIT:comercial]].
+- Responda perguntas INFORMATIVAS sobre produtos/serviços usando a base de conhecimento.
+${ambiguousCommercialDetected ? `
+⚠️ DESAMBIGUAÇÃO OBRIGATÓRIA: O cliente mencionou um termo comercial sem deixar claro se quer informação ou realizar uma compra/assinatura.
+Você DEVE perguntar de forma natural e empática: "Você gostaria de saber mais informações sobre [tema] ou deseja falar com nosso time comercial?"
+Nunca assuma a intenção do cliente. Essa pergunta é OBRIGATÓRIA antes de qualquer resposta.
+Se o cliente confirmar que quer COMPRAR/ASSINAR/VER PREÇOS → responda com [[FLOW_EXIT:comercial]]
+Se for apenas dúvida → responda normalmente usando a Base de Conhecimento.
+` : ''}
+` : '';
+
+    // 💼 TRAVA CONSULTOR: Injetar instruções diretamente no prompt da LLM
+    const consultorGuardInstruction = flowForbidConsultantPrompt ? `
+
+💼 TRAVA CONSULTOR ATIVA — REGRAS OBRIGATÓRIAS:
+- Se o cliente pedir para FALAR COM SEU CONSULTOR/ASSESSOR/GERENTE, responda: "Entendi! Vou te conectar com seu consultor." e retorne [[FLOW_EXIT:consultor]].
+- Responda perguntas gerais normalmente usando a base de conhecimento.
+${ambiguousConsultorDetected ? `
+⚠️ DESAMBIGUAÇÃO OBRIGATÓRIA: O cliente mencionou um termo relacionado a consultor sem deixar claro se quer falar com ele ou tem uma dúvida geral.
+Você DEVE perguntar de forma natural e empática: "Você gostaria de falar diretamente com seu consultor ou posso te ajudar com sua dúvida?"
+Nunca assuma a intenção do cliente. Essa pergunta é OBRIGATÓRIA antes de qualquer resposta.
+Se o cliente confirmar que quer FALAR COM O CONSULTOR → responda com [[FLOW_EXIT:consultor]]
+Se for apenas dúvida → responda normalmente usando a Base de Conhecimento.
+` : ''}
+` : '';
+
+    const contextualizedSystemPrompt = `${priorityInstruction}${flowAntiTransferInstruction}${antiHallucinationInstruction}${businessHoursPrompt}${financialGuardInstruction}${cancellationGuardInstruction}${commercialGuardInstruction}${consultorGuardInstruction}
 
 **🚫 REGRA DE HANDOFF (SÓ QUANDO CLIENTE PEDIR):**
 Transferência para humano SÓ acontece quando:

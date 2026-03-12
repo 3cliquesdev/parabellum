@@ -3476,6 +3476,8 @@ serve(async (req) => {
       });
     }
 
+    } // end if (activeState)
+
     // 3. Detectar se mensagem dispara um fluxo
     if (!userMessage) {
       return new Response(

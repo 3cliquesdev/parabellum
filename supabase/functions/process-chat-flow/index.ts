@@ -4697,9 +4697,30 @@ serve(async (req) => {
           );
         }
 
+        // 🛡️ BUG L FIX: Master Flow → verify_customer_otp inicializa OTP
+        if (node.type === 'verify_customer_otp') {
+          await supabaseClient.from('chat_flow_states').update({
+            collected_data: { __otp_step: 'ask_email', __otp_attempts: 0 },
+            status: 'waiting_input',
+          }).eq('id', stateId);
+
+          const askEmailMsg = node.data?.message_ask_email || "Para verificar sua identidade, me informe seu email cadastrado:";
+          return new Response(
+            JSON.stringify({
+              useAI: false,
+              response: askEmailMsg,
+              flowId: masterFlow.id,
+              flowStarted: true,
+              isMasterFlow: true,
+              debug: { startNodeType: startNode.type, contentNodeType: node.type, steps, stateId }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         // message / ask_options / ask_*
         const contentMessage = replaceVariables(node.data?.message || '', masterVariablesContext);
-        const msg = (contentMessage || '').trim();  // ✅ CORREÇÃO #1
+        const msg = (contentMessage || '').trim();
         const options = node.type === 'ask_options'
           ? (node.data?.options || []).map((opt: any) => ({ label: opt.label, value: opt.value, id: opt.id }))
           : null;
@@ -4707,7 +4728,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             useAI: false,
-            response: msg.length ? msg : null,  // ✅ nunca "" - sempre null quando vazio
+            response: msg.length ? msg : null,
             options,
             flowId: masterFlow.id,
             flowStarted: true,

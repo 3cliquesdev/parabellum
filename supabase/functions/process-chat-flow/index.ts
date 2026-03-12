@@ -1080,6 +1080,81 @@ serve(async (req) => {
             break;
           }
           contentNode = next;
+        } else if (contentNode.type === 'validate_customer') {
+          // 🛡️ Execute Kiwify validation inline during manual traversal
+          console.log('[process-chat-flow] 🛡️ Manual traverse: executing validate_customer inline');
+          const vcSupabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const vcSupabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          
+          const vcValidatedKey = contentNode.data?.save_validated_as || 'customer_validated';
+          const vcNameKey = contentNode.data?.save_customer_name_as || 'customer_name_found';
+          const vcEmailKey = contentNode.data?.save_customer_email_as || 'customer_email_found';
+          
+          let vcFound = false;
+          let vcName = '';
+          let vcEmail = '';
+
+          if (manualContactData && !manualContactData.kiwify_validated) {
+            const vcPromises: Promise<any>[] = [];
+            if (contentNode.data?.validate_phone !== false && (manualContactData.phone || manualContactData.whatsapp_id)) {
+              vcPromises.push(
+                fetch(`${vcSupabaseUrl}/functions/v1/validate-by-kiwify-phone`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${vcSupabaseKey}` },
+                  body: JSON.stringify({ phone: manualContactData.phone, whatsapp_id: manualContactData.whatsapp_id, contact_id: manualConversation?.contact_id })
+                }).then(r => r.json()).catch(() => ({ found: false }))
+              );
+            }
+            if (contentNode.data?.validate_email !== false && manualContactData.email) {
+              vcPromises.push(
+                fetch(`${vcSupabaseUrl}/functions/v1/verify-customer-email`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${vcSupabaseKey}` },
+                  body: JSON.stringify({ email: manualContactData.email, contact_id: manualConversation?.contact_id })
+                }).then(r => r.json()).catch(() => ({ found: false }))
+              );
+            }
+            if (contentNode.data?.validate_cpf === true && manualContactData.document) {
+              vcPromises.push(
+                fetch(`${vcSupabaseUrl}/functions/v1/validate-by-cpf`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${vcSupabaseKey}` },
+                  body: JSON.stringify({ cpf: manualContactData.document, contact_id: manualConversation?.contact_id })
+                }).then(r => r.json()).catch(() => ({ found: false }))
+              );
+            }
+            if (vcPromises.length > 0) {
+              const results = await Promise.allSettled(vcPromises);
+              for (const r of results) {
+                if (r.status === 'fulfilled' && r.value?.found) {
+                  vcFound = true;
+                  if (r.value.customer?.name) vcName = r.value.customer.name;
+                  if (r.value.customer?.email) vcEmail = r.value.customer.email;
+                }
+              }
+            }
+            if (vcFound && manualConversation?.contact_id) {
+              await supabaseClient.from('contacts').update({ kiwify_validated: true, status: 'customer' }).eq('id', manualConversation.contact_id);
+              manualContactData.kiwify_validated = true;
+              console.log('[process-chat-flow] ✅ Manual traverse: contact promoted to customer');
+            }
+          } else if (manualContactData?.kiwify_validated) {
+            vcFound = true;
+            vcName = [manualContactData.first_name, manualContactData.last_name].filter(Boolean).join(' ');
+            vcEmail = manualContactData.email || '';
+          }
+
+          manualCollectedData[vcValidatedKey] = vcFound;
+          manualCollectedData[vcNameKey] = vcName;
+          manualCollectedData[vcEmailKey] = vcEmail;
+          console.log('[process-chat-flow] 🛡️ Manual validate result:', { vcFound, vcName, vcEmail });
+
+          const next = findNextNode(flowDef, contentNode);
+          if (!next) {
+            console.log('[process-chat-flow] ⚠️ Manual traversal: no next node after validate_customer');
+            break;
+          }
+          contentNode = next;
         } else {
           const next = findNextNode(flowDef, contentNode);
           if (!next) {

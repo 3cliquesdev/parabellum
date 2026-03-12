@@ -4916,6 +4916,110 @@ serve(async (req) => {
       enrichContactIsCustomer(trigContactData);
     }
     const trigVarCtx = await buildVariablesContext({}, trigContactData, trigConv, supabaseClient);
+    // 🛡️ BUG M FIX: Trigger Match → verify_customer_otp inicializa OTP
+    if (startNode.type === 'verify_customer_otp') {
+      await supabaseClient.from('chat_flow_states').update({
+        collected_data: { __otp_step: 'ask_email', __otp_attempts: 0 },
+        status: 'waiting_input',
+      }).eq('id', newState.id);
+
+      const askEmailMsg = startNode.data?.message_ask_email || "Para verificar sua identidade, me informe seu email cadastrado:";
+      return new Response(
+        JSON.stringify({
+          useAI: false,
+          response: askEmailMsg,
+          flowId: matchedFlow.id,
+          flowStarted: true,
+          nodeType: startNode.type,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 🛡️ BUG N FIX: Trigger Match → transfer chama transition-conversation-state
+    if (startNode.type === 'transfer') {
+      await supabaseClient.from('chat_flow_states').update({
+        status: 'transferred', completed_at: new Date().toISOString(),
+      }).eq('id', newState.id);
+
+      const tmTransDeptId = startNode.data?.department_id || null;
+      const tmTransAiMode = startNode.data?.ai_mode || 'waiting_human';
+      const tmTransType =
+        tmTransAiMode === 'copilot'   ? 'set_copilot' :
+        tmTransAiMode === 'autopilot' ? 'engage_ai' :
+        'handoff_to_human';
+      await fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+          body: JSON.stringify({ conversationId, transition: tmTransType, departmentId: tmTransDeptId, reason: 'trigger_match_transfer', metadata: { node_id: startNode.id, flow_id: matchedFlow.id, ai_mode: tmTransAiMode } })
+        }
+      );
+
+      const transferMsg = replaceVariables(startNode.data?.message || 'Transferindo para um atendente...', trigVarCtx);
+      return new Response(
+        JSON.stringify({
+          useAI: false,
+          response: transferMsg,
+          transfer: true,
+          transferType: startNode.data?.transfer_type,
+          departmentId: tmTransDeptId,
+          flowId: matchedFlow.id,
+          flowStarted: true,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 🛡️ BUG N FIX: Trigger Match → end executa end_actions
+    if (startNode.type === 'end') {
+      await supabaseClient.from('chat_flow_states').update({
+        status: 'completed', completed_at: new Date().toISOString(),
+      }).eq('id', newState.id);
+
+      if (startNode.data?.end_action === 'create_ticket') {
+        const actionData = startNode.data.action_data || {};
+        const subject = replaceVariables(actionData.subject || startNode.data.subject_template || 'Ticket do Fluxo', trigVarCtx);
+        const description = replaceVariables(actionData.description || startNode.data.description_template || '', trigVarCtx);
+        const internalNote = (actionData.internal_note || startNode.data.internal_note)
+          ? replaceVariables(actionData.internal_note || startNode.data.internal_note, trigVarCtx) : null;
+        await createTicketFromFlow(supabaseClient, {
+          conversationId, flowStateId: newState.id, nodeId: startNode.id,
+          contactId: trigContactData?.id || null,
+          subject, description,
+          category: actionData.ticket_category || startNode.data.ticket_category || 'outro',
+          priority: actionData.ticket_priority || startNode.data.ticket_priority || 'medium',
+          departmentId: actionData.department_id || startNode.data.department_id || null,
+          internalNote, useCollectedData: actionData.use_collected_data || startNode.data.use_collected_data || false,
+          collectedData: {},
+        });
+      }
+      if (startNode.data?.end_action === 'add_tag') {
+        const tagId = startNode.data.action_data?.tag_id;
+        const tagScope = startNode.data.action_data?.tag_scope || 'contact';
+        if (tagId) {
+          if (tagScope === 'conversation') {
+            await supabaseClient.from('conversation_tags').upsert({ conversation_id: conversationId, tag_id: tagId }, { onConflict: 'conversation_id,tag_id' });
+          } else if (trigContactData?.id) {
+            await supabaseClient.from('contact_tags').upsert({ contact_id: trigContactData.id, tag_id: tagId }, { onConflict: 'contact_id,tag_id' });
+          }
+        }
+      }
+
+      const endMsg = replaceVariables(startNode.data?.message || '', trigVarCtx);
+      return new Response(
+        JSON.stringify({
+          useAI: false,
+          response: endMsg || null,
+          flowCompleted: true,
+          flowId: matchedFlow.id,
+          flowStarted: true,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const startMessage = replaceVariables(startNode.data?.message || "", trigVarCtx);
     const options = startNode.type === 'ask_options' 
       ? (startNode.data?.options || []).map((opt: any) => ({ label: opt.label, value: opt.value }))

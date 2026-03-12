@@ -578,7 +578,7 @@ serve(async (req) => {
 
     for (const convId of fallbackConvIds) {
       failuresProcessed++;
-      const result = await mineFailureCorrection(supabase, convId, aiModel, LOVABLE_API_KEY);
+      const result = await mineFailureCorrection(supabase, convId, aiModel, OPENAI_API_KEY);
       
       if (result.skipped || !result.item) {
         console.log(`[ai-auto-trainer] Fallback ${convId} pulado: ${result.reason}`);

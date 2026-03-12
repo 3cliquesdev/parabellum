@@ -2124,7 +2124,7 @@ serve(async (req) => {
         const maxInteractions: number = currentNode.data?.max_ai_interactions ?? 0;
         let forbidFinancial: boolean = currentNode.data?.forbid_financial ?? false;
         const forbidCommercial: boolean = currentNode.data?.forbid_commercial ?? false;
-        const forbidCancellation: boolean = currentNode.data?.forbid_cancellation ?? forbidFinancial; // fallback: se forbid_financial=true, cancelamento também ativo (backward compat)
+        const forbidCancellation: boolean = currentNode.data?.forbid_cancellation ?? false;
         const forbidSupport: boolean = currentNode.data?.forbid_support ?? false;
 
         // 🆕 INFERÊNCIA AUTOMÁTICA: Se o nó tem edge para condition_v2 com regra ai_exit_intent=financeiro, forçar forbidFinancial
@@ -2193,6 +2193,7 @@ serve(async (req) => {
           console.log('[process-chat-flow] 🛒 forceCommercialExit=true recebido do webhook, forçando exit do nó AI');
         }
 
+        if (financialIntentMatch) {
           console.log(`[process-chat-flow] 🔒 TRAVA FINANCEIRA: Intenção financeira AÇÃO detectada no nó AI, tratando como exit | msg="${(userMessage || '').substring(0, 100)}" | forceExit=${forceFinancialExit} | actionMatch=${isFinancialAction} | infoMatch=${isFinancialInfo}`);
           
           try {
@@ -2383,10 +2384,13 @@ serve(async (req) => {
           } else if (supportIntentMatch) {
             path = 'suporte';
             console.log('[process-chat-flow] 🎯 supportIntentMatch → path set to "suporte"');
-          } else if (keywordMatch || aiExitForced) {
+          } else if (keywordMatch) {
             path = 'suporte';
             collectedData.ai_exit_intent = 'suporte';
-            console.log(`[process-chat-flow] 🎯 keyword/aiExitForced → path set to "suporte" | keyword=${keywordMatch} aiExitForced=${aiExitForced}`);
+            console.log(`[process-chat-flow] 🎯 keywordMatch → path set to "suporte"`);
+          } else if (aiExitForced) {
+            path = 'default';
+            console.log(`[process-chat-flow] 🎯 aiExitForced → path set to "default"`);
           } else {
             // maxReached sem intent específico → saída pelo handle default
             path = 'default';

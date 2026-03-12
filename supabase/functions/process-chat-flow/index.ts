@@ -2344,7 +2344,7 @@ serve(async (req) => {
           console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO COMERCIAL: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
         }
         
-        const commercialIntentMatch = (forceCommercialExit && forbidCommercial) || (forbidCommercial && msgLower.length > 0 && isCommercialAction);
+        commercialIntentMatch = (forceCommercialExit && forbidCommercial) || (forbidCommercial && msgLower.length > 0 && isCommercialAction);
         if (forceCommercialExit) {
           console.log('[process-chat-flow] 🛒 forceCommercialExit=true recebido do webhook, forçando exit do nó AI');
         }

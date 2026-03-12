@@ -2229,7 +2229,7 @@ serve(async (req) => {
                         ? replaceVariables(actionData.internal_note || resolvedNode.data.internal_note, variablesContext) : null;
                       const ticket = await createTicketFromFlow(supabaseClient, {
                         conversationId, flowStateId: activeState.id, nodeId: resolvedNode.id,
-                        contactId: activeState.conversations?.contact_id || null,
+                contactId: activeContactData?.id || null,
                         subject, description,
                         category: actionData.ticket_category || resolvedNode.data.ticket_category || 'outro',
                         priority: actionData.ticket_priority || resolvedNode.data.ticket_priority || 'medium',

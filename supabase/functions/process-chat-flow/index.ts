@@ -448,7 +448,7 @@ function evaluateCondition(condition: any, collectedData: Record<string, any>, u
       try {
         const regex = new RegExp(condition_value || "", "i");
         return regex.test(userMessage);
-      } catch {
+      } catch (_regexErr) {
         return false;
       }
     case "is_true":

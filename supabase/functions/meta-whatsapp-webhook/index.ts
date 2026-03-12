@@ -1257,6 +1257,7 @@ serve(async (req) => {
                                     conversationId: conversation.id,
                                     userMessage: messageContent,
                                     forceFinancialExit: true,
+                                    intentData: { ai_exit_intent: 'financeiro' },
                                   }),
                                 }
                               );

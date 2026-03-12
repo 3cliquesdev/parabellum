@@ -4609,15 +4609,31 @@ serve(async (req) => {
         if (node.type === 'transfer') {
           await supabaseClient
             .from('chat_flow_states')
-            .update({ status: 'transferred' , updated_at: new Date().toISOString() })
+            .update({ status: 'transferred', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
             .eq('id', stateId);
-            
+
+          // 🛡️ BUG J FIX: Master Flow transfer → transition-conversation-state
+          const mfTransDeptId = node.data?.department_id || null;
+          const mfTransAiMode = node.data?.ai_mode || 'waiting_human';
+          const mfTransType =
+            mfTransAiMode === 'copilot'   ? 'set_copilot' :
+            mfTransAiMode === 'autopilot' ? 'engage_ai' :
+            'handoff_to_human';
+          await fetch(
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+              body: JSON.stringify({ conversationId, transition: mfTransType, departmentId: mfTransDeptId, reason: 'master_flow_transfer', metadata: { node_id: node.id, flow_id: masterFlow.id, ai_mode: mfTransAiMode } })
+            }
+          );
+
           const transferMsg = replaceVariables(node.data?.message || 'Transferindo para um atendente...', masterVariablesContext);
           const msg = (transferMsg || '').trim();
           return new Response(
             JSON.stringify({ 
               useAI: false, 
-              response: msg.length ? msg : null,  // ✅ null quando vazio
+              response: msg.length ? msg : null,
               transfer: true, 
               transferType: node.data?.transfer_type,
               departmentId: node.data?.department_id,

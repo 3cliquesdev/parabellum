@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, TrendingUp, LayoutGrid, Headphones, DollarSign, Settings, UserMinus, Target, Sparkles } from "lucide-react";
+import { Loader2, TrendingUp, LayoutGrid, Headphones, DollarSign, Settings, UserMinus, Target, Sparkles, Activity } from "lucide-react";
 import { OnboardingWidget } from "@/components/widgets/OnboardingWidget";
 import { usePipelineValue } from "@/hooks/usePipelineValue";
 import { PageContainer, PageHeader, PageContent } from "@/components/ui/page-container";

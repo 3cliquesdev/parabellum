@@ -5984,30 +5984,47 @@ Digite **"reenviar"** se precisar de um novo código.`;
     // - Qualquer outra coisa → Conversa normal (sem OTP)
     // ============================================================
     if (contactHasEmail && isWithdrawalRequest && !hasRecentOTPVerification) {
-      // 🆕 GUARD: Se forbidFinancial + flow_context → devolver ao fluxo (soberania do motor de fluxos)
+      // 🆕 GUARD: Se forbidFinancial + flow_context → verificar se é ação clara ou termo ambíguo
       // O ramo Financeiro do fluxo tem seu próprio nó OTP nativo — NÃO duplicar aqui
       if (flow_context?.forbidFinancial) {
-        console.log('[ai-autopilot-chat] 🔒 OTP SAQUE BLOQUEADO: forbidFinancial + flow_context → devolvendo ao fluxo financeiro', {
-          is_withdrawal_request: isWithdrawalRequest,
-          has_flow_context: true,
-          forbid_financial: true,
-          action: 'flow_advance_needed_financeiro'
-        });
+        // 🆕 DESAMBIGUAÇÃO: Verificar se é AÇÃO CLARA (padrão composto) ou TERMO AMBÍGUO (palavra isolada)
+        const isWithdrawalActionClear = WITHDRAWAL_ACTION_PATTERNS.some(pattern =>
+          pattern.test(customerMessage)
+        );
         
-        return new Response(JSON.stringify({
-          ok: true,
-          financialBlocked: true,
-          exitKeywordDetected: true,
-          flow_advance_needed: true,
-          hasFlowContext: true,
-          ai_exit_intent: 'financeiro',
-          response: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
-          message: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
-          aiResponse: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        if (isWithdrawalActionClear) {
+          // ✅ Ação clara (ex: "quero sacar meu saldo") → devolver ao fluxo financeiro
+          console.log('[ai-autopilot-chat] 🔒 OTP SAQUE BLOQUEADO: Ação clara + forbidFinancial → devolvendo ao fluxo financeiro', {
+            is_withdrawal_action_clear: true,
+            has_flow_context: true,
+            forbid_financial: true,
+            action: 'flow_advance_needed_financeiro'
+          });
+          
+          return new Response(JSON.stringify({
+            ok: true,
+            financialBlocked: true,
+            exitKeywordDetected: true,
+            flow_advance_needed: true,
+            hasFlowContext: true,
+            ai_exit_intent: 'financeiro',
+            response: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
+            message: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
+            aiResponse: 'Entendi sua solicitação de saque. Vou te encaminhar para o setor responsável.',
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } else {
+          // 🔍 Termo ambíguo (ex: "sacar", "saque") → NÃO bloquear, deixar IA desambiguar
+          console.log('[ai-autopilot-chat] 🔍 OTP SAQUE AMBÍGUO: Termo isolado detectado, IA vai desambiguar em vez de bloquear', {
+            is_withdrawal_action_clear: false,
+            message_preview: customerMessage.substring(0, 80),
+            action: 'disambiguation_via_ai_prompt'
+          });
+          // NÃO retorna — continua execução normal, a flag ambiguousFinancialDetected
+          // já foi setada na linha ~1517 e vai injetar instrução de desambiguação no prompt
+        }
       }
       
       const maskedEmail = maskEmail(contactEmail);

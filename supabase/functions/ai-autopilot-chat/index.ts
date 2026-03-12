@@ -4027,9 +4027,9 @@ serve(async (req) => {
               safeFallbackPayload.max_tokens = 1024;
             }
             
-            return await tryModel('gpt-4o-mini', 'Fallback técnico', safeFallbackPayload);
+            return await tryModel('gpt-5-nano', 'Fallback técnico', safeFallbackPayload);
           } catch (fallbackError) {
-            console.error('[callAIWithFallback] ❌ Fallback gpt-4o-mini também falhou:', fallbackError);
+            console.error('[callAIWithFallback] ❌ Fallback gpt-5-nano também falhou:', fallbackError);
             throw primaryError; // Propagar erro original
           }
         }

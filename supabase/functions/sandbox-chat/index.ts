@@ -31,10 +31,22 @@ async function getConfiguredAIModel(supabase: any): Promise<string> {
     
     const model = data?.value || 'gpt-4o-mini';
     if (VALID_OPENAI_MODELS.has(model)) return model;
-    // Legacy gateway names → fallback
-    if (model.startsWith('openai/') || model.startsWith('google/')) {
-      return 'gpt-4o-mini';
-    }
+    // Gateway names → correct OpenAI equivalents
+    const MODEL_MAP: Record<string, string> = {
+      'openai/gpt-5-mini': 'gpt-5-mini',
+      'openai/gpt-5': 'gpt-5',
+      'openai/gpt-5-nano': 'gpt-5-nano',
+      'openai/gpt-5.2': 'gpt-5.2',
+      'google/gemini-2.5-flash': 'gpt-5-mini',
+      'google/gemini-2.5-flash-lite': 'gpt-5-nano',
+      'google/gemini-2.5-pro': 'gpt-5',
+      'google/gemini-3-pro-preview': 'gpt-5',
+      'google/gemini-3-pro-image-preview': 'gpt-5',
+      'google/gemini-3-flash-preview': 'gpt-5-mini',
+      'google/gemini-3.1-pro-preview': 'gpt-5',
+      'google/gemini-3.1-flash-image-preview': 'gpt-5-mini',
+    };
+    if (MODEL_MAP[model]) return MODEL_MAP[model];
     return model;
   } catch (error) {
     console.error('[sandbox-chat] Error fetching AI model config:', error);

@@ -19,6 +19,7 @@ import {
   XCircle,
   HeadphonesIcon,
   Route,
+  Briefcase,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -75,6 +76,7 @@ export function BehaviorControlsSection({
   const forbidCommercial = selectedNode.data.forbid_commercial ?? false;
   const forbidCancellation = selectedNode.data.forbid_cancellation ?? false;
   const forbidSupport = selectedNode.data.forbid_support ?? false;
+  const forbidConsultant = selectedNode.data.forbid_consultant ?? false;
   const objective = selectedNode.data.objective || "";
 
   return (
@@ -282,6 +284,23 @@ export function BehaviorControlsSection({
           />
         </div>
 
+        {/* 💼 Consultor */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-violet-500 shrink-0" />
+            <div>
+              <Label className="text-sm font-medium">💼 Consultor</Label>
+              <p className="text-[10px] text-muted-foreground">
+                Falar com consultor → saída roxa (só se tiver consultor vinculado)
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={forbidConsultant}
+            onCheckedChange={(checked) => updateNodeData("forbid_consultant", checked)}
+          />
+        </div>
+
         {/* Status das saídas ativas */}
         <div className="flex flex-wrap gap-1 pt-1">
           {forbidFinancial && (
@@ -304,7 +323,12 @@ export function BehaviorControlsSection({
               🧑 Suporte
             </Badge>
           )}
-          {!forbidFinancial && !forbidCancellation && !forbidCommercial && !forbidSupport && (
+          {forbidConsultant && (
+            <Badge className="text-[10px] px-1.5 bg-violet-500/20 text-violet-700 border-violet-500/30">
+              💼 Consultor
+            </Badge>
+          )}
+          {!forbidFinancial && !forbidCancellation && !forbidCommercial && !forbidSupport && !forbidConsultant && (
             <Badge variant="outline" className="text-[10px] px-1.5 text-muted-foreground">
               Nenhuma saída ativa
             </Badge>

@@ -448,7 +448,7 @@ function evaluateCondition(condition: any, collectedData: Record<string, any>, u
       try {
         const regex = new RegExp(condition_value || "", "i");
         return regex.test(userMessage);
-      } catch {
+      } catch (_regexErr) {
         return false;
       }
     case "is_true":
@@ -2126,6 +2126,7 @@ serve(async (req) => {
         const forbidCommercial: boolean = currentNode.data?.forbid_commercial ?? false;
         const forbidCancellation: boolean = currentNode.data?.forbid_cancellation ?? false;
         const forbidSupport: boolean = currentNode.data?.forbid_support ?? false;
+        const forbidConsultant: boolean = currentNode.data?.forbid_consultant ?? false;
 
         // 🆕 INFERÊNCIA AUTOMÁTICA: Se o nó tem edge para condition_v2 com regra ai_exit_intent=financeiro, forçar forbidFinancial
         if (!forbidFinancial) {
@@ -2172,7 +2173,16 @@ serve(async (req) => {
 
         // 🆕 TRAVA CANCELAMENTO: Separada do financeiro para roteamento independente
         const cancellationActionPattern = /cancelar\s*(minha\s*)?(assinatura|cobran[çc]a|pagamento|plano|conta|servi[çc]o)|quero\s+cancelar|desistir\s*(do|da|de)\s*(plano|assinatura|servi[çc]o|conta)|n[ãa]o\s+quero\s+mais\s*(o\s*)?(plano|assinatura|servi[çc]o)|encerrar\s*(minha\s*)?(conta|assinatura|plano)/i;
-        const cancellationIntentMatch = forbidCancellation && msgLower.length > 0 && cancellationActionPattern.test(userMessage || '') && !isFinancialInfo;
+        // 🆕 Ambíguo de cancelamento — termos isolados
+        const cancellationAmbiguousPattern = /\b(cancelar|cancelamento|desistir|encerrar)\b/i;
+        const isCancellationAction = cancellationActionPattern.test(userMessage || '') && !isFinancialInfo;
+        const isCancellationAmbiguous = !isCancellationAction && cancellationAmbiguousPattern.test(userMessage || '');
+        
+        if (isCancellationAmbiguous && forbidCancellation) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO CANCELAMENTO: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+        
+        const cancellationIntentMatch = forbidCancellation && msgLower.length > 0 && isCancellationAction;
         
         if (cancellationIntentMatch) {
           console.log(`[process-chat-flow] 🚫 TRAVA CANCELAMENTO: Intenção de cancelamento detectada | msg="${(userMessage || '').substring(0, 100)}"`);
@@ -2187,10 +2197,54 @@ serve(async (req) => {
         }
 
         // 🛒 TRAVA COMERCIAL: Detectar intenção de compra como exit do nó AI
-        const commercialIntentPattern = /comprar|quero comprar|quanto custa|pre[çc]o|proposta|or[çc]amento|cat[aá]logo|assinar|plano|tabela de pre[çc]o|conhecer.*produto|demonstra[çc][aã]o|demo|trial|teste gr[aá]tis|upgrade|downgrade|mudar.*plano/i;
-        const commercialIntentMatch = (forceCommercialExit && forbidCommercial) || (forbidCommercial && msgLower.length > 0 && commercialIntentPattern.test(userMessage || ''));
+        const commercialActionPattern = /comprar|quero comprar|quanto custa|pre[çc]o|proposta|or[çc]amento|cat[aá]logo|assinar|tabela de pre[çc]o|conhecer.*produto|demonstra[çc][aã]o|demo|trial|teste gr[aá]tis|upgrade|downgrade|mudar.*plano/i;
+        // 🆕 Ambíguo de comercial — termos isolados
+        const commercialAmbiguousPattern = /\b(plano|compra|pre[çc]o|assinatura)\b/i;
+        const isCommercialAction = commercialActionPattern.test(userMessage || '');
+        const isCommercialAmbiguous = !isCommercialAction && commercialAmbiguousPattern.test(userMessage || '');
+        
+        if (isCommercialAmbiguous && forbidCommercial) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO COMERCIAL: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+        
+        const commercialIntentMatch = (forceCommercialExit && forbidCommercial) || (forbidCommercial && msgLower.length > 0 && isCommercialAction);
         if (forceCommercialExit) {
           console.log('[process-chat-flow] 🛒 forceCommercialExit=true recebido do webhook, forçando exit do nó AI');
+        }
+
+        // 💼 TRAVA CONSULTOR: Detectar pedido de falar com consultor
+        const consultorActionPattern = /falar\s+com\s*(meu\s*)?(consultor|assessor|gestor)|quero\s+(meu\s*)?(consultor|assessor)|cad[êe]\s*(meu\s*)?(consultor|assessor)|consultor\s+de\s+vendas|estrat[ée]gia\s+de\s+vendas|meu\s+consultor|chamar?\s+(meu\s*)?(consultor|assessor)/i;
+        const consultorAmbiguousPattern = /\b(consultor|assessor|gestor|estrat[ée]gia)\b/i;
+        const isConsultorAction = consultorActionPattern.test(userMessage || '');
+        const isConsultorAmbiguous = !isConsultorAction && consultorAmbiguousPattern.test(userMessage || '');
+        
+        if (isConsultorAmbiguous && forbidConsultant) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO CONSULTOR: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+        
+        let consultorIntentMatch = forbidConsultant && msgLower.length > 0 && isConsultorAction;
+        let consultorHasConsultant = false;
+        
+        // Verificar se contato tem consultant_id
+        if (consultorIntentMatch) {
+          try {
+            const { data: contactRow } = await supabaseClient
+              .from('contacts')
+              .select('consultant_id')
+              .eq('id', activeConversationData?.contact_id)
+              .maybeSingle();
+            consultorHasConsultant = !!(contactRow?.consultant_id);
+            if (!consultorHasConsultant) {
+              console.log(`[process-chat-flow] 💼 CONSULTOR: Intenção detectada mas contato não tem consultant_id → roteando para suporte`);
+              // Sem consultor → redireciona para suporte ao invés de consultor
+              consultorIntentMatch = false;
+            } else {
+              console.log(`[process-chat-flow] 💼 CONSULTOR: Intenção detectada e contato tem consultant_id → saída consultor`);
+            }
+          } catch (err) {
+            console.error('[process-chat-flow] ⚠️ Erro verificando consultant_id:', err);
+            consultorIntentMatch = false;
+          }
         }
 
         if (financialIntentMatch) {
@@ -2274,20 +2328,48 @@ serve(async (req) => {
           delete collectedData.__ai;
         }
 
+        if (consultorIntentMatch) {
+          console.log(`[process-chat-flow] 💼 TRAVA CONSULTOR: Intenção de consultor detectada no nó AI, tratando como exit`);
+          
+          try {
+            await supabaseClient
+              .from('ai_events')
+              .insert({
+                entity_type: 'conversation',
+                entity_id: conversationId,
+                event_type: 'ai_blocked_consultant',
+                model: 'process-chat-flow',
+                output_json: {
+                  phase: 'flow_node_exit',
+                  node_id: currentNode.id,
+                  flow_id: activeState.flow_id,
+                  interaction_count: aiCount,
+                  has_consultant: consultorHasConsultant,
+                  message_preview: (userMessage || '').substring(0, 200),
+                },
+                input_summary: (userMessage || '').substring(0, 200),
+              });
+          } catch (logErr) {
+            console.error('[process-chat-flow] ⚠️ Failed to log consultant block event:', logErr);
+          }
+
+          delete collectedData.__ai;
+        }
+
         // Verificar exit keyword (word-boundary match — evita falso positivo por substring)
-        const keywordMatch = !financialIntentMatch && !commercialIntentMatch && !cancellationIntentMatch && !supportIntentMatch && exitKeywords.length > 0 && exitKeywords.some((kw: string) => {
+        const keywordMatch = !financialIntentMatch && !commercialIntentMatch && !cancellationIntentMatch && !supportIntentMatch && !consultorIntentMatch && exitKeywords.length > 0 && exitKeywords.some((kw: string) => {
           const kwClean = String(kw || '').toLowerCase().trim();
           if (!kwClean) return false;
           try {
             const kwRegex = new RegExp(`\\b${kwClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
             return kwRegex.test(msgLower);
-          } catch {
+          } catch (_kwErr) {
             return msgLower.includes(kwClean);
           }
         });
 
         // Verificar max interações
-        const maxReached = !financialIntentMatch && !commercialIntentMatch && !cancellationIntentMatch && !supportIntentMatch && maxInteractions > 0 && aiCount >= maxInteractions;
+        const maxReached = !financialIntentMatch && !commercialIntentMatch && !cancellationIntentMatch && !supportIntentMatch && !consultorIntentMatch && maxInteractions > 0 && aiCount >= maxInteractions;
 
         // 🆕 forceAIExit: IA detectou handoff (strict RAG ou confidence) e quer sair do nó
         if (forceAIExit) {
@@ -2300,7 +2382,7 @@ serve(async (req) => {
           collectedData.ai_exit_intent = intentData.ai_exit_intent;
           console.log(`[process-chat-flow] 🎯 ai_exit_intent salvo: "${intentData.ai_exit_intent}"`);
         }
-        // Salvar intent automático quando financialIntentMatch, cancellationIntentMatch ou commercialIntentMatch
+        // Salvar intent automático
         if (financialIntentMatch && !collectedData.ai_exit_intent) {
           collectedData.ai_exit_intent = 'financeiro';
           console.log('[process-chat-flow] 🎯 ai_exit_intent=financeiro (auto-detect from financialIntentMatch)');
@@ -2317,10 +2399,14 @@ serve(async (req) => {
           collectedData.ai_exit_intent = 'suporte';
           console.log('[process-chat-flow] 🎯 ai_exit_intent=suporte (auto-detect from supportIntentMatch)');
         }
+        if (consultorIntentMatch && !collectedData.ai_exit_intent) {
+          collectedData.ai_exit_intent = 'consultor';
+          console.log('[process-chat-flow] 🎯 ai_exit_intent=consultor (auto-detect from consultorIntentMatch)');
+        }
 
-        if (financialIntentMatch || cancellationIntentMatch || commercialIntentMatch || supportIntentMatch || keywordMatch || maxReached || aiExitForced) {
-          const exitReason = financialIntentMatch ? 'financial_blocked' : cancellationIntentMatch ? 'cancellation_blocked' : commercialIntentMatch ? 'commercial_blocked' : supportIntentMatch ? 'support_requested' : aiExitForced ? 'ai_handoff_exit' : keywordMatch ? 'exit_keyword' : 'max_interactions';
-          console.log(`[process-chat-flow] 🔄 AI persistent EXIT: reason=${exitReason} keyword=${keywordMatch} maxReached=${maxReached} financial=${financialIntentMatch} cancellation=${cancellationIntentMatch} commercial=${commercialIntentMatch} support=${supportIntentMatch} count=${aiCount}`);
+        if (financialIntentMatch || cancellationIntentMatch || commercialIntentMatch || supportIntentMatch || consultorIntentMatch || keywordMatch || maxReached || aiExitForced) {
+          const exitReason = financialIntentMatch ? 'financial_blocked' : cancellationIntentMatch ? 'cancellation_blocked' : commercialIntentMatch ? 'commercial_blocked' : supportIntentMatch ? 'support_requested' : consultorIntentMatch ? 'consultant_requested' : aiExitForced ? 'ai_handoff_exit' : keywordMatch ? 'exit_keyword' : 'max_interactions';
+          console.log(`[process-chat-flow] 🔄 AI persistent EXIT: reason=${exitReason} keyword=${keywordMatch} maxReached=${maxReached} financial=${financialIntentMatch} cancellation=${cancellationIntentMatch} commercial=${commercialIntentMatch} support=${supportIntentMatch} consultant=${consultorIntentMatch} count=${aiCount}`);
 
           // Log de transferência estruturado em ai_events
           try {
@@ -2384,6 +2470,9 @@ serve(async (req) => {
           } else if (supportIntentMatch) {
             path = 'suporte';
             console.log('[process-chat-flow] 🎯 supportIntentMatch → path set to "suporte"');
+          } else if (consultorIntentMatch) {
+            path = 'consultor';
+            console.log('[process-chat-flow] 🎯 consultorIntentMatch → path set to "consultor"');
           } else if (keywordMatch) {
             path = 'suporte';
             collectedData.ai_exit_intent = 'suporte';
@@ -2444,6 +2533,7 @@ serve(async (req) => {
               forbidCommercial: currentNode.data?.forbid_commercial ?? false,
               forbidCancellation: currentNode.data?.forbid_cancellation ?? false,
               forbidSupport: currentNode.data?.forbid_support ?? false,
+              forbidConsultant: currentNode.data?.forbid_consultant ?? false,
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -2454,13 +2544,13 @@ serve(async (req) => {
       console.log(`[process-chat-flow] ➡️ Transition: from=${currentNode.type}(${currentNode.id}) path=${path || 'default'} → next=${nextNode?.type || 'null'}(${nextNode?.id || 'none'})`);
 
       // 🔒 FIX: Financial/Commercial/Support/Cancellation exit SEM próximo nó → forçar handoff
-      if (!nextNode && (financialIntentMatch || commercialIntentMatch || cancellationIntentMatch || supportIntentMatch)) {
-        const exitType = financialIntentMatch ? 'financial' : cancellationIntentMatch ? 'cancellation' : commercialIntentMatch ? 'commercial' : 'support';
+      if (!nextNode && (financialIntentMatch || commercialIntentMatch || cancellationIntentMatch || supportIntentMatch || consultorIntentMatch)) {
+        const exitType = financialIntentMatch ? 'financial' : cancellationIntentMatch ? 'cancellation' : commercialIntentMatch ? 'commercial' : consultorIntentMatch ? 'consultant' : 'support';
         console.log(`[process-chat-flow] 🔒 ${exitType} exit com nextNode=null → forçando handoff`);
         
         // Buscar departamento dinamicamente
         let targetDeptId: string | null = null;
-        const deptSearchName = financialIntentMatch ? '%financ%' : cancellationIntentMatch ? '%cancel%' : commercialIntentMatch ? '%comerci%' : '%suporte%';
+        const deptSearchName = financialIntentMatch ? '%financ%' : cancellationIntentMatch ? '%cancel%' : commercialIntentMatch ? '%comerci%' : consultorIntentMatch ? '%consult%' : '%suporte%';
         try {
           const { data: deptRow } = await supabaseClient
             .from('departments')
@@ -2481,6 +2571,8 @@ serve(async (req) => {
           ? 'Entendi que deseja cancelar. Vou te conectar com um atendente para resolver isso.'
           : supportIntentMatch
           ? 'Claro! Vou te transferir para um atendente humano agora.'
+          : consultorIntentMatch
+          ? 'Certo! Vou te conectar com seu consultor agora.'
           : 'Ótimo! Vou te conectar com nosso time comercial para te ajudar com isso.';
 
         // Completar flow state como transferred
@@ -3076,6 +3168,7 @@ serve(async (req) => {
             forbidCommercial: nextNode.data?.forbid_commercial ?? false,
             forbidCancellation: nextNode.data?.forbid_cancellation ?? false,
             forbidSupport: nextNode.data?.forbid_support ?? false,
+            forbidConsultant: nextNode.data?.forbid_consultant ?? false,
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -3818,6 +3911,7 @@ serve(async (req) => {
               forbidCommercial: node.data?.forbid_commercial ?? false,
               forbidCancellation: node.data?.forbid_cancellation ?? false,
               forbidSupport: node.data?.forbid_support ?? false,
+              forbidConsultant: node.data?.forbid_consultant ?? false,
               debug: { startNodeType: startNode.type, contentNodeType: node.type, steps, stateId }
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -3908,8 +4002,8 @@ serve(async (req) => {
     console.log('[process-chat-flow] Matched flow:', matchedFlow.id, matchedFlow.name);
 
     // 4. Iniciar novo fluxo
-    const flowDef = matchedFlow.flow_definition as any;
-    if (!flowDef?.nodes?.length) {
+    const trigFlowDef = matchedFlow.flow_definition as any;
+    if (!trigFlowDef?.nodes?.length) {
       return new Response(
         JSON.stringify({ useAI: true, reason: "Empty flow definition" }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -3917,8 +4011,8 @@ serve(async (req) => {
     }
 
     // Encontrar primeiro nó (sem edges apontando para ele)
-    const targetIds = new Set((flowDef.edges || []).map((e: any) => e.target));
-    let startNode = flowDef.nodes.find((n: any) => !targetIds.has(n.id)) || flowDef.nodes[0];
+    const targetIds = new Set((trigFlowDef.edges || []).map((e: any) => e.target));
+    let startNode = trigFlowDef.nodes.find((n: any) => !targetIds.has(n.id)) || trigFlowDef.nodes[0];
     
     console.log('[process-chat-flow] 🚀 Start node:', startNode.type, startNode.id);
 
@@ -3942,10 +4036,10 @@ serve(async (req) => {
         }
         const path = evaluateConditionPath(currentNode.data, {}, userMessage);
         console.log('[process-chat-flow] 🔍 Condição avaliada → path:', path);
-        currentNode = findNextNode(flowDef, currentNode, path);
+        currentNode = findNextNode(trigFlowDef, currentNode, path);
       } else {
         // Para nó input, apenas seguir para o próximo
-        currentNode = findNextNode(flowDef, currentNode, undefined);
+        currentNode = findNextNode(trigFlowDef, currentNode, undefined);
       }
       
       if (!currentNode) {
@@ -4035,6 +4129,7 @@ serve(async (req) => {
           forbidCommercial: startNode.data?.forbid_commercial ?? false,
           forbidCancellation: startNode.data?.forbid_cancellation ?? false,
           forbidSupport: startNode.data?.forbid_support ?? false,
+          forbidConsultant: startNode.data?.forbid_consultant ?? false,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

@@ -2262,6 +2262,46 @@ serve(async (req) => {
                     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
                   }
 
+                  // Bug V fix: OTP max_attempts → ai_response must initialize __ai and update state
+                  if (resolvedNode.type === 'ai_response') {
+                    collectedData.__ai = { interaction_count: 0 };
+                    await supabaseClient.from('chat_flow_states').update({
+                      collected_data: collectedData,
+                      current_node_id: resolvedNode.id,
+                      status: 'active',
+                      updated_at: new Date().toISOString(),
+                    }).eq('id', activeState.id);
+
+                    variablesContext = await rebuildCtx();
+                    const nextMsg = replaceVariables(resolvedNode.data?.message || '', variablesContext);
+                    return new Response(JSON.stringify({
+                      useAI: true,
+                      aiNodeActive: true,
+                      nodeId: resolvedNode.id,
+                      response: "❌ Máximo de tentativas excedido.\n\n" + nextMsg,
+                      flowId: activeState.flow_id,
+                      flowName: activeState.chat_flows?.name || null,
+                      contextPrompt: resolvedNode.data?.context_prompt,
+                      useKnowledgeBase: resolvedNode.data?.use_knowledge_base !== false,
+                      collectedData,
+                      allowedSources: buildAllowedSources(resolvedNode.data),
+                      responseFormat: 'text_only',
+                      personaId: resolvedNode.data?.persona_id || null,
+                      personaName: resolvedNode.data?.persona_name || null,
+                      kbCategories: resolvedNode.data?.kb_categories || null,
+                      fallbackMessage: resolvedNode.data?.fallback_message || null,
+                      objective: resolvedNode.data?.objective || null,
+                      maxSentences: resolvedNode.data?.max_sentences ?? 3,
+                      forbidQuestions: resolvedNode.data?.forbid_questions ?? true,
+                      forbidOptions: resolvedNode.data?.forbid_options ?? true,
+                      forbidFinancial: resolvedNode.data?.forbid_financial ?? false,
+                      forbidCommercial: resolvedNode.data?.forbid_commercial ?? false,
+                      forbidCancellation: resolvedNode.data?.forbid_cancellation ?? false,
+                      forbidSupport: resolvedNode.data?.forbid_support ?? false,
+                      forbidConsultant: resolvedNode.data?.forbid_consultant ?? false,
+                    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+                  }
+
                   const nextStatus = resolvedNode.type.startsWith('ask_') || resolvedNode.type === 'condition' || resolvedNode.type === 'condition_v2' || resolvedNode.type === 'verify_customer_otp'
                     ? 'waiting_input' : 'active';
                   await supabaseClient.from('chat_flow_states').update({
@@ -2273,8 +2313,7 @@ serve(async (req) => {
                   variablesContext = await rebuildCtx();
                   const nextMsg = replaceVariables(resolvedNode.data?.message || '', variablesContext);
                   return new Response(JSON.stringify({
-                    useAI: resolvedNode.type === 'ai_response',
-                    aiNodeActive: resolvedNode.type === 'ai_response',
+                    useAI: false,
                     response: "❌ Máximo de tentativas excedido.\n\n" + nextMsg,
                     flowId: activeState.flow_id,
                     collectedData,

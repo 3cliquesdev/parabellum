@@ -3874,12 +3874,15 @@ serve(async (req) => {
       // Remove campos não suportados por modelos mais novos
       delete finalPayload.stream;
       
-      const tryModel = async (model: string, attempt: string) => {
-        const attemptPayload = { ...finalPayload };
-        // Reasoning models não suportam max_tokens
-        if (REASONING_MODELS.has(model) && attemptPayload.max_tokens) {
-          attemptPayload.max_completion_tokens = attemptPayload.max_tokens;
-          delete attemptPayload.max_tokens;
+      const tryModel = async (model: string, attempt: string, overridePayload?: Record<string, any>) => {
+        const attemptPayload = overridePayload ? { ...overridePayload } : { ...finalPayload };
+        // Reasoning models não suportam max_tokens nem temperature
+        if (REASONING_MODELS.has(model)) {
+          if (attemptPayload.max_tokens) {
+            attemptPayload.max_completion_tokens = attemptPayload.max_tokens;
+            delete attemptPayload.max_tokens;
+          }
+          delete attemptPayload.temperature;
         }
         
         console.log(`[callAIWithFallback] 🤖 ${attempt} com modelo: ${model}`);

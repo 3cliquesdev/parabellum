@@ -1943,10 +1943,19 @@ serve(async (req) => {
                 // Avançar para próximo nó com resultado failed
                 const nextAfterOtp = findNextNode(flowDef, currentNode);
                 let resolvedNode = nextAfterOtp;
+                // 🆕 BUG 2 FIX: Usar avaliador correto (V1 vs V2) no OTP max_attempts
                 while (resolvedNode && ['condition', 'condition_v2', 'input', 'start'].includes(resolvedNode.type)) {
-                  if (resolvedNode.type === 'condition' || resolvedNode.type === 'condition_v2') {
+                  if (resolvedNode.type === 'condition') {
                     const condPath = evaluateConditionPath(resolvedNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData);
                     const afterCond = findNextNode(flowDef, resolvedNode, condPath);
+                    if (!afterCond || !['condition', 'condition_v2', 'input', 'start'].includes(afterCond.type)) {
+                      resolvedNode = afterCond;
+                      break;
+                    }
+                    resolvedNode = afterCond;
+                  } else if (resolvedNode.type === 'condition_v2') {
+                    const v2Path = evaluateConditionV2Path(resolvedNode.data, collectedData, userMessage, undefined, activeContactData, activeConversationData, flowDef.edges || []);
+                    const afterCond = findNextNode(flowDef, resolvedNode, v2Path);
                     if (!afterCond || !['condition', 'condition_v2', 'input', 'start'].includes(afterCond.type)) {
                       resolvedNode = afterCond;
                       break;

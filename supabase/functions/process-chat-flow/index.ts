@@ -2379,7 +2379,7 @@ serve(async (req) => {
             console.error('[process-chat-flow] ⚠️ Failed to log consultant block event:', logErr);
           }
 
-          delete collectedData.__ai;
+          // delete redundante removido — confiamos no delete centralizado na linha de exit geral
         }
 
         // Verificar exit keyword (word-boundary match — evita falso positivo por substring)

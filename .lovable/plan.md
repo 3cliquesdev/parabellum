@@ -1,52 +1,90 @@
 
 
-# Auditoria Final — AI Telemetry Dashboard
+# Unificação de Dashboards e Painéis
 
-## Resultado: ✅ 100% Completo
+## Problema Atual — Fragmentação
 
-Todos os arquivos foram verificados linha por linha. Nenhum problema encontrado.
+O sistema tem **9+ telas** com sobreposição de funcionalidade:
 
-### Hook (`useAIDecisionTelemetry.ts`) — ✅
-| Requisito | Status |
-|-----------|--------|
-| REASON_LABELS com 6 nomes corretos em PT | ✅ L20-27 |
-| KPI `handoffs` = `strict_rag` + `confidence_flow` | ✅ L59-61 |
-| KPI `fallbacks` = `fallback_phrase` + `zero_confidence` | ✅ L62-64 |
-| KPI `violations` = `restriction` + `anti_loop` | ✅ L65-67 |
-| `lastUpdated` no retorno | ✅ L50, L94 |
-| `isError`/`error` exportados | ✅ L38, L94 |
-| Query `.like("ai_decision_%")`, `.limit(500)`, refetch 30s | ✅ L44-54 |
-| `restriction_violation_*` normalizado no typeBreakdown | ✅ L75 |
+| Tela | Rota | O que faz | Sobreposição |
+|------|------|-----------|--------------|
+| **Dashboard** (home) | `/` | Tabs: Overview, Vendas, Suporte, Financeiro, Operacional | Hub principal admin |
+| **Analytics Hub** | `/analytics` | Cards de navegação para sub-dashboards | Intermediário desnecessário |
+| **Analytics Premium** | `/analytics/premium` | Tabs: Overview, Vendas/Assinaturas, Churn, Performance, Suporte, Avançado | **Duplica** Dashboard home |
+| **Dashboards Dinâmicos** | `/dashboards` | Lista de dashboards customizados | Funcionalidade própria |
+| **Dashboard View** | `/dashboard/:id` | Visualizar dashboard dinâmico | Funcionalidade própria |
+| **Gestão de Vendas** | `/sales-management` | KPIs + métricas de vendas | **Duplica** tab Vendas |
+| **Dashboard CS** | `/cs-management` | Métricas CS | **Duplica** tab Overview |
+| **Dashboard Suporte** | `/support-dashboard` | Métricas de suporte | **Duplica** tab Suporte |
+| **AI Telemetria** | `/ai-telemetry` | Telemetria AI decisions | Funcionalidade própria |
 
-### Routes (`routes.ts`) — ✅
-| Requisito | Status |
-|-----------|--------|
-| Icon `Activity` (não `BarChart3`) | ✅ L105 |
-| Permission `ai.manage_personas` | ✅ L105 |
+## Proposta de Unificação
 
-### Página (`AITelemetry.tsx`) — ✅
-| Requisito | Status |
-|-----------|--------|
-| Header com badge "Atualizado há X" | ✅ L93-96 |
-| Refresh button com `refetch()` | ✅ L98-101 |
-| KPI cards: neutral, amber, red, orange | ✅ L117-171 |
-| Charts 60/40 (`lg:grid-cols-5`, `col-span-3`/`col-span-2`) | ✅ L176-258 |
-| LineChart cor `#6366f1` com dots | ✅ L203 |
-| BarChart com cores fixas por reason | ✅ L243-246 |
-| Percentage labels no BarChart | ✅ L247-251 |
-| Filter Select com 6 tipos + Todos | ✅ L271-283 |
-| Sort toggle button | ✅ L285-293 |
-| Conversa copyable com toast | ✅ L342-349 |
-| Score com cores condicionais (green/yellow/red) | ✅ L331-337 |
-| Artigos coluna | ✅ L366-368 |
-| Contexto badge indigo | ✅ L370-376 |
-| Fallback checkmark green | ✅ L378-383 |
-| Tempo relativo com ptBR | ✅ L385-387 |
-| useEffect 30s para re-render timestamps | ✅ L51-54 |
-| Null-guard em entity_id | ✅ L343, L347 |
-| Loading skeletons (KPIs + charts + 8 table rows) | ✅ L108-113, L182-183, L215-216, L298-307 |
-| Empty state com Brain icon | ✅ L308-313 |
-| Error state inline com retry | ✅ L69-83 |
+### Estrutura final — 3 níveis claros
 
-**Nenhuma correção necessária. O dashboard está 100% conforme o prompt original.** Pronto para a próxima melhoria.
+```text
+SIDEBAR "Visão Geral"
+├── Dashboard (/)           ← Hub único com todas as tabs
+├── Dashboards Dinâmicos    ← Painéis customizáveis (mantém)
+└── Assinaturas             ← Mantém separado
+
+SIDEBAR "Inbox & Suporte"
+├── ... (sem "Dashboard Suporte" — tab no Dashboard principal)
+
+SIDEBAR "Vendas"
+├── ... (sem "Gestão de Vendas" separada — tab no Dashboard principal)
+```
+
+### Mudanças concretas
+
+**1. Eliminar Analytics Hub (`/analytics`)** 
+- Redirecionar `/analytics` → `/` (Dashboard principal)
+- Mover link do Report Builder e Dashboards Dinâmicos direto para sidebar
+
+**2. Absorver Analytics Premium no Dashboard principal**
+- Mesclar as tabs do Premium (Churn, Performance, Avançado) como tabs adicionais no Dashboard `/`
+- O Dashboard principal fica com: Overview, Vendas, Suporte, Financeiro, Operacional, Churn, Performance, Avançado
+- Ou agrupar melhor: Overview | Vendas & Pipeline | Suporte | Financeiro & Churn | Performance | Avançado
+
+**3. Eliminar rotas redundantes do sidebar**
+- Remover "Dashboard Suporte" (`/support-dashboard`) — conteúdo já na tab Suporte
+- Remover "Dashboard CS" (`/cs-management`) — conteúdo já na tab Overview
+- Remover "Gestão de Vendas" (`/sales-management`) — conteúdo já na tab Vendas
+- Remover "Analytics" (`/analytics`) — hub intermediário eliminado
+
+**4. Manter rotas como redirects (backward compat)**
+- `/analytics` → redirect `/`
+- `/analytics/premium` → redirect `/?tab=overview`
+- `/support-dashboard` → redirect `/?tab=support`
+- `/cs-management` → redirect `/?tab=overview`
+- `/sales-management` → redirect `/?tab=sales`
+
+**5. Sidebar simplificada**
+
+```text
+Visão Geral
+  ├── Dashboard           (/)
+  ├── Painéis Dinâmicos   (/dashboards)
+  ├── Assinaturas         (/subscriptions)
+  └── Report Builder      (/report-builder)
+```
+
+### Arquivos afetados
+
+| Arquivo | Ação |
+|---------|------|
+| `src/config/routes.ts` | Remover 4 itens, mover Report Builder para "Visão Geral" |
+| `src/pages/Dashboard.tsx` | Adicionar tabs: Churn, Performance, Avançado (do Premium) |
+| `src/pages/Analytics.tsx` | Substituir por redirect para `/` |
+| `src/pages/AnalyticsPremium.tsx` | Pode ser removido (conteúdo absorvido) |
+| `src/pages/SupportDashboard.tsx` | Substituir por redirect `/?tab=support` |
+| `src/pages/CSManagement.tsx` | Substituir por redirect `/?tab=overview` |
+| `src/pages/SalesManagement.tsx` | Substituir por redirect `/?tab=sales` |
+| `src/App.tsx` | Atualizar rotas com redirects |
+
+### O que NÃO muda
+- Dashboard do vendedor (sales_rep) — continua com Bento Grid pessoal
+- Dashboards Dinâmicos (`/dashboards`, `/dashboard/:id`) — funcionalidade única
+- AI Telemetria — funcionalidade única
+- Copilot Impact, KB Gaps, Agent Quality — dashboards especializados mantidos
 

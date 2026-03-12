@@ -2279,7 +2279,7 @@ serve(async (req) => {
           console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO FINANCEIRA: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
         }
         
-        const financialIntentMatch =
+        financialIntentMatch =
           (forceFinancialExit && forbidFinancial) ||
           (forbidFinancial && msgLower.length > 0 && isFinancialAction && !isFinancialInfo);
         if (forceFinancialExit) {

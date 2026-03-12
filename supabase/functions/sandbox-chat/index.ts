@@ -394,38 +394,32 @@ Você está conversando com um cliente identificado. Use essas informações par
     let actualProvider = aiProvider;
     let aiResponse: Response | null = null;
 
-    if (aiProvider === 'openai') {
+    if (aiProvider === 'openai' || !aiResponse) {
       if (!OPENAI_API_KEY) {
-        console.log('[sandbox-chat] OpenAI key not found, falling back to Lovable AI');
-        actualProvider = 'lovable';
-      } else {
-        console.log('[sandbox-chat] Calling OpenAI (gpt-4o-mini)');
-        
-        const openaiPayload: any = {
-          model: "gpt-4o-mini",
-          messages: aiMessages,
-          temperature: persona.temperature || 0.7,
-          max_completion_tokens: persona.max_tokens || 500,
-        };
-
-        if (tools.length > 0) {
-          openaiPayload.tools = tools;
-        }
-
-        aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(openaiPayload),
-        });
-
-        if (!aiResponse.ok) {
-          console.log('[sandbox-chat] OpenAI failed, falling back to Lovable AI');
-          actualProvider = 'lovable';
-        }
+        throw new Error('OPENAI_API_KEY not configured');
       }
+
+      console.log('[sandbox-chat] Calling OpenAI (gpt-4o-mini)');
+      
+      const openaiPayload: any = {
+        model: "gpt-4o-mini",
+        messages: aiMessages,
+        temperature: persona.temperature || 0.7,
+        max_completion_tokens: persona.max_tokens || 500,
+      };
+
+      if (tools.length > 0) {
+        openaiPayload.tools = tools;
+      }
+
+      aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(openaiPayload),
+      });
     }
 
     if (actualProvider === 'lovable' || !aiResponse) {

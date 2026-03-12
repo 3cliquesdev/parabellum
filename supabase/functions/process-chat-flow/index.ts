@@ -1906,11 +1906,27 @@ serve(async (req) => {
                     completed_at: new Date().toISOString(),
                   }).eq('id', activeState.id);
 
+                  // ✅ BUG F FIX: OTP success transfer → transition-conversation-state
+                  const otpOkDeptId = resolvedNode.data?.department_id || null;
+                  const otpOkAiMode = resolvedNode.data?.ai_mode || 'waiting_human';
+                  const otpOkTransType =
+                    otpOkAiMode === 'copilot'   ? 'set_copilot' :
+                    otpOkAiMode === 'autopilot' ? 'engage_ai' :
+                    'handoff_to_human';
+                  await fetch(
+                    `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+                      body: JSON.stringify({ conversationId, transition: otpOkTransType, departmentId: otpOkDeptId, reason: 'flow_transfer_otp_verified', metadata: { node_id: resolvedNode.id, flow_id: activeState.flow_id, ai_mode: otpOkAiMode } })
+                    }
+                  );
+
                   return new Response(JSON.stringify({
                     useAI: false,
                     response: "✅ Identidade verificada!\n\n" + (nextMsg || "Transferindo..."),
                     transfer: true,
-                    departmentId: resolvedNode.data?.department_id || null,
+                    departmentId: otpOkDeptId,
                     collectedData,
                     flowId: activeState.flow_id,
                   }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

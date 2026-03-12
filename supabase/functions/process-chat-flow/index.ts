@@ -2312,10 +2312,14 @@ serve(async (req) => {
           collectedData.ai_exit_intent = 'comercial';
           console.log('[process-chat-flow] 🎯 ai_exit_intent=comercial (auto-detect from commercialIntentMatch)');
         }
+        if (supportIntentMatch && !collectedData.ai_exit_intent) {
+          collectedData.ai_exit_intent = 'suporte';
+          console.log('[process-chat-flow] 🎯 ai_exit_intent=suporte (auto-detect from supportIntentMatch)');
+        }
 
-        if (financialIntentMatch || cancellationIntentMatch || commercialIntentMatch || keywordMatch || maxReached || aiExitForced) {
-          const exitReason = financialIntentMatch ? 'financial_blocked' : cancellationIntentMatch ? 'cancellation_blocked' : commercialIntentMatch ? 'commercial_blocked' : aiExitForced ? 'ai_handoff_exit' : keywordMatch ? 'exit_keyword' : 'max_interactions';
-          console.log(`[process-chat-flow] 🔄 AI persistent EXIT: reason=${exitReason} keyword=${keywordMatch} maxReached=${maxReached} financial=${financialIntentMatch} cancellation=${cancellationIntentMatch} commercial=${commercialIntentMatch} count=${aiCount}`);
+        if (financialIntentMatch || cancellationIntentMatch || commercialIntentMatch || supportIntentMatch || keywordMatch || maxReached || aiExitForced) {
+          const exitReason = financialIntentMatch ? 'financial_blocked' : cancellationIntentMatch ? 'cancellation_blocked' : commercialIntentMatch ? 'commercial_blocked' : supportIntentMatch ? 'support_requested' : aiExitForced ? 'ai_handoff_exit' : keywordMatch ? 'exit_keyword' : 'max_interactions';
+          console.log(`[process-chat-flow] 🔄 AI persistent EXIT: reason=${exitReason} keyword=${keywordMatch} maxReached=${maxReached} financial=${financialIntentMatch} cancellation=${cancellationIntentMatch} commercial=${commercialIntentMatch} support=${supportIntentMatch} count=${aiCount}`);
 
           // Log de transferência estruturado em ai_events
           try {

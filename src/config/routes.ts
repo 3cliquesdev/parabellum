@@ -55,11 +55,9 @@ export const universalMenuGroups: MenuGroup[] = [
     label: "Visão Geral",
     items: [
       { title: "Dashboard", href: "/", icon: LayoutDashboard, permission: "dashboard.view" },
-      { title: "Gestão de Vendas", href: "/sales-management", icon: TrendingUp, permission: "sales.view_management" },
-      { title: "Dashboard CS", href: "/cs-management", icon: BarChart3, permission: "cs.view_management" },
-      { title: "Analytics", href: "/analytics", icon: BarChart3, permission: "analytics.view" },
-      { title: "Dashboards", href: "/dashboards", icon: LayoutDashboard, permission: "analytics.view" },
+      { title: "Painéis Dinâmicos", href: "/dashboards", icon: LayoutDashboard, permission: "analytics.view" },
       { title: "Assinaturas", href: "/subscriptions", icon: RefreshCw, permission: "analytics.view" },
+      { title: "Report Builder", href: "/report-builder", icon: FileText, permission: "analytics.view" },
     ]
   },
   {
@@ -68,7 +66,6 @@ export const universalMenuGroups: MenuGroup[] = [
       { title: "Inbox", href: "/inbox", icon: MessageCircle, permission: "inbox.access" },
       { title: "Instagram", href: "/instagram", icon: Instagram, permission: "inbox.access" },
       { title: "Fila de Tickets", href: "/support", icon: Ticket, permission: "tickets.view" },
-      { title: "Dashboard Suporte", href: "/support-dashboard", icon: BarChart3, permission: "analytics.view" },
       { title: "Base de Conhecimento", href: "/knowledge", icon: Book, permission: "inbox.view_knowledge" },
     ]
   },
@@ -121,7 +118,6 @@ export const universalMenuGroups: MenuGroup[] = [
       { title: "Definir Metas", href: "/goals-management", icon: Target, permission: "goals.set" },
       { title: "Solicitações Internas", href: "/internal-requests", icon: ClipboardList, permission: "tickets.view" },
       { title: "Relatórios", href: "/reports", icon: FileText, permission: "analytics.export" },
-      { title: "Report Builder", href: "/report-builder", icon: FileText, permission: "analytics.view" },
       { title: "Distribuição CS", href: "/reports/consultant-distribution", icon: BarChart3, permission: "reports.distribution" },
       { title: "Distribuição Vendas", href: "/reports/sales-distribution", icon: BarChart3, permission: "reports.lead_distribution" },
       { title: "Detecção de Fraude", href: "/reports/fraud-detection", icon: AlertTriangle, permission: "reports.fraud_detection" },

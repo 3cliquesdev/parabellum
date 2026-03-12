@@ -16,6 +16,9 @@ import {
   DollarSign,
   ShoppingCart,
   UserCheck,
+  XCircle,
+  HeadphonesIcon,
+  Route,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

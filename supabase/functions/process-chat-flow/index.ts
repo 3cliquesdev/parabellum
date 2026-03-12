@@ -2425,11 +2425,7 @@ serve(async (req) => {
       }
 
       nextNode = findNextNode(flowDef, currentNode, path);
-      // 🆕 FIX: Se aiExitForced e não achou edge 'ai_exit', tentar edge default (próximo nó do canvas)
-      if (!nextNode && aiExitForced && path === 'ai_exit') {
-        console.log('[process-chat-flow] ⚠️ aiExitForced: sem edge ai_exit, tentando edge default');
-        nextNode = findNextNode(flowDef, currentNode, undefined);
-      }
+      // findNextNode já tem fallback hierárquico (path → ai_exit → default → any)
       console.log(`[process-chat-flow] ➡️ Transition: from=${currentNode.type}(${currentNode.id}) path=${path || 'default'} → next=${nextNode?.type || 'null'}(${nextNode?.id || 'none'})`);
 
       // 🔒 FIX: Financial/Commercial exit SEM próximo nó → forçar handoff

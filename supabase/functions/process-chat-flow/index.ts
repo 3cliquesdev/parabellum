@@ -3526,11 +3526,13 @@ serve(async (req) => {
         console.log(`[process-chat-flow] 🤖 AI response node: id=${nextNode.id} persona=${nextNode.data?.persona_id || 'default'} maxInteractions=${nextNode.data?.max_ai_interactions || 0} exitKeywords=[${(nextNode.data?.exit_keywords || []).join(',')}]`);
         // Reinicializar contador de interações para novo nó AI
         collectedData.__ai = { interaction_count: 0 };
+        // 🆕 BUG 5 FIX: Adicionado status 'active' no ai_response re-entry
         await supabaseClient
           .from('chat_flow_states')
           .update({
             collected_data: collectedData,
             current_node_id: nextNode.id,
+            status: 'active',
             updated_at: new Date().toISOString(),
           })
           .eq('id', activeState.id);

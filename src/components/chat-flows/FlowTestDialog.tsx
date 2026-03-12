@@ -68,7 +68,7 @@ export function FlowTestDialog({ open, onClose, flowId, flowName, onAutoSave }: 
         .single();
 
       const existingMetadata = (convData?.customer_metadata as Record<string, unknown>) || {};
-      const { awaiting_otp, otp_reason, otp_expires_at, claimant_email, ...cleanMetadata } = existingMetadata;
+      const { awaiting_otp, otp_reason, otp_expires_at, claimant_email, ...cleanMetadata } = existingMetadata as Record<string, unknown>;
 
       // 3. Activate test mode + clear residual OTP metadata
       const { error: updateError } = await supabase

@@ -10235,6 +10235,7 @@ export type Database = {
           short_id: string
           status: string
           tags_all: string[]
+          tags_auto: string[]
           ticket_id: string
           total_count: number
           waiting_after_assignment_seconds: number

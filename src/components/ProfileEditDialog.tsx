@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -22,6 +24,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,7 +33,9 @@ import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { useUserRole } from "@/hooks/useUserRole";
 import { hasFullAccess } from "@/config/roles";
 import AvatarUploader from "@/components/AvatarUploader";
-import { Bot, Send } from "lucide-react";
+import { formatLocalDate } from "@/lib/dateUtils";
+import { Bot, Send, CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const profileSchema = z.object({
   full_name: z.string().min(1, "Nome é obrigatório").max(100),

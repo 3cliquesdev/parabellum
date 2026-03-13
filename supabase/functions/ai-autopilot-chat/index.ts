@@ -7049,7 +7049,16 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
       console.error('[ai-autopilot-chat] ❌ AI returned empty content after all retries, no tool calls');
     }
 
-    let assistantMessage = rawAIContent || 'Pode repetir sua mensagem? Não consegui processar corretamente.';
+    let assistantMessage: string;
+    if (rawAIContent) {
+      assistantMessage = rawAIContent;
+    } else if (isWithdrawalRequest) {
+      assistantMessage = 'Para solicitar o saque, preciso primeiro confirmar sua identidade. Qual é o seu e-mail de cadastro?';
+    } else if (isFinancialRequest) {
+      assistantMessage = 'Entendi sua solicitação financeira. Para prosseguir com segurança, qual é o seu e-mail de cadastro?';
+    } else {
+      assistantMessage = 'Pode repetir sua mensagem? Não consegui processar corretamente.';
+    }
     const isEmptyAIResponse = !rawAIContent;
 
     // 🎯 FIX A: PREFIXO DE RESPOSTA CAUTELOSA — SÓ se a IA realmente gerou conteúdo

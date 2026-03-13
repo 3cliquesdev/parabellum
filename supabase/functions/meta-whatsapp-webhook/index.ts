@@ -646,6 +646,7 @@ serve(async (req) => {
                         message_id: savedMessage.id,
                         media_type: mediaType,
                         instance_id: instance.id,
+                        conversation_id: conversation.id,
                       }),
                     }
                   ).then(res => {

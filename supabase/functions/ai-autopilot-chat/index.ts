@@ -641,6 +641,15 @@ async function sendWhatsAppMessage(
   senderName?: string | null // ðŸ†• Nome do remetente para prefixar mensagem
 ): Promise<{ success: boolean; error?: any }> {
   try {
+    // 🛡️ EMPTY MESSAGE GUARD: Nunca enviar mensagem vazia
+    if (!message || message.trim().length === 0) {
+      console.error('[sendWhatsAppMessage] ⚠️ EMPTY MESSAGE GUARD: Tentativa de enviar mensagem vazia bloqueada', {
+        conversationId,
+        provider: whatsappResult.provider
+      });
+      return { success: false, error: 'empty_message' };
+    }
+
     if (whatsappResult.provider === 'meta') {
       // ðŸ†• CORREÃ‡ÃƒO: Priorizar whatsapp_id sobre phone
       const targetNumber = extractWhatsAppNumber(whatsappId) || phoneNumber?.replace(/\D/g, '');

@@ -1229,10 +1229,17 @@ serve(async (req) => {
     console.log(`[ai-governor] 📱 ${adminPhones.length} WhatsApp(s), 📧 ${adminEmails.length} email(s) para notificar`);
 
     const forceToday = bodyOverride.force_today === true;
+    const reportDate = bodyOverride.report_date as string | undefined; // "YYYY-MM-DD"
     const now = new Date();
     let since: Date, until: Date;
 
-    if (forceToday) {
+    if (reportDate) {
+      // report_date tem prioridade: relatório completo do dia escolhido
+      const [y, m, d] = reportDate.split('-').map(Number);
+      since = new Date(y, m - 1, d, 0, 0, 0);
+      until = new Date(y, m - 1, d, 23, 59, 59);
+      console.log(`[ai-governor] 📅 Relatório para data específica: ${reportDate}`);
+    } else if (forceToday) {
       since = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
       until = now;
     } else {

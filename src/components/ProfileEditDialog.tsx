@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -22,6 +24,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,7 +33,9 @@ import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { useUserRole } from "@/hooks/useUserRole";
 import { hasFullAccess } from "@/config/roles";
 import AvatarUploader from "@/components/AvatarUploader";
-import { Bot, Send } from "lucide-react";
+import { formatLocalDate } from "@/lib/dateUtils";
+import { Bot, Send, CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const profileSchema = z.object({
   full_name: z.string().min(1, "Nome é obrigatório").max(100),
@@ -49,6 +55,7 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [notifyGovernor, setNotifyGovernor] = useState(false);
   const [sendingReport, setSendingReport] = useState(false);
+  const [reportDate, setReportDate] = useState<Date | undefined>(undefined);
   const { profile, user, refetchProfile } = useAuth();
   const { toast } = useToast();
   const { uploadAvatar, uploading: uploadingAvatar } = useAvatarUpload();
@@ -129,15 +136,23 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
   const handleSendReport = async () => {
     setSendingReport(true);
     try {
+      const body: Record<string, any> = reportDate
+        ? { report_date: formatLocalDate(reportDate) }
+        : { force_today: true };
+
       const { data, error } = await supabase.functions.invoke("ai-governor", {
-        body: { force_today: true },
+        body,
       });
 
       if (error) throw error;
 
+      const label = reportDate
+        ? format(reportDate, "dd/MM/yyyy")
+        : "hoje";
+
       toast({
         title: "Relatório enviado!",
-        description: `Métricas coletadas: ${data?.metrics?.totalConvs ?? 0} conversas processadas.`,
+        description: `Relatório de ${label} — ${data?.metrics?.totalConvs ?? 0} conversas processadas.`,
       });
     } catch (error) {
       console.error("Error sending governor report:", error);
@@ -234,6 +249,39 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
                     />
                   </div>
 
+                  <div className="space-y-2">
+                    <FormLabel>Relatório do dia:</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !reportDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {reportDate
+                            ? format(reportDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                            : "Hoje (padrão)"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={reportDate}
+                          onSelect={setReportDate}
+                          disabled={(date) => date > new Date()}
+                          locale={ptBR}
+                          initialFocus
+                          className="pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
                   <Button
                     type="button"
                     variant="outline"
@@ -243,7 +291,11 @@ export default function ProfileEditDialog({ trigger }: ProfileEditDialogProps) {
                     className="w-full"
                   >
                     <Send className="h-4 w-4 mr-2" />
-                    {sendingReport ? "Enviando..." : "Enviar relatório agora"}
+                    {sendingReport
+                      ? "Enviando..."
+                      : reportDate
+                        ? `Enviar relatório de ${format(reportDate, "dd/MM/yyyy")}`
+                        : "Enviar relatório de hoje"}
                   </Button>
                 </div>
               </>

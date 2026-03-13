@@ -111,6 +111,7 @@ serve(async (req) => {
     const fileBuffer = await fileResponse.arrayBuffer();
     const fileExtension = getExtensionFromMimeType(mimeType);
     const fileName = `${message_id}_${Date.now()}${fileExtension}`;
+    const storageBucket = 'chat-attachments';
     const storagePath = `whatsapp/${fileName}`;
 
     console.log("[download-meta-media] 📦 File size:", fileBuffer.byteLength, "bytes");

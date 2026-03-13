@@ -710,7 +710,7 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
         <DealDialog
           deal={editingDeal}
           trigger={<></>}
-          defaultOpen={true}
+          open={true}
           onOpenChange={(open) => {
             if (!open) {
               setEditingDeal(null);

@@ -278,7 +278,7 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
 
       await sendEmail.mutateAsync({
         to: conversation.contacts.email || '',
-        to_name: `${conversation.contacts.first_name} ${conversation.contacts.last_name}`,
+        to_name: displayName(conversation.contacts.first_name, conversation.contacts.last_name),
         subject: emailSubject.trim(),
         html: `<p>${message.trim().replace(/\n/g, '<br>')}</p>`,
         customer_id: conversation.contacts.id,

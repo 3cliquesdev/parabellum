@@ -60,7 +60,7 @@ export const AIResponseNode = memo(({ data, selected }: NodeProps<AIResponseNode
   const maxSentences = data.max_sentences ?? 3;
   const hasRestrictions = forbidQuestions || forbidOptions;
 
-  // 🆕 Custom handles: target (left) + 6 source handles (right) por intenção
+  // 🆕 Custom handles: target (left) + 11 source handles (right) por intenção
   const customHandles = (
     <>
       {/* Target handle (entrada) */}
@@ -70,71 +70,83 @@ export const AIResponseNode = memo(({ data, selected }: NodeProps<AIResponseNode
         className="!w-4 !h-4 !bg-primary !border-2 !border-background"
       />
       {/* Source handle padrão */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="default"
+      <Handle type="source" position={Position.Right} id="default"
         className="!w-4 !h-4 !bg-primary !border-2 !border-background"
-        style={{ top: '12%' }}
-      />
+        style={{ top: '5%' }} />
       {/* Source handle financeiro */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="financeiro"
+      <Handle type="source" position={Position.Right} id="financeiro"
         className="!w-4 !h-4 !bg-amber-500 !border-2 !border-background"
-        style={{ top: '27%' }}
-      />
+        style={{ top: '14%' }} />
       {/* Source handle cancelamento */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="cancelamento"
+      <Handle type="source" position={Position.Right} id="cancelamento"
         className="!w-4 !h-4 !bg-red-500 !border-2 !border-background"
-        style={{ top: '42%' }}
-      />
+        style={{ top: '23%' }} />
       {/* Source handle comercial */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="comercial"
+      <Handle type="source" position={Position.Right} id="comercial"
         className="!w-4 !h-4 !bg-emerald-500 !border-2 !border-background"
-        style={{ top: '57%' }}
-      />
+        style={{ top: '32%' }} />
       {/* Source handle suporte */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="suporte"
+      <Handle type="source" position={Position.Right} id="suporte"
         className="!w-4 !h-4 !bg-blue-500 !border-2 !border-background"
-        style={{ top: '72%' }}
-      />
+        style={{ top: '41%' }} />
       {/* Source handle consultor */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="consultor"
+      <Handle type="source" position={Position.Right} id="consultor"
         className="!w-4 !h-4 !bg-violet-500 !border-2 !border-background"
-        style={{ top: '87%' }}
-      />
+        style={{ top: '50%' }} />
+      {/* 🆕 Source handle pedidos */}
+      <Handle type="source" position={Position.Right} id="pedidos"
+        className="!w-4 !h-4 !bg-teal-500 !border-2 !border-background"
+        style={{ top: '59%' }} />
+      {/* 🆕 Source handle devolucao */}
+      <Handle type="source" position={Position.Right} id="devolucao"
+        className="!w-4 !h-4 !bg-orange-500 !border-2 !border-background"
+        style={{ top: '68%' }} />
+      {/* 🆕 Source handle saque */}
+      <Handle type="source" position={Position.Right} id="saque"
+        className="!w-4 !h-4 !bg-yellow-500 !border-2 !border-background"
+        style={{ top: '77%' }} />
+      {/* 🆕 Source handle suporte_sistema */}
+      <Handle type="source" position={Position.Right} id="suporte_sistema"
+        className="!w-4 !h-4 !bg-slate-500 !border-2 !border-background"
+        style={{ top: '86%' }} />
+      {/* 🆕 Source handle comercial_internacional */}
+      <Handle type="source" position={Position.Right} id="comercial_internacional"
+        className="!w-4 !h-4 !bg-cyan-500 !border-2 !border-background"
+        style={{ top: '95%' }} />
+
       {/* Labels visuais */}
-      <div className="absolute right-[-55px] text-[8px] text-muted-foreground font-medium pointer-events-none" style={{ top: '5%' }}>
+      <div className="absolute right-[-55px] text-[8px] text-muted-foreground font-medium pointer-events-none" style={{ top: '2%' }}>
         padrão
       </div>
-      <div className="absolute right-[-70px] text-[8px] text-amber-600 font-medium pointer-events-none" style={{ top: '20%' }}>
+      <div className="absolute right-[-70px] text-[8px] text-amber-600 font-medium pointer-events-none" style={{ top: '11%' }}>
         💰 financeiro
       </div>
-      <div className="absolute right-[-80px] text-[8px] text-red-600 font-medium pointer-events-none" style={{ top: '35%' }}>
+      <div className="absolute right-[-80px] text-[8px] text-red-600 font-medium pointer-events-none" style={{ top: '20%' }}>
         ❌ cancelamento
       </div>
-      <div className="absolute right-[-65px] text-[8px] text-emerald-600 font-medium pointer-events-none" style={{ top: '50%' }}>
+      <div className="absolute right-[-65px] text-[8px] text-emerald-600 font-medium pointer-events-none" style={{ top: '29%' }}>
         🛒 comercial
       </div>
-      <div className="absolute right-[-60px] text-[8px] text-blue-600 font-medium pointer-events-none" style={{ top: '65%' }}>
+      <div className="absolute right-[-60px] text-[8px] text-blue-600 font-medium pointer-events-none" style={{ top: '38%' }}>
         🧑 suporte
       </div>
-      <div className="absolute right-[-65px] text-[8px] text-violet-600 font-medium pointer-events-none" style={{ top: '80%' }}>
+      <div className="absolute right-[-65px] text-[8px] text-violet-600 font-medium pointer-events-none" style={{ top: '47%' }}>
         💼 consultor
+      </div>
+      <div className="absolute right-[-60px] text-[8px] text-teal-600 font-medium pointer-events-none" style={{ top: '56%' }}>
+        📦 pedidos
+      </div>
+      <div className="absolute right-[-70px] text-[8px] text-orange-600 font-medium pointer-events-none" style={{ top: '65%' }}>
+        🔄 devolução
+      </div>
+      <div className="absolute right-[-55px] text-[8px] text-yellow-600 font-medium pointer-events-none" style={{ top: '74%' }}>
+        💰 saque
+      </div>
+      <div className="absolute right-[-60px] text-[8px] text-slate-600 font-medium pointer-events-none" style={{ top: '83%' }}>
+        🖥️ sistema
+      </div>
+      <div className="absolute right-[-75px] text-[8px] text-cyan-600 font-medium pointer-events-none" style={{ top: '92%' }}>
+        🌍 internacional
       </div>
     </>
   );

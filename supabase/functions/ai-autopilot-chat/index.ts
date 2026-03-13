@@ -9094,7 +9094,9 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
           flow_context.allowed_sources || ['kb', 'crm', 'tracking'],
           kbUsed,
           crmUsed,
-          trackingUsed
+          trackingUsed,
+          false, // kiwifyUsed
+          sandboxUsedFlag
         );
         
         console.log('[ai-autopilot-chat] ✅ Resposta passou validação anti-escape (pré-save)');

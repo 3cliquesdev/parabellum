@@ -270,9 +270,33 @@ export function MessagesWithMedia({
         // FALLBACK: Se não tem media_attachments mas tem attachment_url direto
         // Isso cobre mídias Meta que falharam ao criar registro ou mídias antigas
         if (attachments.length === 0 && message.attachment_url && !isAI) {
-          // Verificar se é uma URL válida (não é JSON de metadata AI)
           const isValidUrl = message.attachment_url.startsWith('http');
-          if (isValidUrl) {
+          const isStorageRef = message.attachment_url.startsWith('storage:');
+
+          if (isStorageRef) {
+            // Resolver storage: URL via signed URL
+            const resolved = resolvedStorageUrls.get(message.id);
+            const mimeType = getMimeFromType((message as any).attachment_type);
+            const storagePath = message.attachment_url.slice('storage:'.length);
+            const filename = storagePath.split('/').pop() || 'media';
+
+            attachments = [{
+              id: `storage-fallback-${message.id}`,
+              url: resolved?.url || '',
+              mimeType,
+              filename,
+              size: undefined,
+              waveformData: undefined,
+              durationSeconds: undefined,
+              error: resolved?.error || undefined,
+              isLoading: resolved?.isLoading ?? true,
+              onRetry: resolved?.error ? () => {
+                // Force re-resolve by clearing the ref tracking
+                // The hook will pick it up on next render
+                window.location.reload(); // Simple fallback for edge case
+              } : undefined,
+            }];
+          } else if (isValidUrl) {
             // Detectar tipo de mídia pela URL ou attachment_type
             const mimeType = getMimeFromType((message as any).attachment_type);
             const filename = extractFilename(message.attachment_url);

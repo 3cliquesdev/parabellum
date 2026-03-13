@@ -3388,13 +3388,19 @@ serve(async (req) => {
           console.log(`[process-chat-flow] 🎯 ai_exit_intent salvo: "${intentData.ai_exit_intent}"`);
           
           // 🔴 FIX: Mapear ai_exit_intent para os flags *IntentMatch
-          if (!financialIntentMatch && !cancellationIntentMatch && !commercialIntentMatch && !supportIntentMatch && !consultorIntentMatch) {
+          if (!financialIntentMatch && !cancellationIntentMatch && !commercialIntentMatch && !supportIntentMatch && !consultorIntentMatch && !pedidosIntentMatch && !devolucaoIntentMatch && !saqueIntentMatch && !sistemaIntentMatch && !internacionalIntentMatch) {
             const intent = intentData.ai_exit_intent;
             if (intent === 'financeiro') { financialIntentMatch = true; }
             else if (intent === 'cancelamento') { cancellationIntentMatch = true; }
-            else if (intent === 'comercial') { commercialIntentMatch = true; }
-            else if (intent === 'suporte') { supportIntentMatch = true; }
+            else if (intent === 'comercial' || intent === 'comercial_nacional') { commercialIntentMatch = true; }
+            else if (intent === 'suporte' || intent === 'suporte_pedidos') { pedidosIntentMatch = true; }
+            else if (intent === 'suporte_sistema') { sistemaIntentMatch = true; }
             else if (intent === 'consultor') { consultorIntentMatch = true; }
+            else if (intent === 'pedidos') { pedidosIntentMatch = true; }
+            else if (intent === 'devolucao') { devolucaoIntentMatch = true; }
+            else if (intent === 'saque') { saqueIntentMatch = true; }
+            else if (intent === 'comercial_internacional') { internacionalIntentMatch = true; }
+            else if (intent === 'humano') { supportIntentMatch = true; }
             console.log(`[process-chat-flow] 🎯 intentData.ai_exit_intent="${intent}" → *IntentMatch forçado`);
           }
         }
@@ -3418,6 +3424,26 @@ serve(async (req) => {
         if (consultorIntentMatch && !collectedData.ai_exit_intent) {
           collectedData.ai_exit_intent = 'consultor';
           console.log('[process-chat-flow] 🎯 ai_exit_intent=consultor (auto-detect from consultorIntentMatch)');
+        }
+        if (pedidosIntentMatch && !collectedData.ai_exit_intent) {
+          collectedData.ai_exit_intent = 'pedidos';
+          console.log('[process-chat-flow] 🎯 ai_exit_intent=pedidos (auto-detect from pedidosIntentMatch)');
+        }
+        if (devolucaoIntentMatch && !collectedData.ai_exit_intent) {
+          collectedData.ai_exit_intent = 'devolucao';
+          console.log('[process-chat-flow] 🎯 ai_exit_intent=devolucao (auto-detect from devolucaoIntentMatch)');
+        }
+        if (saqueIntentMatch && !collectedData.ai_exit_intent) {
+          collectedData.ai_exit_intent = 'saque';
+          console.log('[process-chat-flow] 🎯 ai_exit_intent=saque (auto-detect from saqueIntentMatch)');
+        }
+        if (sistemaIntentMatch && !collectedData.ai_exit_intent) {
+          collectedData.ai_exit_intent = 'suporte_sistema';
+          console.log('[process-chat-flow] 🎯 ai_exit_intent=suporte_sistema (auto-detect from sistemaIntentMatch)');
+        }
+        if (internacionalIntentMatch && !collectedData.ai_exit_intent) {
+          collectedData.ai_exit_intent = 'comercial_internacional';
+          console.log('[process-chat-flow] 🎯 ai_exit_intent=comercial_internacional (auto-detect from internacionalIntentMatch)');
         }
 
         if (financialIntentMatch || cancellationIntentMatch || commercialIntentMatch || supportIntentMatch || consultorIntentMatch || keywordMatch || maxReached || aiExitForced) {

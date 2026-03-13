@@ -370,7 +370,7 @@ export function SuperComposer({
         
         if (firstAtt) {
           const freshUrl = await getFreshMediaUrl(firstAtt.id);
-          attachmentUrl = freshUrl ? `storage:${firstAtt.storagePath || firstAtt.id}` : undefined;
+          attachmentUrl = freshUrl ? `storage:chat-attachments/${firstAtt.id}` : undefined;
         }
 
         sentMessageId = sendInstant({

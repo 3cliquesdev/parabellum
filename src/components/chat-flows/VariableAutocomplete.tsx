@@ -40,6 +40,7 @@ export function VariableAutocomplete({
 }: VariableAutocompleteProps) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const cursorPosRef = useRef<number>(0);

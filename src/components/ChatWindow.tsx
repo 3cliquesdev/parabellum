@@ -773,6 +773,7 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
                       isAdmin={isAdmin}
                       isManager={isManager}
                       messagesEndRef={messagesEndRef}
+                      _tick={tickCounter}
                     />
 
                     {/* Typing indicator */}

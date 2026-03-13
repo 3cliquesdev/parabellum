@@ -5822,6 +5822,15 @@ Posso ajudar em mais alguma coisa?`;
     // Reembolsos e cancelamentos NÃO ativam barreira OTP
     const financialBarrierActive = isWithdrawalRequest && !hasRecentOTPVerification;
 
+    console.log('[ai-autopilot-chat] 🔐 FINANCIAL BARRIER CHECK:', {
+      financialBarrierActive,
+      isWithdrawalRequest,
+      isFinancialRequest,
+      hasRecentOTPVerification,
+      contactHasEmail,
+      customerMessage: customerMessage.substring(0, 50)
+    });
+
     // Flag para mostrar dados sensíveis (só após OTP verificado + permissão da persona)
     const canShowFinancialData = hasRecentOTPVerification && isRealCustomer && canAccessFinancialData;
     

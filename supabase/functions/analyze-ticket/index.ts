@@ -145,7 +145,7 @@ Responda apenas com as tags separadas por vírgula (ex: Bug, Técnico, Urgente)`
         throw new Error(`Invalid mode: ${mode}`);
     }
 
-    console.log(`[analyze-ticket] Mode: ${mode}, Processing request`);
+    console.log(`[analyze-ticket] Processing request`);
 
     // Helper: Fetch with timeout
     const fetchWithTimeout = (url: string, options: RequestInit, timeout = 60000) => {

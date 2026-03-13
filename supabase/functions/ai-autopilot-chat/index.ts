@@ -8821,7 +8821,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
           console.warn('[ai-autopilot-chat] ⚠️ ESCAPE DETECTADO ANTES de salvar! IA tentou fabricar transferência');
           console.warn('[ai-autopilot-chat] Resposta bloqueada:', assistantMessage.substring(0, 100));
           // Log auditoria non-blocking
-          supabaseClient.from('ai_events').insert({
+          Promise.resolve(supabaseClient.from('ai_events').insert({
             entity_type: 'conversation',
             entity_id: conversationId,
             event_type: 'contract_violation_blocked',
@@ -8833,7 +8833,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
               reason: 'ai_contract_violation',
             },
             input_summary: customerMessage?.substring(0, 200) || '',
-          }).then(() => {}).catch((err: any) => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
+          })).catch((err: any) => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
           
           // 🆕 FIX: Substituir mensagem e FICAR no nó (não retornar flowExit)
           console.log('[ai-autopilot-chat] 🔄 Contract violation + flow_context → substituindo mensagem e permanecendo no nó');

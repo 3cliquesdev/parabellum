@@ -179,7 +179,7 @@ export function useExportCommercialConversationsCSV() {
         "Telefone", "Organização", "Criado em", "Fechado em",
         "Tempo de Espera", "Duração", "Agente Responsável", "Participantes",
         "Departamento", "Total Interações", "Origem", "CSAT", "Comentário CSAT",
-        "Ticket ID", "Modo IA", "Tags", "Última Tag Conversa",
+        "Ticket ID", "Modo IA", "Tags", "Tags Automáticas", "Última Tag Conversa",
         "Primeira Mensagem", "Tempo Espera pós Atribuição",
       ];
 

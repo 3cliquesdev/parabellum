@@ -48,15 +48,8 @@ interface MessageBubbleProps {
   className?: string;
 }
 
-// Relative time formatter
-function useRelativeTime(dateStr: string): string {
-  const [, setTick] = useState(0);
-  
-  useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 60_000);
-    return () => clearInterval(interval);
-  }, []);
-
+// Pure function — no per-bubble interval. Parent passes _tick to force re-render.
+function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diffMs = now - then;

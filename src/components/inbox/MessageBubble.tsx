@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Bot, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
@@ -47,6 +48,25 @@ interface MessageBubbleProps {
   className?: string;
 }
 
+// Relative time formatter
+function useRelativeTime(dateStr: string): string {
+  const [, setTick] = useState(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60_000);
+
+  if (diffMin < 1) return "agora";
+  if (diffMin < 60) return `há ${diffMin} min`;
+  return format(new Date(dateStr), "HH:mm");
+}
+
 export function MessageBubble({
   content,
   createdAt,
@@ -64,6 +84,7 @@ export function MessageBubble({
   attachments = [],
   className,
 }: MessageBubbleProps) {
+  const relativeTime = useRelativeTime(createdAt);
   return (
     <div
       className={cn(
@@ -242,7 +263,7 @@ export function MessageBubble({
                 : "text-white opacity-70"
             )}
           >
-            <span>{format(new Date(createdAt), "HH:mm")}</span>
+            <span>{relativeTime}</span>
 
             {/* AI Debug for Admins */}
             {isAI && (isAdmin || isManager) && usedArticles.length > 0 && (

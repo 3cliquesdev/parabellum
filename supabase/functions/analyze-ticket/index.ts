@@ -5,9 +5,45 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Helper: Buscar modelo AI configurado no banco
-// Modelo padrão OpenAI
-const DEFAULT_MODEL = 'gpt-5-mini';
+// Defaults por modo — sentiment usa nano (tarefa simples, alto volume)
+const DEFAULT_MODELS: Record<string, string> = {
+  sentiment: 'gpt-5-nano',
+  summary: 'gpt-5-mini',
+  reply: 'gpt-5-mini',
+  tags: 'gpt-5-nano',
+};
+
+// Sanitiza nomes gateway (ex: "openai/gpt-5-nano" → "gpt-5-nano")
+function sanitizeModelName(model: string): string {
+  if (model.includes('/')) {
+    return model.split('/').pop() || model;
+  }
+  return model;
+}
+
+// Busca modelo configurado no banco com override por modo
+async function getConfiguredModel(supabase: any, mode: string): Promise<string> {
+  try {
+    const modeConfigKey = `ai_${mode}_model`; // ex: ai_sentiment_model
+    
+    const { data: configs } = await supabase
+      .from('system_configurations')
+      .select('key, value')
+      .in('key', [modeConfigKey, 'ai_default_model']);
+    
+    // Prioridade: ai_sentiment_model > ai_default_model > DEFAULT_MODELS[mode]
+    const modeSpecific = configs?.find((c: any) => c.key === modeConfigKey)?.value;
+    if (modeSpecific) return sanitizeModelName(modeSpecific);
+    
+    const globalDefault = configs?.find((c: any) => c.key === 'ai_default_model')?.value;
+    if (globalDefault) return sanitizeModelName(globalDefault);
+    
+    return DEFAULT_MODELS[mode] || 'gpt-5-mini';
+  } catch (err) {
+    console.warn('[analyze-ticket] Failed to fetch model config, using default:', err);
+    return DEFAULT_MODELS[mode] || 'gpt-5-mini';
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,13 +53,16 @@ Deno.serve(async (req) => {
   try {
     const { mode, messages, description, ticketSubject } = await req.json();
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY not configured');
     }
     
-    const aiModel = DEFAULT_MODEL;
-    console.log(`[analyze-ticket] Using AI model: ${aiModel}`);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const aiModel = await getConfiguredModel(supabase, mode);
+    console.log(`[analyze-ticket] Mode: ${mode}, Using AI model: ${aiModel}`);
 
     let systemPrompt = '';
     let userPrompt = '';
@@ -106,7 +145,7 @@ Responda apenas com as tags separadas por vírgula (ex: Bug, Técnico, Urgente)`
         throw new Error(`Invalid mode: ${mode}`);
     }
 
-    console.log(`[analyze-ticket] Mode: ${mode}, Processing request`);
+    console.log(`[analyze-ticket] Processing request`);
 
     // Helper: Fetch with timeout
     const fetchWithTimeout = (url: string, options: RequestInit, timeout = 60000) => {

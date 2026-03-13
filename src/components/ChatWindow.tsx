@@ -154,6 +154,10 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
     }
   }, [conversation?.id]);
 
+  // ========== SMART SCROLL (WhatsApp-like) ==========
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [shouldStickToBottom, setShouldStickToBottom] = useState(true);
+
   // ========== TYPING INDICATOR + NEW MESSAGE BADGE ==========
   const prevMsgCount = useRef(messages.length);
   useEffect(() => {
@@ -178,10 +182,6 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
     setHasNewMessageBelow(false);
     if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
   }, [conversation?.id]);
-
-  // ========== SMART SCROLL (WhatsApp-like) ==========
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [shouldStickToBottom, setShouldStickToBottom] = useState(true);
 
   // Detectar se usuário scrollou para cima
   useEffect(() => {

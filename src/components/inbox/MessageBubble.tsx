@@ -77,7 +77,7 @@ export function MessageBubble({
   attachments = [],
   className,
 }: MessageBubbleProps) {
-  const relativeTime = useRelativeTime(createdAt);
+  const relativeTime = formatRelativeTime(createdAt);
   return (
     <div
       className={cn(

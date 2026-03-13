@@ -205,13 +205,6 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
     el.scrollTop = el.scrollHeight; // instant (WhatsApp-like)
   }, [messages?.length, shouldStickToBottom]);
 
-  // UX: Show "new message" badge when scrolled up + clear when at bottom
-  useEffect(() => {
-    if (messages.length > prevMsgCount.current && !shouldStickToBottom) {
-      setHasNewMessageBelow(true);
-    }
-  }, [messages.length, shouldStickToBottom]);
-
   useEffect(() => {
     if (shouldStickToBottom) setHasNewMessageBelow(false);
   }, [shouldStickToBottom]);

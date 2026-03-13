@@ -5822,6 +5822,15 @@ Posso ajudar em mais alguma coisa?`;
     // Reembolsos e cancelamentos NÃO ativam barreira OTP
     const financialBarrierActive = isWithdrawalRequest && !hasRecentOTPVerification;
 
+    console.log('[ai-autopilot-chat] 🔐 FINANCIAL BARRIER CHECK:', {
+      financialBarrierActive,
+      isWithdrawalRequest,
+      isFinancialRequest,
+      hasRecentOTPVerification,
+      contactHasEmail,
+      customerMessage: customerMessage.substring(0, 50)
+    });
+
     // Flag para mostrar dados sensíveis (só após OTP verificado + permissão da persona)
     const canShowFinancialData = hasRecentOTPVerification && isRealCustomer && canAccessFinancialData;
     
@@ -7040,11 +7049,20 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
       console.error('[ai-autopilot-chat] ❌ AI returned empty content after all retries, no tool calls');
     }
 
-    let assistantMessage = rawAIContent || 'Pode repetir sua mensagem? Não consegui processar corretamente.';
+    let assistantMessage: string;
+    if (rawAIContent) {
+      assistantMessage = rawAIContent;
+    } else if (isWithdrawalRequest) {
+      assistantMessage = 'Para solicitar o saque, preciso primeiro confirmar sua identidade. Qual é o seu e-mail de cadastro?';
+    } else if (isFinancialRequest) {
+      assistantMessage = 'Entendi sua solicitação financeira. Para prosseguir com segurança, qual é o seu e-mail de cadastro?';
+    } else {
+      assistantMessage = 'Pode repetir sua mensagem? Não consegui processar corretamente.';
+    }
     const isEmptyAIResponse = !rawAIContent;
 
     // 🎯 FIX A: PREFIXO DE RESPOSTA CAUTELOSA — SÓ se a IA realmente gerou conteúdo
-    if (confidenceResult.action === 'cautious' && !toolCalls.length && !isEmptyAIResponse) {
+    if (confidenceResult.action === 'cautious' && !toolCalls.length && !isEmptyAIResponse && !isWithdrawalRequest && !isFinancialRequest) {
       const cautiousPrefix = generateResponsePrefix('cautious');
       if (cautiousPrefix && !assistantMessage.startsWith('Baseado nas informações')) {
         assistantMessage = cautiousPrefix + assistantMessage;

@@ -773,7 +773,8 @@ serve(async (req) => {
     );
 
     const body = await req.json();
-    const { conversationId, userMessage, flowId, manualTrigger, contractViolation, violationReason, activateTransfer, bypassActiveCheck, inactivityTimeout, forceFinancialExit, forceCommercialExit, forceCancellationExit, forceAIExit, intentData } = body;
+    const { conversationId, flowId, manualTrigger, contractViolation, violationReason, activateTransfer, bypassActiveCheck, inactivityTimeout, forceFinancialExit, forceCommercialExit, forceCancellationExit, forceAIExit, intentData } = body;
+    const userMessage = body.userMessage || body.customerMessage;
     
     if (!conversationId) {
       return new Response(

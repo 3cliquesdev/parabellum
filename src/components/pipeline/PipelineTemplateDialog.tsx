@@ -24,6 +24,7 @@ interface PipelineTemplateDialogProps {
   contactId: string;
   contactPhone: string;
   contactName: string;
+  dealId?: string;
   onConversationCreated: (conversationId: string) => void;
 }
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,6 +40,7 @@ export function VariableAutocomplete({
 }: VariableAutocompleteProps) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const cursorPosRef = useRef<number>(0);
@@ -52,6 +54,16 @@ export function VariableAutocomplete({
     () => findOrphanVariables(value || "", nodes, edges, selectedNodeId),
     [value, nodes, edges, selectedNodeId]
   );
+
+  // Update dropdown position when open
+  useEffect(() => {
+    if (!open || !textareaRef.current) return;
+    const rect = textareaRef.current.getBoundingClientRect();
+    setDropdownPos({
+      top: rect.bottom + 4,
+      left: rect.left,
+    });
+  }, [open]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -228,10 +240,11 @@ export function VariableAutocomplete({
         </button>
       </div>
 
-      {open && (
+      {open && dropdownPos && createPortal(
         <div
           ref={dropdownRef}
-          className="absolute z-50 w-80 mt-1 rounded-md border bg-popover text-popover-foreground shadow-md"
+          className="fixed z-[9999] w-80 rounded-md border bg-popover text-popover-foreground shadow-md"
+          style={{ top: dropdownPos.top, left: dropdownPos.left }}
         >
           <div className="flex items-center border-b px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
@@ -244,7 +257,7 @@ export function VariableAutocomplete({
               onMouseDown={(e) => e.stopPropagation()}
             />
           </div>
-          <ScrollArea className="max-h-[250px]">
+          <ScrollArea className="max-h-[250px] overflow-y-auto">
             <div className="p-1">
               {hasResults ? (
                 <>
@@ -261,7 +274,8 @@ export function VariableAutocomplete({
               )}
             </div>
           </ScrollArea>
-        </div>
+        </div>,
+        document.body
       )}
 
       {orphans.length > 0 && (

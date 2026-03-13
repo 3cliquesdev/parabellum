@@ -56,8 +56,13 @@ export const ButtonEdge = memo(({
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
             pointerEvents: 'all',
           }}
-          className="nodrag nopan"
+          className="nodrag nopan flex items-center gap-1"
         >
+          {label && (
+            <span className="bg-background border border-border text-foreground text-xs px-2 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+              {label}
+            </span>
+          )}
           <Button
             variant="destructive"
             size="icon"

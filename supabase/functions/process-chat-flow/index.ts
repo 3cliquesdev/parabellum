@@ -3500,15 +3500,30 @@ serve(async (req) => {
           }
 
           // 🆕 Paths dedicados por intenção (handles separados no nó IA)
-          if (financialIntentMatch) {
+          if (saqueIntentMatch) {
+            path = 'saque';
+            console.log('[process-chat-flow] 🎯 saqueIntentMatch → path set to "saque"');
+          } else if (financialIntentMatch) {
             path = 'financeiro';
             console.log('[process-chat-flow] 🎯 financialIntentMatch → path set to "financeiro"');
+          } else if (devolucaoIntentMatch) {
+            path = 'devolucao';
+            console.log('[process-chat-flow] 🎯 devolucaoIntentMatch → path set to "devolucao"');
+          } else if (pedidosIntentMatch) {
+            path = 'pedidos';
+            console.log('[process-chat-flow] 🎯 pedidosIntentMatch → path set to "pedidos"');
           } else if (cancellationIntentMatch) {
             path = 'cancelamento';
             console.log('[process-chat-flow] 🎯 cancellationIntentMatch → path set to "cancelamento"');
+          } else if (internacionalIntentMatch) {
+            path = 'comercial_internacional';
+            console.log('[process-chat-flow] 🎯 internacionalIntentMatch → path set to "comercial_internacional"');
           } else if (commercialIntentMatch) {
             path = 'comercial';
             console.log('[process-chat-flow] 🎯 commercialIntentMatch → path set to "comercial"');
+          } else if (sistemaIntentMatch) {
+            path = 'suporte_sistema';
+            console.log('[process-chat-flow] 🎯 sistemaIntentMatch → path set to "suporte_sistema"');
           } else if (supportIntentMatch) {
             path = 'suporte';
             console.log('[process-chat-flow] 🎯 supportIntentMatch → path set to "suporte"');
@@ -3523,7 +3538,6 @@ serve(async (req) => {
             path = 'default';
             console.log(`[process-chat-flow] 🎯 aiExitForced → path set to "default"`);
           } else {
-            // maxReached sem intent específico → saída pelo handle default
             path = 'default';
             console.log(`[process-chat-flow] 🎯 maxReached sem intent → path set to "default"`);
           }

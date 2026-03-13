@@ -1803,6 +1803,7 @@ serve(async (req) => {
       let contactConsultantName: string | null = null;
       let contactSellerName: string | null = null;
       let contactTagsList: string[] = [];
+      let onboardingInfo: { status: string; progress: string; nextStep: string; playbookName: string; resumeLink: string } | null = null;
 
       try {
         const enrichPromises: PromiseLike<any>[] = [];

@@ -263,7 +263,7 @@ export function MessageBubble({
                 : "text-white opacity-70"
             )}
           >
-            <span>{format(new Date(createdAt), "HH:mm")}</span>
+            <span>{relativeTime}</span>
 
             {/* AI Debug for Admins */}
             {isAI && (isAdmin || isManager) && usedArticles.length > 0 && (

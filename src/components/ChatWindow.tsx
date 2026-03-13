@@ -742,7 +742,7 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
             </Alert>
           )}
 
-          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto bg-[hsl(var(--chat-bg))]">
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto bg-[hsl(var(--chat-bg))] relative">
             <div className="px-4 py-6 md:px-6">
               <div className="max-w-4xl mx-auto w-full">
                 {conversation.status === "closed" && (

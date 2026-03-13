@@ -117,9 +117,9 @@ serve(async (req) => {
     console.log("[download-meta-media] 📦 File size:", fileBuffer.byteLength, "bytes");
 
     // Step 3: Upload to Supabase Storage
-    console.log("[download-meta-media] ⬆️ Uploading to Storage...");
+    console.log("[download-meta-media] ⬆️ Uploading to Storage bucket:", storageBucket);
     const { error: uploadError } = await supabase.storage
-      .from("chat-media")
+      .from(storageBucket)
       .upload(storagePath, fileBuffer, {
         contentType: mimeType,
         upsert: true,

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { displayName } from "@/lib/displayName";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";

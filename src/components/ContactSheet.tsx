@@ -81,8 +81,8 @@ export default function ContactSheet({ contact, open, onOpenChange }: ContactShe
 
   if (!contact) return null;
 
-  const fullName = `${contact.first_name} ${contact.last_name}`;
-  const initials = `${contact.first_name[0]}${contact.last_name[0]}`.toUpperCase();
+  const fullName = displayName(contact.first_name, contact.last_name);
+  const initials = displayInitials(contact.first_name, contact.last_name);
 
   // Status badge configuration
   const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {

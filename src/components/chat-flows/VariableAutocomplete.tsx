@@ -21,6 +21,7 @@ interface VariableAutocompleteProps {
 
 const GROUP_LABELS: Record<string, { label: string; icon: string }> = {
   flow: { label: "Variáveis do Fluxo", icon: "💾" },
+  collection: { label: "Dados Coletados", icon: "📋" },
   contact: { label: "Contato", icon: "👤" },
   conversation: { label: "Conversa", icon: "📡" },
   order: { label: "Pedido", icon: "📦" },

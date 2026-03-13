@@ -154,20 +154,23 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
     }
   }, [conversation?.id]);
 
-  // ========== TYPING INDICATOR: clear when new message arrives ==========
-
-  // ========== TYPING INDICATOR: clear when new message arrives ==========
+  // ========== TYPING INDICATOR + NEW MESSAGE BADGE ==========
   const prevMsgCount = useRef(messages.length);
   useEffect(() => {
     if (messages.length > prevMsgCount.current) {
       const lastMsg = messages[messages.length - 1];
+      // Clear typing indicator when response arrives
       if (lastMsg && (lastMsg.sender_type !== 'user' || lastMsg.sender_id !== user?.id)) {
         setIsWaitingResponse(false);
         if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
       }
+      // Show "new message" badge if scrolled up
+      if (!shouldStickToBottom) {
+        setHasNewMessageBelow(true);
+      }
     }
     prevMsgCount.current = messages.length;
-  }, [messages.length]);
+  }, [messages.length, shouldStickToBottom]);
 
   // Reset waiting state on conversation change
   useEffect(() => {

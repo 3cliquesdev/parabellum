@@ -385,7 +385,7 @@ async function collectSalesMetrics(supabase: any, since: string, until: string) 
   // Reps performance hoje
   const repsMap: Record<string, { deals: number; revenue: number }> = {};
 
-  let totalRevToday = 0;
+  const totalRevToday = newSalesRevenue;
 
   // IMPORTANTE: Iterar apenas sobre vendas NOVAS para canais e reps
   // Recorrências têm seção separada no relatório

@@ -8565,7 +8565,7 @@ Conversa: ${conversationId}`;
         assistantMessage = cleanedMessage;
         
         // Log de qualidade (sem sair do nó)
-        supabaseClient.from('ai_quality_logs').insert({
+        Promise.resolve(supabaseClient.from('ai_quality_logs').insert({
           conversation_id: conversationId,
           contact_id: contact.id,
           customer_message: customerMessage,
@@ -8574,7 +8574,7 @@ Conversa: ${conversationId}`;
           handoff_reason: 'fallback_stripped_flow_context',
           confidence_score: 0,
           articles_count: knowledgeArticles.length
-        }).catch((e: any) => console.error('[ai-autopilot-chat] ⚠️ Falha ao logar fallback_cleaned:', e));
+        })).catch((e: any) => console.error('[ai-autopilot-chat] ⚠️ Falha ao logar fallback_cleaned:', e));
         
         // Resetar flag — NÃO é mais fallback após limpeza
         isFallbackResponse = false;

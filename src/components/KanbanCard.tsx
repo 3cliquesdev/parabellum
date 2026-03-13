@@ -98,10 +98,11 @@ export default function KanbanCard({
         .maybeSingle();
 
       if (existing) {
+        // Active conversation exists - navigate directly
         navigate(`/inbox?conversation=${existing.id}`);
       } else {
-        const newConversation = await createConversation.mutateAsync(deal.contact_id);
-        navigate(`/inbox?conversation=${newConversation.id}`);
+        // No active conversation - show template selector
+        setShowTemplateDialog(true);
       }
     } catch (error) {
       console.error("Erro ao iniciar conversa:", error);

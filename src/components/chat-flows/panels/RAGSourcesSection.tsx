@@ -174,7 +174,7 @@ export function RAGSourcesSection({
 
         {selectedNode.data.use_kiwify_data && (
           <p className="text-[10px] text-muted-foreground px-2 pt-1">
-            A IA consulta pedidos e status de pagamento
+            A IA consulta produtos e serviços contratados pelo cliente
           </p>
         )}
       </div>

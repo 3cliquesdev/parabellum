@@ -487,7 +487,7 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
             open={createTicketDialogOpen}
             onOpenChange={setCreateTicketDialogOpen}
             conversationId={conversation.id}
-            contactName={`${conversation.contacts?.first_name || ''} ${conversation.contacts?.last_name || ''}`}
+            contactName={displayName(conversation.contacts?.first_name, conversation.contacts?.last_name)}
           />
           <CloseConversationDialog
             open={closeDialogOpen}

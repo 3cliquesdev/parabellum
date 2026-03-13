@@ -172,7 +172,7 @@ export default function ContactDetailsSidebar({ conversation }: ContactDetailsSi
           </Avatar>
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-foreground truncate leading-tight">
-              {contact.first_name} {contact.last_name}
+              {displayName(contact.first_name, contact.last_name)}
             </h3>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">

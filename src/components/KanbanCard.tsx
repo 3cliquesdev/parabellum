@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Pencil, MessageSquare, Phone, FileText, ArrowRightLeft, Trash2, Star, Calendar } from "lucide-react";
+import { Pencil, MessageSquare, Phone, FileText, ArrowRightLeft, Trash2, Star, Calendar, Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";

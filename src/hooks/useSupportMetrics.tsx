@@ -15,20 +15,35 @@ export interface SupportDashboardCounts {
   sla_risk: number;
 }
 
-export function useSupportMetrics(startDate: Date, endDate: Date) {
+interface UseSupportMetricsOptions {
+  departmentId?: string;
+  agentId?: string;
+}
+
+export function useSupportMetrics(
+  startDate: Date,
+  endDate: Date,
+  options: UseSupportMetricsOptions = {}
+) {
+  const { departmentId, agentId } = options;
+
   return useQuery({
-    queryKey: ["support-metrics", startDate.toISOString(), endDate.toISOString()],
+    queryKey: ["support-metrics", startDate.toISOString(), endDate.toISOString(), departmentId || "all", agentId || "all"],
     queryFn: async () => {
+      const params: Record<string, string> = {
+        p_start: startDate.toISOString(),
+        p_end: endDate.toISOString(),
+      };
+      if (departmentId) params.p_department_id = departmentId;
+      if (agentId) params.p_agent_id = agentId;
+
       const { data, error } = await supabase.rpc(
-        "get_support_metrics_consolidated",
-        {
-          p_start: startDate.toISOString(),
-          p_end: endDate.toISOString()
-        }
+        "get_support_metrics_filtered" as any,
+        params
       );
 
       if (error) {
-        console.error("❌ Error fetching consolidated metrics:", error);
+        console.error("❌ Error fetching filtered metrics:", error);
         throw error;
       }
 

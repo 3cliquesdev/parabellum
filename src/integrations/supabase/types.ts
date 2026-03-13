@@ -10502,6 +10502,15 @@ export type Database = {
         Args: { p_end: string; p_start: string }
         Returns: Json
       }
+      get_support_metrics_filtered: {
+        Args: {
+          p_agent_id?: string
+          p_department_id?: string
+          p_end: string
+          p_start: string
+        }
+        Returns: Json
+      }
       get_support_metrics_v2: {
         Args: {
           p_agent_id?: string

@@ -1856,8 +1856,8 @@ serve(async (req) => {
             .then((r: any) => ({ type: 'tags', data: r.data }))
         );
 
-        // 📋 Onboarding progress (SÓ para clientes com produto contratado)
-        if (contact.status === 'customer') {
+        // 📋 Onboarding progress (SÓ para clientes com produto contratado E detecção ativa)
+        if (contact.status === 'customer' && flowOnboardingDetection) {
           enrichPromises.push(
             supabaseClient
               .from('playbook_executions')

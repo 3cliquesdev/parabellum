@@ -7062,7 +7062,7 @@ Seja inteligente. Converse. O ticket é o ÚLTIMO recurso.`;
     const isEmptyAIResponse = !rawAIContent;
 
     // 🎯 FIX A: PREFIXO DE RESPOSTA CAUTELOSA — SÓ se a IA realmente gerou conteúdo
-    if (confidenceResult.action === 'cautious' && !toolCalls.length && !isEmptyAIResponse) {
+    if (confidenceResult.action === 'cautious' && !toolCalls.length && !isEmptyAIResponse && !isWithdrawalRequest && !isFinancialRequest) {
       const cautiousPrefix = generateResponsePrefix('cautious');
       if (cautiousPrefix && !assistantMessage.startsWith('Baseado nas informações')) {
         assistantMessage = cautiousPrefix + assistantMessage;

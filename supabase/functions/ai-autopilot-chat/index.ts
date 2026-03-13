@@ -5639,6 +5639,36 @@ Se foram pagos recentemente, pode ser que ainda não tenham entrado em preparaç
       ).join('\n\n---\n\n')}`;
     }
     
+    // 🆕 SANDBOX TRAINING: Buscar artigos de treinamento do sandbox quando fonte habilitada
+    let sandboxTrainingContext = '';
+    let sandboxUsedFlag = false;
+    if (ragConfig.sources?.sandbox) {
+      try {
+        const { data: sandboxArticles } = await supabaseClient
+          .from('knowledge_articles')
+          .select('id, title, content')
+          .eq('source', 'sandbox_training')
+          .eq('is_published', true)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        
+        if (sandboxArticles && sandboxArticles.length > 0) {
+          sandboxUsedFlag = true;
+          sandboxTrainingContext = `\n\n**🧪 EXEMPLOS DE TREINAMENTO (Sandbox):**\nOs exemplos abaixo são pares de pergunta-resposta validados manualmente. Use-os como referência de tom, estilo e precisão para suas respostas.\n${sandboxArticles.map((a: any) => 
+            `**${a.title}**\n${a.content}`
+          ).join('\n\n---\n\n')}`;
+          
+          console.log(`[ai-autopilot-chat] 🧪 Sandbox training: ${sandboxArticles.length} artigos carregados`);
+        } else {
+          console.log('[ai-autopilot-chat] 🧪 Sandbox training: nenhum artigo encontrado');
+        }
+      } catch (sandboxErr) {
+        console.error('[ai-autopilot-chat] ❌ Erro ao buscar sandbox training:', sandboxErr);
+      }
+    } else {
+      console.log('[ai-autopilot-chat] 🧪 Sandbox training: fonte desabilitada nas configurações');
+    }
+    
     // FASE 2: Preparar contexto financeiro (CPF mascarado)
     const contactCPF = contact.document || ''; // CPF completo
     const maskedCPF = contactCPF.length >= 4 ? `***.***.***-${contactCPF.slice(-2)}` : 'Não cadastrado';
@@ -6768,7 +6798,7 @@ Resolução desejada: Reembolso integral"
 - close_conversation: Encerre SOMENTE quando o cliente indicar CLARAMENTE que não tem mais dúvidas (ex: "era só isso", "não tenho mais dúvidas", "é isso", "pode encerrar"). NÃO interprete agradecimentos ("obrigado", "valeu", "muito obrigado") como sinal de encerramento — agradecer é educação, não significa que acabou. SEMPRE pergunte antes (customer_confirmed=false). Só use customer_confirmed=true após cliente confirmar "sim". Se cliente disser "não" ou tiver mais dúvidas, continue normalmente.
 - classify_and_resolve_ticket: Após encerrar conversa (close_conversation confirmado), classifique e registre a resolução. Use a categoria mais adequada do enum. Escreva summary curto e resolution_notes objetivo.
 
-${knowledgeContext}${identityWallNote}
+${knowledgeContext}${sandboxTrainingContext}${identityWallNote}
 
 **Contexto do Cliente:**
 - Nome: ${contactName}${contactCompany}
@@ -9064,7 +9094,9 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
           flow_context.allowed_sources || ['kb', 'crm', 'tracking'],
           kbUsed,
           crmUsed,
-          trackingUsed
+          trackingUsed,
+          false, // kiwifyUsed
+          sandboxUsedFlag
         );
         
         console.log('[ai-autopilot-chat] ✅ Resposta passou validação anti-escape (pré-save)');

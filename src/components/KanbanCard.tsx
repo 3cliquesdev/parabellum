@@ -477,6 +477,20 @@ export default function KanbanCard({
         open={showContactSheet}
         onOpenChange={setShowContactSheet}
       />
+
+      {/* Pipeline Template Dialog */}
+      {deal.contact_id && deal.contacts?.phone && (
+        <PipelineTemplateDialog
+          open={showTemplateDialog}
+          onOpenChange={setShowTemplateDialog}
+          contactId={deal.contact_id}
+          contactPhone={deal.contacts.phone}
+          contactName={`${deal.contacts.first_name} ${deal.contacts.last_name}`}
+          onConversationCreated={(conversationId) => {
+            navigate(`/inbox?conversation=${conversationId}`);
+          }}
+        />
+      )}
     </>
   );
 }

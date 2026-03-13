@@ -10,6 +10,8 @@ export interface ActiveFlow {
   flowIsActive: boolean;
   currentNodeId: string;
   startedAt: string | null;
+  status: string;
+  completedAt: string | null;
 }
 
 export function useActiveFlowState(conversationId: string | undefined) {

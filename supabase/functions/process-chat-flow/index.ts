@@ -3607,37 +3607,36 @@ serve(async (req) => {
       // findNextNode já tem fallback hierárquico (path → ai_exit → default → any)
       console.log(`[process-chat-flow] ➡️ Transition: from=${currentNode.type}(${currentNode.id}) path=${path || 'default'} → next=${nextNode?.type || 'null'}(${nextNode?.id || 'none'})`);
 
-      // 🔒 FIX: Financial/Commercial/Support/Cancellation exit SEM próximo nó → forçar handoff
-      if (!nextNode && (financialIntentMatch || commercialIntentMatch || cancellationIntentMatch || supportIntentMatch || consultorIntentMatch)) {
-        const exitType = financialIntentMatch ? 'financial' : cancellationIntentMatch ? 'cancellation' : commercialIntentMatch ? 'commercial' : consultorIntentMatch ? 'consultant' : 'support';
+      // 🔒 FIX: Intent exit SEM próximo nó → forçar handoff
+      if (!nextNode && (financialIntentMatch || commercialIntentMatch || cancellationIntentMatch || supportIntentMatch || consultorIntentMatch || pedidosIntentMatch || devolucaoIntentMatch || saqueIntentMatch || sistemaIntentMatch || internacionalIntentMatch)) {
+        const exitType = saqueIntentMatch ? 'saque' : financialIntentMatch ? 'financial' : devolucaoIntentMatch ? 'devolucao' : pedidosIntentMatch ? 'pedidos' : cancellationIntentMatch ? 'cancellation' : internacionalIntentMatch ? 'internacional' : commercialIntentMatch ? 'commercial' : sistemaIntentMatch ? 'sistema' : consultorIntentMatch ? 'consultant' : 'support';
         console.log(`[process-chat-flow] 🔒 ${exitType} exit com nextNode=null → forçando handoff`);
         
         // Buscar departamento dinamicamente
         let targetDeptId: string | null = null;
-        const deptSearchName = financialIntentMatch ? '%financ%' : cancellationIntentMatch ? '%cancel%' : commercialIntentMatch ? '%comerci%' : consultorIntentMatch ? '%consult%' : '%suporte%';
-        try {
-          const { data: deptRow } = await supabaseClient
-            .from('departments')
-            .select('id')
-            .ilike('name', deptSearchName)
-            .eq('is_active', true)
-            .limit(1)
-            .maybeSingle();
-          targetDeptId = deptRow?.id || null;
-          console.log(`[process-chat-flow] 🏢 Departamento ${exitType} encontrado:`, targetDeptId || 'nenhum (handoff genérico)');
-        } catch (deptErr) {
-          console.error(`[process-chat-flow] ⚠️ Erro buscando departamento ${exitType}:`, deptErr);
-        }
+        const deptSearchName = saqueIntentMatch ? '%financ%' : financialIntentMatch ? '%financ%' : devolucaoIntentMatch ? '%devolu%' : pedidosIntentMatch ? '%pedido%' : cancellationIntentMatch ? '%cancel%' : internacionalIntentMatch ? '%internac%' : commercialIntentMatch ? '%comerci%' : sistemaIntentMatch ? '%suporte%' : consultorIntentMatch ? '%consult%' : '%suporte%';
 
-        const handoffMsg = financialIntentMatch
+        const handoffMsg = saqueIntentMatch
+          ? 'Entendi. Para realizar o saque, vou te encaminhar para um atendente humano agora.'
+          : financialIntentMatch
           ? 'Entendi. Para assuntos financeiros, vou te encaminhar para um atendente humano agora.'
+          : devolucaoIntentMatch
+          ? 'Entendi que deseja trocar ou devolver um produto. Vou te conectar com um atendente para resolver isso.'
+          : pedidosIntentMatch
+          ? 'Vou te transferir para a equipe de pedidos para ajudar com o rastreio/status da sua entrega.'
           : cancellationIntentMatch
           ? 'Entendi que deseja cancelar. Vou te conectar com um atendente para resolver isso.'
+          : internacionalIntentMatch
+          ? 'Entendi que precisa de suporte para operação internacional. Vou te conectar com o time especializado.'
+          : commercialIntentMatch
+          ? 'Ótimo! Vou te conectar com nosso time comercial para te ajudar com isso.'
+          : sistemaIntentMatch
+          ? 'Entendi que está com um problema técnico. Vou te transferir para o suporte técnico agora.'
           : supportIntentMatch
           ? 'Claro! Vou te transferir para um atendente humano agora.'
           : consultorIntentMatch
           ? 'Certo! Vou te conectar com seu consultor agora.'
-          : 'Ótimo! Vou te conectar com nosso time comercial para te ajudar com isso.';
+          : 'Claro! Vou te transferir para um atendente humano agora.';
 
         // Completar flow state como transferred
         await supabaseClient

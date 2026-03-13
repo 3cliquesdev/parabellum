@@ -181,7 +181,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        url: publicUrl,
+        storage_bucket: storageBucket,
         storage_path: storagePath,
         attachment_id: attachment?.id,
       }),

@@ -89,68 +89,66 @@ function parseStorageRef(ref: string): { bucket: string; path: string } | null {
 }
 
 /**
- * Hook to resolve storage: prefixed URLs to signed URLs
- * Only activates when there's a storage: URL with no media_attachments
+ * Hook to resolve multiple storage: prefixed URLs to signed URLs
+ * Only activates for messages with storage: attachment_url but no media_attachments
  */
-function useStorageUrlResolver(storageRef: string | null) {
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function useStorageUrlsResolver(refs: Map<string, string>) {
+  // Map<messageId, { url, error, isLoading }>
+  const [resolved, setResolved] = useState<Map<string, { url: string | null; error: string | null; isLoading: boolean }>>(new Map());
+  const resolvedRefsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!storageRef) {
-      setSignedUrl(null);
-      return;
-    }
+    const toResolve: Array<{ msgId: string; ref: string }> = [];
+    refs.forEach((ref, msgId) => {
+      if (!resolvedRefsRef.current.has(msgId)) {
+        toResolve.push({ msgId, ref });
+      }
+    });
 
-    const parsed = parseStorageRef(storageRef);
-    if (!parsed) {
-      setError('Invalid storage reference');
-      return;
-    }
+    if (toResolve.length === 0) return;
 
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
+    // Mark as processing
+    toResolve.forEach(({ msgId }) => resolvedRefsRef.current.add(msgId));
 
-    supabase.storage
-      .from(parsed.bucket)
-      .createSignedUrl(parsed.path, 3600)
-      .then(({ data, error: err }) => {
-        if (cancelled) return;
-        if (err || !data?.signedUrl) {
-          console.warn('[useStorageUrlResolver] Failed:', err?.message || 'No URL');
-          setError(err?.message || 'Failed to resolve storage URL');
-        } else {
-          setSignedUrl(data.signedUrl);
-        }
-        setIsLoading(false);
+    // Set loading states
+    setResolved(prev => {
+      const next = new Map(prev);
+      toResolve.forEach(({ msgId }) => {
+        next.set(msgId, { url: null, error: null, isLoading: true });
       });
+      return next;
+    });
 
-    return () => { cancelled = true; };
-  }, [storageRef]);
+    // Resolve all in parallel
+    Promise.all(
+      toResolve.map(async ({ msgId, ref }) => {
+        const parsed = parseStorageRef(ref);
+        if (!parsed) return { msgId, url: null, error: 'Invalid storage reference' };
 
-  const retry = useCallback(() => {
-    if (!storageRef) return;
-    setError(null);
-    setIsLoading(true);
-    const parsed = parseStorageRef(storageRef);
-    if (!parsed) return;
+        const { data, error } = await supabase.storage
+          .from(parsed.bucket)
+          .createSignedUrl(parsed.path, 3600);
 
-    supabase.storage
-      .from(parsed.bucket)
-      .createSignedUrl(parsed.path, 3600)
-      .then(({ data, error: err }) => {
-        if (err || !data?.signedUrl) {
-          setError(err?.message || 'Failed');
-        } else {
-          setSignedUrl(data.signedUrl);
+        if (error || !data?.signedUrl) {
+          console.warn(`[useStorageUrlsResolver] Failed for ${msgId}:`, error?.message);
+          resolvedRefsRef.current.delete(msgId); // Allow retry
+          return { msgId, url: null, error: error?.message || 'Failed to resolve' };
         }
-        setIsLoading(false);
-      });
-  }, [storageRef]);
 
-  return { signedUrl, isLoading, error, retry };
+        return { msgId, url: data.signedUrl, error: null };
+      })
+    ).then(results => {
+      setResolved(prev => {
+        const next = new Map(prev);
+        results.forEach(r => {
+          next.set(r.msgId, { url: r.url, error: r.error, isLoading: false });
+        });
+        return next;
+      });
+    });
+  }, [refs]);
+
+  return resolved;
 }
 
 export function MessagesWithMedia({

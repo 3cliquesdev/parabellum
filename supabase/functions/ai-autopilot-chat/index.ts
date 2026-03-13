@@ -1790,7 +1790,7 @@ serve(async (req) => {
       let contactTagsList: string[] = [];
 
       try {
-        const enrichPromises: Promise<any>[] = [];
+        const enrichPromises: PromiseLike<any>[] = [];
 
         // Organização
         if (contact.organization_id) {

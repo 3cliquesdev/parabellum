@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { displayName, displayInitials } from "@/lib/displayName";
 import { useForm } from "react-hook-form";
 import {
   Sheet,

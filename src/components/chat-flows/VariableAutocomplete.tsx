@@ -161,38 +161,70 @@ export function VariableAutocomplete({
     filterItems(conversationVars).length > 0 ||
     filterItems(orderVars).length > 0;
 
+  const handleVariableButtonClick = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    textarea.focus();
+    const cursorPos = textarea.selectionStart || 0;
+    const before = (value || "").substring(0, cursorPos);
+    const after = (value || "").substring(cursorPos);
+    const newValue = before + "{{" + after;
+    onChange(newValue);
+    
+    const newPos = cursorPos + 2;
+    cursorPosRef.current = newPos;
+    
+    setTimeout(() => {
+      textarea.setSelectionRange(newPos, newPos);
+      textarea.focus();
+      setFilter("");
+      setOpen(true);
+    }, 0);
+  }, [value, onChange]);
+
   return (
     <div className="relative space-y-1">
-      <Textarea
-        ref={textareaRef}
-        value={value || ""}
-        onChange={handleChange}
-        onFocus={(e) => {
-          const cursorPos = e.currentTarget.selectionStart || 0;
-          cursorPosRef.current = cursorPos;
-          syncAutocomplete(e.currentTarget.value, cursorPos);
-        }}
-        onClick={(e) => {
-          const cursorPos = e.currentTarget.selectionStart || 0;
-          cursorPosRef.current = cursorPos;
-          syncAutocomplete(e.currentTarget.value, cursorPos);
-        }}
-        onKeyUp={(e) => {
-          const cursorPos = e.currentTarget.selectionStart || 0;
-          cursorPosRef.current = cursorPos;
-          syncAutocomplete(e.currentTarget.value, cursorPos);
-        }}
-        onKeyDown={(e) => {
-          e.stopPropagation();
-          if (e.key === "Escape" && open) {
-            setOpen(false);
-            e.preventDefault();
-          }
-        }}
-        placeholder={placeholder}
-        className={className}
-        style={{ minHeight }}
-      />
+      <div className="relative">
+        <Textarea
+          ref={textareaRef}
+          value={value || ""}
+          onChange={handleChange}
+          onFocus={(e) => {
+            const cursorPos = e.currentTarget.selectionStart || 0;
+            cursorPosRef.current = cursorPos;
+            syncAutocomplete(e.currentTarget.value, cursorPos);
+          }}
+          onClick={(e) => {
+            const cursorPos = e.currentTarget.selectionStart || 0;
+            cursorPosRef.current = cursorPos;
+            syncAutocomplete(e.currentTarget.value, cursorPos);
+          }}
+          onKeyUp={(e) => {
+            const cursorPos = e.currentTarget.selectionStart || 0;
+            cursorPosRef.current = cursorPos;
+            syncAutocomplete(e.currentTarget.value, cursorPos);
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Escape" && open) {
+              setOpen(false);
+              e.preventDefault();
+            }
+          }}
+          placeholder={placeholder}
+          className={cn("pr-10", className)}
+          style={{ minHeight }}
+        />
+        <button
+          type="button"
+          onClick={handleVariableButtonClick}
+          className="absolute top-2 right-2 p-1 rounded hover:bg-accent text-muted-foreground hover:text-accent-foreground transition-colors"
+          title="Inserir variável"
+        >
+          <span className="font-mono text-xs font-bold">{"{x}"}</span>
+        </button>
+      </div>
 
       {open && (
         <div

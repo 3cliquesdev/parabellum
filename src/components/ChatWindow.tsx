@@ -283,6 +283,13 @@ export default function ChatWindow({ conversation, isContactPanelOpen = true, on
       const isWhatsApp = conversation.channel === 'whatsapp';
       const messageContent = message.trim();
       
+      // UX: Activate typing indicator BEFORE any async work (all channels)
+      if (!isInternal && !isEmailMode) {
+        setIsWaitingResponse(true);
+        if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
+        waitingTimeoutRef.current = setTimeout(() => setIsWaitingResponse(false), 60_000);
+      }
+      
       // FASE 7: Se é nota interna, salvar apenas no banco (não enviar para cliente)
       if (isInternal) {
         await sendMessage.mutateAsync({

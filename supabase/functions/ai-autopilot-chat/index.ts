@@ -1852,6 +1852,27 @@ serve(async (req) => {
             .then((r: any) => ({ type: 'tags', data: r.data }))
         );
 
+        // 📋 Onboarding progress (SÓ para clientes com produto contratado)
+        if (contact.status === 'customer') {
+          enrichPromises.push(
+            supabaseClient
+              .from('playbook_executions')
+              .select('id, status, playbook:onboarding_playbooks(name)')
+              .eq('contact_id', contact.id)
+              .eq('status', 'in_progress')
+              .limit(1)
+              .then((r: any) => ({ type: 'onboarding_execution', data: r.data }))
+          );
+          enrichPromises.push(
+            supabaseClient
+              .from('customer_journey_steps')
+              .select('id, step_name, completed, position')
+              .eq('contact_id', contact.id)
+              .order('position', { ascending: true })
+              .then((r: any) => ({ type: 'onboarding_steps', data: r.data }))
+          );
+        }
+
         const enrichResults = await Promise.all(enrichPromises);
 
         for (const result of enrichResults) {

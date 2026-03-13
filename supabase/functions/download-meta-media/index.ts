@@ -133,41 +133,41 @@ serve(async (req) => {
       );
     }
 
-    // Get public URL
-    const { data: publicUrlData } = supabase.storage
-      .from("chat-media")
-      .getPublicUrl(storagePath);
+    console.log("[download-meta-media] ✅ Uploaded to bucket:", storageBucket, "path:", storagePath);
 
-    const publicUrl = publicUrlData.publicUrl;
-    console.log("[download-meta-media] ✅ Uploaded to:", publicUrl);
+    // Step 4: Create media_attachments record with conversation_id for permission checks
+    const insertData: Record<string, any> = {
+      message_id: message_id,
+      original_filename: fileName,
+      mime_type: mimeType,
+      file_size: fileBuffer.byteLength,
+      storage_path: storagePath,
+      storage_bucket: storageBucket,
+      status: 'ready',
+    };
 
-    // Step 4: Create media_attachments record with correct column names
+    // Add conversation_id if provided (needed for get-media-url permission checks)
+    if (conversation_id) {
+      insertData.conversation_id = conversation_id;
+    }
+
     const { data: attachment, error: attachmentError } = await supabase
       .from("media_attachments")
-      .insert({
-        message_id: message_id,
-        original_filename: fileName,
-        mime_type: mimeType,
-        file_size: fileBuffer.byteLength,
-        storage_path: storagePath,
-        storage_bucket: 'chat-media',
-        status: 'ready',
-      })
+      .insert(insertData)
       .select("id")
       .single();
 
     if (attachmentError) {
       console.error("[download-meta-media] ⚠️ Failed to create attachment record:", attachmentError);
-      // Continue anyway - file is uploaded
     } else {
       console.log("[download-meta-media] ✅ Attachment record created:", attachment?.id);
     }
 
-    // Step 5: Update message with attachment URL
+    // Step 5: Update message with storage_path reference (NOT public URL)
     const { error: updateError } = await supabase
       .from("messages")
       .update({
-        attachment_url: publicUrl,
+        attachment_url: `storage:${storageBucket}/${storagePath}`,
         attachment_type: media_type,
       })
       .eq("id", message_id);
@@ -175,7 +175,7 @@ serve(async (req) => {
     if (updateError) {
       console.error("[download-meta-media] ⚠️ Failed to update message:", updateError);
     } else {
-      console.log("[download-meta-media] ✅ Message updated with attachment URL");
+      console.log("[download-meta-media] ✅ Message updated with storage reference");
     }
 
     return new Response(

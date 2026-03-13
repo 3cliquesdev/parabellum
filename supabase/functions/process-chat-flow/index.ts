@@ -3252,6 +3252,141 @@ serve(async (req) => {
           }
         }
 
+        // 📦 TRAVA PEDIDOS: Rastreio, status de entrega, código de rastreio
+        const pedidosActionPattern = /rastrear|rastreio|c[oó]digo\s*de\s*rastreio|status\s*(do\s*)?(pedido|entrega|envio)|onde\s*(est[aá]|ficou|anda)\s*(meu\s*)?(pedido|entrega|encomenda)|meu\s*pedido\s*(n[ãa]o\s*)?(chegou|aparece|saiu)|prazo\s*de\s*entrega|previs[ãa]o\s*de\s*entrega|entrega\s*atrasada|pedido\s*atrasado|n[ãa]o\s+recebi\s*(meu\s*)?(pedido|produto|encomenda|pacote)|quando\s*(chega|vai\s*chegar|ser[aá]\s*entregue)|c[oó]digo\s*(BR|LP|SB|PB|CA)[0-9]/i;
+        const pedidosAmbiguousPattern = /\b(pedido|entrega|encomenda|rastreio|envio|frete)\b/i;
+        const isPedidosAction = pedidosActionPattern.test(userMessage || '');
+        const isPedidosAmbiguous = !isPedidosAction && pedidosAmbiguousPattern.test(userMessage || '');
+        const forbidPedidos: boolean = currentNode.data?.forbid_pedidos ?? false;
+
+        if (isPedidosAmbiguous && forbidPedidos) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO PEDIDOS: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+
+        pedidosIntentMatch = (forcePedidosExit && forbidPedidos) || (forbidPedidos && msgLower.length > 0 && isPedidosAction);
+
+        if (pedidosIntentMatch) {
+          console.log(`[process-chat-flow] 📦 TRAVA PEDIDOS: Intenção de rastreio/pedido detectada | msg="${(userMessage || '').substring(0, 100)}"`);
+          try {
+            await supabaseClient.from('ai_events').insert({
+              entity_type: 'conversation',
+              entity_id: conversationId,
+              event_type: 'ai_blocked_pedidos',
+              model: 'process-chat-flow',
+              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
+              input_summary: (userMessage || '').substring(0, 200),
+            });
+          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log pedidos block:', logErr); }
+        }
+
+        // 🔄 TRAVA DEVOLUÇÃO: Produto com defeito, troca, produto errado
+        const devolucaoActionPattern = /produto\s*(com\s*)?(defeito|errado|danificado|quebrado|estragado|diferente)|veio\s*(errado|diferente|quebrado|danificado|defeituoso)|quero\s*(trocar|devolver)\s*(o\s*)?(produto|item|mercadoria)|troca\s*(de\s*)?(produto|item)|devolu[çc][ãa]o\s*(de\s*)?(produto|item|mercadoria)|(chegou|recebi)\s*(um\s*)?(produto|item)\s*(errado|diferente|quebrado|defeituoso|danificado)|n[ãa]o\s+(era|[ée])\s*(isso|esse|o\s+produto)\s*que\s*(pedi|comprei|queria)/i;
+        const devolucaoAmbiguousPattern = /\b(defeito|trocar|troca|devolu[çc][ãa]o|devolver|produto\s+errado)\b/i;
+        const isDevolucaoAction = devolucaoActionPattern.test(userMessage || '');
+        const isDevolucaoAmbiguous = !isDevolucaoAction && devolucaoAmbiguousPattern.test(userMessage || '');
+        const forbidDevolucao: boolean = currentNode.data?.forbid_devolucao ?? false;
+
+        if (isDevolucaoAmbiguous && forbidDevolucao) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO DEVOLUÇÃO: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+
+        devolucaoIntentMatch = (forceDevolucaoExit && forbidDevolucao) || (forbidDevolucao && msgLower.length > 0 && isDevolucaoAction);
+
+        if (devolucaoIntentMatch) {
+          console.log(`[process-chat-flow] 🔄 TRAVA DEVOLUÇÃO: Intenção de troca/devolução detectada | msg="${(userMessage || '').substring(0, 100)}"`);
+          try {
+            await supabaseClient.from('ai_events').insert({
+              entity_type: 'conversation',
+              entity_id: conversationId,
+              event_type: 'ai_blocked_devolucao',
+              model: 'process-chat-flow',
+              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
+              input_summary: (userMessage || '').substring(0, 200),
+            });
+          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log devolucao block:', logErr); }
+        }
+
+        // 💰 TRAVA SAQUE: Saque de saldo da carteira interna
+        const saqueActionPattern = /(quero|preciso|vou|pode|fa[çc]a)\s*(fazer\s*)?(um\s*)?(saque|retirada)|sacar\s*(meu\s*)?(saldo|dinheiro|valor)|saque\s*(de\s*)?(saldo|carteira|dinheiro)|(meu\s*)?saldo\s*(disponível|para\s*saque)|pix\s*(do\s*)?saldo|retirar\s*(meu\s*)?(saldo|dinheiro\s*da\s*carteira)/i;
+        const saqueAmbiguousPattern = /\b(saque|sacar|carteira\s*interna|saldo\s*disponível)\b/i;
+        const isSaqueAction = saqueActionPattern.test(userMessage || '');
+        const isSaqueAmbiguous = !isSaqueAction && saqueAmbiguousPattern.test(userMessage || '');
+        const forbidSaque: boolean = currentNode.data?.forbid_saque ?? false;
+
+        if (isSaqueAmbiguous && forbidSaque) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO SAQUE: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+
+        saqueIntentMatch = (forceSaqueExit && forbidSaque) || (forbidSaque && msgLower.length > 0 && isSaqueAction);
+
+        if (saqueIntentMatch) {
+          console.log(`[process-chat-flow] 💰 TRAVA SAQUE: Intenção de saque detectada | msg="${(userMessage || '').substring(0, 100)}"`);
+          try {
+            await supabaseClient.from('ai_events').insert({
+              entity_type: 'conversation',
+              entity_id: conversationId,
+              event_type: 'ai_blocked_saque',
+              model: 'process-chat-flow',
+              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
+              input_summary: (userMessage || '').substring(0, 200),
+            });
+          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log saque block:', logErr); }
+        }
+
+        // 🖥️ TRAVA SUPORTE SISTEMA: Bugs, erros técnicos, acesso bloqueado
+        const sistemaActionPattern = /sistema\s*(fora\s*do\s*ar|n[ãa]o\s*(abre|carrega|funciona|responde)|com\s*(erro|bug|problema)|travado|lento)|erro\s*(no\s*sistema|de\s*acesso|ao\s*acessar|ao\s*entrar)|n[ãa]o\s*(consigo|estou\s+conseguindo)\s*(acessar|entrar|logar|abrir|usar)\s*(o\s*)?(sistema|plataforma|app|aplicativo|painel)|tela\s*(em\s*branco|travada|preta)|bug\s*(no\s*)?(sistema|plataforma|app)|acesso\s*(bloqueado|negado|expirado)|senha\s*(n[ãa]o\s*funciona|errada|bloqueada)/i;
+        const sistemaAmbiguousPattern = /\b(bug|erro|sistema|plataforma|acesso|senha|travado)\b/i;
+        const isSistemaAction = sistemaActionPattern.test(userMessage || '');
+        const isSistemaAmbiguous = !isSistemaAction && sistemaAmbiguousPattern.test(userMessage || '');
+        const forbidSistema: boolean = currentNode.data?.forbid_sistema ?? false;
+
+        if (isSistemaAmbiguous && forbidSistema) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO SISTEMA: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+
+        sistemaIntentMatch = (forceSistemaexit && forbidSistema) || (forbidSistema && msgLower.length > 0 && isSistemaAction);
+
+        if (sistemaIntentMatch) {
+          console.log(`[process-chat-flow] 🖥️ TRAVA SISTEMA: Problema técnico detectado | msg="${(userMessage || '').substring(0, 100)}"`);
+          try {
+            await supabaseClient.from('ai_events').insert({
+              entity_type: 'conversation',
+              entity_id: conversationId,
+              event_type: 'ai_blocked_sistema',
+              model: 'process-chat-flow',
+              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
+              input_summary: (userMessage || '').substring(0, 200),
+            });
+          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log sistema block:', logErr); }
+        }
+
+        // 🌍 TRAVA COMERCIAL INTERNACIONAL: Operação fora do Brasil
+        const internacionalActionPattern = /operação\s*internacional|vender\s*(fora\s*do\s*brasil|no\s*exterior|em\s*(outro\s*pa[íi]s|outros\s*pa[íi]ses))|plano\s*internacional|atendimento\s*internacional|pa[íi]s\s*(diferente|outro|estrangeiro)|fora\s*do\s*brasil|exterior|moeda\s*(estrangeira|internacional|d[oó]lar|euro)|opera[çc][ãa]o\s*(global|no\s*exterior)/i;
+        const internacionalAmbiguousPattern = /\b(internacional|exterior|global|dólar|euro|outro\s*pa[íi]s)\b/i;
+        const isInternacionalAction = internacionalActionPattern.test(userMessage || '');
+        const isInternacionalAmbiguous = !isInternacionalAction && internacionalAmbiguousPattern.test(userMessage || '');
+        const forbidInternacional: boolean = currentNode.data?.forbid_internacional ?? false;
+
+        if (isInternacionalAmbiguous && forbidInternacional) {
+          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO INTERNACIONAL: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
+        }
+
+        internacionalIntentMatch = (forceInternacionalExit && forbidInternacional) || (forbidInternacional && msgLower.length > 0 && isInternacionalAction);
+
+        if (internacionalIntentMatch) {
+          console.log(`[process-chat-flow] 🌍 TRAVA INTERNACIONAL: Operação internacional detectada | msg="${(userMessage || '').substring(0, 100)}"`);
+          try {
+            await supabaseClient.from('ai_events').insert({
+              entity_type: 'conversation',
+              entity_id: conversationId,
+              event_type: 'ai_blocked_internacional',
+              model: 'process-chat-flow',
+              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
+              input_summary: (userMessage || '').substring(0, 200),
+            });
+          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log internacional block:', logErr); }
+        }
+
         if (financialIntentMatch) {
           console.log(`[process-chat-flow] 🔒 TRAVA FINANCEIRA: Intenção financeira AÇÃO detectada no nó AI, tratando como exit | msg="${(userMessage || '').substring(0, 100)}" | forceExit=${forceFinancialExit} | actionMatch=${isFinancialAction} | infoMatch=${isFinancialInfo}`);
           
@@ -3393,7 +3528,8 @@ serve(async (req) => {
             if (intent === 'financeiro') { financialIntentMatch = true; }
             else if (intent === 'cancelamento') { cancellationIntentMatch = true; }
             else if (intent === 'comercial' || intent === 'comercial_nacional') { commercialIntentMatch = true; }
-            else if (intent === 'suporte' || intent === 'suporte_pedidos') { pedidosIntentMatch = true; }
+            else if (intent === 'suporte_pedidos') { pedidosIntentMatch = true; }
+            else if (intent === 'suporte') { supportIntentMatch = true; }
             else if (intent === 'suporte_sistema') { sistemaIntentMatch = true; }
             else if (intent === 'consultor') { consultorIntentMatch = true; }
             else if (intent === 'pedidos') { pedidosIntentMatch = true; }
@@ -4603,140 +4739,6 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
 
-        // 📦 TRAVA PEDIDOS: Rastreio, status de entrega, código de rastreio
-        const pedidosActionPattern = /rastrear|rastreio|c[oó]digo\s*de\s*rastreio|status\s*(do\s*)?(pedido|entrega|envio)|onde\s*(est[aá]|ficou|anda)\s*(meu\s*)?(pedido|entrega|encomenda)|meu\s*pedido\s*(n[ãa]o\s*)?(chegou|aparece|saiu)|prazo\s*de\s*entrega|previs[ãa]o\s*de\s*entrega|entrega\s*atrasada|pedido\s*atrasado|n[ãa]o\s+recebi\s*(meu\s*)?(pedido|produto|encomenda|pacote)|quando\s*(chega|vai\s*chegar|ser[aá]\s*entregue)|c[oó]digo\s*(BR|LP|SB|PB|CA)[0-9]/i;
-        const pedidosAmbiguousPattern = /\b(pedido|entrega|encomenda|rastreio|envio|frete)\b/i;
-        const isPedidosAction = pedidosActionPattern.test(userMessage || '');
-        const isPedidosAmbiguous = !isPedidosAction && pedidosAmbiguousPattern.test(userMessage || '');
-        const forbidPedidos = currentNode.data?.forbid_pedidos ?? false;
-
-        if (isPedidosAmbiguous && forbidPedidos) {
-          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO PEDIDOS: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
-        }
-
-        pedidosIntentMatch = (forcePedidosExit && forbidPedidos) || (forbidPedidos && msgLower.length > 0 && isPedidosAction);
-
-        if (pedidosIntentMatch) {
-          console.log(`[process-chat-flow] 📦 TRAVA PEDIDOS: Intenção de rastreio/pedido detectada | msg="${(userMessage || '').substring(0, 100)}"`);
-          try {
-            await supabaseClient.from('ai_events').insert({
-              entity_type: 'conversation',
-              entity_id: conversationId,
-              event_type: 'ai_blocked_pedidos',
-              model: 'process-chat-flow',
-              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
-              input_summary: (userMessage || '').substring(0, 200),
-            });
-          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log pedidos block:', logErr); }
-        }
-
-        // 🔄 TRAVA DEVOLUÇÃO: Produto com defeito, troca, produto errado
-        const devolucaoActionPattern = /produto\s*(com\s*)?(defeito|errado|danificado|quebrado|estragado|diferente)|veio\s*(errado|diferente|quebrado|danificado|defeituoso)|quero\s*(trocar|devolver)\s*(o\s*)?(produto|item|mercadoria)|troca\s*(de\s*)?(produto|item)|devolu[çc][ãa]o\s*(de\s*)?(produto|item|mercadoria)|(chegou|recebi)\s*(um\s*)?(produto|item)\s*(errado|diferente|quebrado|defeituoso|danificado)|n[ãa]o\s+(era|[ée])\s*(isso|esse|o\s+produto)\s*que\s*(pedi|comprei|queria)/i;
-        const devolucaoAmbiguousPattern = /\b(defeito|trocar|troca|devolu[çc][ãa]o|devolver|produto\s+errado)\b/i;
-        const isDevolucaoAction = devolucaoActionPattern.test(userMessage || '');
-        const isDevolucaoAmbiguous = !isDevolucaoAction && devolucaoAmbiguousPattern.test(userMessage || '');
-        const forbidDevolucao = currentNode.data?.forbid_devolucao ?? false;
-
-        if (isDevolucaoAmbiguous && forbidDevolucao) {
-          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO DEVOLUÇÃO: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
-        }
-
-        devolucaoIntentMatch = (forceDevolucaoExit && forbidDevolucao) || (forbidDevolucao && msgLower.length > 0 && isDevolucaoAction);
-
-        if (devolucaoIntentMatch) {
-          console.log(`[process-chat-flow] 🔄 TRAVA DEVOLUÇÃO: Intenção de troca/devolução detectada | msg="${(userMessage || '').substring(0, 100)}"`);
-          try {
-            await supabaseClient.from('ai_events').insert({
-              entity_type: 'conversation',
-              entity_id: conversationId,
-              event_type: 'ai_blocked_devolucao',
-              model: 'process-chat-flow',
-              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
-              input_summary: (userMessage || '').substring(0, 200),
-            });
-          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log devolucao block:', logErr); }
-        }
-
-        // 💰 TRAVA SAQUE: Saque de saldo da carteira interna
-        const saqueActionPattern = /(quero|preciso|vou|pode|fa[çc]a)\s*(fazer\s*)?(um\s*)?(saque|retirada)|sacar\s*(meu\s*)?(saldo|dinheiro|valor)|saque\s*(de\s*)?(saldo|carteira|dinheiro)|(meu\s*)?saldo\s*(disponível|para\s*saque)|pix\s*(do\s*)?saldo|retirar\s*(meu\s*)?(saldo|dinheiro\s*da\s*carteira)/i;
-        const saqueAmbiguousPattern = /\b(saque|sacar|carteira\s*interna|saldo\s*disponível)\b/i;
-        const isSaqueAction = saqueActionPattern.test(userMessage || '');
-        const isSaqueAmbiguous = !isSaqueAction && saqueAmbiguousPattern.test(userMessage || '');
-        const forbidSaque = currentNode.data?.forbid_saque ?? false;
-
-        if (isSaqueAmbiguous && forbidSaque) {
-          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO SAQUE: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
-        }
-
-        saqueIntentMatch = (forceSaqueExit && forbidSaque) || (forbidSaque && msgLower.length > 0 && isSaqueAction);
-
-        if (saqueIntentMatch) {
-          console.log(`[process-chat-flow] 💰 TRAVA SAQUE: Intenção de saque detectada | msg="${(userMessage || '').substring(0, 100)}"`);
-          try {
-            await supabaseClient.from('ai_events').insert({
-              entity_type: 'conversation',
-              entity_id: conversationId,
-              event_type: 'ai_blocked_saque',
-              model: 'process-chat-flow',
-              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
-              input_summary: (userMessage || '').substring(0, 200),
-            });
-          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log saque block:', logErr); }
-        }
-
-        // 🖥️ TRAVA SUPORTE SISTEMA: Bugs, erros técnicos, acesso bloqueado
-        const sistemaActionPattern = /sistema\s*(fora\s*do\s*ar|n[ãa]o\s*(abre|carrega|funciona|responde)|com\s*(erro|bug|problema)|travado|lento)|erro\s*(no\s*sistema|de\s*acesso|ao\s*acessar|ao\s*entrar)|n[ãa]o\s*(consigo|estou\s+conseguindo)\s*(acessar|entrar|logar|abrir|usar)\s*(o\s*)?(sistema|plataforma|app|aplicativo|painel)|tela\s*(em\s*branco|travada|preta)|bug\s*(no\s*)?(sistema|plataforma|app)|acesso\s*(bloqueado|negado|expirado)|senha\s*(n[ãa]o\s*funciona|errada|bloqueada)/i;
-        const sistemaAmbiguousPattern = /\b(bug|erro|sistema|plataforma|acesso|senha|travado)\b/i;
-        const isSistemaAction = sistemaActionPattern.test(userMessage || '');
-        const isSistemaAmbiguous = !isSistemaAction && sistemaAmbiguousPattern.test(userMessage || '');
-        const forbidSistema = currentNode.data?.forbid_sistema ?? false;
-
-        if (isSistemaAmbiguous && forbidSistema) {
-          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO SISTEMA: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
-        }
-
-        sistemaIntentMatch = (forceSistemaexit && forbidSistema) || (forbidSistema && msgLower.length > 0 && isSistemaAction);
-
-        if (sistemaIntentMatch) {
-          console.log(`[process-chat-flow] 🖥️ TRAVA SISTEMA: Problema técnico detectado | msg="${(userMessage || '').substring(0, 100)}"`);
-          try {
-            await supabaseClient.from('ai_events').insert({
-              entity_type: 'conversation',
-              entity_id: conversationId,
-              event_type: 'ai_blocked_sistema',
-              model: 'process-chat-flow',
-              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
-              input_summary: (userMessage || '').substring(0, 200),
-            });
-          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log sistema block:', logErr); }
-        }
-
-        // 🌍 TRAVA COMERCIAL INTERNACIONAL: Operação fora do Brasil
-        const internacionalActionPattern = /operação\s*internacional|vender\s*(fora\s*do\s*brasil|no\s*exterior|em\s*(outro\s*pa[íi]s|outros\s*pa[íi]ses))|plano\s*internacional|atendimento\s*internacional|pa[íi]s\s*(diferente|outro|estrangeiro)|fora\s*do\s*brasil|exterior|moeda\s*(estrangeira|internacional|d[oó]lar|euro)|opera[çc][ãa]o\s*(global|no\s*exterior)/i;
-        const internacionalAmbiguousPattern = /\b(internacional|exterior|global|dólar|euro|outro\s*pa[íi]s)\b/i;
-        const isInternacionalAction = internacionalActionPattern.test(userMessage || '');
-        const isInternacionalAmbiguous = !isInternacionalAction && internacionalAmbiguousPattern.test(userMessage || '');
-        const forbidInternacional = currentNode.data?.forbid_internacional ?? false;
-
-        if (isInternacionalAmbiguous && forbidInternacional) {
-          console.log(`[process-chat-flow] 🔍 DESAMBIGUAÇÃO INTERNACIONAL: Termo ambíguo detectado, deixando IA perguntar | msg="${(userMessage || '').substring(0, 80)}"`);
-        }
-
-        internacionalIntentMatch = (forceInternacionalExit && forbidInternacional) || (forbidInternacional && msgLower.length > 0 && isInternacionalAction);
-
-        if (internacionalIntentMatch) {
-          console.log(`[process-chat-flow] 🌍 TRAVA INTERNACIONAL: Operação internacional detectada | msg="${(userMessage || '').substring(0, 100)}"`);
-          try {
-            await supabaseClient.from('ai_events').insert({
-              entity_type: 'conversation',
-              entity_id: conversationId,
-              event_type: 'ai_blocked_internacional',
-              model: 'process-chat-flow',
-              output_json: { phase: 'flow_node_exit', node_id: currentNode.id, flow_id: activeState.flow_id, interaction_count: aiCount, message_preview: (userMessage || '').substring(0, 200) },
-              input_summary: (userMessage || '').substring(0, 200),
-            });
-          } catch (logErr) { console.error('[process-chat-flow] ⚠️ Failed to log internacional block:', logErr); }
-        }
 
 
     } // end if (activeState)

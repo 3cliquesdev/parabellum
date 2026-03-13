@@ -8,7 +8,7 @@ import type { Node, Edge } from "reactflow";
 export interface VariableItem {
   value: string;
   label: string;
-  group: "flow" | "contact" | "conversation" | "order";
+  group: "flow" | "contact" | "conversation" | "order" | "collection";
 }
 
 // Fixed contact variables (always available)

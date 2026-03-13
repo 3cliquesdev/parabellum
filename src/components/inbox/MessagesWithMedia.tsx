@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
+import { displayInitials } from "@/lib/displayName";
 import { MessageBubble } from "@/components/inbox/MessageBubble";
 import { InternalNoteMessage } from "@/components/InternalNoteMessage";
 import { StreamingMessage } from "@/components/inbox/StreamingMessage";

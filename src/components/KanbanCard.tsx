@@ -22,7 +22,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useDeleteDeal } from "@/hooks/useDeals";
-import { useCreateConversation } from "@/hooks/useConversations";
+// useCreateConversation removed - now using PipelineTemplateDialog
 import { differenceInDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import DealDialog from "./DealDialog";

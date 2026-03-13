@@ -10,6 +10,10 @@ import {
   Phone,
   CreditCard,
   MapPin,
+  Key,
+  Building2,
+  MessageSquare,
+  DollarSign,
   Info
 } from "lucide-react";
 import {

@@ -8803,7 +8803,7 @@ Nossa equipe está ocupada no momento, mas você está na fila e será atendido 
               ai_exit_intent: aiExitIntent,
             },
             input_summary: customerMessage?.substring(0, 200) || '',
-          }).then(() => {}).catch(err => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
+          }).then(() => {}).catch((err: any) => console.error('[ai-autopilot-chat] ⚠️ Failed to log escape event:', err));
           return new Response(JSON.stringify({
             flowExit: true,
             reason: 'ai_requested_exit',

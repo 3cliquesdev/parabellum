@@ -144,15 +144,20 @@ Deno.serve(async (req) => {
     }
 
     const emailData = await emailResponse.json();
-    const customerTag = emailData.tags?.find((tag: any) => tag.name === 'customer_id');
+    // Accept both contact_id (new format) and customer_id (legacy) tags
+    const contactTag = emailData.tags?.find((tag: any) => tag.name === 'contact_id')
+      || emailData.tags?.find((tag: any) => tag.name === 'customer_id');
     
-    if (!customerTag) {
-      console.error('[email-webhook] No customer_id tag found in email');
-      throw new Error('Customer ID not found in email tags');
+    if (!contactTag) {
+      console.warn('[email-webhook] No contact_id/customer_id tag found in email, skipping tracking');
+      return new Response(
+        JSON.stringify({ message: 'No contact tag found, event skipped' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const customerId = customerTag.value;
-    console.log('[email-webhook] Customer ID found:', customerId);
+    const customerId = contactTag.value;
+    console.log('[email-webhook] Contact ID found:', customerId, '(tag:', contactTag.name, ')');
 
     // Registrar interação no Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

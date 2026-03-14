@@ -2504,6 +2504,15 @@ serve(async (req) => {
                       otpMaxAiMode === 'copilot'   ? 'set_copilot' :
                       otpMaxAiMode === 'autopilot' ? 'engage_ai' :
                       'handoff_to_human';
+                    // 🆕 Verificar horário comercial antes de handoff OTP max_attempts
+                    const ahCheckOtpMax = await checkAfterHoursAndIntercept(supabaseClient, conversationId, otpMaxTransType);
+                    if (ahCheckOtpMax.intercepted) {
+                      return new Response(JSON.stringify({
+                        useAI: false, response: ahCheckOtpMax.afterHoursMessage,
+                        afterHours: true, flowCompleted: true, collectedData,
+                      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+                    }
+
                     await fetch(
                       `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
                       {

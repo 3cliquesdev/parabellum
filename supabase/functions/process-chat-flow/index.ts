@@ -3514,9 +3514,10 @@ serve(async (req) => {
                     body: JSON.stringify({ conversationId, transition: 'handoff_to_human', reason: 'inline_otp_max_attempts', metadata: { node_id: currentNode.id, flow_id: activeState.flow_id } })
                   });
 
+                  const otpFailedMsgFallback = currentNode.data?.otp_message_failed || "Não foi possível verificar. Vou te encaminhar para um atendente.";
                   return new Response(JSON.stringify({
                     useAI: false,
-                    response: "Máximo de tentativas excedido. Vou te transferir para um atendente.",
+                    response: otpFailedMsgFallback,
                     transfer: true,
                     collectedData,
                     flowId: activeState.flow_id,

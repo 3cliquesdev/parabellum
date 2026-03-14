@@ -31,7 +31,7 @@ export function useUsersByDepartment(departmentId?: string, options: UseUsersByD
       // 1. Buscar user_ids com roles internos (não-clientes)
       const { data: internalUserRoles, error: rolesError } = await supabase
         .from("user_roles")
-        .select("user_id")
+        .select("user_id, role")
         .in("role", INTERNAL_ROLES);
 
       if (rolesError) throw rolesError;
@@ -40,7 +40,13 @@ export function useUsersByDepartment(departmentId?: string, options: UseUsersByD
       
       if (internalUserIds.length === 0) return [];
       
-      // 2. Buscar profiles que são internos E pertencem ao departamento via agent_departments (N:N)
+      // 2. Criar mapa de user_id → role
+      const userRoleMap = new Map<string, string>();
+      internalUserRoles?.forEach(r => {
+        userRoleMap.set(r.user_id, r.role);
+      });
+      
+      // 3. Buscar profiles que são internos E pertencem ao departamento via agent_departments (N:N)
       let query = supabase
         .from("profiles")
         .select(`
@@ -50,7 +56,7 @@ export function useUsersByDepartment(departmentId?: string, options: UseUsersByD
         .eq("agent_departments.department_id", departmentId)
         .in("id", internalUserIds);
       
-      // 3. Filtrar apenas online se solicitado
+      // 4. Filtrar apenas online se solicitado
       if (onlineOnly) {
         query = query.eq("availability_status", "online");
       }
@@ -58,7 +64,12 @@ export function useUsersByDepartment(departmentId?: string, options: UseUsersByD
       const { data, error } = await query.order("full_name");
 
       if (error) throw error;
-      return data;
+      
+      // 5. Enriquecer com role real
+      return (data || []).map(profile => ({
+        ...profile,
+        role: userRoleMap.get(profile.id) || null,
+      }));
     },
     enabled: !!departmentId,
   });

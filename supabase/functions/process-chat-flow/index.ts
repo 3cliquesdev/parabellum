@@ -4543,6 +4543,13 @@ serve(async (req) => {
           })
           .eq('id', activeState.id);
 
+        // 🆕 Verificar horário comercial antes de handoff
+        const ahCheck6 = await checkAfterHoursAndIntercept(supabaseClient, conversationId, 'handoff_to_human');
+        if (ahCheck6.intercepted) {
+          return new Response(JSON.stringify({
+            useAI: false, response: ahCheck6.afterHoursMessage, afterHours: true, flowCompleted: true, collectedData,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
         // ✅ FIX 14: Usar transition-conversation-state centralizado
         await fetch(
           `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,

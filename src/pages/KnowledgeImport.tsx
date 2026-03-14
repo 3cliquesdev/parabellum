@@ -283,6 +283,32 @@ export default function KnowledgeImport() {
         variant: "destructive",
       });
       return;
+
+    }
+
+    // Category validation: block import if invalid categories found
+    if (mapping.category !== '__none__' && validCategories.length > 0) {
+      const categoriesInFile = new Set(
+        rows
+          .map(r => r.category?.trim())
+          .filter((c): c is string => !!c)
+      );
+      const invalidCategories = [...categoriesInFile].filter(
+        c => !validCategories.includes(c)
+      );
+
+      if (invalidCategories.length > 0) {
+        const error = `Categorias inválidas encontradas: ${invalidCategories.join(', ')}. Use apenas categorias válidas: ${validCategories.join(', ')}`;
+        logWarn('Invalid categories detected', { invalidCategories, validCategories });
+        setImportError(error);
+        toast({
+          title: "Categorias inválidas",
+          description: `${invalidCategories.length} categoria(s) não reconhecida(s). Corrija a planilha e tente novamente.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     }
 
     try {

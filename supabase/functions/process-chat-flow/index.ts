@@ -905,14 +905,16 @@ serve(async (req) => {
       );
       console.log('[process-chat-flow] ✅ Estado transicionado via transition-conversation-state');
       
-      // Inserir mensagem de transferência
-      await supabaseClient.from('messages').insert({
-        conversation_id: conversationId,
-        content: transferMessage,
-        sender_type: 'user',
-        is_ai_generated: true,
-        channel: conversation?.channel || 'web_chat'
-      });
+      // Inserir mensagem de transferência (guard: conteúdo vazio)
+      if (transferMessage && String(transferMessage).trim().length > 0) {
+        await supabaseClient.from('messages').insert({
+          conversation_id: conversationId,
+          content: String(transferMessage).trim(),
+          sender_type: 'user',
+          is_ai_generated: true,
+          channel: conversation?.channel || 'web_chat'
+        });
+      }
       
       console.log('[process-chat-flow] ✅ TransferNode ativado pelo fluxo (soberano)');
       
@@ -1394,10 +1396,13 @@ serve(async (req) => {
           textLength: finalText.length 
         });
 
-        // 1. Salvar na tabela messages
+        // 1. Salvar na tabela messages (guard: conteúdo vazio)
+        if (!finalText || String(finalText).trim().length === 0) {
+          console.warn('[process-chat-flow] ⚠️ Empty finalText for manual trigger, skipping insert');
+        } else {
         const { error: insertError } = await supabaseClient.from('messages').insert({
           conversation_id: conversationId,
-          content: finalText,
+          content: String(finalText).trim(),
           sender_type: 'user',
           sender_id: null,
           is_ai_generated: true,
@@ -1431,6 +1436,7 @@ serve(async (req) => {
             console.warn('[process-chat-flow] ⚠️ No WhatsApp Meta instance for delivery');
           }
         }
+        } // end else (non-empty finalText guard)
       }
 
       // Montar resposta baseada no tipo do nó de conteúdo alcançado

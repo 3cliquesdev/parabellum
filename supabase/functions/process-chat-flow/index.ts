@@ -3359,9 +3359,10 @@ serve(async (req) => {
                     }
 
                     const endMsg = replaceVariables(resolvedNode.data?.message || '', variablesContext || await rebuildCtx());
+                    const otpVerifiedMsgEnd = currentNode.data?.otp_message_verified || "✅ Verificação concluída! Agora vou processar sua solicitação.";
                     return new Response(JSON.stringify({
                       useAI: false,
-                      response: "✅ Identidade verificada!\n\n" + (endMsg || ''),
+                      response: otpVerifiedMsgEnd + "\n\n" + (endMsg || ''),
                       flowCompleted: true,
                       flowId: activeState.flow_id,
                       collectedData,

@@ -36,6 +36,8 @@ interface AIResponseNodeData {
   forbid_saque?: boolean;
   forbid_sistema?: boolean;
   forbid_internacional?: boolean;
+  // 🆕 OTP inline
+  require_otp_for_financial?: boolean;
 }
 
 export const AIResponseNode = memo(({ data, selected }: NodeProps<AIResponseNodeData>) => {

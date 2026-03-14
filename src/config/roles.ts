@@ -36,6 +36,24 @@ export const hasFullAccess = (role: string | null | undefined): boolean => {
  * Mapeamento de home pages por role
  * Usado para redirecionar usuários para suas páginas iniciais adequadas
  */
+/**
+ * Labels amigáveis para exibição de roles na UI
+ */
+export const ROLE_LABELS: Record<string, string> = {
+  admin: "Administrador",
+  general_manager: "Gerente Geral",
+  manager: "Gerente",
+  sales_rep: "Vendedor",
+  consultant: "Consultor",
+  support_agent: "Agente de Suporte",
+  support_manager: "Gerente de Suporte",
+  financial_manager: "Gerente Financeiro",
+  financial_agent: "Agente Financeiro",
+  cs_manager: "Gerente CS",
+  ecommerce_analyst: "Analista E-commerce",
+  user: "Cliente",
+};
+
 export const ROLE_HOME_PAGES: Record<string, string> = {
   support_manager: "/support",
   support_agent: "/support",

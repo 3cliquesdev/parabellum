@@ -40,7 +40,13 @@ export function useUsersByDepartment(departmentId?: string, options: UseUsersByD
       
       if (internalUserIds.length === 0) return [];
       
-      // 2. Buscar profiles que são internos E pertencem ao departamento via agent_departments (N:N)
+      // 2. Criar mapa de user_id → role
+      const userRoleMap = new Map<string, string>();
+      internalUserRoles?.forEach(r => {
+        userRoleMap.set(r.user_id, r.role);
+      });
+      
+      // 3. Buscar profiles que são internos E pertencem ao departamento via agent_departments (N:N)
       let query = supabase
         .from("profiles")
         .select(`

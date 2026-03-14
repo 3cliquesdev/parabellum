@@ -145,8 +145,8 @@ export function TransferPropertiesPanel({ selectedNode, updateNodeData }: Transf
                         agent.availability_status === "busy" ? "bg-amber-500" : "bg-muted-foreground/50"
                       )} />
                       <span>{agent.full_name}</span>
-                      {agent.job_title && (
-                        <span className="text-muted-foreground text-xs">({agent.job_title})</span>
+                      {agent.role && (
+                        <span className="text-muted-foreground text-xs">({ROLE_LABELS[agent.role] || agent.role})</span>
                       )}
                     </div>
                   </SelectItem>

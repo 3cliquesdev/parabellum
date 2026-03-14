@@ -4302,6 +4302,7 @@ serve(async (req) => {
               forbidSistema: currentNode.data?.forbid_sistema ?? false,
               forbidInternacional: currentNode.data?.forbid_internacional ?? false,
               onboardingDetection: currentNode.data?.onboarding_detection_enabled ?? false,
+              requireOtpForFinancial: currentNode.data?.require_otp_for_financial ?? false,
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );

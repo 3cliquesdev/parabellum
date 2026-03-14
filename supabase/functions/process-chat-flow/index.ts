@@ -3465,6 +3465,15 @@ serve(async (req) => {
                     const deptId = resolvedNode.data?.department_id || null;
                     const aiMode = resolvedNode.data?.ai_mode || 'waiting_human';
                     const transType = aiMode === 'copilot' ? 'set_copilot' : aiMode === 'autopilot' ? 'engage_ai' : 'handoff_to_human';
+                    // 🆕 Verificar horário comercial antes de handoff inline OTP verified
+                    const ahCheckInlineOk = await checkAfterHoursAndIntercept(supabaseClient, conversationId, transType);
+                    if (ahCheckInlineOk.intercepted) {
+                      return new Response(JSON.stringify({
+                        useAI: false, response: ahCheckInlineOk.afterHoursMessage,
+                        afterHours: true, flowCompleted: true, collectedData,
+                      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+                    }
+
                     await fetch(`${supabaseUrl}/functions/v1/transition-conversation-state`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },

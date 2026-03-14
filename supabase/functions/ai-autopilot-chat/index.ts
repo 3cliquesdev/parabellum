@@ -4240,6 +4240,12 @@ ${a.content}`).join('\n\n---\n\n')}`;
         const data = await response.json();
         const aiMessage = data.choices?.[0]?.message?.content || '';
         
+        // GUARD 1: Empty response guard - força handoff se GPT retornar vazio
+        if (!aiMessage || aiMessage.trim().length === 0) {
+          console.warn('[callStrictRAG] ⚠️ GPT retornou resposta vazia - forçando handoff');
+          return { shouldHandoff: true, reason: 'GPT retornou resposta vazia', response: null };
+        }
+        
         console.log('[callStrictRAG] ðŸ“ Resposta GPT-5 recebida:', aiMessage.substring(0, 100) + '...');
         
         // ValidaÃ§Ã£o pÃ³s-geraÃ§Ã£o: detectar indicadores de incerteza/alucinaÃ§Ã£o

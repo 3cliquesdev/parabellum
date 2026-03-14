@@ -3425,7 +3425,7 @@ serve(async (req) => {
 
                 return new Response(JSON.stringify({
                   useAI: false,
-                  response: "✅ Identidade verificada! Vou te transferir para um atendente agora.",
+                  response: (currentNode.data?.otp_message_verified || "✅ Verificação concluída! Agora vou processar sua solicitação.") + " Vou te transferir para um atendente agora.",
                   transfer: true,
                   collectedData,
                   flowId: activeState.flow_id,

@@ -2317,6 +2317,15 @@ serve(async (req) => {
                     otpOkAiMode === 'copilot'   ? 'set_copilot' :
                     otpOkAiMode === 'autopilot' ? 'engage_ai' :
                     'handoff_to_human';
+                  // 🆕 Verificar horário comercial antes de handoff OTP verified
+                  const ahCheckOtpOk = await checkAfterHoursAndIntercept(supabaseClient, conversationId, otpOkTransType);
+                  if (ahCheckOtpOk.intercepted) {
+                    return new Response(JSON.stringify({
+                      useAI: false, response: ahCheckOtpOk.afterHoursMessage,
+                      afterHours: true, flowCompleted: true, collectedData,
+                    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+                  }
+
                   await fetch(
                     `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
                     {

@@ -130,6 +130,101 @@ function buildAllowedSources(nodeData: any): string[] {
 }
 
 // ============================================================
+// 🆕 HELPER: Verificação de horário comercial antes de handoff_to_human
+// Intercepta transferências fora do horário: envia mensagem, aplica tag, fecha conversa
+// ============================================================
+async function checkAfterHoursAndIntercept(
+  supabaseClient: any,
+  conversationId: string,
+  transitionType: string,
+): Promise<{ intercepted: boolean; afterHoursMessage?: string }> {
+  // Só interceptar handoff_to_human — copilot/autopilot passam direto
+  if (transitionType !== 'handoff_to_human') {
+    return { intercepted: false };
+  }
+
+  try {
+    const bhInfo = await getBusinessHoursInfo(supabaseClient);
+    
+    if (bhInfo.within_hours) {
+      console.log('[process-chat-flow] ✅ Dentro do horário comercial - transferência normal');
+      return { intercepted: false };
+    }
+
+    console.log('[process-chat-flow] 🌙 FORA do horário comercial - interceptando transferência');
+
+    // 1. Buscar template de mensagem after-hours
+    const { data: msgRow } = await supabaseClient
+      .from('business_messages_config')
+      .select('message_template, after_hours_tag_id')
+      .eq('message_key', 'after_hours_handoff')
+      .maybeSingle();
+
+    const template = msgRow?.message_template || 'Nosso atendimento humano funciona {schedule}. Retornaremos {next_open}.';
+    const afterHoursMsg = template
+      .replace(/\{schedule\}/g, bhInfo.schedule_summary)
+      .replace(/\{next_open\}/g, bhInfo.next_open_text);
+
+    // 2. Buscar canal da conversa
+    const { data: convData } = await supabaseClient
+      .from('conversations')
+      .select('channel, contact_id')
+      .eq('id', conversationId)
+      .maybeSingle();
+
+    // 3. Inserir mensagem de horário comercial
+    await supabaseClient.from('messages').insert({
+      conversation_id: conversationId,
+      content: afterHoursMsg,
+      sender_type: 'user',
+      is_ai_generated: true,
+      is_bot_message: true,
+      channel: convData?.channel || 'web_chat',
+    });
+
+    // 4. Aplicar tag configurada (se existir)
+    if (msgRow?.after_hours_tag_id && convData?.contact_id) {
+      await supabaseClient.from('contact_tags').upsert(
+        { contact_id: convData.contact_id, tag_id: msgRow.after_hours_tag_id },
+        { onConflict: 'contact_id,tag_id' }
+      ).then(() => {
+        console.log('[process-chat-flow] 🏷️ Tag after-hours aplicada:', msgRow.after_hours_tag_id);
+      });
+    }
+
+    // 5. Fechar conversa com motivo after_hours
+    await supabaseClient.from('conversations').update({
+      status: 'closed',
+      ai_mode: 'autopilot',
+      assigned_to: null,
+      auto_closed: true,
+      closed_reason: 'after_hours_handoff',
+      updated_at: new Date().toISOString(),
+    }).eq('id', conversationId);
+
+    // 6. Registrar nota interna
+    if (convData?.contact_id) {
+      await supabaseClient.from('interactions').insert({
+        customer_id: convData.contact_id,
+        type: 'internal_note',
+        content: `🌙 Transferência interceptada fora do horário comercial. Mensagem enviada: "${afterHoursMsg}". Conversa fechada automaticamente.`,
+        channel: 'system',
+      });
+    }
+
+    // 7. Completar flow state como transferred
+    // (chamador fará isso em muitos casos, mas garantir aqui tb)
+
+    console.log('[process-chat-flow] ✅ Conversa fechada por after_hours_handoff');
+    return { intercepted: true, afterHoursMessage: afterHoursMsg };
+  } catch (err) {
+    console.error('[process-chat-flow] ❌ Erro ao verificar horário comercial:', err);
+    // Em caso de erro, NÃO interceptar — deixar transferência acontecer normalmente
+    return { intercepted: false };
+  }
+}
+
+// ============================================================
 // 🆕 MATCHER ESTRITO PARA ask_options (Contrato v2.3)
 // ============================================================
 interface AskOption {
@@ -886,6 +981,20 @@ serve(async (req) => {
       
       const transferMessage = 'Vou transferir você para um atendente humano.';
       
+      // 🆕 Verificar horário comercial antes de handoff
+      const ahCheck1 = await checkAfterHoursAndIntercept(supabaseClient, conversationId, 'handoff_to_human');
+      if (ahCheck1.intercepted) {
+        console.log('[process-chat-flow] 🌙 Contract violation transfer interceptado por after-hours');
+        return new Response(JSON.stringify({
+          useAI: false,
+          aiNodeActive: false,
+          transferActivated: false,
+          afterHours: true,
+          reason: 'after_hours_handoff',
+          message: ahCheck1.afterHoursMessage,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       // ✅ FIX 14: Usar transition-conversation-state centralizado
       await fetch(
         `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
@@ -2890,6 +2999,12 @@ serve(async (req) => {
             const transferDeptId = nextNode.data?.department_id || null;
             const transferAiMode = nextNode.data?.ai_mode || 'waiting_human';
             const transitionType = transferAiMode === 'copilot' ? 'set_copilot' : transferAiMode === 'autopilot' ? 'engage_ai' : 'handoff_to_human';
+            // 🆕 Verificar horário comercial antes de handoff
+            const ahCheck2 = await checkAfterHoursAndIntercept(supabaseClient, conversationId, transitionType);
+            if (ahCheck2.intercepted) {
+              const transferMsg = replaceVariables(nextNode.data?.message || "Transferindo...", variablesContext);
+              return new Response(JSON.stringify({ useAI: false, response: ahCheck2.afterHoursMessage, afterHours: true, flowCompleted: true, collectedData }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
             await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
@@ -4371,6 +4486,13 @@ serve(async (req) => {
           })
           .eq('id', activeState.id);
 
+        // 🆕 Verificar horário comercial antes de handoff
+        const ahCheck5 = await checkAfterHoursAndIntercept(supabaseClient, conversationId, 'handoff_to_human');
+        if (ahCheck5.intercepted) {
+          return new Response(JSON.stringify({
+            useAI: false, response: ahCheck5.afterHoursMessage, afterHours: true, flowCompleted: true, collectedData,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
         // ✅ FIX 14: Usar transition-conversation-state centralizado
         await fetch(
           `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
@@ -4421,6 +4543,13 @@ serve(async (req) => {
           })
           .eq('id', activeState.id);
 
+        // 🆕 Verificar horário comercial antes de handoff
+        const ahCheck6 = await checkAfterHoursAndIntercept(supabaseClient, conversationId, 'handoff_to_human');
+        if (ahCheck6.intercepted) {
+          return new Response(JSON.stringify({
+            useAI: false, response: ahCheck6.afterHoursMessage, afterHours: true, flowCompleted: true, collectedData,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
         // ✅ FIX 14: Usar transition-conversation-state centralizado
         await fetch(
           `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
@@ -4923,6 +5052,13 @@ serve(async (req) => {
           transferAiMode === 'copilot'   ? 'set_copilot' :
           transferAiMode === 'autopilot' ? 'engage_ai' :
           'handoff_to_human';
+        // 🆕 Verificar horário comercial antes de handoff
+        const ahCheck3 = await checkAfterHoursAndIntercept(supabaseClient, conversationId, transitionType);
+        if (ahCheck3.intercepted) {
+          return new Response(JSON.stringify({
+            useAI: false, response: ahCheck3.afterHoursMessage, afterHours: true, flowCompleted: true, collectedData, flowId: activeState.flow_id,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
         await fetch(
           `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
           {
@@ -5261,6 +5397,13 @@ serve(async (req) => {
           chainTransferAiMode === 'copilot'   ? 'set_copilot' :
           chainTransferAiMode === 'autopilot' ? 'engage_ai' :
           'handoff_to_human';
+        // 🆕 Verificar horário comercial antes de handoff
+        const ahCheck4 = await checkAfterHoursAndIntercept(supabaseClient, conversationId, chainTransitionType);
+        if (ahCheck4.intercepted) {
+          return new Response(JSON.stringify({
+            useAI: false, response: ahCheck4.afterHoursMessage, afterHours: true, flowCompleted: true, collectedData, flowId: activeState.flow_id,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
         await fetch(
           `${Deno.env.get('SUPABASE_URL')}/functions/v1/transition-conversation-state`,
           {

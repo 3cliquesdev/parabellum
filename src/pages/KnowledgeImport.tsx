@@ -283,7 +283,6 @@ export default function KnowledgeImport() {
         variant: "destructive",
       });
       return;
-
     }
 
     // Category validation: block import if invalid categories found
@@ -308,7 +307,6 @@ export default function KnowledgeImport() {
         });
         return;
       }
-    }
     }
 
     try {

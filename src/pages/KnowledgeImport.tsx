@@ -18,6 +18,7 @@ import { useImportKnowledge } from "@/hooks/useImportKnowledge";
 import { useImportDocument } from "@/hooks/useImportDocument";
 import { useImportOctadesk } from "@/hooks/useImportOctadesk";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
+import { useKnowledgeCategories } from "@/hooks/useKnowledgeCategories";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OctadeskFileUploader } from "@/components/octadesk/OctadeskFileUploader";
@@ -47,6 +48,7 @@ export default function KnowledgeImport() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { hasPermission, loading: permLoading } = useRolePermissions();
+  const { data: validCategories = [] } = useKnowledgeCategories();
   
   // CSV/Excel state
   const [csvData, setCsvData] = useState<any[]>([]);
@@ -281,6 +283,30 @@ export default function KnowledgeImport() {
         variant: "destructive",
       });
       return;
+    }
+
+    // Category validation: block import if invalid categories found
+    if (mapping.category !== '__none__' && validCategories.length > 0) {
+      const categoriesInFile = new Set(
+        rows
+          .map(r => r.category?.trim())
+          .filter((c): c is string => !!c)
+      );
+      const invalidCategories = [...categoriesInFile].filter(
+        c => !validCategories.includes(c)
+      );
+
+      if (invalidCategories.length > 0) {
+        const error = `Categorias inválidas encontradas: ${invalidCategories.join(', ')}. Use apenas categorias válidas: ${validCategories.join(', ')}`;
+        logWarn('Invalid categories detected', { invalidCategories, validCategories });
+        setImportError(error);
+        toast({
+          title: "Categorias inválidas",
+          description: `${invalidCategories.length} categoria(s) não reconhecida(s). Corrija a planilha e tente novamente.`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {

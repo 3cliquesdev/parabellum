@@ -3643,6 +3643,15 @@ serve(async (req) => {
                         const deptId = resolvedNode.data?.department_id || null;
                         const aiMode = resolvedNode.data?.ai_mode || 'waiting_human';
                         const transType = aiMode === 'copilot' ? 'set_copilot' : aiMode === 'autopilot' ? 'engage_ai' : 'handoff_to_human';
+                        // 🆕 Verificar horário comercial antes de handoff inline OTP failed
+                        const ahCheckInlineFail = await checkAfterHoursAndIntercept(supabaseClient, conversationId, transType);
+                        if (ahCheckInlineFail.intercepted) {
+                          return new Response(JSON.stringify({
+                            useAI: false, response: ahCheckInlineFail.afterHoursMessage,
+                            afterHours: true, flowCompleted: true, collectedData,
+                          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+                        }
+
                         await fetch(`${supabaseUrl}/functions/v1/transition-conversation-state`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },

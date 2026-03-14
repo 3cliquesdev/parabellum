@@ -18,6 +18,7 @@ import { useImportKnowledge } from "@/hooks/useImportKnowledge";
 import { useImportDocument } from "@/hooks/useImportDocument";
 import { useImportOctadesk } from "@/hooks/useImportOctadesk";
 import { useRolePermissions } from "@/hooks/useRolePermissions";
+import { useKnowledgeCategories } from "@/hooks/useKnowledgeCategories";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OctadeskFileUploader } from "@/components/octadesk/OctadeskFileUploader";

@@ -64,7 +64,7 @@ export default function ClientPortal() {
       {/* Conteúdo */}
       <div className="mx-auto max-w-2xl px-4 -mt-4">
         {/* Navegação por abas */}
-        <div className="bg-card rounded-xl shadow-sm border border-border/50 mb-4 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-4 overflow-hidden">
           <div className="flex">
             {TABS.map((tab) => {
               const Icon = tab.icon;

@@ -40,7 +40,7 @@ export default function ClientPortal() {
   const initials = displayInitials(nameParts[0], nameParts[nameParts.length - 1]);
 
   return (
-    <div className="min-h-screen bg-muted/40">
+    <div className="min-h-screen bg-gray-50">
       {/* Header com gradiente */}
       <div className="w-full bg-gradient-to-r from-primary to-purple-600 px-4 py-8">
         <div className="mx-auto max-w-2xl flex items-center gap-4">
@@ -64,7 +64,7 @@ export default function ClientPortal() {
       {/* Conteúdo */}
       <div className="mx-auto max-w-2xl px-4 -mt-4">
         {/* Navegação por abas */}
-        <div className="bg-card rounded-xl shadow-sm border border-border/50 mb-4 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-4 overflow-hidden">
           <div className="flex">
             {TABS.map((tab) => {
               const Icon = tab.icon;
@@ -89,7 +89,7 @@ export default function ClientPortal() {
         </div>
 
         {/* Conteúdo da aba */}
-        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 mb-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-4">
           {activeTab === "info" && (
             <div className="space-y-5">
               <div className="text-center py-2">

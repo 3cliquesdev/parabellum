@@ -12,6 +12,7 @@ interface ReturnsListProps {
 
 export function ReturnsList({ onRequestNew }: ReturnsListProps) {
   const { data: returns, isLoading } = useClientReturns();
+  const reasonLabels = useReasonLabelsMap();
 
   if (isLoading) {
     return (

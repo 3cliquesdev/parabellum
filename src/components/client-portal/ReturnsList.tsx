@@ -65,7 +65,7 @@ export function ReturnsList({ onRequestNew }: ReturnsListProps) {
                   </Badge>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {REASON_LABELS[ret.reason] || ret.reason}
+                  {reasonLabels[ret.reason] || ret.reason}
                 </p>
                 <div className="flex items-center gap-3 mt-1.5 text-[11px] text-gray-400">
                   <span>Protocolo: {ret.id.substring(0, 8).toUpperCase()}</span>

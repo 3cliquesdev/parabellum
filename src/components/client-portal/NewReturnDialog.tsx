@@ -287,9 +287,9 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
                   <SelectValue placeholder="Selecione o motivo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(REASON_LABELS).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
-                      {label}
+                  {reasons?.map((r) => (
+                    <SelectItem key={r.key} value={r.key}>
+                      {r.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

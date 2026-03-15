@@ -256,8 +256,8 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
             <Select value={reason} onValueChange={setReason}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
-                {Object.entries(REASON_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
+              {reasons?.map((r) => (
+                  <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

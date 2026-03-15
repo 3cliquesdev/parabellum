@@ -23,8 +23,7 @@ interface LookupResult {
   found: boolean;
   external_order_id?: string;
   tracking_code?: string;
-  contact_id?: string;
-  contact?: { first_name: string; last_name: string; email: string | null } | null;
+  buyer_name?: string | null;
 }
 
 export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps) {

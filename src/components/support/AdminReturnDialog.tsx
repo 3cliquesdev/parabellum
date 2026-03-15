@@ -56,6 +56,44 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
     setSearching(false);
     setLookupResult(null);
     setBuyerName(null);
+    setPhotos([]);
+    setUploadingPhoto(false);
+  };
+
+  const handleUploadPhoto = async (file: File) => {
+    if (photos.length >= 5) {
+      toast.error("Máximo de 5 fotos permitidas");
+      return;
+    }
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Use JPEG, PNG ou WebP");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Máximo 5MB por foto");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data, error } = await supabase.functions.invoke("upload-return-photo", { body: formData });
+      if (error) throw error;
+      if (data?.url) {
+        setPhotos((prev) => [...prev, data.url]);
+        toast.success("Foto enviada!");
+      }
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      toast.error("Erro ao enviar foto");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleTrackingBlur = async () => {

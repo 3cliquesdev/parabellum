@@ -40,7 +40,7 @@ export default function ClientPortal() {
   const initials = displayInitials(nameParts[0], nameParts[nameParts.length - 1]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="light min-h-screen bg-gray-50" style={{ colorScheme: 'light' }}>
       {/* Header com gradiente */}
       <div className="w-full bg-gradient-to-r from-primary to-purple-600 px-4 py-8">
         <div className="mx-auto max-w-2xl flex items-center gap-4">

@@ -422,6 +422,9 @@ verify_jwt = false
 [functions.health-check-ai]
 verify_jwt = true
 
+[functions.upload-return-photo]
+verify_jwt = false
+
 [functions.register-return]
 verify_jwt = false
 

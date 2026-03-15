@@ -242,7 +242,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
             </div>
 
             <div className="space-y-2">
-              <Label>Descrição (opcional)</Label>
+              <Label>Descrição</Label>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}

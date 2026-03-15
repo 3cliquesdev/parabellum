@@ -105,7 +105,6 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
       reason,
       description: description || undefined,
       status,
-      contact_id: contactId || undefined,
     });
     resetForm();
     onOpenChange(false);

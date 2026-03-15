@@ -60,16 +60,17 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
     setPhotos([]);
   };
 
-  const lookupTracking = useCallback(async (orderVal: string) => {
-    if (!orderVal.trim()) return;
+  const lookupOrderByTracking = useCallback(async (trackingVal: string) => {
+    if (!trackingVal.trim()) return;
     setLoadingTracking(true);
     setTrackingSearched(false);
     try {
-      const { data, error } = await supabase.functions.invoke('lookup-order-tracking', {
-        body: { external_order_id: orderVal.trim() },
+      const { data, error } = await supabase.functions.invoke('lookup-order-by-tracking', {
+        body: { tracking_code: trackingVal.trim() },
       });
-      if (!error && data?.tracking_code_original) {
-        setTrackingOriginal(data.tracking_code_original);
+      if (!error && data?.found && data?.external_order_id) {
+        setOrderId(data.external_order_id);
+        setTrackingOriginal(data.external_order_id);
       } else {
         setTrackingOriginal(null);
       }

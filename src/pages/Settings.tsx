@@ -218,6 +218,13 @@ export default function Settings() {
               onClick={() => navigate('/settings/sla')}
             />
             <SettingsCard
+              icon={RotateCcw}
+              iconBgColor="bg-orange-500"
+              title="Motivos de Devolução"
+              description="Cadastrar e editar motivos"
+              onClick={() => navigate('/settings/return-reasons')}
+            />
+            <SettingsCard
               icon={Zap}
               iconBgColor="bg-yellow-500"
               title="Macros"

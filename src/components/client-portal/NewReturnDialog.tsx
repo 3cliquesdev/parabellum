@@ -83,6 +83,8 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
       setTrackingSearched(true);
     }
   }, []);
+
+  const handleOpenChange = (open: boolean) => {
     if (!open) resetForm();
     onOpenChange(open);
   };

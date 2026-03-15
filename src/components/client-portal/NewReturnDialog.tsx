@@ -45,6 +45,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastSearchedRef = useRef<string>("");
 
   const resetForm = () => {
     setStep("form");

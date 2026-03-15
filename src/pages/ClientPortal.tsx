@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { usePublicTicketPortalConfig } from "@/hooks/usePublicTicketPortal";
 import { ReturnsList } from "@/components/client-portal/ReturnsList";
 import { NewReturnDialog } from "@/components/client-portal/NewReturnDialog";
+import { ClientTicketsList } from "@/components/client-portal/ClientTicketsList";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { displayInitials } from "@/lib/displayName";
 import { cn } from "@/lib/utils";
@@ -149,12 +150,7 @@ export default function ClientPortal() {
             </div>
           )}
 
-          {activeTab === "tickets" && (
-            <div className="text-center py-8">
-              <Ticket className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">Em breve disponível.</p>
-            </div>
-          )}
+          {activeTab === "tickets" && <ClientTicketsList />}
         </div>
 
         {/* Rodapé discreto */}

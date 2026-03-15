@@ -33,6 +33,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
   const [step, setStep] = useState<Step>("form");
   
   const [orderId, setOrderId] = useState("");
+  const [trackingOutbound, setTrackingOutbound] = useState("");
   const [trackingReturn, setTrackingReturn] = useState("");
   const [trackingOriginal, setTrackingOriginal] = useState<string | null>(null);
   const [loadingTracking, setLoadingTracking] = useState(false);
@@ -49,6 +50,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
     setStep("form");
     
     setOrderId("");
+    setTrackingOutbound("");
     setTrackingReturn("");
     setTrackingOriginal(null);
     setLoadingTracking(false);
@@ -60,16 +62,17 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
     setPhotos([]);
   };
 
-  const lookupTracking = useCallback(async (orderVal: string) => {
-    if (!orderVal.trim()) return;
+  const lookupOrderByTracking = useCallback(async (trackingVal: string) => {
+    if (!trackingVal.trim()) return;
     setLoadingTracking(true);
     setTrackingSearched(false);
     try {
-      const { data, error } = await supabase.functions.invoke('lookup-order-tracking', {
-        body: { external_order_id: orderVal.trim() },
+      const { data, error } = await supabase.functions.invoke('lookup-order-by-tracking', {
+        body: { tracking_code: trackingVal.trim() },
       });
-      if (!error && data?.tracking_code_original) {
-        setTrackingOriginal(data.tracking_code_original);
+      if (!error && data?.found && data?.external_order_id) {
+        setOrderId(data.external_order_id);
+        setTrackingOriginal(data.external_order_id);
       } else {
         setTrackingOriginal(null);
       }
@@ -186,32 +189,40 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
         {step === "form" && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Número do Pedido</Label>
+              <Label>Rastreio de Envio do Pedido</Label>
               <Input
-                value={orderId}
+                value={trackingOutbound}
                 onChange={(e) => {
-                  setOrderId(e.target.value);
+                  setTrackingOutbound(e.target.value);
                   setTrackingSearched(false);
                   setTrackingOriginal(null);
+                  setOrderId("");
                 }}
-                onBlur={() => lookupTracking(orderId)}
-                placeholder="Ex: SA-12345"
+                onBlur={() => lookupOrderByTracking(trackingOutbound)}
+                placeholder="Cole o código de rastreio de envio"
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Rastreio de Envio do Pedido</Label>
+              <Label>Número do Pedido</Label>
               {loadingTracking ? (
                 <div className="flex items-center gap-2 h-10 px-4 rounded-lg border border-input bg-muted/50">
                   <Search className="h-3.5 w-3.5 animate-pulse text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Buscando...</span>
                 </div>
+              ) : trackingSearched && !trackingOriginal ? (
+                <Input
+                  value={orderId}
+                  onChange={(e) => setOrderId(e.target.value)}
+                  placeholder="Não localizado — digite manualmente"
+                />
               ) : (
                 <Input
-                  value={trackingSearched ? (trackingOriginal || "Não localizado") : ""}
-                  readOnly
+                  value={orderId}
+                  readOnly={!!trackingOriginal}
+                  onChange={!trackingOriginal ? (e) => setOrderId(e.target.value) : undefined}
                   placeholder="Preenchido automaticamente"
-                  className="bg-muted/50 cursor-default"
+                  className={trackingOriginal ? "bg-muted/50 cursor-default" : ""}
                 />
               )}
             </div>

@@ -144,12 +144,7 @@ export default function ClientPortal() {
             </div>
           )}
 
-          {activeTab === "onboarding" && (
-            <div className="text-center py-8">
-              <BookOpen className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">Em breve disponível.</p>
-            </div>
-          )}
+          {activeTab === "onboarding" && <OnboardingProgress />}
 
           {activeTab === "tickets" && <ClientTicketsList />}
         </div>

@@ -37,7 +37,7 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
   const [status, setStatus] = useState("pending");
   const [searching, setSearching] = useState(false);
   const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
-  const [contactId, setContactId] = useState<string | null>(null);
+  const [buyerName, setBuyerName] = useState<string | null>(null);
 
   const resetForm = () => {
     setTrackingOriginal("");

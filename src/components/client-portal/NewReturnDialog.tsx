@@ -197,6 +197,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
                 value={trackingOutbound}
                 onChange={(e) => {
                   setTrackingOutbound(e.target.value);
+                  lastSearchedRef.current = "";
                   setTrackingSearched(false);
                   setTrackingOriginal(null);
                   setOrderId("");

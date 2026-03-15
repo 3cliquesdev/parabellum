@@ -131,6 +131,7 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
                 value={trackingOriginal}
                 onChange={(e) => {
                   setTrackingOriginal(e.target.value);
+                  lastSearchedRef.current = "";
                   setLookupResult(null);
                   setOrderIdManual(false);
                 }}

@@ -3315,10 +3315,9 @@ serve(async (req) => {
     // ðŸ†• PRIORIDADE 1: CHAT FLOW - Verificar ANTES da triagem
     // ============================================================
     let flowProcessedEarly = false;
-    let flowPersonaId: string | null = null;
-    let flowKbCategories: string[] | null = null;
-    let flowContextPrompt: string | null = null;
-    let flowFallbackMessage: string | null = null;
+    // 🔧 FIX: Removido re-declaração de flowPersonaId/flowKbCategories/flowContextPrompt/flowFallbackMessage
+    // Essas variáveis já existem no escopo externo (linhas ~1517-1520) e devem ser reutilizadas
+    // A re-declaração com let criava variáveis locais ao try block que eram descartadas
     
     try {
       console.log('[ai-autopilot-chat] ðŸ”„ [PRIORIDADE] Verificando Chat Flow ANTES da triagem...');

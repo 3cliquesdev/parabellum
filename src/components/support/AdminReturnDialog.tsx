@@ -145,15 +145,10 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
             </div>
           </div>
 
-          {/* Dados do cliente encontrado */}
-          {lookupResult?.found && lookupResult.contact && (
+          {/* Dados do comprador encontrado */}
+          {lookupResult?.found && buyerName && (
             <div className="rounded-md bg-muted/50 p-3 text-sm space-y-1">
-              <p className="font-medium">
-                {lookupResult.contact.first_name} {lookupResult.contact.last_name}
-              </p>
-              {lookupResult.contact.email && (
-                <p className="text-muted-foreground">{lookupResult.contact.email}</p>
-              )}
+              <p className="font-medium">{buyerName}</p>
             </div>
           )}
 

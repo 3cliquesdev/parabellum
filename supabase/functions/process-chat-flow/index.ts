@@ -646,6 +646,23 @@ async function buildVariablesContext(
     }
   }
 
+  // 🆕 Return reasons (motivos de devolução dinâmicos)
+  if (supabaseClient) {
+    try {
+      const { data: returnReasons } = await supabaseClient
+        .from('return_reasons')
+        .select('key, label')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      if (returnReasons && returnReasons.length > 0) {
+        ctx['return_reasons_list'] = returnReasons.map((r: any) => r.label).join(', ');
+        ctx['__return_reasons_full'] = returnReasons; // Internal: array completo para IA
+      }
+    } catch (e) {
+      console.warn('[process-chat-flow] ⚠️ Failed to load return_reasons:', e);
+    }
+  }
+
   return ctx;
 }
 
@@ -2255,6 +2272,7 @@ serve(async (req) => {
                     forbidSupport: resolvedNode.data?.forbid_support ?? false,
                     forbidConsultant: resolvedNode.data?.forbid_consultant ?? false,
                     onboardingDetection: resolvedNode.data?.onboarding_detection_enabled ?? false,
+                    returnReasons: variablesContext['__return_reasons_full'] || null,
                   }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
                 }
 
@@ -2492,6 +2510,7 @@ serve(async (req) => {
                     forbidSupport: resolvedNode.data?.forbid_support ?? false,
                     forbidConsultant: resolvedNode.data?.forbid_consultant ?? false,
                     onboardingDetection: resolvedNode.data?.onboarding_detection_enabled ?? false,
+                    returnReasons: variablesContext['__return_reasons_full'] || null,
                   }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
                 }
 
@@ -2687,6 +2706,7 @@ serve(async (req) => {
                       forbidSupport: resolvedNode.data?.forbid_support ?? false,
                       forbidConsultant: resolvedNode.data?.forbid_consultant ?? false,
                       onboardingDetection: resolvedNode.data?.onboarding_detection_enabled ?? false,
+                      returnReasons: variablesContext['__return_reasons_full'] || null,
                     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
                   }
 
@@ -3106,7 +3126,7 @@ serve(async (req) => {
           if (nextNode.type === 'ai_response') {
             collectedData.__ai = { interaction_count: 0 };
             await supabaseClient.from('chat_flow_states').update({ collected_data: collectedData, current_node_id: nextNode.id, status: 'active', updated_at: new Date().toISOString() }).eq('id', activeState.id);
-            return new Response(JSON.stringify({ useAI: true, aiNodeActive: true, nodeId: nextNode.id, flowId: activeState.flow_id, contextPrompt: nextNode.data?.context_prompt, useKnowledgeBase: nextNode.data?.use_knowledge_base !== false, collectedData }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            return new Response(JSON.stringify({ useAI: true, aiNodeActive: true, nodeId: nextNode.id, flowId: activeState.flow_id, contextPrompt: nextNode.data?.context_prompt, useKnowledgeBase: nextNode.data?.use_knowledge_base !== false, collectedData, returnReasons: variablesContext['__return_reasons_full'] || null }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
           }
           // 🆕 BUG 4 FIX (2nd check): verify_customer_otp after auto-advance
           if (nextNode.type === 'verify_customer_otp') {
@@ -3620,6 +3640,7 @@ serve(async (req) => {
                       maxSentences: resolvedNode.data?.max_sentences ?? 3,
                       forbidQuestions: resolvedNode.data?.forbid_questions ?? true,
                       forbidOptions: resolvedNode.data?.forbid_options ?? true,
+                      returnReasons: variablesContext['__return_reasons_full'] || null,
                     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
                   }
 
@@ -4566,6 +4587,7 @@ serve(async (req) => {
               forbidInternacional: currentNode.data?.forbid_internacional ?? false,
               onboardingDetection: currentNode.data?.onboarding_detection_enabled ?? false,
               requireOtpForFinancial: currentNode.data?.require_otp_for_financial ?? false,
+              returnReasons: variablesContext['__return_reasons_full'] || null,
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -5268,6 +5290,7 @@ serve(async (req) => {
             forbidSupport: nextNode.data?.forbid_support ?? false,
             forbidConsultant: nextNode.data?.forbid_consultant ?? false,
             onboardingDetection: nextNode.data?.onboarding_detection_enabled ?? false,
+            returnReasons: variablesContext['__return_reasons_full'] || null,
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -6168,6 +6191,7 @@ serve(async (req) => {
               forbidSupport: node.data?.forbid_support ?? false,
               forbidConsultant: node.data?.forbid_consultant ?? false,
               onboardingDetection: node.data?.onboarding_detection_enabled ?? false,
+              returnReasons: masterVariablesContext['__return_reasons_full'] || null,
               debug: { startNodeType: startNode.type, contentNodeType: node.type, steps, stateId }
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -6504,6 +6528,7 @@ serve(async (req) => {
           forbidSupport: startNode.data?.forbid_support ?? false,
           forbidConsultant: startNode.data?.forbid_consultant ?? false,
           onboardingDetection: startNode.data?.onboarding_detection_enabled ?? false,
+          returnReasons: trigVarCtx['__return_reasons_full'] || null,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

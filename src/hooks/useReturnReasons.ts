@@ -15,7 +15,7 @@ export function useReturnReasons(includeInactive = false) {
   return useQuery({
     queryKey: ["return-reasons", includeInactive],
     queryFn: async () => {
-      let query = supabase
+      let query = (supabase as any)
         .from("return_reasons")
         .select("*")
         .order("sort_order", { ascending: true });
@@ -31,7 +31,7 @@ export function useReturnReasons(includeInactive = false) {
   });
 }
 
-/** Helper: converte array de reasons em mapa key→label (substitui REASON_LABELS) */
+/** Helper: converte array de reasons em mapa key→label */
 export function useReasonLabelsMap() {
   const { data: reasons } = useReturnReasons();
   const map: Record<string, string> = {};
@@ -45,7 +45,7 @@ export function useCreateReturnReason() {
 
   return useMutation({
     mutationFn: async (data: { key: string; label: string; sort_order?: number }) => {
-      const { error } = await supabase.from("return_reasons").insert(data);
+      const { error } = await (supabase as any).from("return_reasons").insert(data);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -64,7 +64,7 @@ export function useUpdateReturnReason() {
 
   return useMutation({
     mutationFn: async ({ id, ...data }: { id: string; key?: string; label?: string; is_active?: boolean; sort_order?: number }) => {
-      const { error } = await supabase.from("return_reasons").update(data).eq("id", id);
+      const { error } = await (supabase as any).from("return_reasons").update(data).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

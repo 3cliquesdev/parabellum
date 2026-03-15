@@ -319,7 +319,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
             <Button
               className="w-full"
               onClick={handleSubmit}
-              disabled={!email || !orderId || !reason || registerReturn.isPending || uploading}
+              disabled={!orderId || !reason || registerReturn.isPending || uploading}
             >
               {registerReturn.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

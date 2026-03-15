@@ -834,8 +834,93 @@ async function processEscalations(supabase: any) {
 
   if (!escalatedJobs?.length) return;
 
+  // 🆕 Correção 2: Verificar se saiu do horário comercial durante a espera
+  let businessHoursInfo: any = null;
+  try {
+    businessHoursInfo = await getBusinessHoursInfo(supabase);
+  } catch (bhErr) {
+    console.error('[processEscalations] ⚠️ Erro ao verificar horário comercial:', bhErr);
+  }
+
   // deno-lint-ignore no-explicit-any
   for (const job of escalatedJobs as any[]) {
+    // 🆕 Se fora do horário comercial → fechar conversa com after-hours
+    if (businessHoursInfo && !businessHoursInfo.within_hours) {
+      try {
+        console.log(`[processEscalations] 🌙 Job ${job.conversation_id.substring(0, 8)} escalado fora do horário → fechando conversa`);
+
+        // Buscar template after-hours
+        const { data: msgRow } = await supabase
+          .from('business_messages_config')
+          .select('message_template, after_hours_tag_id')
+          .eq('message_key', 'after_hours_handoff')
+          .maybeSingle();
+
+        const template = msgRow?.message_template || 'Nosso atendimento humano funciona {schedule}. Retornaremos {next_open}.';
+        const afterHoursMsg = template
+          .replace(/\{schedule\}/g, businessHoursInfo.schedule_summary)
+          .replace(/\{next_open\}/g, businessHoursInfo.next_open_text);
+
+        // Buscar dados da conversa
+        const { data: convData } = await supabase
+          .from('conversations')
+          .select('channel, contact_id')
+          .eq('id', job.conversation_id)
+          .maybeSingle();
+
+        // Enviar mensagem after-hours
+        await supabase.from('messages').insert({
+          conversation_id: job.conversation_id,
+          content: afterHoursMsg,
+          sender_type: 'user',
+          is_ai_generated: true,
+          is_bot_message: true,
+          channel: convData?.channel || 'web_chat',
+        });
+
+        // Aplicar tag
+        if (msgRow?.after_hours_tag_id && convData?.contact_id) {
+          await supabase.from('contact_tags').upsert(
+            { contact_id: convData.contact_id, tag_id: msgRow.after_hours_tag_id },
+            { onConflict: 'contact_id,tag_id' }
+          );
+        }
+
+        // Fechar conversa
+        await supabase.from('conversations').update({
+          status: 'closed',
+          ai_mode: 'autopilot',
+          assigned_to: null,
+          auto_closed: true,
+          closed_reason: 'after_hours_handoff',
+          updated_at: new Date().toISOString(),
+        }).eq('id', job.conversation_id);
+
+        // Completar job
+        await supabase.from('conversation_dispatch_jobs').update({
+          status: 'completed',
+          last_error: 'closed_after_hours_escalation',
+          updated_at: new Date().toISOString(),
+        }).eq('id', job.id);
+
+        // Nota interna
+        if (convData?.contact_id) {
+          await supabase.from('interactions').insert({
+            customer_id: convData.contact_id,
+            type: 'internal_note',
+            content: `🌙 Conversa escalada fechada automaticamente por encerramento do horário comercial. Mensagem enviada: "${afterHoursMsg}".`,
+            channel: 'system',
+          });
+        }
+
+        console.log(`[processEscalations] ✅ Conversa ${job.conversation_id.substring(0, 8)} fechada por after-hours (escalação)`);
+        continue; // Próximo job
+      } catch (ahErr) {
+        console.error(`[processEscalations] ❌ Erro ao fechar conversa escalada por after-hours:`, ahErr);
+        // Continuar com o alerta normal
+      }
+    }
+
     // Check if alert already exists (within 30 minutes)
     const { data: existingAlert } = await supabase
       .from('admin_alerts')

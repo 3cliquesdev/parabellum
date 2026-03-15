@@ -270,7 +270,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
             )}
 
             <div className="space-y-2">
-              <Label>Código de Rastreio da Devolução (opcional)</Label>
+              <Label>Código de Rastreio da Devolução *</Label>
               <Input
                 value={trackingReturn}
                 onChange={(e) => setTrackingReturn(e.target.value)}
@@ -366,7 +366,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
             <Button
               className="w-full"
               onClick={handleSubmit}
-              disabled={!orderId || !reason || !description || registerReturn.isPending || uploading}
+              disabled={!orderId || !reason || !description || !trackingReturn || registerReturn.isPending || uploading}
             >
               {registerReturn.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

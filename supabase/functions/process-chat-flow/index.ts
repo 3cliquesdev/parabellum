@@ -3640,6 +3640,7 @@ serve(async (req) => {
                       maxSentences: resolvedNode.data?.max_sentences ?? 3,
                       forbidQuestions: resolvedNode.data?.forbid_questions ?? true,
                       forbidOptions: resolvedNode.data?.forbid_options ?? true,
+                      returnReasons: variablesContext['__return_reasons_full'] || null,
                     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
                   }
 

@@ -25,7 +25,8 @@ import {
   Palette,
   Send,
   GitBranch,
-  Store
+  Store,
+  RotateCcw
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SettingsCategory } from "@/components/settings/SettingsCategory";

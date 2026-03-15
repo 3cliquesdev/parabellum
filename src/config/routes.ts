@@ -26,6 +26,7 @@ import {
   Workflow,
   Receipt,
   RefreshCw,
+  RotateCcw,
   CheckCircle2,
   CreditCard,
   AlertTriangle,
@@ -130,7 +131,7 @@ export const universalMenuGroups: MenuGroup[] = [
     label: "Cadastros",
     items: [
       { title: "Consultores", href: "/consultants", icon: Users, permission: "cadastros.view_consultants" },
-      
+      { title: "Devoluções", href: "/returns", icon: RotateCcw, permission: "tickets.view" },
       { title: "Produtos", href: "/settings/products", icon: Package, permission: "cadastros.view_products" },
       { title: "Depart. & Operações", href: "/settings/departments", icon: Building2, permission: "cadastros.view_departments" },
     ]

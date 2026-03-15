@@ -30,6 +30,7 @@ interface LookupResult {
 
 export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps) {
   const createReturn = useCreateAdminReturn();
+  const { data: reasons } = useReturnReasons();
   const [trackingOriginal, setTrackingOriginal] = useState("");
   const [orderId, setOrderId] = useState("");
   const [orderIdManual, setOrderIdManual] = useState(false);

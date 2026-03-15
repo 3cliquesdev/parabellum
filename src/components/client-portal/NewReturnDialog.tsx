@@ -211,6 +211,8 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
                   setTrackingSearched(false);
                   setTrackingOriginal(null);
                   setOrderId("");
+                  setBuyerName(null);
+                  setProductItems([]);
                 }}
                 onBlur={() => lookupOrderByTracking(trackingOutbound)}
                 placeholder="Cole o código de rastreio de envio"

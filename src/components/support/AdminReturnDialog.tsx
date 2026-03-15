@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/select";
 import { useCreateAdminReturn } from "@/hooks/useReturns";
 import { REASON_LABELS } from "@/hooks/useClientReturns";
-import { Loader2, Search, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Search, CheckCircle2, AlertCircle, Upload, X, ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface AdminReturnDialogProps {
   open: boolean;

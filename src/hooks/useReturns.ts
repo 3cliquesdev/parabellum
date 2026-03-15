@@ -76,6 +76,7 @@ export function useCreateAdminReturn() {
       reason: string;
       description?: string;
       status?: string;
+      photos?: string[];
     }) => {
       const { error } = await supabase.from("returns").insert({
         external_order_id: data.external_order_id,
@@ -85,6 +86,7 @@ export function useCreateAdminReturn() {
         description: data.description || null,
         status: data.status || "pending",
         created_by: "admin",
+        photos: data.photos || null,
       });
       if (error) throw error;
     },

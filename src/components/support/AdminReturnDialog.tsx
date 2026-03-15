@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/select";
 import { useCreateAdminReturn } from "@/hooks/useReturns";
 import { REASON_LABELS } from "@/hooks/useClientReturns";
-import { Loader2, Search, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Search, CheckCircle2, AlertCircle, Upload, X, ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface AdminReturnDialogProps {
   open: boolean;
@@ -39,7 +40,10 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
   const [searching, setSearching] = useState(false);
   const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
   const [buyerName, setBuyerName] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const lastSearchedRef = useRef<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
     setTrackingOriginal("");
@@ -52,6 +56,44 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
     setSearching(false);
     setLookupResult(null);
     setBuyerName(null);
+    setPhotos([]);
+    setUploadingPhoto(false);
+  };
+
+  const handleUploadPhoto = async (file: File) => {
+    if (photos.length >= 5) {
+      toast.error("Máximo de 5 fotos permitidas");
+      return;
+    }
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Use JPEG, PNG ou WebP");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Máximo 5MB por foto");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data, error } = await supabase.functions.invoke("upload-return-photo", { body: formData });
+      if (error) throw error;
+      if (data?.url) {
+        setPhotos((prev) => [...prev, data.url]);
+        toast.success("Foto enviada!");
+      }
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      toast.error("Erro ao enviar foto");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleTrackingBlur = async () => {
@@ -110,6 +152,7 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
       reason,
       description: description || undefined,
       status,
+      photos: photos.length > 0 ? photos : undefined,
     });
     resetForm();
     onOpenChange(false);
@@ -237,6 +280,56 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
                 <SelectItem value="refunded">Reembolsada</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* 7. Fotos */}
+          <div className="space-y-2">
+            <Label>Fotos do produto (opcional)</Label>
+            {photos.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((url, i) => (
+                  <div key={i} className="relative group">
+                    <img src={url} alt={`Foto ${i + 1}`} className="w-full h-20 object-cover rounded-md border border-border" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePhoto(i)}
+                      className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full h-5 w-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {photos.length < 5 && (
+              <div
+                className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadingPhoto ? (
+                  <div className="flex flex-col items-center gap-1">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="text-xs text-muted-foreground">Enviando...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-1">
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Clique para adicionar ({photos.length}/5)</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUploadPhoto(file);
+                e.target.value = "";
+              }}
+            />
           </div>
 
           <Button className="w-full" onClick={handleSubmit} disabled={!orderId || !reason || createReturn.isPending}>

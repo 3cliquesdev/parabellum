@@ -149,12 +149,7 @@ export default function ClientPortal() {
             </div>
           )}
 
-          {activeTab === "tickets" && (
-            <div className="text-center py-8">
-              <Ticket className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">Em breve disponível.</p>
-            </div>
-          )}
+          {activeTab === "tickets" && <ClientTicketsList />}
         </div>
 
         {/* Rodapé discreto */}

@@ -161,7 +161,7 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
 
           {/* Mensagem quando não encontrado */}
           {lookupResult && !lookupResult.found && (
-            <p className="text-sm text-yellow-600">
+            <p className="text-sm text-destructive">
               Pedido não localizado. Preencha o número manualmente.
             </p>
           )}

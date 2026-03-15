@@ -270,7 +270,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
             )}
 
             <div className="space-y-2">
-              <Label>Código de Rastreio da Devolução (opcional)</Label>
+              <Label>Código de Rastreio da Devolução *</Label>
               <Input
                 value={trackingReturn}
                 onChange={(e) => setTrackingReturn(e.target.value)}

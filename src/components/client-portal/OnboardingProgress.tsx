@@ -164,7 +164,7 @@ function StepItem({
                   : "text-gray-400"
               }`}
             >
-              {step.description}
+              {step.notes}
             </p>
           )}
 

@@ -191,14 +191,14 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
             <div className="space-y-2">
               <Label>Rastreio de Envio do Pedido</Label>
               <Input
-                value={trackingReturn}
+                value={trackingOutbound}
                 onChange={(e) => {
-                  setTrackingReturn(e.target.value);
+                  setTrackingOutbound(e.target.value);
                   setTrackingSearched(false);
                   setTrackingOriginal(null);
                   setOrderId("");
                 }}
-                onBlur={() => lookupOrderByTracking(trackingReturn)}
+                onBlur={() => lookupOrderByTracking(trackingOutbound)}
                 placeholder="Cole o código de rastreio de envio"
               />
             </div>

@@ -10,7 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useCreateAdminReturn } from "@/hooks/useReturns";
-import { REASON_LABELS } from "@/hooks/useClientReturns";
+import { useReturnReasons } from "@/hooks/useReturnReasons";
 import { Loader2, Search, CheckCircle2, AlertCircle, Upload, X, ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";

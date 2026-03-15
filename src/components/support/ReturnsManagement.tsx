@@ -23,7 +23,7 @@ export default function ReturnsManagement() {
   const { data: returns, isLoading } = useAdminReturns(statusFilter);
 
   return (
-    <PageContainer title="Devoluções" description="Gerencie as solicitações de devolução">
+    <PageContainer>
       <div className="flex items-center justify-between gap-4 mb-4">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[180px]">

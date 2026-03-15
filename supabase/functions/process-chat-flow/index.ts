@@ -137,6 +137,7 @@ async function checkAfterHoursAndIntercept(
   supabaseClient: any,
   conversationId: string,
   transitionType: string,
+  departmentId?: string | null,
 ): Promise<{ intercepted: boolean; afterHoursMessage?: string }> {
   // Só interceptar handoff_to_human — copilot/autopilot passam direto
   if (transitionType !== 'handoff_to_human') {
@@ -148,6 +149,8 @@ async function checkAfterHoursAndIntercept(
     
     if (bhInfo.within_hours) {
       console.log('[process-chat-flow] ✅ Dentro do horário comercial - transferência normal');
+      // 🆕 Enviar mensagem proativa pós-handoff (non-blocking)
+      sendProactiveHandoffMessage(supabaseClient, conversationId, departmentId || null).catch(() => {});
       return { intercepted: false };
     }
 

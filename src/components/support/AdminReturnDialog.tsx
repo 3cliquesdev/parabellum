@@ -282,6 +282,56 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
             </Select>
           </div>
 
+          {/* 7. Fotos */}
+          <div className="space-y-2">
+            <Label>Fotos do produto (opcional)</Label>
+            {photos.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((url, i) => (
+                  <div key={i} className="relative group">
+                    <img src={url} alt={`Foto ${i + 1}`} className="w-full h-20 object-cover rounded-md border border-border" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePhoto(i)}
+                      className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full h-5 w-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {photos.length < 5 && (
+              <div
+                className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadingPhoto ? (
+                  <div className="flex flex-col items-center gap-1">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="text-xs text-muted-foreground">Enviando...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-1">
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Clique para adicionar ({photos.length}/5)</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUploadPhoto(file);
+                e.target.value = "";
+              }}
+            />
+          </div>
+
           <Button className="w-full" onClick={handleSubmit} disabled={!orderId || !reason || createReturn.isPending}>
             {createReturn.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             Cadastrar

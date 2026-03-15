@@ -45,6 +45,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastSearchedRef = useRef<string>("");
 
   const resetForm = () => {
     setStep("form");
@@ -63,7 +64,9 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
   };
 
   const lookupOrderByTracking = useCallback(async (trackingVal: string) => {
-    if (!trackingVal.trim()) return;
+    const trimmed = trackingVal.trim();
+    if (!trimmed || trimmed === lastSearchedRef.current) return;
+    lastSearchedRef.current = trimmed;
     setLoadingTracking(true);
     setTrackingSearched(false);
     try {
@@ -194,6 +197,7 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
                 value={trackingOutbound}
                 onChange={(e) => {
                   setTrackingOutbound(e.target.value);
+                  lastSearchedRef.current = "";
                   setTrackingSearched(false);
                   setTrackingOriginal(null);
                   setOrderId("");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -38,6 +38,7 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
   const [searching, setSearching] = useState(false);
   const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
   const [buyerName, setBuyerName] = useState<string | null>(null);
+  const lastSearchedRef = useRef<string>("");
 
   const resetForm = () => {
     setTrackingOriginal("");
@@ -54,14 +55,17 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
 
   const handleTrackingBlur = async () => {
     const trimmed = trackingOriginal.trim();
-    if (!trimmed) {
+    if (!trimmed || trimmed === lastSearchedRef.current) {
+      if (!trimmed) {
       setLookupResult(null);
       setOrderId("");
       setOrderIdManual(false);
       setBuyerName(null);
+      }
       return;
     }
 
+    lastSearchedRef.current = trimmed;
     setSearching(true);
     try {
       const { data, error } = await supabase.functions.invoke('lookup-order-by-tracking', {
@@ -127,6 +131,7 @@ export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps
                 value={trackingOriginal}
                 onChange={(e) => {
                   setTrackingOriginal(e.target.value);
+                  lastSearchedRef.current = "";
                   setLookupResult(null);
                   setOrderIdManual(false);
                 }}

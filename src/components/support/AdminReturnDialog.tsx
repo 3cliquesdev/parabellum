@@ -24,7 +24,7 @@ interface LookupResult {
   external_order_id?: string;
   tracking_code?: string;
   buyer_name?: string | null;
-  product_titles?: string[];
+  product_items?: { title: string; sku: string }[];
 }
 
 export function AdminReturnDialog({ open, onOpenChange }: AdminReturnDialogProps) {

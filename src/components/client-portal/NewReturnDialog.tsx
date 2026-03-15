@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { useRegisterReturn, useLinkReturn, REASON_LABELS } from "@/hooks/useClientReturns";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, CheckCircle, AlertTriangle, Upload, X, ImageIcon } from "lucide-react";
+import { Loader2, CheckCircle, AlertTriangle, Upload, X, ImageIcon, Package, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -34,6 +34,9 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
   const [email, setEmail] = useState(user?.email || "");
   const [orderId, setOrderId] = useState("");
   const [trackingReturn, setTrackingReturn] = useState("");
+  const [trackingOriginal, setTrackingOriginal] = useState<string | null>(null);
+  const [loadingTracking, setLoadingTracking] = useState(false);
+  const [trackingSearched, setTrackingSearched] = useState(false);
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
   const [protocol, setProtocol] = useState("");
@@ -47,12 +50,36 @@ export function NewReturnDialog({ open, onOpenChange }: NewReturnDialogProps) {
     setEmail(user?.email || "");
     setOrderId("");
     setTrackingReturn("");
+    setTrackingOriginal(null);
+    setLoadingTracking(false);
+    setTrackingSearched(false);
     setReason("");
     setDescription("");
     setProtocol("");
     setDuplicateReturnId("");
     setPhotos([]);
   };
+
+  const lookupTracking = useCallback(async (emailVal: string, orderVal: string) => {
+    if (!emailVal.trim() || !orderVal.trim()) return;
+    setLoadingTracking(true);
+    setTrackingSearched(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('lookup-order-tracking', {
+        body: { email: emailVal.trim(), external_order_id: orderVal.trim() },
+      });
+      if (!error && data?.tracking_code_original) {
+        setTrackingOriginal(data.tracking_code_original);
+      } else {
+        setTrackingOriginal(null);
+      }
+    } catch {
+      setTrackingOriginal(null);
+    } finally {
+      setLoadingTracking(false);
+      setTrackingSearched(true);
+    }
+  }, []);
 
   const handleOpenChange = (open: boolean) => {
     if (!open) resetForm();

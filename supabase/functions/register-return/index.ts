@@ -22,6 +22,7 @@ serve(async (req) => {
     const tracking_code_return = typeof body.tracking_code_return === 'string' ? body.tracking_code_return.trim().slice(0, 100) : null;
     const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
     const description = typeof body.description === 'string' ? body.description.trim().slice(0, 2000) : null;
+    const photos = Array.isArray(body.photos) ? body.photos.filter((p: unknown) => typeof p === 'string' && p.startsWith('http')).slice(0, 5) : [];
 
     if (!email || !external_order_id || !reason) {
       return new Response(JSON.stringify({ error: 'Campos obrigatórios: email, external_order_id, reason' }), {

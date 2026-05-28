@@ -46,10 +46,12 @@ export default function SuperAdminPage() {
         .from("super_admins").select("id").eq("email", user.email).single() as { data: { id: string } | null; error: unknown };
       if (!sa) { window.location.href = "/admin/login"; return; }
 
-      // Buscar dados via API (service role)
-      const res = await fetch("/api/admin/data", { cache: "no-store" });
-      if (!res.ok) { setLoading(false); return; }
-      const { tenants: data } = await res.json();
+      // Buscar dados diretamente (authenticated tem GRANT SELECT na view)
+      const { data, error } = await supabase
+        .from("admin_tenant_overview")
+        .select("*")
+        .order("created_at", { ascending: false }) as { data: TenantOverview[] | null; error: unknown };
+      if (error) console.error("admin_tenant_overview error:", error);
       const list: TenantOverview[] = data ?? [];
       setTenants(list);
       setStats({

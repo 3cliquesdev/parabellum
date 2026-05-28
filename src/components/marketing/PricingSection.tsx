@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
-import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const plans = [
@@ -8,13 +6,7 @@ const plans = [
     name: "Starter",
     price: "97",
     description: "Para freelancers e pequenos times",
-    features: [
-      "1 workspace",
-      "Até 500 leads",
-      "Pipeline visual",
-      "Gestão de atividades",
-      "Suporte por e-mail",
-    ],
+    features: ["1 workspace", "Até 500 leads", "Pipeline visual", "Gestão de atividades", "Suporte por e-mail"],
     cta: "Começar grátis",
     featured: false,
   },
@@ -22,29 +14,15 @@ const plans = [
     name: "Pro",
     price: "197",
     description: "Para agências em crescimento",
-    features: [
-      "3 workspaces",
-      "Leads ilimitados",
-      "Inbox com IA",
-      "Analytics avançado",
-      "Integrações (WhatsApp, Meta)",
-      "Suporte prioritário",
-    ],
+    features: ["3 workspaces", "Leads ilimitados", "Inbox com IA", "Analytics avançado", "Integrações WhatsApp e Meta", "Suporte prioritário"],
     cta: "Assinar Pro",
     featured: true,
   },
   {
     name: "Agency",
     price: "397",
-    description: "Para agências que gerenciam múltiplos clientes",
-    features: [
-      "Workspaces ilimitados",
-      "Leads ilimitados",
-      "White-label",
-      "API access",
-      "Onboarding dedicado",
-      "Suporte via WhatsApp",
-    ],
+    description: "Para agências com múltiplos clientes",
+    features: ["Workspaces ilimitados", "Leads ilimitados", "White-label", "Acesso à API", "Onboarding dedicado", "Suporte via WhatsApp"],
     cta: "Falar com vendas",
     featured: false,
   },
@@ -52,66 +30,81 @@ const plans = [
 
 export function PricingSection() {
   return (
-    <section id="pricing" className="py-24 px-4">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            Planos simples e transparentes
+    <section id="planos" className="py-32 px-6" style={{ background: "#000000" }}>
+      <div className="max-w-[1000px] mx-auto">
+
+        <div className="mb-20">
+          <p className="section-label mb-4">Planos</p>
+          <h2 className="text-[42px] md:text-[52px] font-extrabold text-white leading-[1.05] tracking-[-0.03em]"
+            style={{ fontFamily: "var(--font-sans)" }}>
+            Simples e{" "}
+            <span className="font-serif italic font-normal" style={{ color: "#f9f6ec" }}>
+              transparente
+            </span>
           </h2>
-          <p className="text-white/50">Cancele quando quiser. Sem taxas escondidas.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {plans.map((plan) => (
-            <div
-              key={plan.name}
-              className={cn(
-                "rounded-2xl p-6 flex flex-col relative",
-                plan.featured
-                  ? "bg-blue-500/10 border border-blue-500/30 glow-blue"
-                  : "glass"
-              )}
-            >
+            <div key={plan.name}
+              className="flex flex-col p-8 rounded-[28px] relative"
+              style={plan.featured ? {
+                background: "rgba(154,234,98,0.05)",
+                border: "1px solid rgba(154,234,98,0.2)",
+              } : {
+                background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
+                border: "1px solid rgba(255,255,255,0.07)",
+              }}>
+
               {plan.featured && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-blue-500 rounded-full text-xs font-medium text-white">
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold"
+                  style={{ background: "#9aea62", color: "#0a0a0a" }}>
                   Mais popular
                 </div>
               )}
 
-              <div className="mb-6">
-                <h3 className="font-semibold text-white mb-1">{plan.name}</h3>
-                <p className="text-xs text-white/40 mb-4">{plan.description}</p>
+              <div className="mb-8">
+                <p className="text-xs font-bold mb-1" style={{ color: "#939da4", letterSpacing: "0.05em" }}>
+                  {plan.name.toUpperCase()}
+                </p>
+                <p className="text-sm mb-5" style={{ color: "#939da4" }}>{plan.description}</p>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-xs text-white/40">R$</span>
-                  <span className="text-3xl font-bold text-white">{plan.price}</span>
-                  <span className="text-xs text-white/40">/mês</span>
+                  <span className="text-sm" style={{ color: "#939da4" }}>R$</span>
+                  <span className="text-4xl font-extrabold text-white tracking-[-0.03em]">{plan.price}</span>
+                  <span className="text-sm" style={{ color: "#939da4" }}>/mês</span>
                 </div>
               </div>
 
-              <ul className="space-y-2.5 flex-1 mb-6">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2.5 text-sm text-white/70">
-                    <Check className="w-4 h-4 text-blue-400 shrink-0" />
-                    {feature}
+              <ul className="flex-1 space-y-3 mb-8">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-center gap-3 text-sm" style={{ color: "#f9f6ec" }}>
+                    <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: "rgba(154,234,98,0.15)" }}>
+                      <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                        <path d="M1 3L3 5L7 1" stroke="#9aea62" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                    {f}
                   </li>
                 ))}
               </ul>
 
-              <Link
-                href="/signup"
+              <Link href="/signup"
                 className={cn(
-                  buttonVariants(),
-                  "w-full rounded-xl h-10 text-sm font-medium justify-center",
+                  "inline-flex items-center justify-center px-6 py-3 rounded-[500px] text-sm font-bold transition-all duration-150",
                   plan.featured
-                    ? "bg-blue-500 hover:bg-blue-400 text-white"
-                    : "bg-white/8 hover:bg-white/12 text-white"
-                )}
-              >
+                    ? "btn-lime"
+                    : "btn-ghost-pill text-white"
+                )}>
                 {plan.cta}
               </Link>
             </div>
           ))}
         </div>
+
+        <p className="text-center text-sm mt-8" style={{ color: "#939da4" }}>
+          Cancele quando quiser. Sem taxas escondidas.
+        </p>
       </div>
     </section>
   );

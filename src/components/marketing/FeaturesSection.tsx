@@ -1,59 +1,56 @@
-import { Kanban, Users, CheckSquare, MessageSquare, BarChart2, Shield } from "lucide-react";
-
 const features = [
   {
-    icon: Kanban,
-    title: "Pipeline Visual",
-    description: "Arraste e solte leads pelo funil. 7 etapas configuráveis com valor estimado em cada negócio.",
+    title: "Pipeline visual",
+    description: "Kanban com 7 etapas configuráveis. Arraste leads pelo funil e acompanhe o valor de cada negócio em tempo real.",
   },
   {
-    icon: Users,
-    title: "Gestão de Leads",
-    description: "Cadastro completo com histórico, notas, UTM tracking e exportação para CSV.",
+    title: "Gestão de leads",
+    description: "Cadastro completo com histórico, notas, rastreamento de UTM e exportação para CSV com um clique.",
   },
   {
-    icon: CheckSquare,
-    title: "Atividades & Tarefas",
-    description: "Ligações, WhatsApp, e-mails e reuniões. Acompanhe prazos e nunca perca um follow-up.",
+    title: "Atividades e tarefas",
+    description: "Ligações, WhatsApp, e-mails e reuniões. Prazos com alertas para que nenhum follow-up seja esquecido.",
   },
   {
-    icon: MessageSquare,
     title: "Inbox com IA",
-    description: "Chat com respostas automáticas geradas por IA. Ative ou desative a IA por conversa.",
+    description: "Respostas automáticas geradas por inteligência artificial. Ative ou desative a IA por conversa.",
   },
   {
-    icon: BarChart2,
     title: "Analytics",
-    description: "Métricas de pipeline, taxa de conversão, ticket médio e evolução mensal.",
+    description: "Taxa de conversão, ticket médio, evolução mensal e valor total do pipeline em um painel unificado.",
   },
   {
-    icon: Shield,
-    title: "Multi-tenant Seguro",
-    description: "Cada workspace é completamente isolado. Row Level Security no Supabase.",
+    title: "Multi-tenant seguro",
+    description: "Cada workspace é completamente isolado com Row Level Security no Supabase. Dados nunca se misturam.",
   },
 ];
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="py-24 px-4">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            Tudo que você precisa para vender
+    <section id="features" className="py-32 px-6" style={{ background: "#000000" }}>
+      <div className="max-w-[1000px] mx-auto">
+
+        <div className="mb-20">
+          <p className="section-label mb-4">Funcionalidades</p>
+          <h2 className="text-[42px] md:text-[52px] font-extrabold text-white leading-[1.05] tracking-[-0.03em] max-w-[600px]"
+            style={{ fontFamily: "var(--font-sans)" }}>
+            Tudo que você precisa para{" "}
+            <span className="font-serif italic font-normal" style={{ color: "#f9f6ec" }}>
+              vender melhor
+            </span>
           </h2>
-          <p className="text-white/50 max-w-lg mx-auto">
-            Uma plataforma completa para gerenciar leads, pipeline e relacionamento com clientes.
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map(({ icon: Icon, title, description }) => (
-            <div key={title} className="glass glass-hover rounded-2xl p-6 group">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center mb-4 group-hover:bg-blue-500/25 transition-colors">
-                <Icon className="w-5 h-5 text-blue-400" />
+        <div className="features-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px"
+          style={{ background: "rgba(255,255,255,0.06)", borderRadius: "28px", overflow: "hidden" }}>
+          {features.map(({ title, description }) => (
+            <div key={title} className="feature-card p-8">
+              <div className="w-8 h-8 rounded-lg mb-5 flex items-center justify-center"
+                style={{ background: "rgba(154,234,98,0.1)" }}>
+                <div className="w-2 h-2 rounded-full" style={{ background: "#9aea62" }} />
               </div>
-              <h3 className="font-semibold text-white mb-2">{title}</h3>
-              <p className="text-sm text-white/50 leading-relaxed">{description}</p>
+              <h3 className="text-base font-bold text-white mb-2 tracking-[-0.01em]">{title}</h3>
+              <p className="text-sm leading-[1.65]" style={{ color: "#939da4" }}>{description}</p>
             </div>
           ))}
         </div>

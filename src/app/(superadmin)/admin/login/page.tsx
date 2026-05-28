@@ -23,20 +23,24 @@ export default function AdminLoginPage() {
     const password = form.get("password") as string;
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) { setError("Credenciais inválidas."); setLoading(false); return; }
+    if (signInError) { setError("E-mail ou senha incorretos."); setLoading(false); return; }
 
-    // Verificar via API server-side com service role
-    const res = await fetch("/api/admin/check");
-    const { isAdmin } = await res.json();
+    // Verificar diretamente com o mesmo cliente (sem API route — evita timing de cookie)
+    const { data: sa } = await supabase
+      .from("super_admins")
+      .select("id")
+      .eq("email", email)
+      .single() as { data: { id: string } | null; error: unknown };
 
-    if (!isAdmin) {
+    if (!sa) {
       await supabase.auth.signOut();
       setError("Acesso não autorizado para este painel.");
       setLoading(false);
       return;
     }
-    router.push("/admin");
-    router.refresh();
+
+    // Usar window.location para garantir reload completo da sessão
+    window.location.href = "/admin";
   }
 
   return (

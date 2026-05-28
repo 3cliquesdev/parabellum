@@ -36,8 +36,19 @@ export default function SuperAdminPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/data");
-      if (res.status === 401 || res.status === 403) { router.push("/admin/login"); return; }
+      const supabase = createClient();
+
+      // Verificar sessão e autorização
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = "/admin/login"; return; }
+
+      const { data: sa } = await supabase
+        .from("super_admins").select("id").eq("email", user.email).single() as { data: { id: string } | null; error: unknown };
+      if (!sa) { window.location.href = "/admin/login"; return; }
+
+      // Buscar dados via API (service role)
+      const res = await fetch("/api/admin/data", { cache: "no-store" });
+      if (!res.ok) { setLoading(false); return; }
       const { tenants: data } = await res.json();
       const list: TenantOverview[] = data ?? [];
       setTenants(list);

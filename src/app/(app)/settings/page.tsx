@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useTenant } from "@/hooks/useTenant";
-import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 declare global {
   interface Window {
@@ -252,15 +255,18 @@ export default function SettingsPage() {
               Aguardando autorização no Facebook...
             </div>
             <button onClick={() => setWaStatus("idle")}
-              className="px-4 h-11 rounded-xl text-sm font-medium transition-colors"
+              className="px-4 h-11 rounded-xl text-sm font-medium"
               style={{ background: "rgba(255,255,255,0.05)", color: "#939da4", border: "1px solid rgba(255,255,255,0.08)" }}>
               Cancelar
             </button>
           </div>
         )}
 
+        {/* Modo manual */}
+        {waStatus === "idle" && <ManualWAForm tenantId={tenantId} onConnected={(phone) => { setWaStatus("connected"); setWaPhone(phone); }} />}
+
         <p className="text-xs text-center" style={{ color: "rgba(147,157,164,0.4)" }}>
-          Você será redirecionado para o Facebook para autorizar a conexão
+          O botão acima abre o fluxo oficial Meta. Se não funcionar, use o modo manual abaixo.
         </p>
       </div>
 
@@ -276,6 +282,68 @@ export default function SettingsPage() {
             style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>Trial ativo</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Componente de configuração manual ───
+function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onConnected: (phone: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ phone_number_id: "", access_token: "" });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    if (!tenantId || !form.phone_number_id || !form.access_token) return;
+    setSaving(true);
+    const supabase = createClient();
+    await supabase.from("whatsapp_configs").upsert({
+      tenant_id: tenantId,
+      phone_number_id: form.phone_number_id,
+      access_token: form.access_token,
+      verify_token: "liberty-crm",
+      active: true,
+    }, { onConflict: "tenant_id" });
+    setSaving(false);
+    setSaved(true);
+    onConnected(form.phone_number_id);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium transition-colors"
+        style={{ background: "rgba(255,255,255,0.03)", color: "#939da4" }}>
+        Configurar manualmente (avançado)
+        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+      {open && (
+        <div className="px-4 py-4 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="space-y-1">
+            <Label className="text-xs" style={{ color: "#939da4" }}>Phone Number ID</Label>
+            <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))}
+              placeholder="Ex: 123456789012345" className="h-9 rounded-lg text-sm text-white"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs" style={{ color: "#939da4" }}>Access Token</Label>
+            <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))}
+              placeholder="EAAxxxx..." className="h-9 rounded-lg text-sm text-white"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-xs" style={{ color: "rgba(147,157,164,0.5)" }}>
+              Webhook: <span className="font-mono">/api/webhooks/whatsapp</span> · Token: <span className="font-mono">liberty-crm</span>
+            </p>
+            <button onClick={save} disabled={saving || !form.phone_number_id || !form.access_token}
+              className="px-4 h-8 rounded-lg text-xs font-bold transition-all ml-3 shrink-0"
+              style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Salvando..." : saved ? "Salvo!" : "Salvar"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

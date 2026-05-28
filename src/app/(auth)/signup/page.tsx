@@ -110,11 +110,11 @@ export default function SignupPage() {
       </div>
 
       {/* RIGHT PANEL */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8 py-12"
+      <div className="flex-1 flex flex-col items-center justify-center px-8 py-16 relative"
         style={{ background: "#ffffff" }}>
 
         {/* Mobile logo */}
-        <div className="lg:hidden mb-10">
+        <div className="lg:hidden absolute top-8 left-8">
           <Link href="/" className="inline-flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#9aea62" }}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -215,7 +215,7 @@ export default function SignupPage() {
           </p>
         </div>
 
-        <p className="mt-auto pt-12 text-xs text-center" style={{ color: "#d1d5db" }}>
+        <p className="absolute bottom-8 text-xs text-center" style={{ color: "#d1d5db" }}>
           Acesso restrito · Liberty CRM © 2026
         </p>
       </div>

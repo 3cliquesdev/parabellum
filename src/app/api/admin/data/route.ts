@@ -5,7 +5,6 @@ import { NextResponse } from "next/server";
 export async function GET() {
   const cookieStore = await cookies();
 
-  // Verificar sessão
   const supabase = createServerClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -14,22 +13,19 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Service role — bypassa RLS
   const admin = createServerClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: () => [], setAll: () => {} } }
   );
 
-  // Verificar super admin
   const { data: sa } = await admin.from("super_admins").select("id").eq("email", user.email).single();
   if (!sa) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  // Buscar dados reais
-  const { data: tenants } = await admin
-    .from("admin_tenant_overview")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [{ data: tenants }, { data: waConfigs }] = await Promise.all([
+    admin.from("admin_tenant_overview").select("*").order("created_at", { ascending: false }),
+    admin.from("whatsapp_configs").select("tenant_id, phone_number_id, active, created_at"),
+  ]);
 
-  return NextResponse.json({ tenants: tenants ?? [] });
+  return NextResponse.json({ tenants: tenants ?? [], waConfigs: waConfigs ?? [] });
 }

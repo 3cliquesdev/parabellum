@@ -1,62 +1,151 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTenant } from "@/hooks/useTenant";
-import { createClient } from "@/lib/supabase/client";
-import { CheckCircle, AlertCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+
+declare global {
+  interface Window {
+    FB: any;
+    fbAsyncInit: () => void;
+  }
+}
+
+const META_APP_ID = "1524032985369366";
+
+interface PhoneOption {
+  id: string;
+  display_phone_number: string;
+  verified_name: string;
+}
 
 export default function SettingsPage() {
   const { tenant, tenantId, loading } = useTenant();
-  const [waForm, setWaForm] = useState({ phone_number_id: "", access_token: "" });
-  const [waLoading, setWaLoading] = useState(false);
-  const [waSaved, setWaSaved] = useState(false);
-  const [waExists, setWaExists] = useState(false);
-
-  useEffect(() => {
-    if (!tenantId) return;
-    async function loadWA() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("whatsapp_configs")
-        .select("phone_number_id, access_token")
-        .eq("tenant_id", tenantId!)
-        .single() as { data: { phone_number_id: string; access_token: string } | null; error: unknown };
-      if (data) {
-        setWaForm({ phone_number_id: data.phone_number_id, access_token: data.access_token });
-        setWaExists(true);
-      }
-    }
-    loadWA();
-  }, [tenantId]);
-
-  async function saveWA() {
-    if (!tenantId || !waForm.phone_number_id || !waForm.access_token) return;
-    setWaLoading(true);
-    const supabase = createClient();
-    if (waExists) {
-      await supabase.from("whatsapp_configs")
-        .update({ phone_number_id: waForm.phone_number_id, access_token: waForm.access_token })
-        .eq("tenant_id", tenantId);
-    } else {
-      await supabase.from("whatsapp_configs").insert({
-        tenant_id: tenantId,
-        phone_number_id: waForm.phone_number_id,
-        access_token: waForm.access_token,
-        verify_token: "liberty-crm",
-      });
-      setWaExists(true);
-    }
-    setWaLoading(false);
-    setWaSaved(true);
-    setTimeout(() => setWaSaved(false), 3000);
-  }
+  const [waStatus, setWaStatus] = useState<"idle" | "connecting" | "select" | "connected">("idle");
+  const [waPhone, setWaPhone] = useState<string>("");
+  const [waName, setWaName] = useState<string>("");
+  const [phoneOptions, setPhoneOptions] = useState<PhoneOption[]>([]);
+  const [pendingToken, setPendingToken] = useState<string>("");
+  const [pendingWabaId, setPendingWabaId] = useState<string>("");
 
   const cardStyle = {
     background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
     border: "1px solid rgba(255,255,255,0.07)",
   };
+
+  // Carregar Facebook SDK
+  useEffect(() => {
+    if (document.getElementById("facebook-jssdk")) return;
+    window.fbAsyncInit = function () {
+      window.FB.init({ appId: META_APP_ID, cookie: true, xfbml: true, version: "v20.0" });
+    };
+    const script = document.createElement("script");
+    script.id = "facebook-jssdk";
+    script.src = "https://connect.facebook.net/pt_BR/sdk.js";
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+  }, []);
+
+  // Checar se já tem WA configurado
+  useEffect(() => {
+    if (!tenantId) return;
+    async function check() {
+      const res = await fetch(`/api/whatsapp/status?tenant_id=${tenantId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.connected) {
+          setWaStatus("connected");
+          setWaPhone(data.phone_number ?? "");
+          setWaName(data.verified_name ?? "");
+        }
+      }
+    }
+    check();
+  }, [tenantId]);
+
+  const handleConnect = useCallback(() => {
+    if (!window.FB) { alert("Facebook SDK carregando, tente novamente."); return; }
+    setWaStatus("connecting");
+
+    window.FB.login(async (response: any) => {
+      if (!response.authResponse?.code) {
+        setWaStatus("idle");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/whatsapp/embedded-signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: response.authResponse.code, tenant_id: tenantId }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.error ?? "Erro ao conectar. Tente novamente.");
+          setWaStatus("idle");
+          return;
+        }
+
+        if (data.status === "connected") {
+          setWaStatus("connected");
+          setWaPhone(data.phone_number ?? "");
+          setWaName(data.verified_name ?? "");
+        } else if (data.status === "select_phone") {
+          setPhoneOptions(data.phones);
+          setPendingToken(data.access_token);
+          setPendingWabaId(data.waba_id);
+          setWaStatus("select");
+        }
+      } catch {
+        alert("Erro de conexão. Tente novamente.");
+        setWaStatus("idle");
+      }
+    }, {
+      config_id: META_APP_ID,
+      response_type: "code",
+      override_default_response_type: true,
+      scope: "whatsapp_business_management,whatsapp_business_messaging,business_management",
+      extras: { sessionInfoVersion: "3" },
+    });
+  }, [tenantId]);
+
+  async function selectPhone(phone: PhoneOption) {
+    setWaStatus("connecting");
+    const res = await fetch("/api/whatsapp/embedded-signup", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        phone_number_id: phone.id,
+        access_token: pendingToken,
+        waba_id: pendingWabaId,
+      }),
+    });
+    if (res.ok) {
+      setWaStatus("connected");
+      setWaPhone(phone.display_phone_number);
+      setWaName(phone.verified_name);
+    } else {
+      setWaStatus("idle");
+    }
+  }
+
+  async function disconnect() {
+    if (!confirm("Tem certeza que deseja desconectar o WhatsApp?")) return;
+    const res = await fetch("/api/whatsapp/embedded-signup", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId }),
+    });
+    if (res.ok) {
+      setWaStatus("idle");
+      setWaPhone("");
+      setWaName("");
+    }
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -87,60 +176,77 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {/* WhatsApp */}
+      {/* WhatsApp — Embedded Signup */}
       <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-white">WhatsApp Business</h2>
             <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>
-              Conecte seu número para receber e enviar mensagens
+              Conecte seu número para receber e enviar mensagens com IA
             </p>
           </div>
           <div className="flex items-center gap-1.5">
-            {waExists
+            {waStatus === "connected"
               ? <><CheckCircle className="w-4 h-4" style={{ color: "#9aea62" }} /><span className="text-xs font-bold" style={{ color: "#9aea62" }}>Conectado</span></>
-              : <><AlertCircle className="w-4 h-4" style={{ color: "#939da4" }} /><span className="text-xs" style={{ color: "#939da4" }}>Não configurado</span></>}
+              : <><AlertCircle className="w-4 h-4" style={{ color: "#939da4" }} /><span className="text-xs" style={{ color: "#939da4" }}>Não conectado</span></>}
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Phone Number ID</Label>
-            <Input
-              value={waForm.phone_number_id}
-              onChange={e => setWaForm(f => ({ ...f, phone_number_id: e.target.value }))}
-              placeholder="Ex: 123456789012345"
-              className="h-10 rounded-xl text-sm text-white"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Access Token</Label>
-            <Input
-              type="password"
-              value={waForm.access_token}
-              onChange={e => setWaForm(f => ({ ...f, access_token: e.target.value }))}
-              placeholder="EAAxxxx..."
-              className="h-10 rounded-xl text-sm text-white"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-            />
-          </div>
-
-          <div className="pt-2 flex items-center justify-between">
-            <div className="text-xs" style={{ color: "rgba(147,157,164,0.5)" }}>
-              Webhook URL: <span className="font-mono" style={{ color: "#939da4" }}>
-                {typeof window !== "undefined" ? window.location.origin : ""}/api/webhooks/whatsapp
-              </span>
-              <br />
-              Verify Token: <span className="font-mono" style={{ color: "#939da4" }}>liberty-crm</span>
+        {/* Conectado */}
+        {waStatus === "connected" && (
+          <div className="rounded-xl p-4 flex items-center justify-between"
+            style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+            <div>
+              <p className="text-sm font-bold text-white">{waName || "WhatsApp conectado"}</p>
+              <p className="text-xs mt-0.5" style={{ color: "#9aea62" }}>{waPhone}</p>
             </div>
-            <button onClick={saveWA} disabled={waLoading || !waForm.phone_number_id || !waForm.access_token}
-              className="px-5 h-9 rounded-xl text-sm font-bold transition-all ml-4 shrink-0"
-              style={{ background: waSaved ? "rgba(154,234,98,0.1)" : "#9aea62", color: waSaved ? "#9aea62" : "#0a0a0a", opacity: waLoading ? 0.6 : 1 }}>
-              {waLoading ? "Salvando..." : waSaved ? "Salvo!" : "Salvar"}
+            <button onClick={disconnect} className="text-xs px-3 py-1.5 rounded-xl transition-colors"
+              style={{ color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.15)" }}>
+              Desconectar
             </button>
           </div>
-        </div>
+        )}
+
+        {/* Seleção de número */}
+        {waStatus === "select" && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium" style={{ color: "#939da4" }}>Selecione o número para conectar:</p>
+            {phoneOptions.map(phone => (
+              <button key={phone.id} onClick={() => selectPhone(phone)}
+                className="w-full flex items-center justify-between p-4 rounded-xl transition-colors text-left"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(154,234,98,0.3)")}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}>
+                <div>
+                  <p className="text-sm font-semibold text-white">{phone.verified_name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{phone.display_phone_number}</p>
+                </div>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                  style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>Selecionar</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Botão conectar */}
+        {(waStatus === "idle" || waStatus === "connecting") && (
+          <button onClick={handleConnect} disabled={waStatus === "connecting"}
+            className="w-full h-11 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+            style={{ background: "#1877f2", color: "#ffffff", opacity: waStatus === "connecting" ? 0.7 : 1 }}>
+            {waStatus === "connecting"
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Conectando...</>
+              : <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  Conectar WhatsApp Business
+                </>}
+          </button>
+        )}
+
+        <p className="text-xs text-center" style={{ color: "rgba(147,157,164,0.4)" }}>
+          Você será redirecionado para o Facebook para autorizar a conexão
+        </p>
       </div>
 
       {/* Plano */}

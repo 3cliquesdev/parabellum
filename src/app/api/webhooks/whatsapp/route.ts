@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { GoogleAuth } from "google-auth-library";
 
 const AI_LIMITS: Record<string, number> = {
   Starter: 200,
@@ -7,12 +8,42 @@ const AI_LIMITS: Record<string, number> = {
   Agency: Infinity,
 };
 
+const VERTEX_PROJECT = "adsliberty";
+const VERTEX_LOCATION = "us-central1";
+const VERTEX_MODEL = "gemini-2.0-flash";
+
 function adminClient() {
   return createServerClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: () => [], setAll: () => {} } }
   );
+}
+
+async function getVertexToken(): Promise<string> {
+  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON!);
+  const auth = new GoogleAuth({
+    credentials,
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  });
+  const client = await auth.getClient();
+  const tokenResponse = await client.getAccessToken();
+  return tokenResponse.token!;
+}
+
+async function callGeminiVertex(token: string, contents: any[]): Promise<string> {
+  const url = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_LOCATION}/publishers/google/models/${VERTEX_MODEL}:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 300 } }),
+  });
+  if (!res.ok) {
+    console.error("Vertex AI error:", await res.text());
+    return "";
+  }
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
 // ─── GET: verificação do webhook pela Meta ───
@@ -83,79 +114,52 @@ export async function POST(request: NextRequest) {
       await supabase.from("mensagens").insert({ conversa_id: conversa.id, tenant_id: tenantId, remetente: "lead", conteudo: text, wa_message_id: waMessageId, enviada: true });
       await supabase.from("conversas").update({ updated_at: new Date().toISOString() }).eq("id", conversa.id);
 
-      // IA com Gemini — verificar limite do plano
-      if (conversa.ia_ativa && process.env.GEMINI_API_KEY) {
+      // IA com Vertex AI (Gemini) — verificar limite
+      if (conversa.ia_ativa && process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
         try {
-          const yearMonth = new Date().toISOString().slice(0, 7); // "2026-05"
+          const yearMonth = new Date().toISOString().slice(0, 7);
 
-          // Buscar plano do tenant
           const { data: tenantData } = await supabase
-            .from("tenants")
-            .select("plans(name)")
-            .eq("id", tenantId)
-            .single() as { data: { plans: { name: string } } | null; error: unknown };
-
-          const planName = (tenantData as any)?.plans?.name ?? "Starter";
+            .from("tenants").select("plans(name)").eq("id", tenantId).single() as { data: any; error: unknown };
+          const planName = tenantData?.plans?.name ?? "Starter";
           const limit = AI_LIMITS[planName] ?? 200;
 
-          // Verificar uso atual
           const { data: usage } = await supabase
-            .from("ai_usage")
-            .select("count")
-            .eq("tenant_id", tenantId)
-            .eq("year_month", yearMonth)
-            .single() as { data: { count: number } | null; error: unknown };
-
+            .from("ai_usage").select("count").eq("tenant_id", tenantId).eq("year_month", yearMonth).single() as { data: { count: number } | null; error: unknown };
           const currentCount = usage?.count ?? 0;
+
           if (currentCount >= limit) {
-            console.log(`Tenant ${tenantId} atingiu limite de IA: ${currentCount}/${limit}`);
+            console.log(`Tenant ${tenantId} atingiu limite IA: ${currentCount}/${limit}`);
             continue;
           }
 
-          // Buscar histórico para contexto
+          // Buscar histórico
           const { data: history } = await supabase
-            .from("mensagens")
-            .select("remetente, conteudo")
-            .eq("conversa_id", conversa.id)
-            .order("created_at", { ascending: true })
-            .limit(10);
+            .from("mensagens").select("remetente, conteudo").eq("conversa_id", conversa.id).order("created_at", { ascending: true }).limit(10);
 
-          const geminiContents = [
-            {
-              role: "user",
-              parts: [{ text: `Você é um assistente de vendas. Responda de forma breve, simpática e profissional em português. Lead: ${lead.nome}.` }]
-            },
+          const contents = [
+            { role: "user", parts: [{ text: `Você é um assistente de vendas. Responda de forma breve, simpática e profissional em português. Lead: ${lead.nome}.` }] },
             ...(history ?? []).map((m: any) => ({
               role: m.remetente === "lead" ? "user" : "model",
-              parts: [{ text: m.conteudo }]
-            }))
+              parts: [{ text: m.conteudo }],
+            })),
           ];
 
-          const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contents: geminiContents, generationConfig: { maxOutputTokens: 300 } }),
-            }
-          );
-
-          const geminiData = await geminiRes.json();
-          const aiReply: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+          const vertexToken = await getVertexToken();
+          const aiReply = await callGeminiVertex(vertexToken, contents);
 
           if (aiReply) {
             await supabase.from("mensagens").insert({ conversa_id: conversa.id, tenant_id: tenantId, remetente: "ia", conteudo: aiReply, enviada: false });
             await sendWhatsAppMessage(waConfig.access_token, phoneNumberId, fromNumber, aiReply);
             await supabase.from("mensagens").update({ enviada: true }).eq("conversa_id", conversa.id).eq("remetente", "ia").eq("enviada", false);
 
-            // Incrementar contador de uso
             await supabase.from("ai_usage").upsert(
               { tenant_id: tenantId, year_month: yearMonth, count: currentCount + 1, updated_at: new Date().toISOString() },
               { onConflict: "tenant_id,year_month" }
             );
           }
         } catch (aiErr) {
-          console.error("Gemini error:", aiErr);
+          console.error("Vertex AI error:", aiErr);
         }
       }
     }

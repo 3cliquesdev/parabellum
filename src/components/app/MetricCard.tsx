@@ -1,5 +1,4 @@
 import { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface MetricCardProps {
   icon: LucideIcon;
@@ -11,24 +10,32 @@ interface MetricCardProps {
 
 export function MetricCard({ icon: Icon, label, value, change, positive }: MetricCardProps) {
   return (
-    <div className="glass glass-hover rounded-2xl p-5">
-      <div className="flex items-start justify-between mb-4">
-        <div className="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center">
-          <Icon className="w-5 h-5 text-blue-400" />
+    <div className="rounded-2xl p-6 flex flex-col gap-4 transition-all duration-150"
+      style={{
+        background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
+        border: "1px solid rgba(255,255,255,0.07)",
+        boxShadow: "inset 0px 0px 2px 0px rgba(234,234,234,0.05)",
+      }}>
+      <div className="flex items-start justify-between">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+          style={{ background: "rgba(154,234,98,0.08)", border: "1px solid rgba(154,234,98,0.12)" }}>
+          <Icon className="w-4 h-4" style={{ color: "#9aea62" }} />
         </div>
-        <span
-          className={cn(
-            "text-xs font-medium px-2 py-0.5 rounded-full",
-            positive
-              ? "text-green-400 bg-green-400/10"
-              : "text-red-400 bg-red-400/10"
-          )}
-        >
+        <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+          style={positive ? {
+            color: "#9aea62",
+            background: "rgba(154,234,98,0.1)",
+          } : {
+            color: "#f87171",
+            background: "rgba(248,113,113,0.1)",
+          }}>
           {change}
         </span>
       </div>
-      <p className="text-2xl font-semibold text-white">{value}</p>
-      <p className="text-sm text-white/50 mt-0.5">{label}</p>
+      <div>
+        <p className="text-[22px] font-extrabold text-white tracking-[-0.02em]">{value}</p>
+        <p className="text-xs mt-0.5 font-medium" style={{ color: "#939da4" }}>{label}</p>
+      </div>
     </div>
   );
 }

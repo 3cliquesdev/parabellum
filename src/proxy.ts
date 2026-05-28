@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED = ["/dashboard", "/pipeline", "/contacts", "/activities", "/inbox", "/settings"];
 const AUTH_ROUTES = ["/login", "/signup"];
+const ADMIN_PROTECTED = ["/admin"];
+const ADMIN_LOGIN = "/admin/login";
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -29,13 +31,21 @@ export async function proxy(request: NextRequest) {
 
   const isProtected = PROTECTED.some((p) => pathname.startsWith(p));
   const isAuthRoute = AUTH_ROUTES.some((p) => pathname.startsWith(p));
+  const isAdminRoute = ADMIN_PROTECTED.some((p) => pathname.startsWith(p)) && pathname !== ADMIN_LOGIN;
 
+  // Rotas do CRM — redireciona para login se não autenticado
   if (isProtected && !user) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
+  // Rotas de auth — redireciona para dashboard se já logado
   if (isAuthRoute && user) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // Rotas admin — redireciona para admin/login se não autenticado
+  if (isAdminRoute && !user) {
+    return NextResponse.redirect(new URL(ADMIN_LOGIN, request.url));
   }
 
   return supabaseResponse;

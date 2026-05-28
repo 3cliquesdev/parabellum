@@ -1,7 +1,72 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { TrendingUp, Users, Activity, DollarSign, RefreshCw } from "lucide-react";
 import { MetricCard } from "@/components/app/MetricCard";
-import { TrendingUp, Users, Activity, DollarSign } from "lucide-react";
+import { useTenant } from "@/hooks/useTenant";
+import { createClient } from "@/lib/supabase/client";
+import type { Lead } from "@/types/database";
+import Link from "next/link";
+
+const PIPELINE_STAGES = [
+  { id: "novo", label: "Novo", color: "rgba(255,255,255,0.2)" },
+  { id: "em_contato", label: "Em Contato", color: "#60a5fa" },
+  { id: "proposta", label: "Proposta", color: "#fb923c" },
+  { id: "negociacao", label: "Negociação", color: "#facc15" },
+  { id: "ganho", label: "Ganho", color: "#9aea62" },
+];
+
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "agora";
+  if (m < 60) return `${m}m atrás`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h atrás`;
+  return `${Math.floor(h / 24)}d atrás`;
+}
 
 export default function DashboardPage() {
+  const { tenantId, loading: tenantLoading } = useTenant();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function fetchData() {
+    if (!tenantId) return;
+    setLoading(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("leads")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false });
+    setLeads((data as Lead[]) ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    if (!tenantLoading && tenantId) fetchData();
+    if (!tenantLoading && !tenantId) setLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, tenantLoading]);
+
+  const activeLeads = leads.filter(l => l.status !== "perdido");
+  const wonLeads = leads.filter(l => l.status === "ganho");
+  const pipelineValue = activeLeads.reduce((s, l) => s + Number(l.valor_estimado ?? 0), 0);
+  const wonValue = wonLeads.reduce((s, l) => s + Number(l.valor_estimado ?? 0), 0);
+  const recentLeads = [...leads].slice(0, 5);
+
+  const now = new Date();
+  const monthLabel = now.toLocaleString("pt-BR", { month: "long" }) + " " + now.getFullYear();
+
+  if (tenantLoading || loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 space-y-8" style={{ fontFamily: "var(--font-sans)" }}>
 
@@ -9,100 +74,94 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Visão Geral</h1>
-          <p className="text-sm mt-1 font-medium" style={{ color: "#939da4" }}>
-            Maio 2026 — todos os workspaces
-          </p>
+          <p className="text-sm mt-1 font-medium capitalize" style={{ color: "#939da4" }}>{monthLabel}</p>
         </div>
-        <div className="px-3 py-1.5 rounded-full text-xs font-bold"
-          style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
-          Trial — 28 dias restantes
-        </div>
+        <button onClick={fetchData}
+          className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "#939da4" }}>
+          <RefreshCw className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Metrics */}
+      {/* Metrics reais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <MetricCard icon={Users} label="Leads ativos" value="248" change="+12%" positive />
-        <MetricCard icon={TrendingUp} label="Pipeline" value="R$ 84.500" change="+8%" positive />
-        <MetricCard icon={Activity} label="Atividades hoje" value="17" change="-3" positive={false} />
-        <MetricCard icon={DollarSign} label="Fechados no mês" value="R$ 22.000" change="+31%" positive />
+        <MetricCard icon={Users} label="Leads ativos" value={String(activeLeads.length)} change="" positive />
+        <MetricCard icon={TrendingUp} label="Valor do pipeline" value={pipelineValue > 0 ? `R$ ${pipelineValue.toLocaleString("pt-BR")}` : "R$ 0"} change="" positive />
+        <MetricCard icon={Activity} label="Total de leads" value={String(leads.length)} change="" positive />
+        <MetricCard icon={DollarSign} label="Ganhos" value={wonValue > 0 ? `R$ ${wonValue.toLocaleString("pt-BR")}` : "R$ 0"} change="" positive />
       </div>
 
-      {/* Bottom grid */}
+      {/* Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Recent activity */}
+        {/* Leads recentes */}
         <div className="lg:col-span-2 rounded-2xl p-6"
-          style={{
-            background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
-            border: "1px solid rgba(255,255,255,0.07)",
-          }}>
+          style={{ background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-sm font-bold text-white">Atividade recente</h2>
-            <span className="text-xs font-medium" style={{ color: "#9aea62" }}>Ver tudo</span>
+            <h2 className="text-sm font-bold text-white">Leads recentes</h2>
+            <Link href="/pipeline" className="text-xs font-medium" style={{ color: "#9aea62" }}>Ver pipeline</Link>
           </div>
-          <div className="space-y-1">
-            {[
-              { action: "Novo lead adicionado", name: "Maria Silva", time: "2m atrás", type: "lead" },
-              { action: "Proposta enviada", name: "João Mendes", time: "18m atrás", type: "deal" },
-              { action: "Ligação concluída", name: "Ana Costa", time: "1h atrás", type: "call" },
-              { action: "Lead qualificado", name: "Pedro Alves", time: "2h atrás", type: "lead" },
-              { action: "Negócio fechado", name: "Carla Duarte", time: "3h atrás", type: "win" },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3 py-3 rounded-xl px-3 transition-colors"
-                style={{ borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                  style={{
-                    background: item.type === "win"
-                      ? "rgba(154,234,98,0.12)"
-                      : "rgba(255,255,255,0.06)",
-                  }}>
-                  <div className="w-2 h-2 rounded-full"
-                    style={{ background: item.type === "win" ? "#9aea62" : "rgba(255,255,255,0.3)" }} />
+          {recentLeads.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm" style={{ color: "#939da4" }}>Nenhum lead ainda.</p>
+              <Link href="/pipeline" className="text-xs mt-2 inline-block" style={{ color: "#9aea62" }}>Adicionar primeiro lead</Link>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {recentLeads.map((lead, i) => (
+                <div key={lead.id} className="flex items-center gap-3 py-3 px-3 rounded-xl"
+                  style={{ borderBottom: i < recentLeads.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
+                    style={{ background: lead.status === "ganho" ? "rgba(154,234,98,0.15)" : "rgba(255,255,255,0.06)", color: lead.status === "ganho" ? "#9aea62" : "rgba(255,255,255,0.5)" }}>
+                    {lead.nome.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{lead.nome}</p>
+                    <p className="text-xs truncate" style={{ color: "#939da4" }}>{lead.servico_interesse ?? lead.status}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {lead.valor_estimado && (
+                      <p className="text-xs font-bold" style={{ color: "#9aea62" }}>R$ {Number(lead.valor_estimado).toLocaleString("pt-BR")}</p>
+                    )}
+                    <p className="text-xs" style={{ color: "rgba(147,157,164,0.5)" }}>{timeAgo(lead.created_at)}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{item.action}</p>
-                  <p className="text-xs" style={{ color: "#939da4" }}>{item.name}</p>
-                </div>
-                <span className="text-xs shrink-0" style={{ color: "rgba(147,157,164,0.5)" }}>{item.time}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Pipeline resumo */}
+        {/* Pipeline por etapa */}
         <div className="rounded-2xl p-6"
-          style={{
-            background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
-            border: "1px solid rgba(255,255,255,0.07)",
-          }}>
+          style={{ background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-bold text-white">Pipeline</h2>
-            <span className="text-xs font-medium" style={{ color: "#9aea62" }}>Detalhes</span>
+            <Link href="/pipeline" className="text-xs font-medium" style={{ color: "#9aea62" }}>Detalhes</Link>
           </div>
           <div className="space-y-3">
-            {[
-              { label: "Novo", count: 12, pct: 85, color: "rgba(255,255,255,0.15)" },
-              { label: "Em Contato", count: 8, pct: 60, color: "#9aea62" },
-              { label: "Proposta", count: 5, pct: 40, color: "#9aea62" },
-              { label: "Negociação", count: 3, pct: 25, color: "#9aea62" },
-              { label: "Ganho", count: 2, pct: 15, color: "#9aea62" },
-            ].map((stage) => (
-              <div key={stage.label}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-medium" style={{ color: "#939da4" }}>{stage.label}</span>
-                  <span className="text-xs font-bold text-white">{stage.count}</span>
+            {PIPELINE_STAGES.map((stage) => {
+              const count = leads.filter(l => l.status === stage.id).length;
+              const maxCount = Math.max(...PIPELINE_STAGES.map(s => leads.filter(l => l.status === s.id).length), 1);
+              const pct = Math.round((count / maxCount) * 100);
+              return (
+                <div key={stage.id}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium" style={{ color: "#939da4" }}>{stage.label}</span>
+                    <span className="text-xs font-bold text-white">{count}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full w-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: count === 0 ? "0%" : `${Math.max(pct, 4)}%`, background: stage.color }} />
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-full w-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-                  <div className="h-full rounded-full transition-all"
-                    style={{ width: `${stage.pct}%`, background: stage.color }} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-
           <div className="mt-6 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="text-xs mb-1" style={{ color: "#939da4" }}>Valor total do pipeline</p>
-            <p className="text-lg font-extrabold text-white tracking-[-0.02em]">R$ 84.500</p>
+            <p className="text-lg font-extrabold text-white tracking-[-0.02em]">
+              {pipelineValue > 0 ? `R$ ${pipelineValue.toLocaleString("pt-BR")}` : "R$ 0"}
+            </p>
           </div>
         </div>
       </div>

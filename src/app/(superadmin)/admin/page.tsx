@@ -36,12 +36,14 @@ export default function SuperAdminPage() {
       const { data: sa } = await supabase.from("super_admins").select("id").eq("email", user.email).single() as { data: { id: string } | null; error: unknown };
       if (!sa) { window.location.href = "/admin/login"; return; }
 
-      const res = await fetch("/api/admin/data", { cache: "no-store" });
-      if (!res.ok) return;
-      const { tenants: data, waConfigs: wa } = await res.json();
-      const list: TenantOverview[] = data ?? [];
+      // Buscar direto via client (GRANT SELECT já concedido)
+      const [{ data: tenantData }, { data: waData }] = await Promise.all([
+        supabase.from("admin_tenant_overview").select("*").order("created_at", { ascending: false }),
+        supabase.from("whatsapp_configs").select("tenant_id, phone_number_id, active, created_at"),
+      ]);
+      const list: TenantOverview[] = (tenantData as TenantOverview[]) ?? [];
       setTenants(list);
-      setWaConfigs(wa ?? []);
+      setWaConfigs((waData as WaConfig[]) ?? []);
       setStats({
         total: list.length,
         active: list.filter(t => ["active", "trialing"].includes(t.subscription_status)).length,

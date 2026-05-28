@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -21,21 +21,25 @@ export default function LoginPage() {
     setLoading(true);
 
     const form = new FormData(e.currentTarget);
-    const supabase = createClient();
+    const email = form.get("email") as string;
+    const password = form.get("password") as string;
+    const full_name = form.get("full_name") as string;
+    const company_name = form.get("company_name") as string;
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: form.get("email") as string,
-      password: form.get("password") as string,
+    const supabase = createClient();
+    const { error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name, company_name } },
     });
 
-    if (signInError) {
-      setError("E-mail ou senha incorretos.");
+    if (signUpError) {
+      setError(signUpError.message);
       setLoading(false);
       return;
     }
 
     router.push("/dashboard");
-    router.refresh();
   }
 
   return (
@@ -57,12 +61,26 @@ export default function LoginPage() {
             </div>
             <span className="text-sm font-bold text-white">Liberty CRM</span>
           </Link>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Bem-vindo de volta</h1>
-          <p className="text-sm mt-1" style={{ color: "#939da4" }}>Entre na sua conta</p>
+          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Criar sua conta</h1>
+          <p className="text-sm mt-1" style={{ color: "#939da4" }}>30 dias grátis, sem cartão de crédito</p>
         </div>
 
         <div className="card-dark rounded-[24px] p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="full_name" className="text-sm" style={{ color: "#939da4" }}>Nome completo</Label>
+              <Input id="full_name" name="full_name" type="text" placeholder="Seu nome" required
+                className="h-11 rounded-xl text-white placeholder:text-white/20"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="company_name" className="text-sm" style={{ color: "#939da4" }}>Nome da empresa</Label>
+              <Input id="company_name" name="company_name" type="text" placeholder="Sua agência" required
+                className="h-11 rounded-xl text-white placeholder:text-white/20"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-sm" style={{ color: "#939da4" }}>E-mail</Label>
               <Input id="email" name="email" type="email" placeholder="seu@email.com" required
@@ -71,15 +89,10 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-sm" style={{ color: "#939da4" }}>Senha</Label>
-                <Link href="/reset" className="text-xs transition-colors" style={{ color: "#9aea62" }}>
-                  Esqueceu?
-                </Link>
-              </div>
+              <Label htmlFor="password" className="text-sm" style={{ color: "#939da4" }}>Senha</Label>
               <div className="relative">
                 <Input id="password" name="password" type={showPassword ? "text" : "password"}
-                  placeholder="••••••••" required
+                  placeholder="Mínimo 8 caracteres" required minLength={8}
                   className="h-11 rounded-xl text-white placeholder:text-white/20 pr-10"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
@@ -95,20 +108,20 @@ export default function LoginPage() {
             )}
 
             <button type="submit" disabled={loading}
-              className={cn("btn-lime w-full h-11 rounded-xl text-sm flex items-center justify-center",
+              className={cn("btn-lime w-full h-11 rounded-xl text-sm flex items-center justify-center mt-2",
                 loading && "opacity-60 cursor-not-allowed")}>
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                  Entrando...
+                  Criando conta...
                 </span>
-              ) : "Entrar"}
+              ) : "Criar conta grátis"}
             </button>
           </form>
 
           <p className="text-center text-sm mt-6" style={{ color: "rgba(147,157,164,0.6)" }}>
-            Não tem conta?{" "}
-            <Link href="/signup" className="font-medium" style={{ color: "#9aea62" }}>Criar conta grátis</Link>
+            Já tem conta?{" "}
+            <Link href="/login" className="font-medium" style={{ color: "#9aea62" }}>Entrar</Link>
           </p>
         </div>
       </div>

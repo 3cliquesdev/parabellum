@@ -24,9 +24,12 @@ export default function AdminLoginPage() {
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) { setError("Credenciais inválidas."); setLoading(false); return; }
-    const { data: sa } = await supabase
-      .from("super_admins").select("id").eq("email", email).single() as { data: { id: string } | null; error: unknown };
-    if (!sa) {
+
+    // Verificar via API server-side com service role
+    const res = await fetch("/api/admin/check");
+    const { isAdmin } = await res.json();
+
+    if (!isAdmin) {
       await supabase.auth.signOut();
       setError("Acesso não autorizado para este painel.");
       setLoading(false);

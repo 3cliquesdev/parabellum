@@ -9,15 +9,23 @@ export function useLeads(tenantId: string | null) {
   const [loading, setLoading] = useState(true);
 
   const fetchLeads = useCallback(async () => {
-    if (!tenantId) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("leads")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .order("created_at", { ascending: false });
-    setLeads((data as Lead[]) ?? []);
-    setLoading(false);
+    if (!tenantId) {
+      setLoading(false); // resolve mesmo sem tenantId
+      return;
+    }
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false });
+      setLeads((data as Lead[]) ?? []);
+    } catch (e) {
+      console.error("useLeads error:", e);
+    } finally {
+      setLoading(false);
+    }
   }, [tenantId]);
 
   useEffect(() => {

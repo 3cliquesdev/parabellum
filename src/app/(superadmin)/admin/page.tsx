@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Users, TrendingUp, DollarSign, Activity, LogOut, RefreshCw, LayoutDashboard, Puzzle, MessageSquare, CheckCircle, XCircle } from "lucide-react";
+import { Users, TrendingUp, DollarSign, Activity, LogOut, RefreshCw, LayoutDashboard, Puzzle, MessageSquare, CheckCircle, XCircle, Bot } from "lucide-react";
 
 interface TenantOverview {
   id: string; name: string; slug: string; created_at: string;
@@ -12,6 +12,12 @@ interface TenantOverview {
 }
 interface WaConfig {
   tenant_id: string; phone_number_id: string; active: boolean; created_at: string;
+}
+interface AiUsageRow {
+  tenant_id: string; count: number; year_month: string;
+}
+interface GeminiStats {
+  active: boolean; totalMessages: number; yearMonth: string;
 }
 
 const statusLabel: Record<string, string> = { active: "Ativo", trialing: "Trial", cancelled: "Cancelado", past_due: "Vencido" };
@@ -23,6 +29,8 @@ export default function SuperAdminPage() {
   const [tab, setTab] = useState<"clientes" | "integracoes">("clientes");
   const [tenants, setTenants] = useState<TenantOverview[]>([]);
   const [waConfigs, setWaConfigs] = useState<WaConfig[]>([]);
+  const [aiUsage, setAiUsage] = useState<AiUsageRow[]>([]);
+  const [gemini, setGemini] = useState<GeminiStats>({ active: false, totalMessages: 0, yearMonth: "" });
   const [stats, setStats] = useState({ total: 0, active: 0, leads: 0, mrr: 0 });
 
   useEffect(() => { loadData(); }, []);
@@ -36,14 +44,18 @@ export default function SuperAdminPage() {
       const { data: sa } = await supabase.from("super_admins").select("id").eq("email", user.email).single() as { data: { id: string } | null; error: unknown };
       if (!sa) { window.location.href = "/admin/login"; return; }
 
-      // Buscar direto via client (GRANT SELECT já concedido)
-      const [{ data: tenantData }, { data: waData }] = await Promise.all([
+      // Buscar direto via client + dados de IA via API
+      const [{ data: tenantData }, { data: waData }, { data: aiData }, apiRes] = await Promise.all([
         supabase.from("admin_tenant_overview").select("*").order("created_at", { ascending: false }),
         supabase.from("whatsapp_configs").select("tenant_id, phone_number_id, active, created_at"),
+        supabase.from("ai_usage").select("tenant_id, count, year_month").eq("year_month", new Date().toISOString().slice(0, 7)),
+        fetch("/api/admin/data", { cache: "no-store" }).then(r => r.ok ? r.json() : { gemini: { active: false, totalMessages: 0 } }),
       ]);
       const list: TenantOverview[] = (tenantData as TenantOverview[]) ?? [];
       setTenants(list);
       setWaConfigs((waData as WaConfig[]) ?? []);
+      setAiUsage((aiData as AiUsageRow[]) ?? []);
+      if (apiRes?.gemini) setGemini(apiRes.gemini);
       setStats({
         total: list.length,
         active: list.filter(t => ["active", "trialing"].includes(t.subscription_status)).length,
@@ -59,6 +71,7 @@ export default function SuperAdminPage() {
   }
 
   const waByTenant = Object.fromEntries(waConfigs.map(w => [w.tenant_id, w]));
+  const aiByTenant = Object.fromEntries(aiUsage.map(a => [a.tenant_id, a]));
   const whatsappTotal = waConfigs.length;
   const whatsappActive = waConfigs.filter(w => w.active).length;
 
@@ -213,7 +226,7 @@ export default function SuperAdminPage() {
         {tab === "integracoes" && (
           <div className="space-y-6">
             {/* Stats de integrações */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="rounded-2xl p-6 flex flex-col gap-4" style={cardStyle}>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center"
                   style={{ background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.2)" }}>
@@ -226,12 +239,25 @@ export default function SuperAdminPage() {
               </div>
               <div className="rounded-2xl p-6 flex flex-col gap-4" style={cardStyle}>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: gemini.active ? "rgba(66,133,244,0.1)" : "rgba(255,255,255,0.05)", border: gemini.active ? "1px solid rgba(66,133,244,0.2)" : "1px solid rgba(255,255,255,0.07)" }}>
+                  <Bot className="w-4 h-4" style={{ color: gemini.active ? "#4285f4" : "#939da4" }} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[22px] font-extrabold text-white">{gemini.active ? "Ativo" : "Inativo"}</p>
+                    {gemini.active && <CheckCircle className="w-4 h-4" style={{ color: "#9aea62" }} />}
+                  </div>
+                  <p className="text-xs mt-0.5 font-medium" style={{ color: "#939da4" }}>Gemini IA (Vertex AI)</p>
+                </div>
+              </div>
+              <div className="rounded-2xl p-6 flex flex-col gap-4" style={cardStyle}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center"
                   style={{ background: "rgba(154,234,98,0.08)", border: "1px solid rgba(154,234,98,0.12)" }}>
                   <Puzzle className="w-4 h-4" style={{ color: "#9aea62" }} />
                 </div>
                 <div>
-                  <p className="text-[22px] font-extrabold text-white">1</p>
-                  <p className="text-xs mt-0.5 font-medium" style={{ color: "#939da4" }}>Integrações disponíveis</p>
+                  <p className="text-[22px] font-extrabold text-white">2</p>
+                  <p className="text-xs mt-0.5 font-medium" style={{ color: "#939da4" }}>Integrações ativas</p>
                 </div>
               </div>
             </div>
@@ -294,6 +320,59 @@ export default function SuperAdminPage() {
                     );
                   })}
                 </>
+              )}
+            </div>
+
+            {/* Gemini IA */}
+            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="px-6 py-4 flex items-center gap-3"
+                style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="w-6 h-6 rounded-md flex items-center justify-center"
+                  style={{ background: "rgba(66,133,244,0.15)" }}>
+                  <Bot className="w-3.5 h-3.5" style={{ color: "#4285f4" }} />
+                </div>
+                <h2 className="text-sm font-bold text-white">Gemini IA — Vertex AI</h2>
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold ml-auto"
+                  style={gemini.active ? { background: "rgba(154,234,98,0.1)", color: "#9aea62" } : { background: "rgba(255,255,255,0.05)", color: "#939da4" }}>
+                  {gemini.active ? "Conectado" : "Não configurado"}
+                </span>
+              </div>
+              <div className="grid px-6 py-3 text-xs font-bold"
+                style={{ gridTemplateColumns: "2fr 1fr 1fr 120px", color: "#939da4", background: "rgba(0,0,0,0.3)" }}>
+                <span>Empresa</span><span>Plano</span><span>IA ativa</span><span>Msgs este mês</span>
+              </div>
+              {tenants.map((t, i) => {
+                const usage = aiByTenant[t.id];
+                return (
+                  <div key={t.id} className="grid px-6 py-4 items-center transition-colors"
+                    style={{ gridTemplateColumns: "2fr 1fr 1fr 120px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.04)" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                        style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+                        {t.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <p className="text-sm font-semibold text-white">{t.name}</p>
+                    </div>
+                    <span className="text-xs font-medium text-white">{t.plan_name ?? "Starter"}</span>
+                    <div>
+                      {gemini.active
+                        ? <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: "#9aea62", background: "rgba(154,234,98,0.1)" }}>Disponível</span>
+                        : <span className="text-xs" style={{ color: "rgba(147,157,164,0.4)" }}>—</span>}
+                    </div>
+                    <span className="text-sm font-bold" style={{ color: usage?.count ? "#9aea62" : "#939da4" }}>
+                      {usage?.count ?? 0}
+                    </span>
+                  </div>
+                );
+              })}
+              {tenants.length > 0 && (
+                <div className="px-6 py-3 flex items-center justify-between"
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)" }}>
+                  <span className="text-xs" style={{ color: "#939da4" }}>Total em {gemini.yearMonth}</span>
+                  <span className="text-sm font-extrabold" style={{ color: "#9aea62" }}>{gemini.totalMessages} mensagens</span>
+                </div>
               )}
             </div>
           </div>

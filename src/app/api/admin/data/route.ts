@@ -22,10 +22,21 @@ export async function GET() {
   const { data: sa } = await admin.from("super_admins").select("id").eq("email", user.email).single();
   if (!sa) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const [{ data: tenants }, { data: waConfigs }] = await Promise.all([
+  const yearMonth = new Date().toISOString().slice(0, 7);
+
+  const [{ data: tenants }, { data: waConfigs }, { data: aiUsage }] = await Promise.all([
     admin.from("admin_tenant_overview").select("*").order("created_at", { ascending: false }),
     admin.from("whatsapp_configs").select("tenant_id, phone_number_id, active, created_at"),
+    admin.from("ai_usage").select("tenant_id, count, year_month").eq("year_month", yearMonth),
   ]);
 
-  return NextResponse.json({ tenants: tenants ?? [], waConfigs: waConfigs ?? [] });
+  const geminiActive = !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const totalAiMessages = (aiUsage ?? []).reduce((s: number, r: any) => s + Number(r.count), 0);
+
+  return NextResponse.json({
+    tenants: tenants ?? [],
+    waConfigs: waConfigs ?? [],
+    aiUsage: aiUsage ?? [],
+    gemini: { active: geminiActive, totalMessages: totalAiMessages, yearMonth },
+  });
 }

@@ -404,7 +404,7 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
 function TeamSection({ tenantId }: { tenantId: string | null }) {
   const [members, setMembers] = useState<any[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
-  const [myRole, setMyRole] = useState<string>("member");
+  const [myRole, setMyRole] = useState<string>("owner");
   const [showInvite, setShowInvite] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: "", role: "member" });
   const [inviting, setInviting] = useState(false);

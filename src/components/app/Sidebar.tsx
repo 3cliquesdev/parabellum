@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Kanban, Users, CheckSquare,
-  MessageSquare, Settings, LogOut, Brain,
+  MessageSquare, Settings, LogOut, Brain, BookOpen, Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -14,7 +14,10 @@ const navItems = [
   { href: "/contacts", icon: Users, label: "Contatos" },
   { href: "/activities", icon: CheckSquare, label: "Atividades" },
   { href: "/inbox", icon: MessageSquare, label: "Inbox IA" },
-  { href: "/ia/knowledge", icon: Brain, label: "Central de IA", separator: true },
+  { href: "/ia/agents", icon: Brain, label: "Agentes de IA", separator: true },
+  { href: "/ia/knowledge", icon: BookOpen, label: "Base de Conhecimento" },
+  { href: "/ia/training", icon: Zap, label: "Treinamento" },
+  { href: "/ia/responses", icon: MessageSquare, label: "Respostas Rápidas" },
 ];
 
 export function Sidebar() {

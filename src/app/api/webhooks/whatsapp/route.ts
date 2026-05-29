@@ -199,14 +199,81 @@ export async function POST(request: NextRequest) {
           const { data: usage } = await supabase.from("ai_usage").select("count").eq("tenant_id", tenantId).eq("year_month", yearMonth).single() as { data: { count: number } | null; error: unknown };
           if ((usage?.count ?? 0) >= limit) continue;
 
-          // Buscar persona do tenant
-          const { data: persona } = await supabase.from("personas").select("*").eq("tenant_id", tenantId).eq("ativo", true).single() as { data: any; error: unknown };
+          // ─── Roteamento: encontrar o agente certo pela intenção ───
+          let persona: any = null;
+          if (intent?.intent) {
+            // Busca regra que inclui essa intenção
+            const { data: rule } = await supabase
+              .from("agent_routing_rules")
+              .select("*, personas(*)")
+              .eq("tenant_id", tenantId).eq("ativo", true)
+              .contains("intents", [intent.intent])
+              .order("priority", { ascending: false })
+              .single() as { data: any; error: unknown };
+            if (rule?.personas) persona = rule.personas;
+          }
+          // Fallback: primeira persona ativa
+          if (!persona) {
+            const { data: fallback } = await supabase.from("personas").select("*")
+              .eq("tenant_id", tenantId).eq("ativo", true)
+              .order("created_at", { ascending: true }).single() as { data: any; error: unknown };
+            persona = fallback;
+          }
 
-          const systemPrompt = persona?.descricao
-            ? `${persona.descricao}${persona.empresa ? ` Empresa: ${persona.empresa}.` : ""} Lead: ${lead.nome}. Responda de forma breve em português.`
-            : `Você é um assistente de vendas simpático e profissional. Lead: ${lead.nome}. Responda de forma breve em português.`;
+          // Salvar agente ativo na conversa
+          if (persona?.id) {
+            await supabase.from("conversas").update({ persona_id: persona.id }).eq("id", conversa.id);
+          }
 
-          // Histórico da conversa
+          // ─── Memória longa: histórico de interações do lead ───
+          const { data: interactions } = await supabase
+            .from("interaction_history")
+            .select("tipo, resumo, created_at")
+            .eq("lead_id", lead.id).eq("tenant_id", tenantId)
+            .order("created_at", { ascending: false }).limit(5) as { data: any[]; error: unknown };
+
+          const interactionContext = (interactions ?? []).length > 0
+            ? `\n\nHISTÓRICO DO LEAD:\n${(interactions ?? []).reverse().map((i: any) =>
+                `- ${new Date(i.created_at).toLocaleDateString("pt-BR")}: ${i.resumo}`
+              ).join("\n")}`
+            : "";
+
+          // ─── Memória curta: resumo da conversa (se > 20 msgs) ───
+          const { count: msgCount } = await supabase.from("mensagens")
+            .select("id", { count: "exact", head: true }).eq("conversa_id", conversa.id) as any;
+
+          let conversaSummary = "";
+          if ((msgCount ?? 0) > 20) {
+            const { data: existingSummary } = await supabase.from("conversation_summaries")
+              .select("resumo").eq("conversa_id", conversa.id).single() as { data: any; error: unknown };
+            if (existingSummary?.resumo) {
+              conversaSummary = `\n\nRESUMO DA CONVERSA ATUAL:\n${existingSummary.resumo}`;
+            } else {
+              // Gerar resumo automaticamente
+              const resumoToken = await getVertexToken();
+              const { data: allMsgs } = await supabase.from("mensagens")
+                .select("remetente, conteudo").eq("conversa_id", conversa.id)
+                .order("created_at", { ascending: true }).limit(20);
+              const resumoPrompt = `Resuma esta conversa em 3 linhas para contexto da IA:\n${(allMsgs ?? []).map((m: any) => `${m.remetente}: ${m.conteudo}`).join("\n")}`;
+              const resumo = await callGemini(resumoToken, [{ role: "user", parts: [{ text: resumoPrompt }] }], 0.3, 150);
+              if (resumo) {
+                await supabase.from("conversation_summaries").upsert({ conversa_id: conversa.id, tenant_id: tenantId, resumo, mensagens_ate: msgCount ?? 0 }, { onConflict: "conversa_id" });
+                conversaSummary = `\n\nRESUMO DA CONVERSA ATUAL:\n${resumo}`;
+              }
+            }
+          }
+
+          // ─── System prompt com persona + memória ───
+          const systemPrompt = `${persona?.descricao ?? "Você é um assistente de vendas simpático e profissional."}${persona?.empresa ? ` Empresa: ${persona.empresa}.` : ""} Lead: ${lead.nome}. Responda de forma breve em português.${interactionContext}${conversaSummary}`;
+
+          // Registrar interação no histórico (memória longa)
+          await supabase.from("interaction_history").insert({
+            tenant_id: tenantId, lead_id: lead.id,
+            tipo: "whatsapp_recebido",
+            resumo: text.length > 100 ? text.substring(0, 100) + "..." : text,
+          });
+
+          // Histórico da conversa (contexto imediato)
           const { data: history } = await supabase.from("mensagens")
             .select("remetente, conteudo").eq("conversa_id", conversa.id)
             .order("created_at", { ascending: true }).limit(10);

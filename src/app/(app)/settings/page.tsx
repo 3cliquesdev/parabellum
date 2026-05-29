@@ -74,7 +74,8 @@ export default function SettingsPage() {
     // Reset automático se popup for fechado ou bloqueado
     const timeout = setTimeout(() => setWaStatus("idle"), 30000);
 
-    window.FB.login(async (response: any) => {
+    // FB.login NÃO aceita callback async — usar função normal + Promise interna
+    window.FB.login((response: any) => {
       clearTimeout(timeout);
 
       if (!response.authResponse?.code) {
@@ -82,35 +83,35 @@ export default function SettingsPage() {
         return;
       }
 
-      try {
-        const res = await fetch("/api/whatsapp/embedded-signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: response.authResponse.code, tenant_id: tenantId }),
-        });
+      const code = response.authResponse.code;
 
-        const data = await res.json();
-
-        if (!res.ok) {
-          alert(data.error ?? "Erro ao conectar. Tente novamente.");
+      fetch("/api/whatsapp/embedded-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, tenant_id: tenantId }),
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok) {
+            alert(data.error ?? "Erro ao conectar. Tente novamente.");
+            setWaStatus("idle");
+            return;
+          }
+          if (data.status === "connected") {
+            setWaStatus("connected");
+            setWaPhone(data.phone_number ?? "");
+            setWaName(data.verified_name ?? "");
+          } else if (data.status === "select_phone") {
+            setPhoneOptions(data.phones);
+            setPendingToken(data.access_token);
+            setPendingWabaId(data.waba_id);
+            setWaStatus("select");
+          }
+        })
+        .catch(() => {
+          alert("Erro de conexão. Tente novamente.");
           setWaStatus("idle");
-          return;
-        }
-
-        if (data.status === "connected") {
-          setWaStatus("connected");
-          setWaPhone(data.phone_number ?? "");
-          setWaName(data.verified_name ?? "");
-        } else if (data.status === "select_phone") {
-          setPhoneOptions(data.phones);
-          setPendingToken(data.access_token);
-          setPendingWabaId(data.waba_id);
-          setWaStatus("select");
-        }
-      } catch {
-        alert("Erro de conexão. Tente novamente.");
-        setWaStatus("idle");
-      }
+        });
     }, {
       response_type: "code",
       override_default_response_type: true,

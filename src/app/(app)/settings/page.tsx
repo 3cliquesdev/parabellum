@@ -308,7 +308,7 @@ export default function SettingsPage() {
         )}
 
         {/* Modo manual */}
-        {waStatus === "idle" && <ManualWAForm tenantId={tenantId} onConnected={(phone) => { setWaStatus("connected"); setWaPhone(phone); }} />
+        {waStatus === "idle" && <ManualWAForm tenantId={tenantId} onConnected={(phone) => { setWaStatus("connected"); setWaPhone(phone); }} />}
       </div>
 
       {/* IA — Persona */}

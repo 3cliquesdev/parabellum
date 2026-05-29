@@ -2,15 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { GoogleAuth } from "google-auth-library";
 
-const AI_LIMITS: Record<string, number> = {
-  Starter: 200,
-  Pro: 2000,
-  Agency: Infinity,
-};
-
+const AI_LIMITS: Record<string, number> = { Starter: 200, Pro: 2000, Agency: Infinity };
 const VERTEX_PROJECT = "adsliberty";
 const VERTEX_LOCATION = "us-central1";
 const VERTEX_MODEL = "gemini-2.0-flash";
+
+// Intenções detectáveis para mover leads no pipeline
+const INTENT_PATTERNS: Record<string, { keywords: string[]; status: string | null; label: string }> = {
+  comercial:  { keywords: ["preço", "valor", "quanto custa", "plano", "contratar", "serviço", "interesse"], status: "qualificado", label: "Qualificado pela IA" },
+  proposta:   { keywords: ["proposta", "orçamento", "detalhes", "informações", "quero saber mais"], status: "proposta", label: "Pediu proposta" },
+  fechamento: { keywords: ["fechar", "contratar", "quero", "comprar", "aceito", "vamos lá", "pode confirmar"], status: "ganho", label: "Lead fechado pela IA" },
+  desistencia:{ keywords: ["não quero", "desistir", "cancelar", "não preciso", "dispensado"], status: "perdido", label: "Desistiu" },
+  humano:     { keywords: ["humano", "atendente", "pessoa", "falar com alguém", "suporte"], status: null, label: "Pediu humano" },
+};
+
+// Palavras de sentimento negativo para handoff
+const NEGATIVE_WORDS = ["problema", "errado", "péssimo", "horrível", "absurdo", "insatisfeito", "reclamação", "não funciona", "frustrado"];
 
 function adminClient() {
   return createServerClient<any>(
@@ -22,65 +29,63 @@ function adminClient() {
 
 async function getVertexToken(): Promise<string> {
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON!);
-  const auth = new GoogleAuth({
-    credentials,
-    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
-  });
+  const auth = new GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
   const client = await auth.getClient();
   const tokenResponse = await client.getAccessToken();
   return tokenResponse.token!;
 }
 
-async function callGeminiVertex(token: string, contents: any[]): Promise<string> {
+async function callGemini(token: string, contents: any[], temperatura: number = 0.7, maxTokens: number = 300): Promise<string> {
   const url = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_LOCATION}/publishers/google/models/${VERTEX_MODEL}:generateContent`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 300 } }),
+    body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: maxTokens, temperature: temperatura } }),
   });
-  if (!res.ok) {
-    console.error("Vertex AI error:", await res.text());
-    return "";
-  }
+  if (!res.ok) { console.error("Vertex error:", await res.text()); return ""; }
   const data = await res.json();
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
-// ─── GET: verificação do webhook pela Meta ───
+function detectIntent(text: string): { intent: string; status: string | null; label: string } | null {
+  const lower = text.toLowerCase();
+  for (const [intent, { keywords, status, label }] of Object.entries(INTENT_PATTERNS)) {
+    if (keywords.some(k => lower.includes(k))) return { intent, status, label };
+  }
+  return null;
+}
+
+function detectNegativeSentiment(text: string): boolean {
+  const lower = text.toLowerCase();
+  return NEGATIVE_WORDS.some(w => lower.includes(w));
+}
+
+// ─── GET: verificação do webhook ───
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const mode = searchParams.get("hub.mode");
-  const token = searchParams.get("hub.verify_token");
-  const challenge = searchParams.get("hub.challenge");
-  if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-    return new NextResponse(challenge, { status: 200 });
+  if (searchParams.get("hub.mode") === "subscribe" && searchParams.get("hub.verify_token") === process.env.WHATSAPP_VERIFY_TOKEN) {
+    return new NextResponse(searchParams.get("hub.challenge"), { status: 200 });
   }
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
-// ─── POST: receber mensagens da Meta ───
+// ─── POST: receber mensagens ───
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const entry = body?.entry?.[0];
-    const change = entry?.changes?.[0];
-    const value = change?.value;
-    if (!value || change?.field !== "messages") return NextResponse.json({ status: "ok" });
+    const value = body?.entry?.[0]?.changes?.[0]?.value;
+    if (!value || body?.entry?.[0]?.changes?.[0]?.field !== "messages") return NextResponse.json({ status: "ok" });
 
     const phoneNumberId: string = value.metadata?.phone_number_id;
     const messages: any[] = value.messages ?? [];
-    if (!phoneNumberId || messages.length === 0) return NextResponse.json({ status: "ok" });
+    if (!phoneNumberId || !messages.length) return NextResponse.json({ status: "ok" });
 
     const supabase = adminClient();
-
     const { data: waConfig } = await supabase
-      .from("whatsapp_configs")
-      .select("tenant_id, access_token, active")
-      .eq("phone_number_id", phoneNumberId)
-      .eq("active", true)
-      .single();
-
+      .from("whatsapp_configs").select("tenant_id, access_token, active")
+      .eq("phone_number_id", phoneNumberId).eq("active", true).single();
     if (!waConfig) return NextResponse.json({ status: "ok" });
+
     const tenantId: string = waConfig.tenant_id;
 
     for (const msg of messages) {
@@ -89,56 +94,86 @@ export async function POST(request: NextRequest) {
       const text: string = msg.text?.body ?? "";
       const waMessageId: string = msg.id;
 
-      // Evitar duplicatas
+      // Dedup
       const { data: existing } = await supabase.from("mensagens").select("id").eq("wa_message_id", waMessageId).single();
       if (existing) continue;
 
-      // Buscar ou criar lead
+      // Buscar/criar lead
       const normalizedPhone = fromNumber.replace(/^55/, "").replace(/\D/g, "");
-      let { data: lead } = await supabase.from("leads").select("id, nome").eq("tenant_id", tenantId).ilike("whatsapp", `%${normalizedPhone}%`).single();
+      let { data: lead } = await supabase.from("leads").select("id, nome, status")
+        .eq("tenant_id", tenantId).ilike("whatsapp", `%${normalizedPhone}%`).single();
       if (!lead) {
-        const { data: newLead } = await supabase.from("leads").insert({ tenant_id: tenantId, nome: `Lead ${fromNumber}`, whatsapp: fromNumber, status: "novo" }).select("id, nome").single();
+        const { data: newLead } = await supabase.from("leads")
+          .insert({ tenant_id: tenantId, nome: `Lead ${fromNumber}`, whatsapp: fromNumber, status: "novo" })
+          .select("id, nome, status").single();
         lead = newLead;
       }
       if (!lead) continue;
 
-      // Buscar ou criar conversa
-      let { data: conversa } = await supabase.from("conversas").select("id, ia_ativa").eq("tenant_id", tenantId).eq("lead_id", lead.id).eq("canal", "whatsapp").eq("status", "ativo").single();
+      // Buscar/criar conversa
+      let { data: conversa } = await supabase.from("conversas")
+        .select("id, ia_ativa, ai_mode").eq("tenant_id", tenantId).eq("lead_id", lead.id)
+        .eq("canal", "whatsapp").eq("status", "ativo").single();
       if (!conversa) {
-        const { data: newConversa } = await supabase.from("conversas").insert({ tenant_id: tenantId, lead_id: lead.id, canal: "whatsapp", status: "ativo", ia_ativa: true }).select("id, ia_ativa").single();
-        conversa = newConversa;
+        const { data: newC } = await supabase.from("conversas")
+          .insert({ tenant_id: tenantId, lead_id: lead.id, canal: "whatsapp", status: "ativo", ia_ativa: true, ai_mode: "autopilot" })
+          .select("id, ia_ativa, ai_mode").single();
+        conversa = newC;
       }
       if (!conversa) continue;
 
-      // Inserir mensagem do lead
+      // Salvar mensagem do lead
       await supabase.from("mensagens").insert({ conversa_id: conversa.id, tenant_id: tenantId, remetente: "lead", conteudo: text, wa_message_id: waMessageId, enviada: true });
       await supabase.from("conversas").update({ updated_at: new Date().toISOString() }).eq("id", conversa.id);
 
-      // IA com Vertex AI (Gemini) — verificar limite
-      if (conversa.ia_ativa && process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+      // Detectar intenção → mover pipeline
+      const intent = detectIntent(text);
+      if (intent?.status && lead.status !== intent.status) {
+        await supabase.from("leads").update({ status: intent.status }).eq("id", lead.id);
+        await supabase.from("atividades").insert({
+          tenant_id: tenantId, lead_id: lead.id, tipo: "whatsapp",
+          titulo: `IA: ${intent.label}`, concluida: true, concluida_em: new Date().toISOString(),
+        });
+      }
+
+      // Handoff: lead pediu humano ou sentimento negativo
+      if (intent?.intent === "humano" || detectNegativeSentiment(text)) {
+        await supabase.from("conversas").update({ ai_mode: "disabled", ia_ativa: false }).eq("id", conversa.id);
+        await supabase.from("atividades").insert({
+          tenant_id: tenantId, lead_id: lead.id, tipo: "whatsapp",
+          titulo: intent?.intent === "humano" ? "Lead pediu atendimento humano" : "Sentimento negativo detectado — atenção necessária",
+          descricao: `Última mensagem: "${text}"`,
+          prazo: new Date().toISOString(), concluida: false,
+        });
+        continue; // Não responde com IA
+      }
+
+      // IA apenas se autopilot ou copilot + Gemini disponível
+      if ((conversa.ia_ativa || conversa.ai_mode !== "disabled") && conversa.ai_mode !== "disabled" && process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
         try {
           const yearMonth = new Date().toISOString().slice(0, 7);
 
-          const { data: tenantData } = await supabase
-            .from("tenants").select("plans(name)").eq("id", tenantId).single() as { data: any; error: unknown };
+          // Verificar limite do plano
+          const { data: tenantData } = await supabase.from("tenants").select("plans(name)").eq("id", tenantId).single() as { data: any; error: unknown };
           const planName = tenantData?.plans?.name ?? "Starter";
           const limit = AI_LIMITS[planName] ?? 200;
+          const { data: usage } = await supabase.from("ai_usage").select("count").eq("tenant_id", tenantId).eq("year_month", yearMonth).single() as { data: { count: number } | null; error: unknown };
+          if ((usage?.count ?? 0) >= limit) continue;
 
-          const { data: usage } = await supabase
-            .from("ai_usage").select("count").eq("tenant_id", tenantId).eq("year_month", yearMonth).single() as { data: { count: number } | null; error: unknown };
-          const currentCount = usage?.count ?? 0;
+          // Buscar persona do tenant
+          const { data: persona } = await supabase.from("personas").select("*").eq("tenant_id", tenantId).eq("ativo", true).single() as { data: any; error: unknown };
 
-          if (currentCount >= limit) {
-            console.log(`Tenant ${tenantId} atingiu limite IA: ${currentCount}/${limit}`);
-            continue;
-          }
+          const systemPrompt = persona?.descricao
+            ? `${persona.descricao}${persona.empresa ? ` Empresa: ${persona.empresa}.` : ""} Lead: ${lead.nome}. Responda de forma breve em português.`
+            : `Você é um assistente de vendas simpático e profissional. Lead: ${lead.nome}. Responda de forma breve em português.`;
 
-          // Buscar histórico
-          const { data: history } = await supabase
-            .from("mensagens").select("remetente, conteudo").eq("conversa_id", conversa.id).order("created_at", { ascending: true }).limit(10);
+          // Histórico da conversa
+          const { data: history } = await supabase.from("mensagens")
+            .select("remetente, conteudo").eq("conversa_id", conversa.id)
+            .order("created_at", { ascending: true }).limit(10);
 
           const contents = [
-            { role: "user", parts: [{ text: `Você é um assistente de vendas. Responda de forma breve, simpática e profissional em português. Lead: ${lead.nome}.` }] },
+            { role: "user", parts: [{ text: systemPrompt }] },
             ...(history ?? []).map((m: any) => ({
               role: m.remetente === "lead" ? "user" : "model",
               parts: [{ text: m.conteudo }],
@@ -146,20 +181,29 @@ export async function POST(request: NextRequest) {
           ];
 
           const vertexToken = await getVertexToken();
-          const aiReply = await callGeminiVertex(vertexToken, contents);
+          const aiReply = await callGemini(vertexToken, contents, persona?.temperatura ?? 0.7, persona?.max_tokens ?? 300);
 
           if (aiReply) {
-            await supabase.from("mensagens").insert({ conversa_id: conversa.id, tenant_id: tenantId, remetente: "ia", conteudo: aiReply, enviada: false });
-            await sendWhatsAppMessage(waConfig.access_token, phoneNumberId, fromNumber, aiReply);
-            await supabase.from("mensagens").update({ enviada: true }).eq("conversa_id", conversa.id).eq("remetente", "ia").eq("enviada", false);
+            if (conversa.ai_mode === "copilot") {
+              // Copilot: salva sugestão sem enviar
+              await supabase.from("conversas").update({ ai_suggestion: aiReply }).eq("id", conversa.id);
+              await supabase.from("mensagens").insert({ conversa_id: conversa.id, tenant_id: tenantId, remetente: "ia", conteudo: `[SUGESTÃO] ${aiReply}`, enviada: false });
+            } else {
+              // Autopilot: envia normalmente
+              await supabase.from("mensagens").insert({ conversa_id: conversa.id, tenant_id: tenantId, remetente: "ia", conteudo: aiReply, enviada: false });
+              await sendWhatsAppMessage(waConfig.access_token, phoneNumberId, fromNumber, aiReply);
+              await supabase.from("mensagens").update({ enviada: true }).eq("conversa_id", conversa.id).eq("remetente", "ia").eq("enviada", false);
+            }
 
+            // Atualizar contador de uso
+            const currentCount = usage?.count ?? 0;
             await supabase.from("ai_usage").upsert(
               { tenant_id: tenantId, year_month: yearMonth, count: currentCount + 1, updated_at: new Date().toISOString() },
               { onConflict: "tenant_id,year_month" }
             );
           }
         } catch (aiErr) {
-          console.error("Vertex AI error:", aiErr);
+          console.error("AI error:", aiErr);
         }
       }
     }

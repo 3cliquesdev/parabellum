@@ -271,6 +271,9 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {/* IA — Persona */}
+      <PersonaConfig tenantId={tenantId} />
+
       {/* Plano */}
       <div className="rounded-2xl p-6" style={cardStyle}>
         <h2 className="text-sm font-bold text-white mb-4">Plano atual</h2>
@@ -282,6 +285,113 @@ export default function SettingsPage() {
           <span className="px-3 py-1 rounded-full text-xs font-bold"
             style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>Trial ativo</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Persona da IA ───
+function PersonaConfig({ tenantId }: { tenantId: string | null }) {
+  const [form, setForm] = useState({ nome: "Assistente", empresa: "", descricao: "", temperatura: 0.7, max_tokens: 300 });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [exists, setExists] = useState(false);
+
+  const cardStyle = {
+    background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
+    border: "1px solid rgba(255,255,255,0.07)",
+  };
+
+  useEffect(() => {
+    if (!tenantId) return;
+    async function load() {
+      const supabase = createClient();
+      const { data } = await supabase.from("personas").select("*").eq("tenant_id", tenantId!).single() as { data: any; error: unknown };
+      if (data) {
+        setForm({ nome: data.nome, empresa: data.empresa ?? "", descricao: data.descricao ?? "", temperatura: data.temperatura ?? 0.7, max_tokens: data.max_tokens ?? 300 });
+        setExists(true);
+      }
+    }
+    load();
+  }, [tenantId]);
+
+  async function save() {
+    if (!tenantId) return;
+    setSaving(true);
+    const supabase = createClient();
+    const payload = { tenant_id: tenantId, ...form };
+    if (exists) {
+      await supabase.from("personas").update(payload).eq("tenant_id", tenantId);
+    } else {
+      await supabase.from("personas").insert(payload);
+      setExists(true);
+    }
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
+  return (
+    <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
+      <div>
+        <h2 className="text-sm font-bold text-white">Personalidade da IA</h2>
+        <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>Configure como a IA se comporta com seus leads</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Nome do assistente</Label>
+          <Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+            placeholder="Ex: Ana, Carlos..." className="h-10 rounded-xl text-sm text-white"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Nome da empresa</Label>
+          <Input value={form.empresa} onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))}
+            placeholder="Sua empresa..." className="h-10 rounded-xl text-sm text-white"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Instruções para a IA</Label>
+        <textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
+          rows={4} placeholder="Ex: Você é uma assistente de vendas especializada em marketing digital. Seja simpática, objetiva e sempre apresente os benefícios dos serviços."
+          className="w-full rounded-xl text-sm p-3 resize-none outline-none text-white"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Criatividade</Label>
+            <span className="text-xs font-bold" style={{ color: "#9aea62" }}>{form.temperatura}</span>
+          </div>
+          <input type="range" min="0.1" max="1.0" step="0.1" value={form.temperatura}
+            onChange={e => setForm(f => ({ ...f, temperatura: parseFloat(e.target.value) }))}
+            className="w-full accent-[#9aea62]" />
+          <div className="flex justify-between text-[10px]" style={{ color: "rgba(147,157,164,0.5)" }}>
+            <span>Conservador</span><span>Criativo</span>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Tamanho máx. da resposta</Label>
+          <select value={form.max_tokens} onChange={e => setForm(f => ({ ...f, max_tokens: parseInt(e.target.value) }))}
+            className="w-full h-10 rounded-xl text-sm px-3 outline-none"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+            <option value={150} style={{ background: "#111" }}>Curto (~2 linhas)</option>
+            <option value={300} style={{ background: "#111" }}>Médio (~4 linhas)</option>
+            <option value={600} style={{ background: "#111" }}>Longo (~8 linhas)</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <button onClick={save} disabled={saving}
+          className="px-6 h-9 rounded-xl text-sm font-bold transition-all"
+          style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
+          {saving ? "Salvando..." : saved ? "Salvo!" : "Salvar personalidade"}
+        </button>
       </div>
     </div>
   );

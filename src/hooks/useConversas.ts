@@ -7,8 +7,8 @@ import type { Conversa } from "@/types/database";
 export interface ConversaWithLead extends Conversa {
   lead_nome: string;
   lead_whatsapp: string | null;
-  ultima_mensagem?: string;
-  ultima_mensagem_em?: string;
+  ai_mode: "autopilot" | "copilot" | "disabled";
+  ai_suggestion: string | null;
 }
 
 export function useConversas(tenantId: string | null) {
@@ -29,6 +29,8 @@ export function useConversas(tenantId: string | null) {
         ...c,
         lead_nome: c.leads?.nome ?? "Desconhecido",
         lead_whatsapp: c.leads?.whatsapp ?? null,
+        ai_mode: c.ai_mode ?? "autopilot",
+        ai_suggestion: c.ai_suggestion ?? null,
       }));
       setConversas(list);
     } catch (e) {
@@ -40,19 +42,13 @@ export function useConversas(tenantId: string | null) {
 
   useEffect(() => {
     fetchConversas();
-
     if (!tenantId) return;
     const supabase = createClient();
     const channel = supabase
       .channel("conversas-realtime")
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "conversas",
-        filter: `tenant_id=eq.${tenantId}`,
-      }, () => fetchConversas())
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversas", filter: `tenant_id=eq.${tenantId}` },
+        () => fetchConversas())
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [tenantId, fetchConversas]);
 

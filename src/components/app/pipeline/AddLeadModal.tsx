@@ -27,19 +27,30 @@ export function AddLeadModal({ tenantId, onClose, onCreated }: AddLeadModalProps
     e.preventDefault();
     if (!form.nome.trim()) return;
     setLoading(true);
-    const supabase = createClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from("leads") as any).insert({
-      tenant_id: tenantId,
-      nome: form.nome,
-      whatsapp: form.whatsapp || null,
-      email: form.email || null,
-      servico_interesse: form.servico_interesse || null,
-      valor_estimado: form.valor_estimado ? parseFloat(form.valor_estimado) : null,
-      status: form.status,
-    });
-    setLoading(false);
-    onCreated();
+    try {
+      const supabase = createClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("leads") as any).insert({
+        tenant_id: tenantId,
+        nome: form.nome,
+        whatsapp: form.whatsapp || null,
+        email: form.email || null,
+        servico_interesse: form.servico_interesse || null,
+        valor_estimado: form.valor_estimado ? parseFloat(form.valor_estimado) : null,
+        status: form.status,
+      });
+      if (error) {
+        console.error("Erro ao criar lead:", error);
+        alert(`Erro: ${error.message}`);
+        setLoading(false);
+        return;
+      }
+      onCreated();
+    } catch (err) {
+      console.error("Erro inesperado:", err);
+      alert("Erro inesperado ao criar lead.");
+      setLoading(false);
+    }
   }
 
   return (

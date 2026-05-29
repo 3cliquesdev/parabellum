@@ -274,6 +274,9 @@ export default function SettingsPage() {
       {/* IA — Persona */}
       <PersonaConfig tenantId={tenantId} />
 
+      {/* Equipe */}
+      <TeamSection tenantId={tenantId} />
+
       {/* Plano */}
       <div className="rounded-2xl p-6" style={cardStyle}>
         <h2 className="text-sm font-bold text-white mb-4">Plano atual</h2>
@@ -393,6 +396,186 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
           {saving ? "Salvando..." : saved ? "Salvo!" : "Salvar personalidade"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── Equipe ───
+function TeamSection({ tenantId }: { tenantId: string | null }) {
+  const [members, setMembers] = useState<any[]>([]);
+  const [invites, setInvites] = useState<any[]>([]);
+  const [myRole, setMyRole] = useState<string>("member");
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: "", role: "member" });
+  const [inviting, setInviting] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const supabase = createClient();
+
+  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const ROLE_COLOR: Record<string, string> = { owner: "#9aea62", admin: "#60a5fa", member: "#939da4" };
+  const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Membro" };
+
+  useEffect(() => {
+    if (!tenantId) return;
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { data: mems } = await supabase
+        .from("tenant_members").select("id, role, user_id, created_at").eq("tenant_id", tenantId!) as { data: any[]; error: unknown };
+
+      // Buscar emails dos usuários via API
+      const res = await fetch(`/api/team/members?tenant_id=${tenantId}`);
+      const enriched = res.ok ? await res.json() : { members: mems ?? [] };
+      setMembers(enriched.members ?? mems ?? []);
+
+      const me = (mems ?? []).find((m: any) => m.user_id === user?.id);
+      setMyRole(me?.role ?? "member");
+
+      const { data: inv } = await supabase
+        .from("invite_tokens").select("id, email, role, expires_at, created_at")
+        .eq("tenant_id", tenantId!).is("accepted_at", null) as { data: any[]; error: unknown };
+      setInvites((inv ?? []).filter((i: any) => new Date(i.expires_at) > new Date()));
+    }
+    load();
+  }, [tenantId]);
+
+  async function sendInvite() {
+    if (!tenantId || !inviteForm.email) return;
+    setInviting(true);
+    const res = await fetch("/api/team/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...inviteForm, tenant_id: tenantId }),
+    });
+    const data = await res.json();
+    setInviting(false);
+    if (data.invite_url) {
+      setInviteLink(data.invite_url);
+      setInviteForm({ email: "", role: "member" });
+    } else {
+      alert(data.error ?? "Erro ao convidar");
+    }
+  }
+
+  async function removeMember(memberId: string) {
+    if (!confirm("Remover este membro?")) return;
+    await fetch("/api/team/member", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ member_id: memberId, tenant_id: tenantId }),
+    });
+    setMembers(m => m.filter(x => x.id !== memberId));
+  }
+
+  async function cancelInvite(inviteId: string) {
+    const sc = createClient();
+    await (sc.from("invite_tokens") as any).update({ accepted_at: new Date().toISOString() }).eq("id", inviteId);
+    setInvites(i => i.filter(x => x.id !== inviteId));
+  }
+
+  const canManage = ["owner", "admin"].includes(myRole);
+
+  return (
+    <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-bold text-white">Equipe</h2>
+          <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{members.length} membro(s) · Gerencie quem acessa este workspace</p>
+        </div>
+        {canManage && (
+          <button onClick={() => setShowInvite(!showInvite)}
+            className="flex items-center gap-2 px-3 h-8 rounded-xl text-xs font-bold"
+            style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
+            + Convidar
+          </button>
+        )}
+      </div>
+
+      {/* Invite form */}
+      {showInvite && (
+        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex gap-2">
+            <input value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="email@vendedor.com" type="email"
+              className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}
+              className="h-9 px-3 rounded-xl text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+              <option value="member" style={{ background: "#111" }}>Membro</option>
+              <option value="admin" style={{ background: "#111" }}>Admin</option>
+            </select>
+            <button onClick={sendInvite} disabled={inviting || !inviteForm.email}
+              className="px-4 h-9 rounded-xl text-xs font-bold"
+              style={{ background: "#9aea62", color: "#0a0a0a", opacity: inviting ? 0.6 : 1 }}>
+              {inviting ? "..." : "Enviar"}
+            </button>
+          </div>
+          {inviteLink && (
+            <div className="rounded-lg p-3 space-y-2" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+              <p className="text-xs font-bold" style={{ color: "#9aea62" }}>Link de convite gerado!</p>
+              <p className="text-xs font-mono break-all" style={{ color: "#939da4" }}>{inviteLink}</p>
+              <button onClick={() => { navigator.clipboard.writeText(inviteLink); }} className="text-xs font-bold" style={{ color: "#9aea62" }}>Copiar link</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Members list */}
+      <div className="space-y-2">
+        {members.map(m => (
+          <div key={m.id} className="flex items-center gap-3 py-2.5 px-3 rounded-xl"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+              style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+              {(m.email ?? m.user_id ?? "?").charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">{m.email ?? m.user_id}</p>
+              <p className="text-xs" style={{ color: "#939da4" }}>
+                desde {new Date(m.created_at).toLocaleDateString("pt-BR")}
+              </p>
+            </div>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0"
+              style={{ color: ROLE_COLOR[m.role], background: `${ROLE_COLOR[m.role]}15` }}>
+              {ROLE_LABEL[m.role]}
+            </span>
+            {canManage && m.role !== "owner" && (
+              <button onClick={() => removeMember(m.id)} className="text-xs shrink-0 transition-colors"
+                style={{ color: "rgba(248,113,113,0.5)" }}>
+                Remover
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Pending invites */}
+      {invites.length > 0 && (
+        <div>
+          <p className="text-xs font-bold mb-2" style={{ color: "#939da4" }}>Convites pendentes</p>
+          <div className="space-y-2">
+            {invites.map(inv => (
+              <div key={inv.id} className="flex items-center gap-3 py-2 px-3 rounded-xl"
+                style={{ background: "rgba(250,204,21,0.04)", border: "1px solid rgba(250,204,21,0.1)" }}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white truncate">{inv.email}</p>
+                  <p className="text-[10px]" style={{ color: "#939da4" }}>
+                    Expira {new Date(inv.expires_at).toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>
+                  {ROLE_LABEL[inv.role]}
+                </span>
+                <button onClick={() => cancelInvite(inv.id)} className="text-[10px]" style={{ color: "rgba(248,113,113,0.5)" }}>
+                  Cancelar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

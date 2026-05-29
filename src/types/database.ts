@@ -92,6 +92,14 @@ export interface Mensagem {
   wa_message_id: string | null;
   enviada: boolean;
   created_at: string;
+  // Mídia
+  media_url: string | null;
+  media_type: "image" | "audio" | "video" | "document" | "sticker" | "location" | null;
+  media_nome: string | null;
+  media_mime: string | null;
+  media_caption: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface Subscription {

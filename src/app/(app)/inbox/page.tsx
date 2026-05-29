@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, MessageSquare, Wifi, WifiOff } from "lucide-react";
+import { Send, Bot, User, MessageSquare, Paperclip, FileText, MapPin } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
 import { useMensagens } from "@/hooks/useMensagens";
@@ -11,6 +11,61 @@ import type { Mensagem } from "@/types/database";
 function timeLabel(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function MediaContent({ msg, isLead, isIA }: { msg: Mensagem; isLead: boolean; isIA: boolean }) {
+  const textColor = isLead ? "#f9f6ec" : isIA ? "#9aea62" : "#0a0a0a";
+  const pad = "px-4 py-2.5";
+
+  if (msg.media_type === "image" || msg.media_type === "sticker") {
+    return (
+      <div>
+        <img src={msg.media_url!} alt="imagem" className="max-w-full rounded-xl block"
+          style={{ maxWidth: 280, maxHeight: 300, objectFit: "cover" }} />
+        {msg.media_caption && (
+          <p className={`${pad} text-sm`} style={{ color: textColor }}>{msg.media_caption}</p>
+        )}
+      </div>
+    );
+  }
+  if (msg.media_type === "audio") {
+    return (
+      <div className={pad}>
+        <audio controls src={msg.media_url!} className="w-full" style={{ maxWidth: 260, height: 36 }} />
+      </div>
+    );
+  }
+  if (msg.media_type === "video") {
+    return (
+      <div>
+        <video controls src={msg.media_url!} className="max-w-full rounded-xl block"
+          style={{ maxWidth: 280, maxHeight: 200 }} />
+        {msg.media_caption && (
+          <p className={`${pad} text-sm`} style={{ color: textColor }}>{msg.media_caption}</p>
+        )}
+      </div>
+    );
+  }
+  if (msg.media_type === "document") {
+    return (
+      <a href={msg.media_url!} target="_blank" rel="noopener noreferrer"
+        className={`${pad} flex items-center gap-2.5 no-underline`} style={{ color: textColor }}>
+        <FileText className="w-5 h-5 shrink-0" />
+        <span className="text-sm font-medium truncate">{msg.media_nome || "Documento"}</span>
+      </a>
+    );
+  }
+  if (msg.media_type === "location" && msg.latitude && msg.longitude) {
+    return (
+      <a href={`https://maps.google.com/?q=${msg.latitude},${msg.longitude}`}
+        target="_blank" rel="noopener noreferrer"
+        className={`${pad} flex items-center gap-2 no-underline`} style={{ color: textColor }}>
+        <MapPin className="w-4 h-4 shrink-0" />
+        <span className="text-sm">Ver localização</span>
+      </a>
+    );
+  }
+  return <p className={`${pad} text-sm`} style={{ color: textColor }}>{msg.conteudo}</p>;
 }
 
 export default function InboxPage() {
@@ -168,7 +223,7 @@ export default function InboxPage() {
                           <span className="text-[10px] font-bold" style={{ color: "#9aea62" }}>IA</span>
                         </div>
                       )}
-                      <div className="px-4 py-2.5 rounded-2xl text-sm"
+                      <div className="rounded-2xl overflow-hidden text-sm"
                         style={isLead ? {
                           background: "rgba(255,255,255,0.06)",
                           color: "#f9f6ec",
@@ -178,7 +233,7 @@ export default function InboxPage() {
                           color: isIA ? "#9aea62" : "#0a0a0a",
                           borderRadius: "18px 4px 18px 18px",
                         }}>
-                        {msg.conteudo}
+                        <MediaContent msg={msg} isLead={isLead} isIA={isIA} />
                       </div>
                       <p className={`text-[10px] mt-1 ${isLead ? "text-left" : "text-right"}`}
                         style={{ color: "rgba(147,157,164,0.4)" }}>
@@ -195,7 +250,27 @@ export default function InboxPage() {
 
           {/* Input */}
           <div className="px-6 py-4 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {/* Botão de anexo */}
+              <label className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer transition-all shrink-0"
+                style={{ background: "rgba(255,255,255,0.05)", color: "#939da4" }}>
+                <Paperclip className="w-4 h-4" />
+                <input type="file" className="hidden"
+                  accept="image/*,audio/*,video/*,application/pdf,.doc,.docx"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !selectedId || !tenantId) return;
+                    setSending(true);
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    fd.append("conversa_id", selectedId);
+                    fd.append("tenant_id", tenantId);
+                    const res = await fetch("/api/whatsapp/send", { method: "POST", body: fd });
+                    if (!res.ok) { const e = await res.json(); alert(e.error ?? "Erro ao enviar arquivo"); }
+                    setSending(false);
+                    e.target.value = "";
+                  }} />
+              </label>
               <input
                 value={text}
                 onChange={e => setText(e.target.value)}
@@ -207,7 +282,7 @@ export default function InboxPage() {
               <button
                 onClick={handleSend}
                 disabled={!text.trim() || sending}
-                className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
+                className="w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0"
                 style={{
                   background: text.trim() && !sending ? "#9aea62" : "rgba(255,255,255,0.06)",
                   color: text.trim() && !sending ? "#0a0a0a" : "#939da4",
@@ -216,7 +291,7 @@ export default function InboxPage() {
               </button>
             </div>
             <p className="text-[10px] mt-2 text-center" style={{ color: "rgba(147,157,164,0.3)" }}>
-              Enter para enviar · A IA responde automaticamente quando ativada
+              Enter para enviar · Clipe para anexar imagem, áudio, vídeo ou documento
             </p>
           </div>
         </div>

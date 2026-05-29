@@ -89,10 +89,43 @@ export async function POST(request: NextRequest) {
     const tenantId: string = waConfig.tenant_id;
 
     for (const msg of messages) {
-      if (msg.type !== "text") continue;
+      const SUPPORTED = ["text","image","audio","video","document","sticker","location","voice"];
+      if (!SUPPORTED.includes(msg.type)) continue;
+
       const fromNumber: string = msg.from;
-      const text: string = msg.text?.body ?? "";
       const waMessageId: string = msg.id;
+
+      // Processar conteúdo e mídia
+      let text = "";
+      let mediaUrl: string | null = null;
+      let mediaType: string | null = null;
+      let mediaNome: string | null = null;
+      let mediaMime: string | null = null;
+      let mediaCaption: string | null = null;
+      let lat: number | null = null;
+      let lng: number | null = null;
+
+      if (msg.type === "text") {
+        text = msg.text?.body ?? "";
+      } else if (msg.type === "location") {
+        lat = msg.location?.latitude ?? null;
+        lng = msg.location?.longitude ?? null;
+        text = `[Localização] ${msg.location?.name ?? ""}`.trim();
+        mediaType = "location";
+      } else {
+        const mediaData = msg[msg.type] ?? msg.voice ?? msg.audio ?? {};
+        text = mediaData.caption || `[${msg.type}]`;
+        mediaCaption = mediaData.caption || null;
+        mediaNome = mediaData.filename || null;
+        mediaMime = mediaData.mime_type || null;
+        mediaType = msg.type === "voice" ? "audio" : msg.type;
+        if (mediaData.id) {
+          try {
+            const stored = await fetchAndStoreMedia(mediaData.id, waConfig.access_token, tenantId, supabase);
+            mediaUrl = stored;
+          } catch (e) { console.error("Media fetch error:", e); }
+        }
+      }
 
       // Dedup
       const { data: existing } = await supabase.from("mensagens").select("id").eq("wa_message_id", waMessageId).single();
@@ -122,8 +155,14 @@ export async function POST(request: NextRequest) {
       }
       if (!conversa) continue;
 
-      // Salvar mensagem do lead
-      await supabase.from("mensagens").insert({ conversa_id: conversa.id, tenant_id: tenantId, remetente: "lead", conteudo: text, wa_message_id: waMessageId, enviada: true });
+      // Salvar mensagem do lead (com mídia se houver)
+      await supabase.from("mensagens").insert({
+        conversa_id: conversa.id, tenant_id: tenantId, remetente: "lead",
+        conteudo: text, wa_message_id: waMessageId, enviada: true,
+        media_url: mediaUrl, media_type: mediaType, media_nome: mediaNome,
+        media_mime: mediaMime, media_caption: mediaCaption,
+        latitude: lat, longitude: lng,
+      });
       await supabase.from("conversas").update({ updated_at: new Date().toISOString() }).eq("id", conversa.id);
 
       // Detectar intenção → mover pipeline
@@ -222,4 +261,36 @@ async function sendWhatsAppMessage(accessToken: string, phoneNumberId: string, t
     body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text } }),
   });
   if (!res.ok) console.error("WhatsApp send error:", await res.text());
+}
+
+async function fetchAndStoreMedia(mediaId: string, accessToken: string, tenantId: string, supabase: any): Promise<string> {
+  // 1. Obter URL temporária da Meta
+  const metaRes = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!metaRes.ok) throw new Error(`Meta media info failed: ${metaRes.status}`);
+  const { url, mime_type } = await metaRes.json();
+
+  // 2. Baixar o arquivo
+  const fileRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!fileRes.ok) throw new Error(`Media download failed: ${fileRes.status}`);
+  const buffer = await fileRes.arrayBuffer();
+
+  // 3. Determinar extensão pelo mime type
+  const ext: Record<string, string> = {
+    "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+    "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a",
+    "video/mp4": "mp4", "application/pdf": "pdf",
+  };
+  const extension = ext[mime_type] ?? "bin";
+  const fileName = `${tenantId}/${mediaId}.${extension}`;
+
+  // 4. Upload para Supabase Storage
+  const { error } = await supabase.storage.from("whatsapp-media")
+    .upload(fileName, buffer, { contentType: mime_type, upsert: true });
+  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+  // 5. Retornar URL pública
+  const { data } = supabase.storage.from("whatsapp-media").getPublicUrl(fileName);
+  return data.publicUrl;
 }

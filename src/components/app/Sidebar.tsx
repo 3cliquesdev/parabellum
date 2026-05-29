@@ -3,13 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
-  Kanban,
-  Users,
-  CheckSquare,
-  MessageSquare,
-  Settings,
-  LogOut,
+  LayoutDashboard, Kanban, Users, CheckSquare,
+  MessageSquare, Settings, LogOut, Brain,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -19,6 +14,7 @@ const navItems = [
   { href: "/contacts", icon: Users, label: "Contatos" },
   { href: "/activities", icon: CheckSquare, label: "Atividades" },
   { href: "/inbox", icon: MessageSquare, label: "Inbox IA" },
+  { href: "/ia/knowledge", icon: Brain, label: "Central de IA", separator: true },
 ];
 
 export function Sidebar() {
@@ -39,8 +35,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-5 h-16 flex items-center gap-3 shrink-0"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: "#9aea62" }}>
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#9aea62" }}>
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
             <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
           </svg>
@@ -49,23 +44,21 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {navItems.map(({ href, icon: Icon, label }) => {
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {navItems.map(({ href, icon: Icon, label, separator }) => {
           const active = pathname.startsWith(href);
           return (
-            <Link key={href} href={href}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
-              style={active ? {
-                background: "rgba(154,234,98,0.1)",
-                color: "#9aea62",
-                border: "1px solid rgba(154,234,98,0.15)",
-              } : {
-                color: "rgba(255,255,255,0.45)",
-                border: "1px solid transparent",
-              }}>
-              <Icon className="w-4 h-4 shrink-0" style={{ color: active ? "#9aea62" : "rgba(255,255,255,0.3)" }} />
-              {label}
-            </Link>
+            <div key={href}>
+              {separator && <div className="my-2" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }} />}
+              <Link href={href}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+                style={active ? {
+                  background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.15)",
+                } : { color: "rgba(255,255,255,0.45)", border: "1px solid transparent" }}>
+                <Icon className="w-4 h-4 shrink-0" style={{ color: active ? "#9aea62" : "rgba(255,255,255,0.3)" }} />
+                {label}
+              </Link>
+            </div>
           );
         })}
       </nav>
@@ -73,14 +66,12 @@ export function Sidebar() {
       {/* Bottom */}
       <div className="px-3 pb-5 space-y-0.5" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
         <div className="pt-3">
-          <Link href="/settings"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+          <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
             style={{ color: "rgba(255,255,255,0.35)", border: "1px solid transparent" }}>
             <Settings className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
             Configurações
           </Link>
-          <button onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
             style={{ color: "rgba(255,255,255,0.25)", border: "1px solid transparent" }}>
             <LogOut className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />
             Sair

@@ -1,159 +1,74 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
-import { CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Puzzle, Users, Settings, CreditCard, Sparkles,
+  CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp,
+  ExternalLink, Plus, Trash2, Copy, Check,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-declare global {
-  interface Window {
-    FB: any;
-    fbAsyncInit: () => void;
-  }
-}
+declare global { interface Window { FB: any; fbAsyncInit: () => void; } }
 
-const META_APP_ID = "2016623082257479"; // LibertyCRM app
+const META_APP_ID = "2016623082257479";
 
-interface PhoneOption {
-  id: string;
-  display_phone_number: string;
-  verified_name: string;
-}
+// ─── Integration data ───
+const INTEGRATIONS = [
+  // Mensageiros
+  { id: "whatsapp", name: "WhatsApp Business", desc: "Receba e envie mensagens com seus leads direto no CRM", categoria: "mensageiros", cor: "#25D366", status: "installed", icon: <WhatsAppIcon /> },
+  { id: "instagram", name: "Instagram", desc: "Gerencie DMs do Instagram no mesmo inbox do CRM", categoria: "mensageiros", cor: "#E1306C", status: "soon", icon: <InstagramIcon /> },
+  { id: "facebook", name: "Facebook Messenger", desc: "Atenda leads que chegam pelo Facebook Messenger", categoria: "mensageiros", cor: "#0084FF", status: "soon", icon: <FacebookIcon /> },
+  { id: "telegram", name: "Telegram", desc: "Conecte um bot do Telegram ao seu pipeline", categoria: "mensageiros", cor: "#229ED9", status: "soon", icon: <TelegramIcon /> },
+  // IA
+  { id: "gemini", name: "Gemini (Vertex AI)", desc: "IA da Google para respostas automáticas e análise de leads", categoria: "ia", cor: "#4285F4", status: "installed", icon: <GeminiIcon /> },
+  { id: "openai", name: "OpenAI", desc: "GPT-4 para respostas mais criativas e contextuais", categoria: "ia", cor: "#10a37f", status: "soon", icon: <OpenAIIcon /> },
+  // Automações
+  { id: "zapier", name: "Zapier", desc: "Conecte o Liberty CRM com mais de 5.000 aplicativos", categoria: "automacoes", cor: "#FF4A00", status: "soon", icon: <ZapierIcon /> },
+  { id: "make", name: "Make", desc: "Crie automações visuais entre o CRM e outros sistemas", categoria: "automacoes", cor: "#6D00CC", status: "soon", icon: <MakeIcon /> },
+  { id: "webhooks", name: "Webhooks", desc: "Envie eventos do CRM para qualquer URL externa em tempo real", categoria: "automacoes", cor: "#9aea62", status: "available", icon: <WebhookIcon /> },
+  // Email
+  { id: "resend", name: "Resend", desc: "E-mails transacionais e de convite com alta entregabilidade", categoria: "email", cor: "#000000", status: "installed", icon: <ResendIcon /> },
+  { id: "sendgrid", name: "SendGrid", desc: "Plataforma de e-mail marketing em escala", categoria: "email", cor: "#1A82E2", status: "soon", icon: <SendGridIcon /> },
+  { id: "gmail", name: "Gmail", desc: "Sincronize e-mails do Gmail com as conversas do CRM", categoria: "email", cor: "#EA4335", status: "soon", icon: <GmailIcon /> },
+] as const;
 
+const CATEGORIES = [
+  { id: "todos", label: "Todos" },
+  { id: "mensageiros", label: "Mensageiros" },
+  { id: "ia", label: "IA" },
+  { id: "automacoes", label: "Automações" },
+  { id: "email", label: "Email" },
+  { id: "instalado", label: "Instalado" },
+];
+
+const NAV_ITEMS = [
+  { id: "integracoes", icon: Puzzle, label: "Integrações" },
+  { id: "equipe", icon: Users, label: "Equipe" },
+  { id: "workspace", icon: Settings, label: "Workspace" },
+  { id: "plano", icon: CreditCard, label: "Plano" },
+];
+
+type NavSection = "integracoes" | "equipe" | "workspace" | "plano";
+interface PhoneOption { id: string; display_phone_number: string; verified_name: string; }
+
+// ─── Main Page ───
 export default function SettingsPage() {
   const { tenant, tenantId, loading } = useTenant();
-  const [waStatus, setWaStatus] = useState<"idle" | "connecting" | "select" | "connected">("idle");
-  const [waPhone, setWaPhone] = useState<string>("");
-  const [waName, setWaName] = useState<string>("");
-  const [phoneOptions, setPhoneOptions] = useState<PhoneOption[]>([]);
-  const [pendingToken, setPendingToken] = useState<string>("");
-  const [pendingWabaId, setPendingWabaId] = useState<string>("");
+  const [section, setSection] = useState<NavSection>("integracoes");
+  const [category, setCategory] = useState("todos");
+  const [activeIntegration, setActiveIntegration] = useState<string | null>(null);
 
-  const cardStyle = {
-    background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
-    border: "1px solid rgba(255,255,255,0.07)",
-  };
+  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
 
-  // Carregar Facebook SDK
-  useEffect(() => {
-    if (document.getElementById("facebook-jssdk")) return;
-    window.fbAsyncInit = function () {
-      window.FB.init({ appId: META_APP_ID, cookie: true, xfbml: true, version: "v20.0" });
-    };
-    const script = document.createElement("script");
-    script.id = "facebook-jssdk";
-    script.src = "https://connect.facebook.net/pt_BR/sdk.js";
-    script.async = true;
-    script.defer = true;
-    document.body.appendChild(script);
-  }, []);
-
-  // Checar se já tem WA configurado
-  useEffect(() => {
-    if (!tenantId) return;
-    async function check() {
-      const res = await fetch(`/api/whatsapp/status?tenant_id=${tenantId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.connected) {
-          setWaStatus("connected");
-          setWaPhone(data.phone_number ?? "");
-          setWaName(data.verified_name ?? "");
-        }
-      }
-    }
-    check();
-  }, [tenantId]);
-
-  const handleConnect = useCallback(() => {
-    if (!window.FB) { alert("Facebook SDK carregando, aguarde 2 segundos e tente novamente."); return; }
-    setWaStatus("connecting");
-
-    // Reset automático se popup for fechado ou bloqueado
-    const timeout = setTimeout(() => setWaStatus("idle"), 30000);
-
-    // FB.login NÃO aceita callback async — usar função normal + Promise interna
-    window.FB.login((response: any) => {
-      clearTimeout(timeout);
-
-      if (!response.authResponse?.code) {
-        setWaStatus("idle");
-        return;
-      }
-
-      const code = response.authResponse.code;
-
-      fetch("/api/whatsapp/embedded-signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, tenant_id: tenantId }),
-      })
-        .then(res => res.json().then(data => ({ ok: res.ok, data })))
-        .then(({ ok, data }) => {
-          if (!ok) {
-            alert(data.error ?? "Erro ao conectar. Tente novamente.");
-            setWaStatus("idle");
-            return;
-          }
-          if (data.status === "connected") {
-            setWaStatus("connected");
-            setWaPhone(data.phone_number ?? "");
-            setWaName(data.verified_name ?? "");
-          } else if (data.status === "select_phone") {
-            setPhoneOptions(data.phones);
-            setPendingToken(data.access_token);
-            setPendingWabaId(data.waba_id);
-            setWaStatus("select");
-          }
-        })
-        .catch(() => {
-          alert("Erro de conexão. Tente novamente.");
-          setWaStatus("idle");
-        });
-    }, {
-      config_id: "1712571456601258",
-      response_type: "code",
-      override_default_response_type: true,
-      extras: { sessionInfoVersion: "3" },
-    });
-  }, [tenantId]);
-
-  async function selectPhone(phone: PhoneOption) {
-    setWaStatus("connecting");
-    const res = await fetch("/api/whatsapp/embedded-signup", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tenant_id: tenantId,
-        phone_number_id: phone.id,
-        access_token: pendingToken,
-        waba_id: pendingWabaId,
-      }),
-    });
-    if (res.ok) {
-      setWaStatus("connected");
-      setWaPhone(phone.display_phone_number);
-      setWaName(phone.verified_name);
-    } else {
-      setWaStatus("idle");
-    }
-  }
-
-  async function disconnect() {
-    if (!confirm("Tem certeza que deseja desconectar o WhatsApp?")) return;
-    const res = await fetch("/api/whatsapp/embedded-signup", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: tenantId }),
-    });
-    if (res.ok) {
-      setWaStatus("idle");
-      setWaPhone("");
-      setWaName("");
-    }
-  }
+  const filteredIntegrations = INTEGRATIONS.filter(i => {
+    if (category === "todos") return true;
+    if (category === "instalado") return i.status === "installed";
+    return i.categoria === category;
+  });
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -162,521 +77,488 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="p-8 space-y-6 max-w-2xl" style={{ fontFamily: "var(--font-sans)" }}>
-      <div>
-        <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Configurações</h1>
-        <p className="text-sm mt-1 font-medium" style={{ color: "#939da4" }}>Gerencie seu workspace</p>
-      </div>
+    <div className="flex h-full overflow-hidden" style={{ fontFamily: "var(--font-sans)" }}>
 
-      {/* Workspace */}
-      <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
-        <h2 className="text-sm font-bold text-white">Workspace</h2>
-        {[
-          { label: "Nome da empresa", value: tenant?.name ?? "—" },
-          { label: "Slug", value: tenant?.slug ?? "—" },
-          { label: "Criado em", value: tenant?.created_at ? new Date(tenant.created_at).toLocaleDateString("pt-BR") : "—" },
-        ].map(({ label, value }) => (
-          <div key={label} className="flex items-center justify-between py-3"
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-            <span className="text-sm" style={{ color: "#939da4" }}>{label}</span>
-            <span className="text-sm font-medium text-white">{value}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* WhatsApp — Embedded Signup */}
-      <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-white">WhatsApp Business</h2>
-            <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>
-              Conecte seu número para receber e enviar mensagens com IA
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {waStatus === "connected"
-              ? <><CheckCircle className="w-4 h-4" style={{ color: "#9aea62" }} /><span className="text-xs font-bold" style={{ color: "#9aea62" }}>Conectado</span></>
-              : <><AlertCircle className="w-4 h-4" style={{ color: "#939da4" }} /><span className="text-xs" style={{ color: "#939da4" }}>Não conectado</span></>}
-          </div>
+      {/* Left Nav */}
+      <aside className="w-52 shrink-0 flex flex-col py-6 px-3"
+        style={{ borderRight: "1px solid rgba(255,255,255,0.06)", background: "#050505" }}>
+        <p className="px-3 mb-3 text-xs font-bold" style={{ color: "rgba(147,157,164,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          Configurações
+        </p>
+        <div className="space-y-0.5">
+          {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
+            <button key={id} onClick={() => setSection(id as NavSection)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
+              style={section === id ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.15)" }
+                : { color: "rgba(255,255,255,0.5)", border: "1px solid transparent" }}>
+              <Icon className="w-4 h-4 shrink-0" style={{ color: section === id ? "#9aea62" : "rgba(255,255,255,0.3)" }} />
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Conectado */}
-        {waStatus === "connected" && (
-          <div className="rounded-xl p-4 flex items-center justify-between"
-            style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+        <div className="mt-auto pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <Link href="/ia"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+            style={{ color: "rgba(154,234,98,0.7)", border: "1px solid transparent" }}>
+            <Sparkles className="w-4 h-4 shrink-0" style={{ color: "rgba(154,234,98,0.7)" }} />
+            Studio IA
+            <ExternalLink className="w-3 h-3 ml-auto" style={{ color: "rgba(154,234,98,0.4)" }} />
+          </Link>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto">
+
+        {/* ─── INTEGRAÇÕES ─── */}
+        {section === "integracoes" && (
+          <div className="p-8 space-y-6">
             <div>
-              <p className="text-sm font-bold text-white">{waName || "WhatsApp conectado"}</p>
-              <p className="text-xs mt-0.5" style={{ color: "#9aea62" }}>{waPhone}</p>
+              <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Integrações</h1>
+              <p className="text-sm mt-1" style={{ color: "#939da4" }}>Conecte o Liberty CRM com suas ferramentas favoritas</p>
             </div>
-            <button onClick={disconnect} className="text-xs px-3 py-1.5 rounded-xl transition-colors"
-              style={{ color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.15)" }}>
-              Desconectar
-            </button>
+
+            {/* Category filter */}
+            <div className="flex gap-2 flex-wrap">
+              {CATEGORIES.map(c => (
+                <button key={c.id} onClick={() => setCategory(c.id)}
+                  className="px-4 h-8 rounded-full text-xs font-bold transition-all"
+                  style={category === c.id
+                    ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.25)" }
+                    : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  {c.label}
+                  {c.id === "instalado" && (
+                    <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px]"
+                      style={{ background: "rgba(154,234,98,0.15)", color: "#9aea62" }}>
+                      {INTEGRATIONS.filter(i => i.status === "installed").length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Integration cards grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredIntegrations.map(integration => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  isActive={activeIntegration === integration.id}
+                  onManage={() => setActiveIntegration(activeIntegration === integration.id ? null : integration.id)}
+                  tenantId={tenantId}
+                />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Seleção de número */}
-        {waStatus === "select" && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium" style={{ color: "#939da4" }}>Selecione o número para conectar:</p>
-            {phoneOptions.map(phone => (
-              <button key={phone.id} onClick={() => selectPhone(phone)}
-                className="w-full flex items-center justify-between p-4 rounded-xl transition-colors text-left"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(154,234,98,0.3)")}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}>
-                <div>
-                  <p className="text-sm font-semibold text-white">{phone.verified_name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{phone.display_phone_number}</p>
-                </div>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>Selecionar</span>
-              </button>
-            ))}
+        {/* ─── EQUIPE ─── */}
+        {section === "equipe" && tenantId && (
+          <div className="p-8">
+            <div className="mb-6">
+              <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Equipe</h1>
+              <p className="text-sm mt-1" style={{ color: "#939da4" }}>Gerencie os membros do seu workspace</p>
+            </div>
+            <TeamSection tenantId={tenantId} />
           </div>
         )}
 
-        {/* Wizard passo 1: checklist de requisitos */}
-        {waStatus === "idle" && (
-          <div className="rounded-xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="text-xs font-bold" style={{ color: "#939da4" }}>Antes de conectar, verifique se você tem:</p>
-            <div className="space-y-2.5">
+        {/* ─── WORKSPACE ─── */}
+        {section === "workspace" && (
+          <div className="p-8 space-y-6 max-w-2xl">
+            <div>
+              <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Workspace</h1>
+              <p className="text-sm mt-1" style={{ color: "#939da4" }}>Informações da sua empresa</p>
+            </div>
+            <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
               {[
-                { ok: true, text: "Conta no Meta Business Manager (business.facebook.com)" },
-                { ok: true, text: "Número de telefone dedicado para o WhatsApp Business" },
-                { ok: true, text: "App criado no Meta for Developers com WhatsApp ativado" },
-              ].map(({ ok, text }) => (
-                <div key={text} className="flex items-start gap-2.5">
-                  <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-                    style={{ background: ok ? "rgba(154,234,98,0.15)" : "rgba(255,255,255,0.06)" }}>
-                    {ok && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3l2 2 4-4" stroke="#9aea62" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </div>
-                  <p className="text-xs leading-relaxed" style={{ color: "#939da4" }}>{text}</p>
+                { label: "Nome da empresa", value: tenant?.name ?? "—" },
+                { label: "Slug", value: tenant?.slug ?? "—" },
+                { label: "Criado em", value: tenant?.created_at ? new Date(tenant.created_at).toLocaleDateString("pt-BR") : "—" },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <span className="text-sm" style={{ color: "#939da4" }}>{label}</span>
+                  <span className="text-sm font-medium text-white">{value}</span>
                 </div>
               ))}
             </div>
-            <div className="flex gap-2 pt-1">
-              <button onClick={handleConnect}
-                className="flex-1 h-11 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all hover:opacity-90"
-                style={{ background: "#1877f2", color: "#ffffff" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                </svg>
-                Continuar com o Facebook
+            <PersonaConfig tenantId={tenantId} />
+          </div>
+        )}
+
+        {/* ─── PLANO ─── */}
+        {section === "plano" && (
+          <div className="p-8 space-y-6 max-w-2xl">
+            <div>
+              <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Plano & Faturamento</h1>
+              <p className="text-sm mt-1" style={{ color: "#939da4" }}>Gerencie sua assinatura</p>
+            </div>
+            <div className="rounded-2xl p-6" style={cardStyle}>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-lg font-extrabold text-white">Starter — Trial</p>
+                  <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>30 dias grátis · sem cartão de crédito</p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>Trial ativo</span>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: "Mensagens IA / mês", used: 0, limit: 200 },
+                  { label: "Leads", used: 0, limit: 500 },
+                  { label: "Membros da equipe", used: 1, limit: 3 },
+                ].map(({ label, used, limit }) => (
+                  <div key={label}>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span style={{ color: "#939da4" }}>{label}</span>
+                      <span style={{ color: "#939da4" }}>{used} / {limit}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+                      <div className="h-full rounded-full" style={{ width: `${Math.min((used / limit) * 100, 100)}%`, background: "#9aea62" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button className="w-full mt-6 h-10 rounded-xl text-sm font-bold transition-all hover:opacity-90"
+                style={{ background: "#9aea62", color: "#0a0a0a" }}>
+                Fazer upgrade do plano
               </button>
-              <a href="https://business.facebook.com" target="_blank" rel="noopener noreferrer"
-                className="px-4 h-11 rounded-xl text-xs font-medium flex items-center"
-                style={{ background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
-                Abrir Meta
-              </a>
             </div>
           </div>
         )}
-
-        {waStatus === "connecting" && (
-          <div className="flex gap-2">
-            <div className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-sm"
-              style={{ background: "rgba(24,119,242,0.15)", border: "1px solid rgba(24,119,242,0.3)", color: "#60a5fa" }}>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Aguardando autorização no Facebook...
-            </div>
-            <button onClick={() => setWaStatus("idle")}
-              className="px-4 h-11 rounded-xl text-sm font-medium"
-              style={{ background: "rgba(255,255,255,0.05)", color: "#939da4", border: "1px solid rgba(255,255,255,0.08)" }}>
-              Cancelar
-            </button>
-          </div>
-        )}
-
-        {/* Webhook info */}
-        {waStatus === "idle" && (
-          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-            <p className="text-xs font-bold mb-2" style={{ color: "#939da4" }}>Configure o webhook no Meta for Developers:</p>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs" style={{ color: "rgba(147,157,164,0.6)" }}>URL do Webhook</span>
-                <code className="text-xs font-mono" style={{ color: "#60a5fa" }}>
-                  {typeof window !== "undefined" ? window.location.origin : "https://..."}/api/webhooks/whatsapp
-                </code>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs" style={{ color: "rgba(147,157,164,0.6)" }}>Verify Token</span>
-                <code className="text-xs font-mono" style={{ color: "#9aea62" }}>liberty-crm</code>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modo manual */}
-        {waStatus === "idle" && <ManualWAForm tenantId={tenantId} onConnected={(phone) => { setWaStatus("connected"); setWaPhone(phone); }} />}
-      </div>
-
-      {/* IA — Persona */}
-      <PersonaConfig tenantId={tenantId} />
-
-      {/* Equipe */}
-      <TeamSection tenantId={tenantId} />
-
-      {/* Plano */}
-      <div className="rounded-2xl p-6" style={cardStyle}>
-        <h2 className="text-sm font-bold text-white mb-4">Plano atual</h2>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-base font-bold text-white">Starter — Trial</p>
-            <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>30 dias grátis</p>
-          </div>
-          <span className="px-3 py-1 rounded-full text-xs font-bold"
-            style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>Trial ativo</span>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
 
-// ─── Persona da IA ───
-function PersonaConfig({ tenantId }: { tenantId: string | null }) {
-  const [form, setForm] = useState({ nome: "Assistente", empresa: "", descricao: "", temperatura: 0.7, max_tokens: 300 });
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [exists, setExists] = useState(false);
+// ─── Integration Card ───
+function IntegrationCard({ integration, isActive, onManage, tenantId }: {
+  integration: typeof INTEGRATIONS[number]; isActive: boolean; onManage: () => void; tenantId: string | null;
+}) {
+  const { id, name, desc, cor, status, icon } = integration;
+  const installed = status === "installed";
+  const soon = status === "soon";
+  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: `1px solid ${isActive ? cor + "40" : "rgba(255,255,255,0.07)"}` };
 
-  const cardStyle = {
-    background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
-    border: "1px solid rgba(255,255,255,0.07)",
-  };
+  return (
+    <div className="rounded-2xl overflow-hidden transition-all duration-200" style={cardStyle}>
+      <div className="p-5">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
+            style={{ background: cor + "20", border: `1px solid ${cor}30` }}>
+            {icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white">{name}</p>
+            <p className="text-xs mt-0.5 line-clamp-2 leading-relaxed" style={{ color: "#939da4" }}>{desc}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            {installed && <><CheckCircle className="w-3.5 h-3.5" style={{ color: "#9aea62" }} /><span className="text-xs font-bold" style={{ color: "#9aea62" }}>Instalado</span></>}
+            {soon && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Em breve</span>}
+            {status === "available" && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>Disponível</span>}
+          </div>
+          {installed && (
+            <button onClick={onManage}
+              className="px-3 h-7 rounded-lg text-xs font-bold transition-all"
+              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "rgba(255,255,255,0.07)", color: "#939da4" }}>
+              {isActive ? "Fechar" : "Gerenciar"}
+            </button>
+          )}
+          {status === "available" && (
+            <button className="px-3 h-7 rounded-lg text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+              + Instalar
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded management panel */}
+      {isActive && installed && (
+        <div style={{ borderTop: `1px solid ${cor}25`, background: "rgba(0,0,0,0.3)" }}>
+          {id === "whatsapp" && <WhatsAppManagePanel tenantId={tenantId} />}
+          {id === "gemini" && <GeminiManagePanel />}
+          {id === "resend" && <ResendManagePanel />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── WhatsApp Manage Panel ───
+function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
+  const [waStatus, setWaStatus] = useState<"idle" | "connecting" | "select" | "connected">("idle");
+  const [waPhone, setWaPhone] = useState("");
+  const [waName, setWaName] = useState("");
+  const [phoneOptions, setPhoneOptions] = useState<PhoneOption[]>([]);
+  const [pendingToken, setPendingToken] = useState("");
+  const [pendingWabaId, setPendingWabaId] = useState("");
 
   useEffect(() => {
     if (!tenantId) return;
-    async function load() {
-      const supabase = createClient();
-      const { data } = await supabase.from("personas").select("*").eq("tenant_id", tenantId!).single() as { data: any; error: unknown };
-      if (data) {
-        setForm({ nome: data.nome, empresa: data.empresa ?? "", descricao: data.descricao ?? "", temperatura: data.temperatura ?? 0.7, max_tokens: data.max_tokens ?? 300 });
-        setExists(true);
-      }
-    }
-    load();
+    fetch(`/api/whatsapp/status?tenant_id=${tenantId}`)
+      .then(r => r.json())
+      .then(d => { if (d.connected) { setWaStatus("connected"); setWaPhone(d.phone_number ?? ""); setWaName(d.verified_name ?? ""); } });
+    if (document.getElementById("facebook-jssdk")) return;
+    window.fbAsyncInit = () => window.FB.init({ appId: META_APP_ID, cookie: true, xfbml: true, version: "v20.0" });
+    const s = document.createElement("script"); s.id = "facebook-jssdk"; s.src = "https://connect.facebook.net/pt_BR/sdk.js"; s.async = true; document.body.appendChild(s);
   }, [tenantId]);
 
-  async function save() {
-    if (!tenantId) return;
-    setSaving(true);
-    const supabase = createClient();
-    const payload = { tenant_id: tenantId, ...form };
-    if (exists) {
-      await supabase.from("personas").update(payload).eq("tenant_id", tenantId);
-    } else {
-      await supabase.from("personas").insert(payload);
-      setExists(true);
-    }
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const handleConnect = useCallback(() => {
+    if (!window.FB) return;
+    setWaStatus("connecting");
+    const timeout = setTimeout(() => setWaStatus("idle"), 30000);
+    window.FB.login((resp: any) => {
+      clearTimeout(timeout);
+      if (!resp.authResponse?.code) { setWaStatus("idle"); return; }
+      fetch("/api/whatsapp/embedded-signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: resp.authResponse.code, tenant_id: tenantId }) })
+        .then(r => r.json().then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+          if (!ok) { alert(d.error ?? "Erro"); setWaStatus("idle"); return; }
+          if (d.status === "connected") { setWaStatus("connected"); setWaPhone(d.phone_number ?? ""); setWaName(d.verified_name ?? ""); }
+          else if (d.status === "select_phone") { setPhoneOptions(d.phones); setPendingToken(d.access_token); setPendingWabaId(d.waba_id); setWaStatus("select"); }
+        }).catch(() => { setWaStatus("idle"); });
+    }, { config_id: "1712571456601258", response_type: "code", override_default_response_type: true, extras: { sessionInfoVersion: "3" } });
+  }, [tenantId]);
+
+  async function disconnect() {
+    if (!confirm("Desconectar WhatsApp?")) return;
+    await fetch("/api/whatsapp/embedded-signup", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant_id: tenantId }) });
+    setWaStatus("idle"); setWaPhone(""); setWaName("");
+  }
+
+  async function selectPhone(phone: PhoneOption) {
+    setWaStatus("connecting");
+    const r = await fetch("/api/whatsapp/embedded-signup", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant_id: tenantId, phone_number_id: phone.id, access_token: pendingToken, waba_id: pendingWabaId }) });
+    if (r.ok) { setWaStatus("connected"); setWaPhone(phone.display_phone_number); setWaName(phone.verified_name); }
+    else setWaStatus("idle");
   }
 
   return (
-    <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
-      <div>
-        <h2 className="text-sm font-bold text-white">Personalidade da IA</h2>
-        <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>Configure como a IA se comporta com seus leads</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Nome do assistente</Label>
-          <Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
-            placeholder="Ex: Ana, Carlos..." className="h-10 rounded-xl text-sm text-white"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+    <div className="p-5 space-y-4">
+      {waStatus === "connected" ? (
+        <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: "rgba(37,211,102,0.06)", border: "1px solid rgba(37,211,102,0.15)" }}>
+          <div>
+            <p className="text-sm font-bold text-white">{waName || "Conectado"}</p>
+            <p className="text-xs" style={{ color: "#25D366" }}>{waPhone}</p>
+          </div>
+          <button onClick={disconnect} className="text-xs px-3 py-1.5 rounded-lg" style={{ color: "#f87171", background: "rgba(248,113,113,0.08)" }}>Desconectar</button>
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Nome da empresa</Label>
-          <Input value={form.empresa} onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))}
-            placeholder="Sua empresa..." className="h-10 rounded-xl text-sm text-white"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Instruções para a IA</Label>
-        <textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
-          rows={4} placeholder="Ex: Você é uma assistente de vendas especializada em marketing digital. Seja simpática, objetiva e sempre apresente os benefícios dos serviços."
-          className="w-full rounded-xl text-sm p-3 resize-none outline-none text-white"
-          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
+      ) : waStatus === "select" ? (
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Criatividade</Label>
-            <span className="text-xs font-bold" style={{ color: "#9aea62" }}>{form.temperatura}</span>
-          </div>
-          <input type="range" min="0.1" max="1.0" step="0.1" value={form.temperatura}
-            onChange={e => setForm(f => ({ ...f, temperatura: parseFloat(e.target.value) }))}
-            className="w-full accent-[#9aea62]" />
-          <div className="flex justify-between text-[10px]" style={{ color: "rgba(147,157,164,0.5)" }}>
-            <span>Conservador</span><span>Criativo</span>
-          </div>
+          {phoneOptions.map(p => (
+            <button key={p.id} onClick={() => selectPhone(p)} className="w-full flex items-center justify-between p-3 rounded-xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div><p className="text-sm font-semibold text-white">{p.verified_name}</p><p className="text-xs" style={{ color: "#939da4" }}>{p.display_phone_number}</p></div>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>Selecionar</span>
+            </button>
+          ))}
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium" style={{ color: "#939da4" }}>Tamanho máx. da resposta</Label>
-          <select value={form.max_tokens} onChange={e => setForm(f => ({ ...f, max_tokens: parseInt(e.target.value) }))}
-            className="w-full h-10 rounded-xl text-sm px-3 outline-none"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
-            <option value={150} style={{ background: "#111" }}>Curto (~2 linhas)</option>
-            <option value={300} style={{ background: "#111" }}>Médio (~4 linhas)</option>
-            <option value={600} style={{ background: "#111" }}>Longo (~8 linhas)</option>
-          </select>
+      ) : waStatus === "connecting" ? (
+        <div className="flex gap-2">
+          <div className="flex-1 h-10 rounded-xl flex items-center justify-center gap-2 text-xs" style={{ background: "rgba(24,119,242,0.1)", color: "#60a5fa" }}>
+            <Loader2 className="w-4 h-4 animate-spin" /> Aguardando autorização...
+          </div>
+          <button onClick={() => setWaStatus("idle")} className="px-3 h-10 rounded-xl text-xs" style={{ background: "rgba(255,255,255,0.05)", color: "#939da4" }}>Cancelar</button>
         </div>
-      </div>
-
-      <div className="flex justify-end">
-        <button onClick={save} disabled={saving}
-          className="px-6 h-9 rounded-xl text-sm font-bold transition-all"
-          style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
-          {saving ? "Salvando..." : saved ? "Salvo!" : "Salvar personalidade"}
+      ) : (
+        <button onClick={handleConnect} className="w-full h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all" style={{ background: "#1877f2", color: "#fff" }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Continuar com Facebook
         </button>
+      )}
+      <ManualWAForm tenantId={tenantId} onConnected={(p) => { setWaStatus("connected"); setWaPhone(p); }} />
+    </div>
+  );
+}
+
+function GeminiManagePanel() {
+  return (
+    <div className="p-5">
+      <div className="flex items-center gap-2 p-3 rounded-xl" style={{ background: "rgba(66,133,244,0.06)", border: "1px solid rgba(66,133,244,0.15)" }}>
+        <CheckCircle className="w-4 h-4" style={{ color: "#4285F4" }} />
+        <div>
+          <p className="text-xs font-bold text-white">Vertex AI conectado</p>
+          <p className="text-xs" style={{ color: "#939da4" }}>Projeto: adsliberty · Modelo: gemini-2.0-flash</p>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Equipe ───
-function TeamSection({ tenantId }: { tenantId: string | null }) {
-  const [members, setMembers] = useState<any[]>([]);
-  const [invites, setInvites] = useState<any[]>([]);
-  const [myRole, setMyRole] = useState<string>("owner");
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ email: "", role: "member" });
-  const [inviting, setInviting] = useState(false);
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const supabase = createClient();
+function ResendManagePanel() {
+  return (
+    <div className="p-5">
+      <div className="flex items-center gap-2 p-3 rounded-xl" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+        <CheckCircle className="w-4 h-4" style={{ color: "#9aea62" }} />
+        <div>
+          <p className="text-xs font-bold text-white">Resend configurado</p>
+          <p className="text-xs" style={{ color: "#939da4" }}>Usado para e-mails de convite da equipe</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
+// ─── Brand icons (SVG inline) ───
+function WhatsAppIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>; }
+function InstagramIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="url(#ig)"><defs><linearGradient id="ig" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#fd5949"/><stop offset="50%" stopColor="#d6249f"/><stop offset="100%" stopColor="#285AEB"/></linearGradient></defs><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>; }
+function FacebookIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#0084FF"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>; }
+function TelegramIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#229ED9"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>; }
+function GeminiIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#4285F4"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>; }
+function OpenAIIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#10a37f"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.677l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.843-3.371 2.019-1.168a.076.076 0 0 1 .071 0l4.83 2.786a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.4-.674zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>; }
+function ZapierIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#FF4A00"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.25 13.5h-3.75v3.75a1.5 1.5 0 01-3 0V13.5H6.75a1.5 1.5 0 010-3h3.75V6.75a1.5 1.5 0 013 0v3.75h3.75a1.5 1.5 0 010 3z"/></svg>; }
+function MakeIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#6D00CC"><circle cx="12" cy="12" r="10"/><text x="12" y="16" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">M</text></svg>; }
+function WebhookIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9aea62" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/></svg>; }
+function ResendIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><text x="3" y="18" fontSize="14" fontWeight="900" fill="white">R</text></svg>; }
+function SendGridIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#1A82E2"><path d="M0 0h8v8H0zm8 8h8v8H8zm8-8h8v8h-8zM0 16h8v8H0zm16 0h8v8h-8z"/></svg>; }
+function GmailIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#EA4335"><path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg>; }
+
+// ─── Persona Config (moved from old settings) ───
+function PersonaConfig({ tenantId }: { tenantId: string | null }) {
+  const [form, setForm] = useState({ nome: "Assistente", empresa: "", descricao: "", temperatura: 0.7, max_tokens: 300 });
+  const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [exists, setExists] = useState(false);
+  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  useEffect(() => {
+    if (!tenantId) return;
+    createClient().from("personas").select("*").eq("tenant_id", tenantId).single().then(({ data }: { data: any }) => {
+      if (data) { setForm({ nome: data.nome, empresa: data.empresa ?? "", descricao: data.descricao ?? "", temperatura: data.temperatura ?? 0.7, max_tokens: data.max_tokens ?? 300 }); setExists(true); }
+    });
+  }, [tenantId]);
+  async function save() {
+    if (!tenantId) return; setSaving(true);
+    const supabase = createClient(); const payload = { tenant_id: tenantId, ...form };
+    if (exists) await supabase.from("personas").update(payload).eq("tenant_id", tenantId);
+    else { await supabase.from("personas").insert(payload); setExists(true); }
+    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 3000);
+  }
+  return (
+    <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+      <h2 className="text-sm font-bold text-white">Personalidade da IA</h2>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5"><Label className="text-xs" style={{ color: "#939da4" }}>Nome</Label><Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} /></div>
+        <div className="space-y-1.5"><Label className="text-xs" style={{ color: "#939da4" }}>Empresa</Label><Input value={form.empresa} onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))} className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} /></div>
+      </div>
+      <div className="space-y-1.5"><Label className="text-xs" style={{ color: "#939da4" }}>Instruções</Label><textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} rows={3} className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} /></div>
+      <div className="flex justify-end"><button onClick={save} disabled={saving} className="px-5 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a" }}>{saving ? "Salvando..." : saved ? "Salvo!" : "Salvar"}</button></div>
+    </div>
+  );
+}
+
+// ─── Manual WA Form ───
+function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onConnected: (phone: string) => void }) {
+  const [open, setOpen] = useState(false); const [form, setForm] = useState({ phone_number_id: "", access_token: "" }); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
+  async function save() {
+    if (!tenantId || !form.phone_number_id || !form.access_token) return; setSaving(true);
+    await createClient().from("whatsapp_configs").upsert({ tenant_id: tenantId, ...form, verify_token: "liberty-crm", active: true }, { onConflict: "tenant_id" });
+    setSaving(false); setSaved(true); onConnected(form.phone_number_id); setTimeout(() => setSaved(false), 3000);
+  }
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium" style={{ background: "rgba(255,255,255,0.02)", color: "#939da4" }}>
+        Configurar manualmente (avançado) {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+      {open && (
+        <div className="px-4 py-3 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))} placeholder="Phone Number ID" className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} placeholder="Access Token" className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          <div className="flex justify-end"><button onClick={save} disabled={saving || !form.phone_number_id || !form.access_token} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a" }}>{saving ? "..." : saved ? "Salvo!" : "Salvar"}</button></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Team Section ───
+function TeamSection({ tenantId }: { tenantId: string }) {
+  const [members, setMembers] = useState<any[]>([]); const [invites, setInvites] = useState<any[]>([]);
+  const [showInvite, setShowInvite] = useState(false); const [inviteForm, setInviteForm] = useState({ email: "", role: "member" });
+  const [inviting, setInviting] = useState(false); const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
   const ROLE_COLOR: Record<string, string> = { owner: "#9aea62", admin: "#60a5fa", member: "#939da4" };
   const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Membro" };
 
   useEffect(() => {
-    if (!tenantId) return;
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Buscar membros via API (usa service role — retorna emails + roles)
-      const res = await fetch(`/api/team/members?tenant_id=${tenantId}`);
-      if (res.ok) {
-        const { members: list } = await res.json();
-        setMembers(list ?? []);
-        const me = (list ?? []).find((m: any) => m.user_id === user?.id);
-        setMyRole(me?.role ?? "owner"); // default owner se é o único
-      }
-
-      // Convites pendentes
-      const { data: inv } = await supabase
-        .from("invite_tokens").select("id, email, role, expires_at, created_at")
-        .eq("tenant_id", tenantId!).is("accepted_at", null) as { data: any[]; error: unknown };
-      setInvites((inv ?? []).filter((i: any) => new Date(i.expires_at) > new Date()));
-    }
-    load();
+    fetch(`/api/team/members?tenant_id=${tenantId}`).then(r => r.ok ? r.json() : { members: [] }).then(d => setMembers(d.members ?? []));
+    createClient().from("invite_tokens").select("id, email, role, expires_at").eq("tenant_id", tenantId).is("accepted_at", null)
+      .then(({ data }: { data: any }) => setInvites((data ?? []).filter((i: any) => new Date(i.expires_at) > new Date())));
   }, [tenantId]);
 
   async function sendInvite() {
-    if (!tenantId || !inviteForm.email) return;
-    setInviting(true);
-    const res = await fetch("/api/team/invite", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...inviteForm, tenant_id: tenantId }),
-    });
-    const data = await res.json();
-    setInviting(false);
-    if (data.invite_url) {
-      setInviteLink(data.invite_url);
-      setInviteForm({ email: "", role: "member" });
-    } else {
-      alert(data.error ?? "Erro ao convidar");
-    }
+    if (!inviteForm.email) return; setInviting(true);
+    const r = await fetch("/api/team/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...inviteForm, tenant_id: tenantId }) });
+    const d = await r.json(); setInviting(false);
+    if (d.invite_url) { setInviteLink(d.invite_url); setInviteForm({ email: "", role: "member" }); }
+    else alert(d.error ?? "Erro ao convidar");
   }
 
-  async function removeMember(memberId: string) {
-    if (!confirm("Remover este membro?")) return;
-    await fetch("/api/team/member", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ member_id: memberId, tenant_id: tenantId }),
-    });
-    setMembers(m => m.filter(x => x.id !== memberId));
+  async function removeMember(id: string) {
+    if (!confirm("Remover membro?")) return;
+    await fetch("/api/team/member", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ member_id: id, tenant_id: tenantId }) });
+    setMembers(m => m.filter(x => x.id !== id));
   }
-
-  async function cancelInvite(inviteId: string) {
-    const sc = createClient();
-    await (sc.from("invite_tokens") as any).update({ accepted_at: new Date().toISOString() }).eq("id", inviteId);
-    setInvites(i => i.filter(x => x.id !== inviteId));
-  }
-
-  const canManage = ["owner", "admin"].includes(myRole);
 
   return (
-    <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-bold text-white">Equipe</h2>
-          <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{members.length} membro(s) · Gerencie quem acessa este workspace</p>
-        </div>
-        {canManage && (
-          <button onClick={() => setShowInvite(!showInvite)}
-            className="flex items-center gap-2 px-3 h-8 rounded-xl text-xs font-bold"
-            style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
-            + Convidar
+    <div className="space-y-4 max-w-2xl">
+      <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+        <div className="flex items-center justify-between">
+          <div><p className="text-sm font-bold text-white">Membros</p><p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{members.length} membro(s)</p></div>
+          <button onClick={() => setShowInvite(!showInvite)} className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
+            <Plus className="w-3.5 h-3.5" /> Convidar
           </button>
-        )}
-      </div>
-
-      {/* Invite form */}
-      {showInvite && (
-        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="flex gap-2">
-            <input value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
-              placeholder="email@vendedor.com" type="email"
-              className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
-            <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}
-              className="h-9 px-3 rounded-xl text-sm outline-none"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
-              <option value="member" style={{ background: "#111" }}>Membro</option>
-              <option value="admin" style={{ background: "#111" }}>Admin</option>
-            </select>
-            <button onClick={sendInvite} disabled={inviting || !inviteForm.email}
-              className="px-4 h-9 rounded-xl text-xs font-bold"
-              style={{ background: "#9aea62", color: "#0a0a0a", opacity: inviting ? 0.6 : 1 }}>
-              {inviting ? "..." : "Enviar"}
-            </button>
-          </div>
-          {inviteLink && (
-            <div className="rounded-lg p-3 space-y-2" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
-              <p className="text-xs font-bold" style={{ color: "#9aea62" }}>Link de convite gerado!</p>
-              <p className="text-xs font-mono break-all" style={{ color: "#939da4" }}>{inviteLink}</p>
-              <button onClick={() => { navigator.clipboard.writeText(inviteLink); }} className="text-xs font-bold" style={{ color: "#9aea62" }}>Copiar link</button>
-            </div>
-          )}
         </div>
-      )}
-
-      {/* Members list */}
-      <div className="space-y-2">
-        {members.map(m => (
-          <div key={m.id} className="flex items-center gap-3 py-2.5 px-3 rounded-xl"
-            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-              style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
-              {(m.email ?? m.user_id ?? "?").charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{m.email ?? m.user_id}</p>
-              <p className="text-xs" style={{ color: "#939da4" }}>
-                desde {new Date(m.created_at).toLocaleDateString("pt-BR")}
-              </p>
-            </div>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0"
-              style={{ color: ROLE_COLOR[m.role], background: `${ROLE_COLOR[m.role]}15` }}>
-              {ROLE_LABEL[m.role]}
-            </span>
-            {canManage && m.role !== "owner" && (
-              <button onClick={() => removeMember(m.id)} className="text-xs shrink-0 transition-colors"
-                style={{ color: "rgba(248,113,113,0.5)" }}>
-                Remover
+        {showInvite && (
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="flex gap-2">
+              <input value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="email@vendedor.com" type="email" className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))} className="h-9 px-3 rounded-xl text-sm outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+                <option value="member" style={{ background: "#111" }}>Membro</option>
+                <option value="admin" style={{ background: "#111" }}>Admin</option>
+              </select>
+              <button onClick={sendInvite} disabled={inviting || !inviteForm.email} className="px-4 h-9 rounded-xl text-xs font-bold" style={{ background: "#9aea62", color: "#0a0a0a", opacity: inviting ? 0.6 : 1 }}>
+                {inviting ? "..." : "Enviar"}
               </button>
+            </div>
+            {inviteLink && (
+              <div className="rounded-lg p-3 space-y-2" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+                <p className="text-xs font-bold" style={{ color: "#9aea62" }}>Link de convite gerado!</p>
+                <p className="text-xs font-mono break-all" style={{ color: "#939da4" }}>{inviteLink}</p>
+                <button onClick={() => { navigator.clipboard.writeText(inviteLink); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                  className="flex items-center gap-1.5 text-xs font-bold" style={{ color: "#9aea62" }}>
+                  {copied ? <><Check className="w-3 h-3" /> Copiado!</> : <><Copy className="w-3 h-3" /> Copiar link</>}
+                </button>
+              </div>
             )}
           </div>
-        ))}
-      </div>
-
-      {/* Pending invites */}
-      {invites.length > 0 && (
-        <div>
-          <p className="text-xs font-bold mb-2" style={{ color: "#939da4" }}>Convites pendentes</p>
-          <div className="space-y-2">
+        )}
+        <div className="space-y-2">
+          {members.map(m => (
+            <div key={m.id} className="flex items-center gap-3 py-2.5 px-3 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+                {(m.email ?? "?").charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0"><p className="text-sm font-medium text-white truncate">{m.email ?? m.user_id}</p></div>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0" style={{ color: ROLE_COLOR[m.role], background: `${ROLE_COLOR[m.role]}15` }}>{ROLE_LABEL[m.role]}</span>
+              {m.role !== "owner" && (
+                <button onClick={() => removeMember(m.id)}><Trash2 className="w-3.5 h-3.5" style={{ color: "rgba(248,113,113,0.5)" }} /></button>
+              )}
+            </div>
+          ))}
+        </div>
+        {invites.length > 0 && (
+          <div>
+            <p className="text-xs font-bold mb-2" style={{ color: "#939da4" }}>Convites pendentes</p>
             {invites.map(inv => (
-              <div key={inv.id} className="flex items-center gap-3 py-2 px-3 rounded-xl"
-                style={{ background: "rgba(250,204,21,0.04)", border: "1px solid rgba(250,204,21,0.1)" }}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">{inv.email}</p>
-                  <p className="text-[10px]" style={{ color: "#939da4" }}>
-                    Expira {new Date(inv.expires_at).toLocaleDateString("pt-BR")}
-                  </p>
-                </div>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                  style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>
-                  {ROLE_LABEL[inv.role]}
-                </span>
-                <button onClick={() => cancelInvite(inv.id)} className="text-[10px]" style={{ color: "rgba(248,113,113,0.5)" }}>
-                  Cancelar
-                </button>
+              <div key={inv.id} className="flex items-center gap-3 py-2 px-3 rounded-xl mb-1.5" style={{ background: "rgba(250,204,21,0.04)", border: "1px solid rgba(250,204,21,0.1)" }}>
+                <p className="flex-1 text-xs font-medium text-white truncate">{inv.email}</p>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>{ROLE_LABEL[inv.role]}</span>
               </div>
             ))}
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Componente de configuração manual ───
-function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onConnected: (phone: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ phone_number_id: "", access_token: "" });
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  async function save() {
-    if (!tenantId || !form.phone_number_id || !form.access_token) return;
-    setSaving(true);
-    const supabase = createClient();
-    await supabase.from("whatsapp_configs").upsert({
-      tenant_id: tenantId,
-      phone_number_id: form.phone_number_id,
-      access_token: form.access_token,
-      verify_token: "liberty-crm",
-      active: true,
-    }, { onConflict: "tenant_id" });
-    setSaving(false);
-    setSaved(true);
-    onConnected(form.phone_number_id);
-    setTimeout(() => setSaved(false), 3000);
-  }
-
-  return (
-    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-      <button onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium transition-colors"
-        style={{ background: "rgba(255,255,255,0.03)", color: "#939da4" }}>
-        Configurar manualmente (avançado)
-        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-      </button>
-      {open && (
-        <div className="px-4 py-4 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          <div className="space-y-1">
-            <Label className="text-xs" style={{ color: "#939da4" }}>Phone Number ID</Label>
-            <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))}
-              placeholder="Ex: 123456789012345" className="h-9 rounded-lg text-sm text-white"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs" style={{ color: "#939da4" }}>Access Token</Label>
-            <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))}
-              placeholder="EAAxxxx..." className="h-9 rounded-lg text-sm text-white"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
-          </div>
-          <div className="flex items-center justify-between pt-1">
-            <p className="text-xs" style={{ color: "rgba(147,157,164,0.5)" }}>
-              Webhook: <span className="font-mono">/api/webhooks/whatsapp</span> · Token: <span className="font-mono">liberty-crm</span>
-            </p>
-            <button onClick={save} disabled={saving || !form.phone_number_id || !form.access_token}
-              className="px-4 h-8 rounded-lg text-xs font-bold transition-all ml-3 shrink-0"
-              style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
-              {saving ? "Salvando..." : saved ? "Salvo!" : "Salvar"}
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

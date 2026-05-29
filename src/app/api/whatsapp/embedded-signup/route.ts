@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-const META_APP_ID = "1524032985369366";
+const META_APP_ID = "2016623082257479"; // LibertyCRM app
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();

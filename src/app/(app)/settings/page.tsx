@@ -14,7 +14,7 @@ declare global {
   }
 }
 
-const META_APP_ID = "1524032985369366";
+const META_APP_ID = "2016623082257479"; // LibertyCRM app
 
 interface PhoneOption {
   id: string;

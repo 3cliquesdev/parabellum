@@ -113,9 +113,9 @@ export default function SettingsPage() {
           setWaStatus("idle");
         });
     }, {
+      config_id: "1712571456601258",
       response_type: "code",
       override_default_response_type: true,
-      scope: "whatsapp_business_management,whatsapp_business_messaging,business_management",
       extras: { sessionInfoVersion: "3" },
     });
   }, [tenantId]);

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Kanban, Users, CheckSquare,
-  MessageSquare, Settings, LogOut, Brain, BookOpen, Zap,
+  MessageSquare, Settings, LogOut, Sparkles,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -14,10 +14,7 @@ const navItems = [
   { href: "/contacts", icon: Users, label: "Contatos" },
   { href: "/activities", icon: CheckSquare, label: "Atividades" },
   { href: "/inbox", icon: MessageSquare, label: "Inbox IA" },
-  { href: "/ia/agents", icon: Brain, label: "Agentes de IA", separator: true },
-  { href: "/ia/knowledge", icon: BookOpen, label: "Base de Conhecimento" },
-  { href: "/ia/training", icon: Zap, label: "Treinamento" },
-  { href: "/ia/responses", icon: MessageSquare, label: "Respostas Rápidas" },
+  { href: "/ia", icon: Sparkles, label: "Studio IA", separator: true },
 ];
 
 export function Sidebar() {
@@ -49,7 +46,9 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {navItems.map(({ href, icon: Icon, label, separator }) => {
-          const active = pathname.startsWith(href);
+          const active = href === "/ia"
+            ? pathname.startsWith("/ia")
+            : pathname.startsWith(href);
           return (
             <div key={href}>
               {separator && <div className="my-2" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }} />}

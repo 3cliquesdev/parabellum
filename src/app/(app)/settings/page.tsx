@@ -420,17 +420,16 @@ function TeamSection({ tenantId }: { tenantId: string | null }) {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
 
-      const { data: mems } = await supabase
-        .from("tenant_members").select("id, role, user_id, created_at").eq("tenant_id", tenantId!) as { data: any[]; error: unknown };
-
-      // Buscar emails dos usuários via API
+      // Buscar membros via API (usa service role — retorna emails + roles)
       const res = await fetch(`/api/team/members?tenant_id=${tenantId}`);
-      const enriched = res.ok ? await res.json() : { members: mems ?? [] };
-      setMembers(enriched.members ?? mems ?? []);
+      if (res.ok) {
+        const { members: list } = await res.json();
+        setMembers(list ?? []);
+        const me = (list ?? []).find((m: any) => m.user_id === user?.id);
+        setMyRole(me?.role ?? "owner"); // default owner se é o único
+      }
 
-      const me = (mems ?? []).find((m: any) => m.user_id === user?.id);
-      setMyRole(me?.role ?? "member");
-
+      // Convites pendentes
       const { data: inv } = await supabase
         .from("invite_tokens").select("id, email, role, expires_at, created_at")
         .eq("tenant_id", tenantId!).is("accepted_at", null) as { data: any[]; error: unknown };

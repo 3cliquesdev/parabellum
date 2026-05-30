@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { GoogleAuth } from "google-auth-library";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { dispatchConversation } from "@/lib/dispatch";
+import { processFlowMessage } from "@/lib/flow-engine";
 
 const AI_LIMITS: Record<string, number> = { Starter: 200, Pro: 2000, Agency: Infinity };
 const VERTEX_PROJECT = "adsliberty";
@@ -172,6 +173,21 @@ export async function POST(request: NextRequest) {
         lead_id: lead.id, lead_nome: lead.nome,
         mensagem: text, tipo: msg.type,
       });
+
+      // ─── Chat Flow Engine — processa antes da IA padrão ───
+      if (msg.type === "text" && text) {
+        try {
+          const flowResult = await processFlowMessage({
+            tenantId, conversaId: conversa.id, leadId: lead.id, lead,
+            text, accessToken: waConfig.access_token,
+            phoneNumberId, toNumber: fromNumber,
+          });
+          if (flowResult === "done" || flowResult === "waiting") continue;
+        } catch (flowErr) {
+          console.error("Flow engine error:", flowErr);
+          // Continue com IA padrão se flow falhar
+        }
+      }
 
       // Detectar intenção → mover pipeline
       const intent = detectIntent(text);

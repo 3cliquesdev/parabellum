@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bot, BookOpen, Zap, MessageSquare, FlaskConical, ThumbsUp, ArrowRight, Sparkles } from "lucide-react";
+import { Bot, BookOpen, Zap, MessageSquare, FlaskConical, ThumbsUp, ArrowRight, Sparkles, GitBranch } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 
@@ -51,6 +51,15 @@ const TOOLS = [
     color: "#a78bfa",
     statKey: "responses",
     statLabel: "template(s)",
+  },
+  {
+    href: "/ia/flows",
+    icon: GitBranch,
+    label: "Chat Flows",
+    desc: "Defina fluxos visuais — IA tenta resolver antes de transferir para humano",
+    color: "#fb923c",
+    statKey: null,
+    statLabel: "Configurar fluxos",
   },
   {
     href: "/ia/sandbox",

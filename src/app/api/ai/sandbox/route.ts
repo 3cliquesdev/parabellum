@@ -36,7 +36,13 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { tenant_id, message, history = [], kb_enabled = true } = await request.json();
+  let body: any;
+  try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  const { tenant_id, message, history = [], kb_enabled = true } = body;
+
+  if (!tenant_id || !message) return NextResponse.json({ error: "tenant_id e message são obrigatórios" }, { status: 400 });
+
+  try {
 
   const admin = createServerClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,12 +50,12 @@ export async function POST(request: NextRequest) {
     { cookies: { getAll: () => [], setAll: () => {} } }
   );
 
-  // Buscar persona
-  const { data: persona } = await admin.from("personas").select("*").eq("tenant_id", tenant_id).eq("ativo", true).single() as { data: any; error: unknown };
+  // Buscar persona (sem filtro ativo — campo pode não existir)
+  const { data: persona } = await admin.from("personas").select("*").eq("tenant_id", tenant_id).limit(1).maybeSingle() as { data: any; error: unknown };
 
   // Buscar exemplos de treinamento
   const { data: examples } = await admin.from("training_examples").select("input_text, output_text, cenario")
-    .eq("tenant_id", tenant_id).eq("ativo", true).limit(10);
+    .eq("tenant_id", tenant_id).limit(10);
 
   // RAG: buscar KB
   let kbArticles: any[] = [];
@@ -104,9 +110,18 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: persona?.max_tokens ?? 300, temperature: persona?.temperatura ?? 0.7 } }),
   });
 
-  if (!res.ok) return NextResponse.json({ error: "Gemini error" }, { status: 500 });
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("Gemini error:", res.status, errText);
+    return NextResponse.json({ error: `Gemini error ${res.status}: ${errText.slice(0, 200)}` }, { status: 500 });
+  }
   const data = await res.json();
   const reply = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "Sem resposta.";
 
   return NextResponse.json({ reply, kb_articles: kbArticles.map((a: any) => ({ titulo: a.titulo, categoria: a.categoria, similarity: Math.round(a.similarity * 100) })) });
+
+  } catch (err: any) {
+    console.error("Sandbox error:", err);
+    return NextResponse.json({ error: err?.message ?? "Erro interno" }, { status: 500 });
+  }
 }

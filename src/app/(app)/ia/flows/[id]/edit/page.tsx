@@ -7,12 +7,12 @@ import ReactFlow, {
   Background, Controls, MiniMap, addEdge,
   useNodesState, useEdgesState, type Connection,
   type Node, type Edge, MarkerType,
+  Handle, Position,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { ArrowLeft, Save, Plus } from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 
-// ─── Node Colors ───
 const NODE_COLORS: Record<string, string> = {
   start:       "#939da4",
   message:     "#60a5fa",
@@ -33,32 +33,121 @@ const NODE_LABELS: Record<string, string> = {
   end:         "Finalizar",
 };
 
-// ─── Custom node rendering ───
-function FlowNode({ data, type }: { data: any; type: string }) {
-  const color = NODE_COLORS[type ?? "message"] ?? "#939da4";
+const HANDLE_STYLE = { width: 10, height: 10, border: "2px solid #0a0a0a" };
+
+// ─── Nós customizados com handles ───
+function StartNode({ data }: any) {
+  const color = NODE_COLORS.start;
+  return (
+    <div className="rounded-xl px-4 py-3 min-w-[140px]"
+      style={{ background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))", border: `2px solid ${color}50` }}>
+      <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ background: color }} /><p className="text-[10px] font-bold uppercase" style={{ color }}>Início</p></div>
+      <p className="text-xs text-white mt-0.5 truncate">{data.label || "Ponto de entrada"}</p>
+      <Handle type="source" position={Position.Right} style={{ ...HANDLE_STYLE, background: color }} />
+    </div>
+  );
+}
+
+function MessageNode({ data }: any) {
+  const color = NODE_COLORS.message;
   return (
     <div className="rounded-xl px-4 py-3 min-w-[160px] max-w-[220px]"
-      style={{ background: "linear-gradient(180deg, rgba(28,28,28,0.95) 0%, rgba(18,18,18,1) 100%)", border: `2px solid ${color}40`, boxShadow: `0 0 12px ${color}20` }}>
-      <div className="flex items-center gap-2 mb-1">
-        <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-        <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color }}>{NODE_LABELS[type ?? "message"]}</p>
+      style={{ background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))", border: `2px solid ${color}50` }}>
+      <Handle type="target" position={Position.Left} style={{ ...HANDLE_STYLE, background: color }} />
+      <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ background: color }} /><p className="text-[10px] font-bold uppercase" style={{ color }}>Mensagem</p></div>
+      <p className="text-xs text-white truncate">{data.text || "Clique para editar..."}</p>
+      <Handle type="source" position={Position.Right} style={{ ...HANDLE_STYLE, background: color }} />
+    </div>
+  );
+}
+
+function AskNode({ data }: any) {
+  const color = NODE_COLORS.ask;
+  return (
+    <div className="rounded-xl px-4 py-3 min-w-[160px] max-w-[220px]"
+      style={{ background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))", border: `2px solid ${color}50` }}>
+      <Handle type="target" position={Position.Left} style={{ ...HANDLE_STYLE, background: color }} />
+      <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ background: color }} /><p className="text-[10px] font-bold uppercase" style={{ color }}>Coletar Info</p></div>
+      <p className="text-xs text-white truncate">{data.question || "Qual sua pergunta?"}</p>
+      {data.save_as && <p className="text-[9px] mt-0.5 font-mono" style={{ color: "#939da4" }}>→ {data.save_as}</p>}
+      <Handle type="source" position={Position.Right} style={{ ...HANDLE_STYLE, background: color }} />
+    </div>
+  );
+}
+
+function AIResponseNode({ data }: any) {
+  const color = NODE_COLORS.ai_response;
+  const intents = ["resolvido", "nao_sei", "humano", "comercial", "suporte", "default"];
+  return (
+    <div className="rounded-xl px-4 py-3 min-w-[180px] max-w-[240px]"
+      style={{ background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))", border: `2px solid ${color}50` }}>
+      <Handle type="target" position={Position.Left} style={{ ...HANDLE_STYLE, background: color }} />
+      <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ background: color }} /><p className="text-[10px] font-bold uppercase" style={{ color }}>IA Responde</p></div>
+      <p className="text-xs text-white truncate">{data.context_prompt || "Gemini tenta resolver..."}</p>
+      {data.max_tentativas && <p className="text-[9px] mt-0.5" style={{ color: "#939da4" }}>Máx {data.max_tentativas} tentativa(s)</p>}
+      {/* Múltiplos handles de saída por intent */}
+      <div className="mt-2 space-y-1.5">
+        {intents.map((intent, i) => (
+          <div key={intent} className="flex items-center justify-between">
+            <span className="text-[9px] font-mono" style={{ color: "#939da4" }}>{intent}</span>
+            <Handle type="source" position={Position.Right} id={intent}
+              style={{ ...HANDLE_STYLE, background: color, position: "relative", top: "auto", transform: "none", right: -12 }} />
+          </div>
+        ))}
       </div>
-      <p className="text-xs text-white truncate">{data.label || data.text || data.question || (type === "ai_response" ? "IA responde..." : "...")}</p>
-      {data.trigger_keywords?.length > 0 && (
-        <p className="text-[9px] mt-1 truncate" style={{ color: "#939da4" }}>🔑 {data.trigger_keywords.slice(0, 2).join(", ")}</p>
-      )}
+    </div>
+  );
+}
+
+function ConditionNode({ data }: any) {
+  const color = NODE_COLORS.condition;
+  return (
+    <div className="rounded-xl px-4 py-3 min-w-[160px] max-w-[220px]"
+      style={{ background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))", border: `2px solid ${color}50` }}>
+      <Handle type="target" position={Position.Left} style={{ ...HANDLE_STYLE, background: color }} />
+      <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ background: color }} /><p className="text-[10px] font-bold uppercase" style={{ color }}>Condição</p></div>
+      <p className="text-xs text-white truncate">{data.field ? `Se "${data.field}"` : "Configure condição"}</p>
+      <div className="mt-2 flex justify-end flex-col items-end gap-2">
+        <div className="flex items-center gap-1"><span className="text-[9px]" style={{ color: "#9aea62" }}>sim</span><Handle type="source" id="true" position={Position.Right} style={{ ...HANDLE_STYLE, background: "#9aea62", position: "relative", top: "auto", transform: "none", right: -8 }} /></div>
+        <div className="flex items-center gap-1"><span className="text-[9px]" style={{ color: "#f87171" }}>não</span><Handle type="source" id="false" position={Position.Right} style={{ ...HANDLE_STYLE, background: "#f87171", position: "relative", top: "auto", transform: "none", right: -8 }} /></div>
+      </div>
+    </div>
+  );
+}
+
+function TransferNode({ data }: any) {
+  const color = NODE_COLORS.transfer;
+  return (
+    <div className="rounded-xl px-4 py-3 min-w-[160px] max-w-[220px]"
+      style={{ background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))", border: `2px solid ${color}50` }}>
+      <Handle type="target" position={Position.Left} style={{ ...HANDLE_STYLE, background: color }} />
+      <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ background: color }} /><p className="text-[10px] font-bold uppercase" style={{ color }}>Transferir</p></div>
+      <p className="text-xs font-bold capitalize" style={{ color }}>{data.departamento || "vendas"}</p>
+      {data.message && <p className="text-[9px] mt-0.5 truncate" style={{ color: "#939da4" }}>{data.message}</p>}
+    </div>
+  );
+}
+
+function EndNode({ data }: any) {
+  const color = NODE_COLORS.end;
+  return (
+    <div className="rounded-xl px-4 py-3 min-w-[140px] max-w-[200px]"
+      style={{ background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))", border: `2px solid ${color}50` }}>
+      <Handle type="target" position={Position.Left} style={{ ...HANDLE_STYLE, background: color }} />
+      <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ background: color }} /><p className="text-[10px] font-bold uppercase" style={{ color }}>Finalizar</p></div>
+      <p className="text-xs text-white truncate">{data.message || "Fluxo encerrado"}</p>
     </div>
   );
 }
 
 const nodeTypes = {
-  start:       (p: any) => <FlowNode {...p} type="start" />,
-  message:     (p: any) => <FlowNode {...p} type="message" />,
-  ask:         (p: any) => <FlowNode {...p} type="ask" />,
-  ai_response: (p: any) => <FlowNode {...p} type="ai_response" />,
-  condition:   (p: any) => <FlowNode {...p} type="condition" />,
-  transfer:    (p: any) => <FlowNode {...p} type="transfer" />,
-  end:         (p: any) => <FlowNode {...p} type="end" />,
+  start:       StartNode,
+  message:     MessageNode,
+  ask:         AskNode,
+  ai_response: AIResponseNode,
+  condition:   ConditionNode,
+  transfer:    TransferNode,
+  end:         EndNode,
 };
 
 const NODE_PALETTE = [
@@ -85,42 +174,48 @@ export default function FlowEditPage() {
   const [keywords, setKeywords] = useState("");
 
   useEffect(() => {
-    if (!flowId || flowId === "new") return;
-    fetch(`/api/flows?tenant_id=${tenantId ?? ""}`).then(r => r.json()).then(d => {
+    if (!flowId || !tenantId) return;
+    fetch(`/api/flows?tenant_id=${tenantId}`).then(r => r.json()).then(d => {
       const f = (d.flows ?? []).find((x: any) => x.id === flowId);
       if (!f) return;
-      setFlow(f);
-      setNome(f.nome);
+      setFlow(f); setNome(f.nome);
       setKeywords((f.trigger_keywords ?? []).join(", "));
       const fd = f.flow_definition ?? { nodes: [], edges: [] };
       setNodes(fd.nodes ?? []);
-      setEdges(fd.edges ?? []);
+      setEdges((fd.edges ?? []).map((e: any) => ({
+        ...e,
+        markerEnd: { type: MarkerType.ArrowClosed, color: "#9aea62" },
+        style: { stroke: "#9aea62", strokeWidth: 1.5 },
+      })));
     });
   }, [flowId, tenantId]);
 
   const onConnect = useCallback((connection: Connection) => {
-    setEdges(eds => addEdge({ ...connection, markerEnd: { type: MarkerType.ArrowClosed, color: "#9aea62" }, style: { stroke: "#9aea62", strokeWidth: 1.5 } }, eds));
+    setEdges(eds => addEdge({
+      ...connection,
+      markerEnd: { type: MarkerType.ArrowClosed, color: "#9aea62" },
+      style: { stroke: "#9aea62", strokeWidth: 1.5 },
+    }, eds));
   }, [setEdges]);
 
   function addNode(type: string) {
     const id = `${type}-${Date.now()}`;
     const newNode: Node = {
       id, type,
-      position: { x: Math.random() * 300 + 100, y: Math.random() * 200 + 100 },
+      position: { x: Math.random() * 300 + 200, y: Math.random() * 200 + 150 },
       data: { label: NODE_LABELS[type] },
     };
     setNodes(ns => [...ns, newNode]);
   }
 
   async function save() {
-    if (!flowId || flowId === "new") return;
+    if (!flowId) return;
     setSaving(true);
     await fetch("/api/flows", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        flow_id: flowId,
-        nome,
+        flow_id: flowId, nome,
         trigger_keywords: keywords.split(",").map(k => k.trim().toLowerCase()).filter(Boolean),
         flow_definition: { nodes, edges },
       }),
@@ -146,8 +241,11 @@ export default function FlowEditPage() {
         <input value={nome} onChange={e => setNome(e.target.value)}
           className="text-sm font-bold text-white bg-transparent outline-none border-none flex-1"
           placeholder="Nome do fluxo" />
+        <p className="text-[10px] hidden sm:block" style={{ color: "rgba(147,157,164,0.5)" }}>
+          Arraste nós da paleta · Conecte arrastando as bolinhas
+        </p>
         <button onClick={save} disabled={saving}
-          className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold"
+          className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold shrink-0"
           style={{ background: saving ? "rgba(154,234,98,0.1)" : "#9aea62", color: saving ? "#9aea62" : "#0a0a0a" }}>
           <Save className="w-3.5 h-3.5" /> {saving ? "Salvando..." : "Salvar"}
         </button>
@@ -159,17 +257,17 @@ export default function FlowEditPage() {
           style={{ borderRight: "1px solid rgba(255,255,255,0.06)", background: "#060606" }}>
           <p className="section-label mb-2 px-1">Keywords de ativação</p>
           <input value={keywords} onChange={e => setKeywords(e.target.value)}
-            placeholder="oi, olá, bom dia..."
+            placeholder="oi, olá, problema..."
             className="w-full h-8 px-2.5 rounded-lg text-xs text-white outline-none mb-3"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
 
           <p className="section-label mb-2 px-1">Adicionar nó</p>
           {NODE_PALETTE.map(n => (
             <button key={n.type} onClick={() => addNode(n.type)}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all group"
-              style={{ border: "1px solid transparent" }}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left"
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              style={{ border: "1px solid transparent" }}>
               <div className="w-2 h-2 rounded-full shrink-0" style={{ background: NODE_COLORS[n.type] }} />
               <div>
                 <p className="text-xs font-bold text-white">{n.label}</p>
@@ -187,11 +285,12 @@ export default function FlowEditPage() {
             onConnect={onConnect} nodeTypes={nodeTypes}
             onNodeClick={(_, node) => setSelectedNode(node)}
             onPaneClick={() => setSelectedNode(null)}
-            fitView
+            fitView deleteKeyCode="Delete"
             style={{ background: "#000" }}>
-            <Background color="rgba(255,255,255,0.05)" gap={24} />
+            <Background color="rgba(255,255,255,0.04)" gap={24} />
             <Controls style={{ background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.1)" }} />
-            <MiniMap style={{ background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.1)" }} nodeColor={n => NODE_COLORS[n.type ?? ""] ?? "#939da4"} />
+            <MiniMap style={{ background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.1)" }}
+              nodeColor={n => NODE_COLORS[n.type ?? ""] ?? "#939da4"} />
           </ReactFlow>
         </div>
 
@@ -204,16 +303,16 @@ export default function FlowEditPage() {
               <p className="text-xs font-bold text-white">{NODE_LABELS[selectedNode.type ?? ""]}</p>
             </div>
 
-            {(selectedNode.type === "message") && (
+            {selectedNode.type === "message" && (
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Texto da mensagem</label>
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Texto</label>
                 <textarea value={selectedNode.data.text ?? ""} onChange={e => updateSelectedNode("text", e.target.value)} rows={4}
                   className="w-full p-2 rounded-lg text-xs text-white outline-none resize-none"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
               </div>
             )}
 
-            {(selectedNode.type === "ask") && (<>
+            {selectedNode.type === "ask" && (<>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Pergunta</label>
                 <input value={selectedNode.data.question ?? ""} onChange={e => updateSelectedNode("question", e.target.value)}
@@ -221,23 +320,23 @@ export default function FlowEditPage() {
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Salvar como (variável)</label>
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Salvar como</label>
                 <input value={selectedNode.data.save_as ?? ""} onChange={e => updateSelectedNode("save_as", e.target.value)}
                   placeholder="nome, email, telefone..." className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none font-mono"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
               </div>
             </>)}
 
-            {(selectedNode.type === "ai_response") && (<>
+            {selectedNode.type === "ai_response" && (<>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Instruções específicas</label>
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Instruções</label>
                 <textarea value={selectedNode.data.context_prompt ?? ""} onChange={e => updateSelectedNode("context_prompt", e.target.value)} rows={3}
                   placeholder="Ex: Foque em resolver problemas técnicos..."
                   className="w-full p-2 rounded-lg text-xs text-white outline-none resize-none"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Máximo de tentativas</label>
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Máx tentativas</label>
                 <input type="number" min={1} max={5} value={selectedNode.data.max_tentativas ?? 2} onChange={e => updateSelectedNode("max_tentativas", parseInt(e.target.value))}
                   className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
@@ -246,15 +345,40 @@ export default function FlowEditPage() {
                 <input type="checkbox" checked={selectedNode.data.usar_kb ?? true} onChange={e => updateSelectedNode("usar_kb", e.target.checked)} />
                 <span className="text-xs" style={{ color: "#939da4" }}>Usar base de conhecimento</span>
               </label>
-              <div className="rounded-lg p-2 space-y-1" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.1)" }}>
-                <p className="text-[9px] font-bold" style={{ color: "#9aea62" }}>Saídas disponíveis:</p>
+              <div className="rounded-lg p-2" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.1)" }}>
+                <p className="text-[9px] font-bold mb-1" style={{ color: "#9aea62" }}>Conecte as saídas:</p>
                 {["resolvido","nao_sei","humano","comercial","suporte","default"].map(h => (
                   <p key={h} className="text-[9px] font-mono" style={{ color: "#939da4" }}>→ {h}</p>
                 ))}
               </div>
             </>)}
 
-            {(selectedNode.type === "transfer") && (<>
+            {selectedNode.type === "condition" && (<>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Campo a verificar</label>
+                <input value={selectedNode.data.field ?? ""} onChange={e => updateSelectedNode("field", e.target.value)}
+                  placeholder="nome, email, resposta..." className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none font-mono"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Tipo</label>
+                <select value={selectedNode.data.condition_type ?? "is_not_empty"} onChange={e => updateSelectedNode("condition_type", e.target.value)}
+                  className="w-full h-8 px-2 rounded-lg text-xs outline-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+                  <option value="is_not_empty" style={{ background: "#111" }}>Está preenchido</option>
+                  <option value="is_empty" style={{ background: "#111" }}>Está vazio</option>
+                  <option value="equals" style={{ background: "#111" }}>É igual a...</option>
+                  <option value="contains" style={{ background: "#111" }}>Contém...</option>
+                </select>
+              </div>
+              {["equals","contains"].includes(selectedNode.data.condition_type) && (
+                <input value={selectedNode.data.condition_value ?? ""} onChange={e => updateSelectedNode("condition_value", e.target.value)}
+                  placeholder="valor para comparar" className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              )}
+            </>)}
+
+            {selectedNode.type === "transfer" && (<>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Departamento</label>
                 <select value={selectedNode.data.departamento ?? "vendas"} onChange={e => updateSelectedNode("departamento", e.target.value)}
@@ -265,29 +389,25 @@ export default function FlowEditPage() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Mensagem antes de transferir</label>
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Mensagem antes</label>
                 <input value={selectedNode.data.message ?? ""} onChange={e => updateSelectedNode("message", e.target.value)}
-                  placeholder="Vou conectar você com nossa equipe..."
-                  className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
+                  placeholder="Vou conectar com nossa equipe..." className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
               </div>
             </>)}
 
-            {(selectedNode.type === "end") && (
+            {selectedNode.type === "end" && (
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Mensagem final (opcional)</label>
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Mensagem final</label>
                 <input value={selectedNode.data.message ?? ""} onChange={e => updateSelectedNode("message", e.target.value)}
-                  placeholder="Obrigado! Até logo."
-                  className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
+                  placeholder="Obrigado! Até logo." className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
               </div>
             )}
 
-            <button onClick={() => { setNodes(ns => ns.filter(n => n.id !== selectedNode.id)); setSelectedNode(null); }}
-              className="mt-2 w-full h-8 rounded-xl text-xs font-medium"
-              style={{ background: "rgba(248,113,113,0.08)", color: "#f87171", border: "1px solid rgba(248,113,113,0.15)" }}>
-              Remover nó
-            </button>
+            <p className="text-[9px] mt-2" style={{ color: "rgba(147,157,164,0.4)" }}>
+              Delete para remover o nó selecionado
+            </p>
           </div>
         )}
       </div>

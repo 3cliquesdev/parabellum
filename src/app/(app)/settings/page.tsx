@@ -419,21 +419,27 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
 
   useEffect(() => {
     if (!tenantId) return;
-    createClient().from("tenants").select("nome_fantasia, cor_primaria, logo_url").eq("id", tenantId).single()
-      .then(({ data }: { data: any }) => {
-        if (data) setForm({ nome_fantasia: data.nome_fantasia ?? "", cor_primaria: data.cor_primaria ?? "#9aea62", logo_url: data.logo_url ?? "" });
+    fetch(`/api/tenant/branding?tenant_id=${tenantId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.branding) setForm({
+          nome_fantasia: d.branding.nome_fantasia ?? "",
+          cor_primaria: d.branding.cor_primaria ?? "#9aea62",
+          logo_url: d.branding.logo_url ?? "",
+        });
       });
   }, [tenantId]);
 
   async function save() {
     if (!tenantId) return;
     setSaving(true);
-    await createClient().from("tenants").update({
-      nome_fantasia: form.nome_fantasia || null,
-      cor_primaria: form.cor_primaria,
-      logo_url: form.logo_url || null,
-    }).eq("id", tenantId);
-    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 3000);
+    const r = await fetch("/api/tenant/branding", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, ...form }),
+    });
+    setSaving(false);
+    if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
   }
 
   const previewColor = form.cor_primaria || "#9aea62";

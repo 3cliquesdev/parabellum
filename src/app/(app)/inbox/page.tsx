@@ -219,8 +219,7 @@ export default function InboxPage() {
                 </div>
               </button>
             );
-            })}
-          )}
+          })}
         </div>
       </aside>
 

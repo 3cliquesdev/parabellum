@@ -179,14 +179,22 @@ export async function processFlowMessage(params: {
     .select("*").eq("tenant_id", params.tenantId).eq("ativo", true)
     .order("prioridade", { ascending: false });
 
+  let masterFlow: any = null;
+
   for (const flow of flows ?? []) {
+    if (flow.is_master) { masterFlow = flow; continue; } // Guarda master para fallback
     const keywords: string[] = flow.trigger_keywords ?? [];
-    if (keywords.some(kw => matchesKeyword(params.text, kw))) {
+    if (keywords.length > 0 && keywords.some(kw => matchesKeyword(params.text, kw))) {
       return await startFlow(flow, params);
     }
   }
 
-  return null; // Nenhum flow ativo — usa IA padrão
+  // 3. Nenhuma keyword bateu → usar Master Flow como fallback
+  if (masterFlow) {
+    return await startFlow(masterFlow, params);
+  }
+
+  return null; // Nem master flow — usa IA padrão
 }
 
 // ─── Iniciar fluxo ───
@@ -240,6 +248,15 @@ async function executeNode(node: any, state: any, params: any, flowDef: any): Pr
 
     case "ask": {
       await sendFlowMessage(params.tenantId, params.conversaId, node.data.question ?? "Como posso ajudar?", params.accessToken, params.phoneNumberId, params.toNumber);
+      await supabase.from("chat_flow_states").update({ status: "aguardando", current_node_id: node.id }).eq("id", state.id);
+      return "waiting";
+    }
+
+    case "ask_options": {
+      const options: { label: string; value: string }[] = node.data.options ?? [];
+      const menuText = (node.data.question ?? "Escolha uma opção:") + "\n\n" +
+        options.map((o, i) => `*${i + 1}.* ${o.label}`).join("\n");
+      await sendFlowMessage(params.tenantId, params.conversaId, menuText, params.accessToken, params.phoneNumberId, params.toNumber);
       await supabase.from("chat_flow_states").update({ status: "aguardando", current_node_id: node.id }).eq("id", state.id);
       return "waiting";
     }
@@ -302,14 +319,48 @@ async function handleNodeInput(node: any, state: any, params: any, flowDef: any)
 
   if (node.type === "ask") {
     const saveAs = node.data.save_as ?? "resposta";
-    await supabase.from("chat_flow_states").update({
-      collected_data: { ...(state.collected_data ?? {}), [saveAs]: params.text },
-    }).eq("id", state.id);
-
+    const newData = { ...(state.collected_data ?? {}), [saveAs]: params.text };
+    await supabase.from("chat_flow_states").update({ collected_data: newData }).eq("id", state.id);
     const next = nextNode(flowDef, node.id, "default");
     if (!next) { await completeFlow(state, "concluido"); return "done"; }
     await supabase.from("chat_flow_states").update({ current_node_id: next.id }).eq("id", state.id);
-    return await executeNode(next, { ...state, collected_data: { ...(state.collected_data ?? {}), [saveAs]: params.text } }, params, flowDef);
+    return await executeNode(next, { ...state, collected_data: newData }, params, flowDef);
+  }
+
+  if (node.type === "ask_options") {
+    const options: { label: string; value: string }[] = node.data.options ?? [];
+    const userText = params.text.trim();
+
+    // Tentar match por número (1, 2, 3...) ou por texto da opção
+    let matchedValue: string | null = null;
+    const numMatch = parseInt(userText);
+    if (!isNaN(numMatch) && numMatch >= 1 && numMatch <= options.length) {
+      matchedValue = options[numMatch - 1].value || String(numMatch);
+    } else {
+      const textMatch = options.find(o =>
+        normalize(o.label).includes(normalize(userText)) ||
+        normalize(userText).includes(normalize(o.label))
+      );
+      if (textMatch) matchedValue = textMatch.value;
+    }
+
+    if (!matchedValue) {
+      // Opção inválida — reenviar menu
+      const menuText = "Opção inválida. " + (node.data.question ?? "Escolha uma opção:") + "\n\n" +
+        options.map((o, i) => `*${i + 1}.* ${o.label}`).join("\n");
+      await sendFlowMessage(params.tenantId, params.conversaId, menuText, params.accessToken, params.phoneNumberId, params.toNumber);
+      return "waiting";
+    }
+
+    // Opção válida — seguir pela handle correspondente ao value
+    const saveAs = node.data.save_as ?? "opcao";
+    const newData = { ...(state.collected_data ?? {}), [saveAs]: matchedValue };
+    await supabase.from("chat_flow_states").update({ collected_data: newData }).eq("id", state.id);
+
+    const next = nextNode(flowDef, node.id, matchedValue) ?? nextNode(flowDef, node.id, "default");
+    if (!next) { await completeFlow(state, "concluido"); return "done"; }
+    await supabase.from("chat_flow_states").update({ current_node_id: next.id }).eq("id", state.id);
+    return await executeNode(next, { ...state, collected_data: newData }, params, flowDef);
   }
 
   return null;

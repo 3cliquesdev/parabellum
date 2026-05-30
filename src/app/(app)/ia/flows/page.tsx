@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, GitBranch, Zap, Edit2, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, GitBranch, Zap, Edit2, Trash2, ToggleLeft, ToggleRight, Crown } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 
 const DEPT_COLOR: Record<string, string> = { vendas: "#9aea62", suporte: "#60a5fa", todos: "#a78bfa" };
@@ -28,6 +28,23 @@ export default function FlowsPage() {
     if (!confirm("Excluir este fluxo?")) return;
     await fetch("/api/flows", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ flow_id: id }) });
     setFlows(f => f.filter(x => x.id !== id));
+  }
+
+  async function toggleMaster(flow: any) {
+    // Desativar master atual (se houver) e ativar o novo
+    const newIsMaster = !flow.is_master;
+    if (newIsMaster) {
+      // Remove master dos outros
+      for (const f of flows) {
+        if (f.is_master && f.id !== flow.id) {
+          await fetch("/api/flows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ flow_id: f.id, is_master: false }) });
+        }
+      }
+      setFlows(f => f.map(x => ({ ...x, is_master: x.id === flow.id })));
+    } else {
+      setFlows(f => f.map(x => x.id === flow.id ? { ...x, is_master: false } : x));
+    }
+    await fetch("/api/flows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ flow_id: flow.id, is_master: newIsMaster }) });
   }
 
   async function createDefault() {
@@ -100,6 +117,12 @@ export default function FlowsPage() {
                         <p className="text-sm font-bold text-white">{flow.nome}</p>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize"
                           style={{ color: deptColor, background: `${deptColor}15` }}>{flow.departamento}</span>
+                        {flow.is_master && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                            style={{ background: "rgba(250,204,21,0.15)", color: "#facc15" }}>
+                            <Crown className="w-2.5 h-2.5" /> Master
+                          </span>
+                        )}
                         {!flow.ativo && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Inativo</span>}
                       </div>
                       {flow.descricao && <p className="text-xs mb-2" style={{ color: "#939da4" }}>{flow.descricao}</p>}
@@ -118,6 +141,9 @@ export default function FlowsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-4">
+                    <button onClick={() => toggleMaster(flow)} title={flow.is_master ? "Remover como Master" : "Definir como Master Flow"}>
+                      <Crown className="w-4 h-4" style={{ color: flow.is_master ? "#facc15" : "rgba(147,157,164,0.3)" }} />
+                    </button>
                     <button onClick={() => toggleAtivo(flow)}>
                       {flow.ativo
                         ? <ToggleRight className="w-5 h-5" style={{ color: "#9aea62" }} />

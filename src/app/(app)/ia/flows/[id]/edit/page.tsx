@@ -14,13 +14,14 @@ import { ArrowLeft, Save } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 
 const NODE_COLORS: Record<string, string> = {
-  start:       "#939da4",
-  message:     "#60a5fa",
-  ask:         "#a78bfa",
-  ai_response: "#9aea62",
-  condition:   "#facc15",
-  transfer:    "#fb923c",
-  end:         "#f87171",
+  start:        "#939da4",
+  message:      "#60a5fa",
+  ask:          "#a78bfa",
+  ask_options:  "#f59e0b",
+  ai_response:  "#9aea62",
+  condition:    "#facc15",
+  transfer:     "#fb923c",
+  end:          "#f87171",
 };
 
 const NODE_LABELS: Record<string, string> = {
@@ -140,10 +141,35 @@ function EndNode({ data }: any) {
   );
 }
 
+// ─── Ask Options Node ───
+function AskOptionsNode({ data }: any) {
+  const color = "#f59e0b";
+  const options: { label: string; value: string }[] = data.options ?? [];
+  return (
+    <div className="rounded-xl px-4 py-3 min-w-[180px] max-w-[240px]"
+      style={{ background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))", border: `2px solid ${color}50` }}>
+      <Handle type="target" position={Position.Left} style={{ ...HANDLE_STYLE, background: color }} />
+      <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ background: color }} /><p className="text-[10px] font-bold uppercase" style={{ color }}>Múltipla Escolha</p></div>
+      <p className="text-xs text-white truncate mb-2">{data.question || "Escolha uma opção:"}</p>
+      <div className="space-y-1.5">
+        {options.map((o, i) => (
+          <div key={o.value} className="flex items-center justify-between">
+            <span className="text-[9px]" style={{ color: "#939da4" }}>{i + 1}. {o.label}</span>
+            <Handle type="source" id={o.value || String(i + 1)} position={Position.Right}
+              style={{ ...HANDLE_STYLE, background: color, position: "relative", top: "auto", transform: "none", right: -12 }} />
+          </div>
+        ))}
+        {options.length === 0 && <p className="text-[9px]" style={{ color: "#939da4" }}>Configure as opções →</p>}
+      </div>
+    </div>
+  );
+}
+
 const nodeTypes = {
   start:       StartNode,
   message:     MessageNode,
   ask:         AskNode,
+  ask_options: AskOptionsNode,
   ai_response: AIResponseNode,
   condition:   ConditionNode,
   transfer:    TransferNode,
@@ -151,12 +177,13 @@ const nodeTypes = {
 };
 
 const NODE_PALETTE = [
-  { type: "message",     label: "Mensagem",     desc: "Envia texto para o lead" },
-  { type: "ask",         label: "Coletar Info", desc: "Pergunta e salva resposta" },
-  { type: "ai_response", label: "IA Responde",  desc: "Gemini tenta resolver" },
-  { type: "condition",   label: "Condição",     desc: "Bifurca baseado em dados" },
-  { type: "transfer",    label: "Transferir",   desc: "Handoff para humano" },
-  { type: "end",         label: "Finalizar",    desc: "Encerra o fluxo" },
+  { type: "message",     label: "Mensagem",         desc: "Envia texto para o lead" },
+  { type: "ask",         label: "Coletar Info",      desc: "Pergunta e salva resposta" },
+  { type: "ask_options", label: "Múltipla Escolha",  desc: "Menu numerado — lead escolhe opção" },
+  { type: "ai_response", label: "IA Responde",        desc: "Gemini tenta resolver" },
+  { type: "condition",   label: "Condição",           desc: "Bifurca baseado em dados" },
+  { type: "transfer",    label: "Transferir",         desc: "Handoff para humano" },
+  { type: "end",         label: "Finalizar",          desc: "Encerra o fluxo" },
 ];
 
 export default function FlowEditPage() {
@@ -311,6 +338,47 @@ export default function FlowEditPage() {
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
               </div>
             )}
+
+            {selectedNode.type === "ask_options" && (<>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Pergunta / Título do menu</label>
+                <input value={selectedNode.data.question ?? ""} onChange={e => updateSelectedNode("question", e.target.value)}
+                  placeholder="O que você precisa?" className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Salvar resposta como</label>
+                <input value={selectedNode.data.save_as ?? "opcao"} onChange={e => updateSelectedNode("save_as", e.target.value)}
+                  className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none font-mono"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Opções (uma por linha)</label>
+                  <button onClick={() => {
+                    const opts = [...(selectedNode.data.options ?? []), { label: `Opção ${(selectedNode.data.options ?? []).length + 1}`, value: `opcao_${(selectedNode.data.options ?? []).length + 1}` }];
+                    updateSelectedNode("options", opts);
+                  }} className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>+ Opção</button>
+                </div>
+                {(selectedNode.data.options ?? []).map((opt: any, i: number) => (
+                  <div key={i} className="flex gap-1.5">
+                    <input value={opt.label} onChange={e => {
+                      const opts = [...(selectedNode.data.options ?? [])];
+                      opts[i] = { ...opts[i], label: e.target.value };
+                      updateSelectedNode("options", opts);
+                    }} placeholder={`Opção ${i + 1}`} className="flex-1 h-7 px-2 rounded-lg text-xs text-white outline-none"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                    <button onClick={() => {
+                      const opts = (selectedNode.data.options ?? []).filter((_: any, idx: number) => idx !== i);
+                      updateSelectedNode("options", opts);
+                    }} className="text-[10px] px-1.5" style={{ color: "rgba(248,113,113,0.5)" }}>✕</button>
+                  </div>
+                ))}
+                <p className="text-[9px]" style={{ color: "rgba(147,157,164,0.4)" }}>
+                  Cada opção cria uma saída. Conecte cada saída ao próximo nó.
+                </p>
+              </div>
+            </>)}
 
             {selectedNode.type === "ask" && (<>
               <div className="space-y-1.5">

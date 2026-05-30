@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, Sparkles } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 
 const PAGE_NAMES: Record<string, string> = {
   "/ia/agents":    "Agentes",
@@ -11,12 +11,19 @@ const PAGE_NAMES: Record<string, string> = {
   "/ia/responses": "Respostas Rápidas",
   "/ia/sandbox":   "Sandbox",
   "/ia/feedback":  "Feedback",
+  "/ia/flows":     "Chat Flows",
 };
 
 export default function IALayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isHub = pathname === "/ia";
-  const pageName = PAGE_NAMES[pathname];
+
+  // Verificar se é sub-página de flows (editor) ou página direta
+  const directName = PAGE_NAMES[pathname];
+  const isFlowsSubpage = pathname.startsWith("/ia/flows/") && pathname !== "/ia/flows";
+  const pageName = directName ?? (isFlowsSubpage ? "Chat Flows" : null);
+  const backLink = isFlowsSubpage ? "/ia/flows" : "/ia";
+  const backLabel = isFlowsSubpage ? "Chat Flows" : "Studio IA";
 
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: "var(--font-sans)" }}>
@@ -24,17 +31,21 @@ export default function IALayout({ children }: { children: React.ReactNode }) {
       {!isHub && pageName && (
         <div className="flex items-center gap-2 px-8 py-3 shrink-0"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.2)" }}>
-          <Link href="/ia"
+          <Link href={backLink}
             className="flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-white"
             style={{ color: "#939da4" }}>
             <ChevronLeft className="w-3.5 h-3.5" />
-            Studio IA
+            {backLabel}
           </Link>
-          <span className="text-xs" style={{ color: "rgba(147,157,164,0.3)" }}>/</span>
-          <span className="text-xs font-medium text-white">{pageName}</span>
+          {!isFlowsSubpage && (
+            <>
+              <span className="text-xs" style={{ color: "rgba(147,157,164,0.3)" }}>/</span>
+              <span className="text-xs font-medium text-white">{pageName}</span>
+            </>
+          )}
         </div>
       )}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {children}
       </div>
     </div>

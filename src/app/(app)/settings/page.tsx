@@ -97,15 +97,6 @@ export default function SettingsPage() {
           ))}
         </div>
 
-        <div className="mt-auto pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          <Link href="/ia"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
-            style={{ color: "rgba(154,234,98,0.7)", border: "1px solid transparent" }}>
-            <Sparkles className="w-4 h-4 shrink-0" style={{ color: "rgba(154,234,98,0.7)" }} />
-            Studio IA
-            <ExternalLink className="w-3 h-3 ml-auto" style={{ color: "rgba(154,234,98,0.4)" }} />
-          </Link>
-        </div>
       </aside>
 
       {/* Main Content */}

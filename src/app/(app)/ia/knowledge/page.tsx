@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, BookOpen, Search, CheckCircle, Circle, Zap, Trash2, Edit2 } from "lucide-react";
+import { Plus, BookOpen, Search, CheckCircle, Circle, Zap, Trash2, Edit2, Globe, FileText, PenLine, Upload, X } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 
@@ -24,6 +24,12 @@ export default function KnowledgePage() {
   const [saving, setSaving] = useState(false);
   const [embeddingId, setEmbeddingId] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<any[]>([]);
+  // Importação
+  const [importMode, setImportMode] = useState<"url" | "file" | null>(null);
+  const [importUrl, setImportUrl] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
 
@@ -95,6 +101,31 @@ export default function KnowledgePage() {
     fetchArticles();
   }
 
+  async function importFromUrl() {
+    if (!tenantId || !importUrl) return;
+    setImporting(true); setImportResult(null);
+    try {
+      const r = await fetch("/api/ai/crawl", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: importUrl, tenant_id: tenantId }) });
+      const d = await r.json();
+      if (d.success) { setImportResult({ ok: true, msg: `${d.artigos_criados} artigos criados de ${d.domain}` }); setImportUrl(""); setImportMode(null); fetchArticles(); }
+      else setImportResult({ ok: false, msg: d.error ?? "Erro ao importar" });
+    } catch { setImportResult({ ok: false, msg: "Erro de conexão" }); }
+    setImporting(false);
+  }
+
+  async function importFromFile() {
+    if (!tenantId || !importFile) return;
+    setImporting(true); setImportResult(null);
+    try {
+      const fd = new FormData(); fd.append("file", importFile); fd.append("tenant_id", tenantId);
+      const r = await fetch("/api/ai/upload", { method: "POST", body: fd });
+      const d = await r.json();
+      if (d.success) { setImportResult({ ok: true, msg: `${d.artigos_criados} artigos criados de "${d.nome_arquivo}"` }); setImportFile(null); setImportMode(null); fetchArticles(); }
+      else setImportResult({ ok: false, msg: d.error ?? "Erro ao processar arquivo" });
+    } catch { setImportResult({ ok: false, msg: "Erro de conexão" }); }
+    setImporting(false);
+  }
+
   async function approveCandidate(c: any) {
     const supabase = createClient();
     await supabase.from("knowledge_base").insert({ tenant_id: tenantId, titulo: c.pergunta, conteudo: c.resposta, categoria: c.categoria, publicado: false });
@@ -137,6 +168,78 @@ export default function KnowledgePage() {
             <Plus className="w-4 h-4" /> Novo artigo
           </button>
         </div>
+      </div>
+
+      {/* Card de Importação */}
+      <div className="rounded-2xl p-5" style={cardStyle}>
+        <p className="text-xs font-bold text-white mb-3">Importar conhecimento</p>
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {([
+            { id: "url", icon: Globe, label: "Via URL", desc: "Importar site ou página" },
+            { id: "file", icon: FileText, label: "PDF / DOCX", desc: "Upload de documento" },
+            { id: "write", icon: PenLine, label: "Escrever", desc: "Adicionar manualmente" },
+          ] as const).map(({ id, icon: Icon, label, desc }) => (
+            <button key={id}
+              onClick={() => { if (id === "write") { setShowForm(true); setEditing(null); setForm({ titulo: "", conteudo: "", categoria: "Geral", tags: "" }); setImportMode(null); } else setImportMode(importMode === id ? null : id); }}
+              className="flex flex-col items-start gap-1.5 p-3.5 rounded-xl text-left transition-all"
+              style={(importMode === id || (id === "write" && showForm))
+                ? { background: "rgba(154,234,98,0.08)", border: "1px solid rgba(154,234,98,0.25)" }
+                : { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <Icon className="w-4 h-4" style={{ color: (importMode === id || (id === "write" && showForm)) ? "#9aea62" : "#939da4" }} />
+              <span className="text-xs font-bold" style={{ color: (importMode === id || (id === "write" && showForm)) ? "#9aea62" : "rgba(255,255,255,0.8)" }}>{label}</span>
+              <span className="text-[10px]" style={{ color: "rgba(147,157,164,0.5)" }}>{desc}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* URL import panel */}
+        {importMode === "url" && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input value={importUrl} onChange={e => setImportUrl(e.target.value)}
+                placeholder="https://meusite.com.br/sobre"
+                className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none font-mono"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              <button onClick={importFromUrl} disabled={importing || !importUrl}
+                className="px-4 h-9 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                style={{ background: importing ? "rgba(154,234,98,0.1)" : "#9aea62", color: importing ? "#9aea62" : "#0a0a0a", opacity: !importUrl ? 0.5 : 1 }}>
+                {importing ? <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Importando...</> : <><Globe className="w-3 h-3" /> Importar</>}
+              </button>
+            </div>
+            <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.4)" }}>O conteúdo da página será extraído, dividido em chunks e indexado com embeddings automaticamente.</p>
+          </div>
+        )}
+
+        {/* File upload panel */}
+        {importMode === "file" && (
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
+              style={{ background: "rgba(255,255,255,0.03)", border: `1px dashed ${importFile ? "rgba(154,234,98,0.4)" : "rgba(255,255,255,0.1)"}` }}>
+              <Upload className="w-4 h-4 shrink-0" style={{ color: importFile ? "#9aea62" : "#939da4" }} />
+              <div className="flex-1 min-w-0">
+                {importFile
+                  ? <p className="text-xs font-bold truncate" style={{ color: "#9aea62" }}>{importFile.name}</p>
+                  : <p className="text-xs" style={{ color: "#939da4" }}>Clique para selecionar PDF, DOCX ou TXT (máx. 10MB)</p>}
+              </div>
+              {importFile && <button onClick={e => { e.preventDefault(); setImportFile(null); }}><X className="w-3.5 h-3.5" style={{ color: "#939da4" }} /></button>}
+              <input type="file" accept=".pdf,.docx,.doc,.txt" className="hidden" onChange={e => setImportFile(e.target.files?.[0] ?? null)} />
+            </label>
+            <button onClick={importFromFile} disabled={importing || !importFile}
+              className="w-full h-9 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
+              style={{ background: importing ? "rgba(154,234,98,0.1)" : "#9aea62", color: importing ? "#9aea62" : "#0a0a0a", opacity: !importFile ? 0.5 : 1 }}>
+              {importing ? <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Processando documento...</> : <><FileText className="w-3 h-3" /> Processar e indexar</>}
+            </button>
+          </div>
+        )}
+
+        {/* Resultado */}
+        {importResult && (
+          <div className="mt-2 px-3 py-2 rounded-lg flex items-center gap-2"
+            style={{ background: importResult.ok ? "rgba(154,234,98,0.06)" : "rgba(248,113,113,0.06)", border: `1px solid ${importResult.ok ? "rgba(154,234,98,0.2)" : "rgba(248,113,113,0.2)"}` }}>
+            <span className="text-xs font-bold" style={{ color: importResult.ok ? "#9aea62" : "#f87171" }}>{importResult.ok ? "✓" : "✗"}</span>
+            <span className="text-xs" style={{ color: importResult.ok ? "#9aea62" : "#f87171" }}>{importResult.msg}</span>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

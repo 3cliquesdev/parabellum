@@ -16,7 +16,7 @@ export async function GET() {
     const tokenResponse = await client.getAccessToken();
     const token = tokenResponse.token!;
 
-    const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/adsliberty/locations/us-central1/publishers/google/models/gemini-2.0-flash-001:generateContent`;
+    const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/adsliberty/locations/us-central1/publishers/google/models/gemini-2.5-flash:generateContent`;
 
     const res = await fetch(url, {
       method: "POST",

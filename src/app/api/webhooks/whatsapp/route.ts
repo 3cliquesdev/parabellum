@@ -8,7 +8,7 @@ import { processFlowMessage } from "@/lib/flow-engine";
 const AI_LIMITS: Record<string, number> = { Starter: 200, Pro: 2000, Agency: Infinity };
 const VERTEX_PROJECT = "adsliberty";
 const VERTEX_LOCATION = "us-central1";
-const VERTEX_MODEL = "gemini-2.0-flash-001";
+const VERTEX_MODEL = "gemini-2.5-flash";
 
 // Intenções detectáveis para mover leads no pipeline
 const INTENT_PATTERNS: Record<string, { keywords: string[]; status: string | null; label: string }> = {

@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   Puzzle, Users, Settings, CreditCard, Sparkles,
   CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp,
-  ExternalLink, Plus, Trash2, Copy, Check,
+  ExternalLink, Plus, Trash2, Copy, Check, Send, Activity,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -268,19 +268,22 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
             </button>
           )}
           {status === "available" && (
-            <button className="px-3 h-7 rounded-lg text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
-              + Instalar
+            <button onClick={onManage}
+              className="px-3 h-7 rounded-lg text-xs font-bold transition-all"
+              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+              {isActive ? "Fechar" : "+ Instalar"}
             </button>
           )}
         </div>
       </div>
 
       {/* Expanded management panel */}
-      {isActive && installed && (
+      {isActive && (installed || status === "available") && (
         <div style={{ borderTop: `1px solid ${cor}25`, background: "rgba(0,0,0,0.3)" }}>
           {id === "whatsapp" && <WhatsAppManagePanel tenantId={tenantId} />}
           {id === "gemini" && <GeminiManagePanel />}
           {id === "resend" && <ResendManagePanel />}
+          {id === "webhooks" && <WebhooksManagePanel tenantId={tenantId} />}
         </div>
       )}
     </div>
@@ -559,6 +562,146 @@ function TeamSection({ tenantId }: { tenantId: string }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Webhooks Manage Panel ───
+const WEBHOOK_EVENTS = [
+  { id: "lead.created", label: "Lead criado" },
+  { id: "lead.status_changed", label: "Status do lead mudou" },
+  { id: "lead.won", label: "Lead ganho" },
+  { id: "lead.lost", label: "Lead perdido" },
+  { id: "message.received", label: "Mensagem recebida" },
+  { id: "message.sent", label: "Mensagem enviada" },
+  { id: "activity.created", label: "Atividade criada" },
+];
+
+function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
+  const [webhooks, setWebhooks] = useState<any[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ nome: "", url: "", eventos: [] as string[] });
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<Record<string, { sucesso: boolean; message: string }>>({});
+
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/webhooks/outgoing?tenant_id=${tenantId}`).then(r => r.json()).then(d => setWebhooks(d.webhooks ?? []));
+  }, [tenantId]);
+
+  async function save() {
+    if (!tenantId || !form.nome || !form.url || !form.eventos.length) return;
+    setSaving(true);
+    const r = await fetch("/api/webhooks/outgoing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, tenant_id: tenantId }) });
+    const d = await r.json(); setSaving(false);
+    if (d.webhook) { setWebhooks(w => [d.webhook, ...w]); setShowForm(false); setForm({ nome: "", url: "", eventos: [] }); }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Remover webhook?")) return;
+    await fetch("/api/webhooks/outgoing", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ webhook_id: id }) });
+    setWebhooks(w => w.filter(x => x.id !== id));
+  }
+
+  async function test(id: string) {
+    setTesting(id);
+    const r = await fetch("/api/webhooks/outgoing/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ webhook_id: id }) });
+    const d = await r.json(); setTesting(null);
+    setTestResult(prev => ({ ...prev, [id]: d }));
+    setTimeout(() => setTestResult(prev => { const n = { ...prev }; delete n[id]; return n; }), 5000);
+  }
+
+  function toggleEvento(id: string) {
+    setForm(f => ({ ...f, eventos: f.eventos.includes(id) ? f.eventos.filter(e => e !== id) : [...f.eventos, id] }));
+  }
+
+  return (
+    <div className="p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-white">Seus webhooks</p>
+        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+          <Plus className="w-3 h-3" /> Novo webhook
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome (ex: Notificar n8n)"
+            className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="https://hooks.zapier.com/..."
+            className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none font-mono" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          <div>
+            <p className="text-xs font-medium mb-2" style={{ color: "#939da4" }}>Eventos:</p>
+            <div className="flex flex-wrap gap-2">
+              {WEBHOOK_EVENTS.map(ev => (
+                <button key={ev.id} onClick={() => toggleEvento(ev.id)}
+                  className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                  style={form.eventos.includes(ev.id)
+                    ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" }
+                    : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  {ev.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowForm(false)} className="px-4 h-8 rounded-xl text-xs" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Cancelar</button>
+            <button onClick={save} disabled={saving || !form.nome || !form.url || !form.eventos.length}
+              className="px-5 h-8 rounded-xl text-xs font-bold" style={{ background: "#9aea62", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Salvando..." : "Salvar webhook"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {webhooks.length === 0 && !showForm ? (
+        <p className="text-xs text-center py-4" style={{ color: "rgba(147,157,164,0.5)" }}>Nenhum webhook ainda. Crie um para receber eventos do CRM.</p>
+      ) : (
+        <div className="space-y-2">
+          {webhooks.map(wh => (
+            <div key={wh.id} className="rounded-xl p-3 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white">{wh.nome}</p>
+                  <p className="text-[10px] font-mono truncate" style={{ color: "#939da4" }}>{wh.url}</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <button onClick={() => test(wh.id)} disabled={testing === wh.id}
+                    className="flex items-center gap-1 px-2.5 h-7 rounded-lg text-xs font-medium"
+                    style={{ background: "rgba(96,165,250,0.1)", color: "#60a5fa" }}>
+                    {testing === wh.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                    Testar
+                  </button>
+                  <button onClick={() => remove(wh.id)}>
+                    <Trash2 className="w-3.5 h-3.5" style={{ color: "rgba(248,113,113,0.5)" }} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(wh.eventos ?? []).map((ev: string) => (
+                  <span key={ev} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.08)", color: "#9aea62" }}>
+                    {WEBHOOK_EVENTS.find(e => e.id === ev)?.label ?? ev}
+                  </span>
+                ))}
+              </div>
+              {testResult[wh.id] && (
+                <div className="flex items-center gap-1.5 text-[10px] font-medium"
+                  style={{ color: testResult[wh.id].sucesso ? "#9aea62" : "#f87171" }}>
+                  {testResult[wh.id].sucesso ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                  {testResult[wh.id].message}
+                </div>
+              )}
+              {wh.ultimo_envio && (
+                <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.4)" }}>
+                  Último envio: {new Date(wh.ultimo_envio).toLocaleString("pt-BR")}
+                  {wh.ultimo_erro && <span style={{ color: "#f87171" }}> · Erro: {wh.ultimo_erro}</span>}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

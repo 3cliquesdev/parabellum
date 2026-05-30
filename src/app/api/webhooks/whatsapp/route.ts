@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { GoogleAuth } from "google-auth-library";
+import { dispatchWebhook } from "@/lib/webhooks";
 
 const AI_LIMITS: Record<string, number> = { Starter: 200, Pro: 2000, Agency: Infinity };
 const VERTEX_PROJECT = "adsliberty";
@@ -165,6 +166,12 @@ export async function POST(request: NextRequest) {
       });
       await supabase.from("conversas").update({ updated_at: new Date().toISOString() }).eq("id", conversa.id);
 
+      // Dispatch webhook: mensagem recebida
+      dispatchWebhook(tenantId, "message.received", {
+        lead_id: lead.id, lead_nome: lead.nome,
+        mensagem: text, tipo: msg.type,
+      });
+
       // Detectar intenção → mover pipeline
       const intent = detectIntent(text);
       if (intent?.status && lead.status !== intent.status) {
@@ -173,6 +180,15 @@ export async function POST(request: NextRequest) {
           tenant_id: tenantId, lead_id: lead.id, tipo: "whatsapp",
           titulo: `IA: ${intent.label}`, concluida: true, concluida_em: new Date().toISOString(),
         });
+
+        // Dispatch webhook: status mudou
+        if (intent.status === "ganho") {
+          dispatchWebhook(tenantId, "lead.won", { lead_id: lead.id, lead_nome: lead.nome, status: "ganho" });
+        } else if (intent.status === "perdido") {
+          dispatchWebhook(tenantId, "lead.lost", { lead_id: lead.id, lead_nome: lead.nome, status: "perdido" });
+        } else {
+          dispatchWebhook(tenantId, "lead.status_changed", { lead_id: lead.id, lead_nome: lead.nome, status_novo: intent.status });
+        }
       }
 
       // Handoff: lead pediu humano ou sentimento negativo

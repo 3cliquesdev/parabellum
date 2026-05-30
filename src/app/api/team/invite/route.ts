@@ -6,7 +6,28 @@ import { Resend } from "resend";
 const ROLE_LABEL: Record<string, string> = { admin: "Administrador", member: "Membro" };
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-six.vercel.app";
 
-function inviteEmailHtml(tenantName: string, inviteUrl: string, role: string, inviterEmail: string) {
+type EmailBranding = {
+  nome: string;
+  logoUrl?: string;
+  corPrimaria: string;
+  whiteLabel: boolean;
+};
+
+function inviteEmailHtml(tenantName: string, inviteUrl: string, role: string, inviterEmail: string, branding: EmailBranding) {
+  const cor = branding.corPrimaria;
+  const headerLogo = branding.logoUrl
+    ? `<img src="${branding.logoUrl}" height="32" style="display:block;max-width:160px;" alt="${branding.nome}" />`
+    : `<table cellpadding="0" cellspacing="0"><tr>
+        <td style="background:${cor};width:28px;height:28px;border-radius:8px;text-align:center;vertical-align:middle;">
+          <span style="font-size:14px;line-height:28px;color:#0a0a0a;font-weight:900;">▲</span>
+        </td>
+        <td style="padding-left:10px;font-size:14px;font-weight:700;color:#ffffff;">${branding.nome}</td>
+      </tr></table>`;
+  const footer = branding.whiteLabel
+    ? `Este convite expira em 7 dias. Se você não esperava receber este email, pode ignorá-lo.`
+    : `Este convite expira em 7 dias. Se você não esperava receber este email, pode ignorá-lo.<br>
+       Enviado via <strong style="color:rgba(255,255,255,0.4);">Liberty CRM</strong> · O CRM de agências`;
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
@@ -17,14 +38,7 @@ function inviteEmailHtml(tenantName: string, inviteUrl: string, role: string, in
         <!-- Header -->
         <tr>
           <td style="padding:32px 40px 24px;border-bottom:1px solid rgba(255,255,255,0.06);">
-            <table cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="background:#9aea62;width:28px;height:28px;border-radius:8px;text-align:center;vertical-align:middle;">
-                  <span style="font-size:14px;line-height:28px;color:#0a0a0a;font-weight:900;">▲</span>
-                </td>
-                <td style="padding-left:10px;font-size:14px;font-weight:700;color:#ffffff;">Liberty CRM</td>
-              </tr>
-            </table>
+            ${headerLogo}
           </td>
         </tr>
         <!-- Body -->
@@ -34,12 +48,12 @@ function inviteEmailHtml(tenantName: string, inviteUrl: string, role: string, in
               Você foi convidado!
             </h1>
             <p style="margin:0 0 24px;font-size:14px;color:#939da4;line-height:1.6;">
-              <strong style="color:#ffffff">${inviterEmail}</strong> convidou você para entrar no workspace <strong style="color:#9aea62">${tenantName}</strong> no Liberty CRM como <strong style="color:#ffffff">${ROLE_LABEL[role] ?? role}</strong>.
+              <strong style="color:#ffffff">${inviterEmail}</strong> convidou você para entrar no workspace <strong style="color:${cor}">${tenantName}</strong> como <strong style="color:#ffffff">${ROLE_LABEL[role] ?? role}</strong>.
             </p>
             <!-- CTA Button -->
             <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
               <tr>
-                <td style="background:#9aea62;border-radius:500px;padding:14px 32px;">
+                <td style="background:${cor};border-radius:500px;padding:14px 32px;">
                   <a href="${inviteUrl}" style="color:#0a0a0a;font-size:14px;font-weight:700;text-decoration:none;display:block;">
                     Aceitar convite e entrar
                   </a>
@@ -56,10 +70,7 @@ function inviteEmailHtml(tenantName: string, inviteUrl: string, role: string, in
         <!-- Footer -->
         <tr>
           <td style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);">
-            <p style="margin:0;font-size:11px;color:rgba(147,157,164,0.5);">
-              Este convite expira em 7 dias. Se você não esperava receber este email, pode ignorá-lo.<br>
-              © 2026 Liberty CRM
-            </p>
+            <p style="margin:0;font-size:11px;color:rgba(147,157,164,0.5);">${footer}</p>
           </td>
         </tr>
       </table>
@@ -95,8 +106,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
-  // Buscar info do tenant
-  const { data: tenant } = await admin.from("tenants").select("name").eq("id", tenant_id).single() as { data: any; error: unknown };
+  // Buscar info do tenant (com branding)
+  const { data: tenant } = await admin.from("tenants")
+    .select("name, nome_fantasia, logo_url, cor_primaria, white_label")
+    .eq("id", tenant_id).single() as { data: any; error: unknown };
 
   // Criar invite token
   const { data: invite, error: inviteError } = await admin.from("invite_tokens").insert({
@@ -106,7 +119,14 @@ export async function POST(request: NextRequest) {
   if (inviteError) return NextResponse.json({ error: inviteError.message }, { status: 500 });
 
   const inviteUrl = `${SITE_URL}/invite?token=${invite.token}`;
-  const tenantName = tenant?.name ?? "Liberty CRM";
+  const tenantName = tenant?.nome_fantasia ?? tenant?.name ?? "Liberty CRM";
+  const branding: EmailBranding = {
+    nome: tenantName,
+    logoUrl: tenant?.white_label && tenant?.logo_url ? tenant.logo_url : undefined,
+    corPrimaria: tenant?.cor_primaria ?? "#9aea62",
+    whiteLabel: tenant?.white_label ?? false,
+  };
+  const fromName = `${tenantName} | Liberty CRM`;
 
   // Enviar via Resend
   let emailSent = false;
@@ -114,10 +134,10 @@ export async function POST(request: NextRequest) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
       const { error: emailError } = await resend.emails.send({
-        from: "Liberty CRM <noreply@adsliberty.com>",
+        from: `${fromName} <noreply@adsliberty.com>`,
         to: email,
-        subject: `Você foi convidado para ${tenantName} no Liberty CRM`,
-        html: inviteEmailHtml(tenantName, inviteUrl, role, user.email ?? "Alguém"),
+        subject: `Você foi convidado para ${tenantName}`,
+        html: inviteEmailHtml(tenantName, inviteUrl, role, user.email ?? "Alguém", branding),
       });
       emailSent = !emailError;
       if (emailError) console.error("Resend error:", emailError);

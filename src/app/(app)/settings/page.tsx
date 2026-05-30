@@ -174,6 +174,7 @@ export default function SettingsPage() {
                 </div>
               ))}
             </div>
+            <IdentidadeConfig tenantId={tenantId} />
             <PersonaConfig tenantId={tenantId} />
           </div>
         )}
@@ -408,6 +409,104 @@ function WebhookIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" 
 function ResendIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><text x="3" y="18" fontSize="14" fontWeight="900" fill="white">R</text></svg>; }
 function SendGridIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#1A82E2"><path d="M0 0h8v8H0zm8 8h8v8H8zm8-8h8v8h-8zM0 16h8v8H0zm16 0h8v8h-8z"/></svg>; }
 function GmailIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#EA4335"><path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg>; }
+
+// ─── Identidade Config ───
+function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
+  const [form, setForm] = useState({ nome_fantasia: "", cor_primaria: "#9aea62", logo_url: "" });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+
+  useEffect(() => {
+    if (!tenantId) return;
+    createClient().from("tenants").select("nome_fantasia, cor_primaria, logo_url").eq("id", tenantId).single()
+      .then(({ data }: { data: any }) => {
+        if (data) setForm({ nome_fantasia: data.nome_fantasia ?? "", cor_primaria: data.cor_primaria ?? "#9aea62", logo_url: data.logo_url ?? "" });
+      });
+  }, [tenantId]);
+
+  async function save() {
+    if (!tenantId) return;
+    setSaving(true);
+    await createClient().from("tenants").update({
+      nome_fantasia: form.nome_fantasia || null,
+      cor_primaria: form.cor_primaria,
+      logo_url: form.logo_url || null,
+    }).eq("id", tenantId);
+    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 3000);
+  }
+
+  const previewColor = form.cor_primaria || "#9aea62";
+  const previewName = form.nome_fantasia || "Sua Empresa";
+
+  return (
+    <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
+      <div>
+        <h2 className="text-sm font-bold text-white">Identidade nos Emails</h2>
+        <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>
+          Como sua marca aparece nos emails enviados pelo CRM
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs" style={{ color: "#939da4" }}>Nome de exibição</Label>
+          <Input value={form.nome_fantasia} onChange={e => setForm(f => ({ ...f, nome_fantasia: e.target.value }))}
+            placeholder="Ex: Agência Exemplo"
+            className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.6)" }}>Aparece no remetente: <span style={{ color: previewColor }}>{previewName} | Liberty CRM</span></p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs" style={{ color: "#939da4" }}>Cor primária</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={form.cor_primaria} onChange={e => setForm(f => ({ ...f, cor_primaria: e.target.value }))}
+              className="w-9 h-9 rounded-xl border-0 cursor-pointer p-0.5"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            <Input value={form.cor_primaria} onChange={e => setForm(f => ({ ...f, cor_primaria: e.target.value }))}
+              placeholder="#9aea62" maxLength={7}
+              className="h-9 rounded-xl text-sm font-mono text-white w-32" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            <span className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: `${previewColor}20`, color: previewColor }}>
+              Botão do email
+            </span>
+          </div>
+        </div>
+
+        {/* Preview minimalista */}
+        <div className="rounded-xl p-4 space-y-2" style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(147,157,164,0.5)" }}>Preview do email</p>
+          <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="px-4 py-3" style={{ background: "#171717", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <span className="text-xs font-bold text-white">{previewName}</span>
+            </div>
+            <div className="px-4 py-3 space-y-2" style={{ background: "#0d0d0d" }}>
+              <p className="text-xs text-white font-bold">Você foi convidado!</p>
+              <p className="text-[10px]" style={{ color: "#939da4" }}>
+                alguem@email.com convidou você para <span style={{ color: previewColor }}>{previewName}</span> como Membro.
+              </p>
+              <div className="inline-block px-4 py-1.5 rounded-full text-[10px] font-bold" style={{ background: previewColor, color: "#0a0a0a" }}>
+                Aceitar convite
+              </div>
+            </div>
+            <div className="px-4 py-2" style={{ background: "#0d0d0d", borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+              <p className="text-[9px]" style={{ color: "rgba(147,157,164,0.4)" }}>
+                Enviado via Liberty CRM · O CRM de agências
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <button onClick={save} disabled={saving}
+          className="px-5 h-8 rounded-xl text-xs font-bold"
+          style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a" }}>
+          {saving ? "Salvando..." : saved ? "Salvo!" : "Salvar identidade"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ─── Persona Config (moved from old settings) ───
 function PersonaConfig({ tenantId }: { tenantId: string | null }) {

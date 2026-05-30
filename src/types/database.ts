@@ -28,6 +28,10 @@ export interface Tenant {
   name: string;
   slug: string;
   plan_id: string | null;
+  nome_fantasia: string | null;
+  logo_url: string | null;
+  cor_primaria: string | null;
+  white_label: boolean;
   created_at: string;
   updated_at: string;
 }

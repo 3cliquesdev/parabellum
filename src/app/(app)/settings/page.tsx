@@ -576,15 +576,15 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
   );
 }
 
-// ─── Persona Config (moved from old settings) ───
+// ─── Persona Config ───
 function PersonaConfig({ tenantId }: { tenantId: string | null }) {
-  const [form, setForm] = useState({ nome: "Assistente", empresa: "", descricao: "", temperatura: 0.7, max_tokens: 1000 });
+  const [form, setForm] = useState({ nome: "Assistente", empresa: "", descricao: "", temperatura: 0.7, max_tokens: 1000, responder_com_audio: false, voz_tts: "pt-BR-feminina" });
   const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [exists, setExists] = useState(false);
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
   useEffect(() => {
     if (!tenantId) return;
-    createClient().from("personas").select("*").eq("tenant_id", tenantId).single().then(({ data }: { data: any }) => {
-      if (data) { setForm({ nome: data.nome, empresa: data.empresa ?? "", descricao: data.descricao ?? "", temperatura: data.temperatura ?? 0.7, max_tokens: data.max_tokens ?? 300 }); setExists(true); }
+    createClient().from("personas").select("*").eq("tenant_id", tenantId).limit(1).maybeSingle().then(({ data }: { data: any }) => {
+      if (data) { setForm({ nome: data.nome, empresa: data.empresa ?? "", descricao: data.descricao ?? "", temperatura: data.temperatura ?? 0.7, max_tokens: data.max_tokens ?? 1000, responder_com_audio: data.responder_com_audio ?? false, voz_tts: data.voz_tts ?? "pt-BR-feminina" }); setExists(true); }
     });
   }, [tenantId]);
   async function save() {
@@ -602,6 +602,35 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
         <div className="space-y-1.5"><Label className="text-xs" style={{ color: "#939da4" }}>Empresa</Label><Input value={form.empresa} onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))} className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} /></div>
       </div>
       <div className="space-y-1.5"><Label className="text-xs" style={{ color: "#939da4" }}>Instruções</Label><textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} rows={3} className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} /></div>
+
+      {/* TTS */}
+      <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(154,234,98,0.03)", border: "1px solid rgba(154,234,98,0.1)" }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-white">Responder com áudio</p>
+            <p className="text-[10px] mt-0.5" style={{ color: "#939da4" }}>IA converte respostas em voz e envia como áudio no WhatsApp</p>
+          </div>
+          <button onClick={() => setForm(f => ({ ...f, responder_com_audio: !f.responder_com_audio }))}
+            className="relative w-10 h-5 rounded-full transition-colors shrink-0"
+            style={{ background: form.responder_com_audio ? "#9aea62" : "rgba(255,255,255,0.1)" }}>
+            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform"
+              style={{ transform: form.responder_com_audio ? "translateX(22px)" : "translateX(2px)" }} />
+          </button>
+        </div>
+        {form.responder_com_audio && (
+          <div className="space-y-1.5">
+            <Label className="text-xs" style={{ color: "#939da4" }}>Voz</Label>
+            <select value={form.voz_tts} onChange={e => setForm(f => ({ ...f, voz_tts: e.target.value }))}
+              className="w-full h-9 px-3 rounded-xl text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+              <option value="pt-BR-feminina" style={{ background: "#111" }}>Feminina (Natural)</option>
+              <option value="pt-BR-masculina" style={{ background: "#111" }}>Masculina</option>
+              <option value="pt-BR-feminina-2" style={{ background: "#111" }}>Feminina 2</option>
+            </select>
+          </div>
+        )}
+      </div>
+
       <div className="flex justify-end"><button onClick={save} disabled={saving} className="px-5 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a" }}>{saving ? "Salvando..." : saved ? "Salvo!" : "Salvar"}</button></div>
     </div>
   );

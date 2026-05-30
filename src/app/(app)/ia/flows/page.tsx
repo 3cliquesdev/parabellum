@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, GitBranch, Zap, Edit2, Trash2, ToggleLeft, ToggleRight, Crown } from "lucide-react";
+import { Plus, GitBranch, Zap, Edit2, Trash2, ToggleLeft, ToggleRight, Crown, LayoutTemplate, X } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 
 const DEPT_COLOR: Record<string, string> = { vendas: "#9aea62", suporte: "#60a5fa", todos: "#a78bfa" };
@@ -11,6 +11,150 @@ export default function FlowsPage() {
   const { tenantId } = useTenant();
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [creatingTemplate, setCreatingTemplate] = useState<string | null>(null);
+
+  const FLOW_TEMPLATES = [
+    {
+      id: "boas-vindas",
+      nome: "Boas-vindas + Qualificação",
+      desc: "Recepciona o lead, coleta nome e interesse, qualifica e transfere para vendas",
+      keywords: ["oi", "olá", "bom dia", "boa tarde", "boa noite", "hello"],
+      departamento: "todos",
+      cor: "#9aea62",
+      flow_definition: {
+        nodes: [
+          { id: "start", type: "start", position: { x: 50, y: 200 }, data: { label: "Início" } },
+          { id: "msg1", type: "message", position: { x: 250, y: 200 }, data: { text: "Olá! 😊 Seja bem-vindo! Sou a assistente virtual. Como posso te ajudar hoje?" } },
+          { id: "ask1", type: "ask", position: { x: 450, y: 200 }, data: { question: "Qual é o seu nome?", save_as: "nome_lead" } },
+          { id: "ask2", type: "ask", position: { x: 650, y: 200 }, data: { question: "Qual serviço você tem interesse?", save_as: "interesse" } },
+          { id: "ai1", type: "ai_response", position: { x: 850, y: 200 }, data: { context_prompt: "Qualifique o lead com base no interesse informado. Seja breve e entusiasta.", max_tentativas: 1, usar_kb: true } },
+          { id: "transfer1", type: "transfer", position: { x: 1050, y: 200 }, data: { departamento: "vendas" } },
+        ],
+        edges: [
+          { id: "e1", source: "start", target: "msg1" },
+          { id: "e2", source: "msg1", target: "ask1" },
+          { id: "e3", source: "ask1", target: "ask2" },
+          { id: "e4", source: "ask2", target: "ai1" },
+          { id: "e5", source: "ai1", sourceHandle: "default", target: "transfer1" },
+        ],
+      },
+    },
+    {
+      id: "vendas",
+      nome: "Vendas de Produto",
+      desc: "Responde dúvidas sobre preços e produtos usando KB, depois qualifica para compra",
+      keywords: ["preço", "valor", "quanto", "comprar", "plano", "contratar", "quero"],
+      departamento: "vendas",
+      cor: "#facc15",
+      flow_definition: {
+        nodes: [
+          { id: "start", type: "start", position: { x: 50, y: 200 }, data: { label: "Início" } },
+          { id: "ai1", type: "ai_response", position: { x: 250, y: 200 }, data: { context_prompt: "Responda sobre preços e produtos. Use a base de conhecimento. Seja persuasivo mas honesto.", max_tentativas: 2, usar_kb: true } },
+          { id: "ask1", type: "ask_options", position: { x: 500, y: 200 }, data: { question: "Tem interesse em prosseguir?", options: [{ label: "Sim, quero!" }, { label: "Preciso pensar" }, { label: "Não, obrigado" }] } },
+          { id: "transfer1", type: "transfer", position: { x: 750, y: 100 }, data: { departamento: "vendas" } },
+          { id: "msg1", type: "message", position: { x: 750, y: 250 }, data: { text: "Sem problema! Quando quiser, é só chamar. 😊" } },
+          { id: "end1", type: "end", position: { x: 750, y: 380 }, data: { message: "Obrigado pelo contato!" } },
+        ],
+        edges: [
+          { id: "e1", source: "start", target: "ai1" },
+          { id: "e2", source: "ai1", sourceHandle: "default", target: "ask1" },
+          { id: "e3", source: "ask1", sourceHandle: "option_0", target: "transfer1" },
+          { id: "e4", source: "ask1", sourceHandle: "option_1", target: "msg1" },
+          { id: "e5", source: "ask1", sourceHandle: "option_2", target: "end1" },
+        ],
+      },
+    },
+    {
+      id: "suporte",
+      nome: "Suporte Técnico",
+      desc: "IA tenta resolver o problema 2x antes de transferir para o suporte humano",
+      keywords: ["problema", "erro", "não funciona", "ajuda", "suporte", "quebrou"],
+      departamento: "suporte",
+      cor: "#60a5fa",
+      flow_definition: {
+        nodes: [
+          { id: "start", type: "start", position: { x: 50, y: 200 }, data: { label: "Início" } },
+          { id: "msg1", type: "message", position: { x: 250, y: 200 }, data: { text: "Entendido! Vou verificar isso para você agora. 🔍" } },
+          { id: "ai1", type: "ai_response", position: { x: 450, y: 200 }, data: { context_prompt: "Tente resolver o problema do cliente. Use a base de conhecimento.", max_tentativas: 2, usar_kb: true } },
+          { id: "transfer1", type: "transfer", position: { x: 700, y: 200 }, data: { departamento: "suporte" } },
+        ],
+        edges: [
+          { id: "e1", source: "start", target: "msg1" },
+          { id: "e2", source: "msg1", target: "ai1" },
+          { id: "e3", source: "ai1", sourceHandle: "nao_sei", target: "transfer1" },
+          { id: "e4", source: "ai1", sourceHandle: "humano", target: "transfer1" },
+          { id: "e5", source: "ai1", sourceHandle: "default", target: "transfer1" },
+        ],
+      },
+    },
+    {
+      id: "captacao",
+      nome: "Captação de Lead",
+      desc: "Coleta nome, WhatsApp e email do lead e avisa que a equipe entrará em contato",
+      keywords: ["quero", "interesse", "informação", "cadastro", "saber mais"],
+      departamento: "todos",
+      cor: "#a78bfa",
+      flow_definition: {
+        nodes: [
+          { id: "start", type: "start", position: { x: 50, y: 200 }, data: { label: "Início" } },
+          { id: "msg1", type: "message", position: { x: 250, y: 200 }, data: { text: "Ótimo! Para entrarmos em contato, preciso de algumas informações rápidas." } },
+          { id: "ask1", type: "ask", position: { x: 450, y: 200 }, data: { question: "Qual é o seu nome completo?", save_as: "nome_completo" } },
+          { id: "ask2", type: "ask", position: { x: 650, y: 200 }, data: { question: "Qual é o seu email?", save_as: "email" } },
+          { id: "end1", type: "end", position: { x: 850, y: 200 }, data: { message: "Perfeito! Nossa equipe entrará em contato em breve. Obrigado! 🎉" } },
+        ],
+        edges: [
+          { id: "e1", source: "start", target: "msg1" },
+          { id: "e2", source: "msg1", target: "ask1" },
+          { id: "e3", source: "ask1", target: "ask2" },
+          { id: "e4", source: "ask2", target: "end1" },
+        ],
+      },
+    },
+    {
+      id: "faq",
+      nome: "FAQ Automático",
+      desc: "Responde dúvidas frequentes usando a base de conhecimento, transfere se não souber",
+      keywords: ["como funciona", "o que é", "dúvida", "pergunta", "explicar", "entender"],
+      departamento: "todos",
+      cor: "#f97316",
+      flow_definition: {
+        nodes: [
+          { id: "start", type: "start", position: { x: 50, y: 200 }, data: { label: "Início" } },
+          { id: "ai1", type: "ai_response", position: { x: 250, y: 200 }, data: { context_prompt: "Responda a dúvida usando a base de conhecimento. Se não souber, diga que vai transferir.", max_tentativas: 1, usar_kb: true } },
+          { id: "transfer1", type: "transfer", position: { x: 500, y: 320 }, data: { departamento: "suporte" } },
+          { id: "end1", type: "end", position: { x: 500, y: 100 }, data: { message: "Espero ter ajudado! Qualquer dúvida, é só chamar. 😊" } },
+        ],
+        edges: [
+          { id: "e1", source: "start", target: "ai1" },
+          { id: "e2", source: "ai1", sourceHandle: "resolvido", target: "end1" },
+          { id: "e3", source: "ai1", sourceHandle: "nao_sei", target: "transfer1" },
+          { id: "e4", source: "ai1", sourceHandle: "default", target: "end1" },
+        ],
+      },
+    },
+  ];
+
+  async function createFromTemplate(template: typeof FLOW_TEMPLATES[0]) {
+    if (!tenantId) return;
+    setCreatingTemplate(template.id);
+    await fetch("/api/flows", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        nome: template.nome,
+        descricao: template.desc,
+        trigger_keywords: template.keywords,
+        departamento: template.departamento,
+        flow_definition: template.flow_definition,
+        ativo: true,
+      }),
+    });
+    await fetch(`/api/flows?tenant_id=${tenantId}`).then(r => r.json()).then(d => setFlows(d.flows ?? []));
+    setCreatingTemplate(null);
+    setShowTemplates(false);
+  }
 
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
 
@@ -70,18 +214,53 @@ export default function FlowsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {flows.length === 0 && (
-            <button onClick={createDefault} className="px-4 h-9 rounded-xl text-sm font-bold"
-              style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
-              Criar fluxos padrão
-            </button>
-          )}
+          <button onClick={() => setShowTemplates(!showTemplates)}
+            className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
+            style={showTemplates ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.05)", color: "#939da4", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <LayoutTemplate className="w-4 h-4" /> Templates
+          </button>
           <Link href="/ia/flows/new" className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
             style={{ background: "#9aea62", color: "#0a0a0a" }}>
             <Plus className="w-4 h-4" /> Novo fluxo
           </Link>
         </div>
       </div>
+
+      {/* Templates Panel */}
+      {showTemplates && (
+        <div className="rounded-2xl p-5 space-y-3" style={{ background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <p className="text-sm font-bold text-white">Templates prontos</p>
+              <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>Fluxos de vendas e suporte — ative com 1 clique</p>
+            </div>
+            <button onClick={() => setShowTemplates(false)}><X className="w-4 h-4" style={{ color: "#939da4" }} /></button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {FLOW_TEMPLATES.map(t => (
+              <div key={t.id} className="rounded-xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-white">{t.nome}</p>
+                    <p className="text-[10px] mt-0.5 leading-relaxed" style={{ color: "#939da4" }}>{t.desc}</p>
+                  </div>
+                  <span className="shrink-0 w-2 h-2 rounded-full mt-1" style={{ background: t.cor }} />
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {t.keywords.slice(0, 4).map(k => (
+                    <span key={k} className="text-[9px] px-1.5 py-0.5 rounded-full font-mono" style={{ background: "rgba(255,255,255,0.05)", color: "#939da4" }}>"{k}"</span>
+                  ))}
+                </div>
+                <button onClick={() => createFromTemplate(t)} disabled={creatingTemplate === t.id}
+                  className="w-full h-7 rounded-lg text-xs font-bold transition-all"
+                  style={{ background: `${t.cor}18`, color: t.cor, border: `1px solid ${t.cor}30`, opacity: creatingTemplate === t.id ? 0.6 : 1 }}>
+                  {creatingTemplate === t.id ? "Criando..." : "+ Usar template"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Explicação */}
       <div className="rounded-xl p-4" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.12)" }}>

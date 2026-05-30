@@ -4,6 +4,8 @@ import { GoogleAuth } from "google-auth-library";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { dispatchConversation } from "@/lib/dispatch";
 import { processFlowMessage } from "@/lib/flow-engine";
+import { transcribeAudio } from "@/lib/speech";
+import { textToSpeech } from "@/lib/tts";
 
 const AI_LIMITS: Record<string, number> = { Starter: 200, Pro: 2000, Agency: Infinity };
 const VERTEX_PROJECT = "adsliberty";
@@ -126,6 +128,11 @@ export async function POST(request: NextRequest) {
           try {
             const stored = await fetchAndStoreMedia(mediaData.id, waConfig.access_token, tenantId, supabase);
             mediaUrl = stored;
+            // STT: transcrever áudios para que a IA entenda o conteúdo
+            if ((msg.type === "audio" || msg.type === "voice") && stored) {
+              const transcription = await transcribeAudio(stored, mediaMime);
+              if (transcription) text = `[Áudio transcrito]: ${transcription}`;
+            }
           } catch (e) { console.error("Media fetch error:", e); }
         }
       }
@@ -339,9 +346,31 @@ export async function POST(request: NextRequest) {
               await supabase.from("conversas").update({ ai_suggestion: aiReply }).eq("id", conversa.id);
               await supabase.from("mensagens").insert({ conversa_id: conversa.id, tenant_id: tenantId, remetente: "ia", conteudo: `[SUGESTÃO] ${aiReply}`, enviada: false });
             } else {
-              // Autopilot: envia normalmente
+              // Autopilot: salva no banco
               await supabase.from("mensagens").insert({ conversa_id: conversa.id, tenant_id: tenantId, remetente: "ia", conteudo: aiReply, enviada: false });
-              await sendWhatsAppMessage(waConfig.access_token, phoneNumberId, fromNumber, aiReply);
+
+              // TTS: responder com áudio se persona configurada para isso
+              if (persona?.responder_com_audio) {
+                try {
+                  const audioBuffer = await textToSpeech(aiReply, persona.voz_tts ?? "pt-BR-feminina");
+                  if (audioBuffer) {
+                    // Salvar no Supabase Storage
+                    const audioPath = `${tenantId}/tts-${Date.now()}.mp3`;
+                    await supabase.storage.from("media").upload(audioPath, audioBuffer, { contentType: "audio/mpeg" });
+                    const { data: publicUrlData } = supabase.storage.from("media").getPublicUrl(audioPath);
+                    // Enviar como áudio no WhatsApp
+                    await sendWhatsAppAudio(waConfig.access_token, phoneNumberId, fromNumber, audioBuffer);
+                  } else {
+                    await sendWhatsAppMessage(waConfig.access_token, phoneNumberId, fromNumber, aiReply);
+                  }
+                } catch (ttsErr) {
+                  console.error("TTS error, fallback to text:", ttsErr);
+                  await sendWhatsAppMessage(waConfig.access_token, phoneNumberId, fromNumber, aiReply);
+                }
+              } else {
+                await sendWhatsAppMessage(waConfig.access_token, phoneNumberId, fromNumber, aiReply);
+              }
+
               await supabase.from("mensagens").update({ enviada: true }).eq("conversa_id", conversa.id).eq("remetente", "ia").eq("enviada", false);
             }
 
@@ -372,6 +401,31 @@ async function sendWhatsAppMessage(accessToken: string, phoneNumberId: string, t
     body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text } }),
   });
   if (!res.ok) console.error("WhatsApp send error:", await res.text());
+}
+
+async function sendWhatsAppAudio(accessToken: string, phoneNumberId: string, to: string, audioBuffer: Buffer) {
+  // 1. Upload do áudio para a Meta API
+  const form = new FormData();
+  const blob = new Blob([audioBuffer.buffer as ArrayBuffer], { type: "audio/mpeg" });
+  form.append("messaging_product", "whatsapp");
+  form.append("type", "audio/mpeg");
+  form.append("file", blob, "resposta.mp3");
+
+  const uploadRes = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: form,
+  });
+  if (!uploadRes.ok) { console.error("WA audio upload error:", await uploadRes.text()); return; }
+  const { id: mediaId } = await uploadRes.json();
+
+  // 2. Enviar mensagem de áudio
+  const res = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "audio", audio: { id: mediaId } }),
+  });
+  if (!res.ok) console.error("WA send audio error:", await res.text());
 }
 
 async function fetchAndStoreMedia(mediaId: string, accessToken: string, tenantId: string, supabase: any): Promise<string> {

@@ -78,7 +78,21 @@ export default function SandboxPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Sandbox — Testar IA</h1>
-            <p className="text-sm mt-1" style={{ color: "#939da4" }}>Teste a IA antes de ativar para clientes reais</p>
+            <div className="flex items-center gap-3 mt-2 flex-wrap">
+              {[
+                { n: "1", label: "Configure Persona + KB" },
+                { n: "2", label: "Teste aqui" },
+                { n: "3", label: "Boa resposta? → Salvar como treino" },
+                { n: "4", label: "Ruim? Ajuste e repita" },
+              ].map(({ n, label }) => (
+                <div key={n} className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black shrink-0"
+                    style={{ background: "rgba(154,234,98,0.15)", color: "#9aea62" }}>{n}</span>
+                  <span className="text-xs" style={{ color: "rgba(147,157,164,0.6)" }}>{label}</span>
+                  {n !== "4" && <span className="text-[10px]" style={{ color: "rgba(147,157,164,0.2)" }}>›</span>}
+                </div>
+              ))}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => setShowKbPanel(!showKbPanel)}

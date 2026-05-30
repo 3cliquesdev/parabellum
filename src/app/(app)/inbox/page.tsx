@@ -1,12 +1,20 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, MessageSquare, Paperclip, FileText, MapPin } from "lucide-react";
+import { Send, Bot, User, MessageSquare, Paperclip, FileText, MapPin, Clock, UserCheck, RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
 import { useMensagens } from "@/hooks/useMensagens";
 import { createClient } from "@/lib/supabase/client";
 import type { Mensagem } from "@/types/database";
+
+const DISPATCH_BADGE: Record<string, { label: string; color: string }> = {
+  ia:       { label: "IA",       color: "#9aea62" },
+  atribuido:{ label: "Atribuído", color: "#60a5fa" },
+  fila:     { label: "Na fila",  color: "#facc15" },
+  resolvido:{ label: "Resolvido", color: "#939da4" },
+};
 
 function timeLabel(dateStr: string) {
   const d = new Date(dateStr);
@@ -75,7 +83,27 @@ export default function InboxPage() {
   const { mensagens, loading: msgsLoading } = useMensagens(selectedId);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [filtro, setFiltro] = useState<"minhas" | "todas">("minhas");
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [myRole, setMyRole] = useState<string>("member");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      setMyUserId(user.id);
+      if (tenantId) {
+        const { data: tm } = await supabase.from("tenant_members").select("role").eq("tenant_id", tenantId).eq("user_id", user.id).single() as { data: any };
+        setMyRole(tm?.role ?? "member");
+      }
+    });
+  }, [tenantId]);
+
+  // Filtrar conversas por agente
+  const conversasFiltradas = filtro === "minhas" && myUserId
+    ? conversas.filter(c => (c as any).assigned_to === myUserId || !(c as any).assigned_to)
+    : conversas;
 
   const selected = conversas.find(c => c.id === selectedId);
 
@@ -121,9 +149,29 @@ export default function InboxPage() {
       {/* Lista de conversas */}
       <aside className="w-72 shrink-0 flex flex-col overflow-hidden"
         style={{ borderRight: "1px solid rgba(255,255,255,0.06)", background: "#0a0a0a" }}>
-        <div className="px-4 py-4 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-          <h2 className="text-sm font-bold text-white">Inbox WhatsApp</h2>
-          <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{conversas.length} conversas</p>
+        <div className="px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-white">Inbox</h2>
+            <Link href="/inbox/queue" className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full"
+              style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>
+              <Clock className="w-3 h-3" /> Fila
+            </Link>
+          </div>
+          {/* Filter tabs */}
+          <div className="flex gap-1">
+            {[
+              { id: "minhas", label: "Minhas" },
+              ...((myRole === "owner" || myRole === "admin") ? [{ id: "todas", label: "Todas" }] : []),
+            ].map(f => (
+              <button key={f.id} onClick={() => setFiltro(f.id as typeof filtro)}
+                className="px-3 h-6 rounded-full text-[10px] font-bold transition-all"
+                style={filtro === f.id
+                  ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.25)" }
+                  : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -131,14 +179,18 @@ export default function InboxPage() {
             <div className="flex items-center justify-center py-12">
               <div className="w-4 h-4 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" />
             </div>
-          ) : conversas.length === 0 ? (
+          ) : conversasFiltradas.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <MessageSquare className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(147,157,164,0.3)" }} />
-              <p className="text-xs" style={{ color: "#939da4" }}>Nenhuma conversa ainda.</p>
-              <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>As mensagens do WhatsApp aparecerão aqui.</p>
+              <p className="text-xs" style={{ color: "#939da4" }}>
+                {filtro === "minhas" ? "Nenhuma conversa atribuída a você." : "Nenhuma conversa ainda."}
+              </p>
             </div>
           ) : (
-            conversas.map(c => (
+            conversasFiltradas.map(c => {
+              const dispatch = (c as any).dispatch_status ?? "ia";
+              const badge = DISPATCH_BADGE[dispatch] ?? DISPATCH_BADGE.ia;
+              return (
               <button key={c.id} onClick={() => setSelectedId(c.id)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
                 style={{
@@ -154,6 +206,8 @@ export default function InboxPage() {
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-white truncate">{c.lead_nome}</p>
                     <div className="flex items-center gap-1 shrink-0 ml-2">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ color: badge.color, background: `${badge.color}15` }}>{badge.label}</span>
                       {c.ia_ativa
                         ? <Bot className="w-3 h-3" style={{ color: "#9aea62" }} />
                         : <User className="w-3 h-3" style={{ color: "#939da4" }} />}
@@ -164,7 +218,8 @@ export default function InboxPage() {
                   </p>
                 </div>
               </button>
-            ))
+            );
+            })}
           )}
         </div>
       </aside>

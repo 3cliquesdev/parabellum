@@ -538,15 +538,19 @@ function TeamSection({ tenantId }: { tenantId: string }) {
         )}
         <div className="space-y-2">
           {members.map(m => (
-            <div key={m.id} className="flex items-center gap-3 py-2.5 px-3 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
-                {(m.email ?? "?").charAt(0).toUpperCase()}
+            <div key={m.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+                  {(m.email ?? "?").charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0"><p className="text-sm font-medium text-white truncate">{m.email ?? m.user_id}</p></div>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0" style={{ color: ROLE_COLOR[m.role], background: `${ROLE_COLOR[m.role]}15` }}>{ROLE_LABEL[m.role]}</span>
+                {m.role !== "owner" && (
+                  <button onClick={() => removeMember(m.id)}><Trash2 className="w-3.5 h-3.5" style={{ color: "rgba(248,113,113,0.5)" }} /></button>
+                )}
               </div>
-              <div className="flex-1 min-w-0"><p className="text-sm font-medium text-white truncate">{m.email ?? m.user_id}</p></div>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0" style={{ color: ROLE_COLOR[m.role], background: `${ROLE_COLOR[m.role]}15` }}>{ROLE_LABEL[m.role]}</span>
-              {m.role !== "owner" && (
-                <button onClick={() => removeMember(m.id)}><Trash2 className="w-3.5 h-3.5" style={{ color: "rgba(248,113,113,0.5)" }} /></button>
-              )}
+              {/* Departamento + Disponível */}
+              <MemberConfig member={m} tenantId={tenantId} />
             </div>
           ))}
         </div>
@@ -562,6 +566,47 @@ function TeamSection({ tenantId }: { tenantId: string }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Member Config (departamento + disponível) ───
+function MemberConfig({ member, tenantId }: { member: any; tenantId: string }) {
+  const [dept, setDept] = useState(member.departamento ?? "vendas");
+  const [disp, setDisp] = useState(member.disponivel ?? true);
+  const [saving, setSaving] = useState(false);
+
+  async function save(newDept?: string, newDisp?: boolean) {
+    setSaving(true);
+    await fetch("/api/team/member", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ member_id: member.id, tenant_id: tenantId, departamento: newDept ?? dept, disponivel: newDisp ?? disp }),
+    });
+    setSaving(false);
+  }
+
+  const DEPT_COLOR: Record<string, string> = { vendas: "#9aea62", suporte: "#60a5fa", todos: "#a78bfa" };
+
+  return (
+    <div className="flex items-center gap-2">
+      <select value={dept} onChange={async e => { setDept(e.target.value); await save(e.target.value); }}
+        disabled={saving}
+        className="h-7 px-2 rounded-lg text-xs outline-none"
+        style={{ background: `${DEPT_COLOR[dept]}10`, border: `1px solid ${DEPT_COLOR[dept]}30`, color: DEPT_COLOR[dept] }}>
+        <option value="vendas" style={{ background: "#111", color: "#fff" }}>Vendas</option>
+        <option value="suporte" style={{ background: "#111", color: "#fff" }}>Suporte</option>
+        <option value="todos" style={{ background: "#111", color: "#fff" }}>Todos</option>
+      </select>
+      <button onClick={async () => { const novo = !disp; setDisp(novo); await save(undefined, novo); }}
+        disabled={saving}
+        className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-bold transition-all"
+        style={disp
+          ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
+          : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="w-1.5 h-1.5 rounded-full" style={{ background: disp ? "#9aea62" : "#939da4" }} />
+        {disp ? "Disponível" : "Offline"}
+      </button>
     </div>
   );
 }

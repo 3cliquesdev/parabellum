@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { GoogleAuth } from "google-auth-library";
 import { dispatchWebhook } from "@/lib/webhooks";
+import { dispatchConversation } from "@/lib/dispatch";
 
 const AI_LIMITS: Record<string, number> = { Starter: 200, Pro: 2000, Agency: Infinity };
 const VERTEX_PROJECT = "adsliberty";
@@ -191,13 +192,24 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Handoff: lead pediu humano ou sentimento negativo
+      // Handoff: lead pediu humano ou sentimento negativo → round-robin dispatch
       if (intent?.intent === "humano" || detectNegativeSentiment(text)) {
-        await supabase.from("conversas").update({ ai_mode: "disabled", ia_ativa: false }).eq("id", conversa.id);
+        const isNegativo = detectNegativeSentiment(text);
+        const motivo = intent?.intent === "humano" ? "handoff_ia" : "sentimento_negativo";
+
+        // Determinar departamento pelo intent
+        const INTENTS_SUPORTE = ["suporte"];
+        const deptAlvo = INTENTS_SUPORTE.includes(intent?.intent ?? "") ? "suporte" : "vendas";
+
+        // Dispatcher round-robin
+        const dispatch = await dispatchConversation(tenantId, conversa.id, deptAlvo, motivo);
+
         await supabase.from("atividades").insert({
           tenant_id: tenantId, lead_id: lead.id, tipo: "whatsapp",
-          titulo: intent?.intent === "humano" ? "Lead pediu atendimento humano" : "Sentimento negativo detectado — atenção necessária",
-          descricao: `Última mensagem: "${text}"`,
+          titulo: dispatch.atribuido
+            ? `Atribuído para atendimento humano (${deptAlvo})`
+            : intent?.intent === "humano" ? "Lead pediu atendimento humano — na fila" : "Sentimento negativo — na fila",
+          descricao: `Última mensagem: "${text}"${dispatch.na_fila ? " | Sem agentes disponíveis, adicionado à fila." : ""}`,
           prazo: new Date().toISOString(), concluida: false,
         });
         continue; // Não responde com IA

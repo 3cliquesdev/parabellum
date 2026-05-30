@@ -24,13 +24,36 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
   const tenantId = campaign.tenant_id;
   const filtros = campaign.segmento_filtros ?? {};
+  const fonte = filtros.fonte ?? "todos";
 
-  let query = admin.from("leads").select("id, whatsapp, nome, servico_interesse, email")
-    .eq("tenant_id", tenantId).not("whatsapp", "is", null);
-  if (filtros.status?.length) query = query.in("status", filtros.status);
-  const { data: leads } = await query;
+  // Buscar destinatários baseado na fonte
+  let leads: any[] = [];
 
-  if (!leads?.length) return NextResponse.json({ error: "Nenhum lead elegível encontrado" }, { status: 400 });
+  if (fonte === "inbox_24h") {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: convs } = await admin.from("conversas")
+      .select("lead_id, leads(id, whatsapp, nome, servico_interesse, email)")
+      .eq("tenant_id", tenantId).eq("canal", "whatsapp").gte("updated_at", since) as { data: any[] };
+    leads = (convs ?? []).map((c: any) => c.leads).filter(Boolean);
+
+  } else if (fonte === "csv") {
+    // CSV phones → criar leads temporários (só com whatsapp)
+    const csvPhones: string[] = (filtros.csv_phones ?? []).map((p: string) => p.replace(/\D/g, "")).filter((p: string) => p.length >= 10);
+    leads = csvPhones.map((phone, i) => ({
+      id: `csv-${i}`, whatsapp: phone,
+      nome: filtros.csv_names?.[i] ?? `Contato ${phone}`,
+      email: null, servico_interesse: null,
+    }));
+
+  } else {
+    let query = admin.from("leads").select("id, whatsapp, nome, servico_interesse, email")
+      .eq("tenant_id", tenantId).not("whatsapp", "is", null);
+    if (fonte === "pipeline" && filtros.status?.length) query = query.in("status", filtros.status);
+    const { data } = await query;
+    leads = data ?? [];
+  }
+
+  if (!leads.length) return NextResponse.json({ error: "Nenhum lead elegível encontrado" }, { status: 400 });
 
   const phones = leads.map((l: any) => l.whatsapp?.replace(/\D/g, "")).filter(Boolean);
   const { data: optoutList } = await admin.from("lead_optouts").select("phone_number").eq("tenant_id", tenantId).in("phone_number", phones);

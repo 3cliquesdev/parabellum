@@ -38,7 +38,7 @@ async function getVertexToken(): Promise<string> {
   return tokenResponse.token!;
 }
 
-async function callGemini(token: string, contents: any[], temperatura: number = 0.7, maxTokens: number = 300): Promise<string> {
+async function callGemini(token: string, contents: any[], temperatura: number = 0.7, maxTokens: number = 1000): Promise<string> {
   const url = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_LOCATION}/publishers/google/models/${VERTEX_MODEL}:generateContent`;
   const res = await fetch(url, {
     method: "POST",

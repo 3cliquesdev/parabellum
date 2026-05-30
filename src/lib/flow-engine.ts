@@ -116,7 +116,7 @@ INSTRUÇÕES DO FLUXO:
           { role: "model", parts: [{ text: "Entendido!" }] },
           { role: "user", parts: [{ text: userMessage }] },
         ],
-        generationConfig: { maxOutputTokens: persona?.max_tokens ?? 300, temperature: persona?.temperatura ?? 0.7 },
+        generationConfig: { maxOutputTokens: Math.max(persona?.max_tokens ?? 1000, 600), temperature: persona?.temperatura ?? 0.7 },
       }),
     });
 

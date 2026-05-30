@@ -578,7 +578,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
 
 // ─── Persona Config (moved from old settings) ───
 function PersonaConfig({ tenantId }: { tenantId: string | null }) {
-  const [form, setForm] = useState({ nome: "Assistente", empresa: "", descricao: "", temperatura: 0.7, max_tokens: 300 });
+  const [form, setForm] = useState({ nome: "Assistente", empresa: "", descricao: "", temperatura: 0.7, max_tokens: 1000 });
   const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [exists, setExists] = useState(false);
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
   useEffect(() => {

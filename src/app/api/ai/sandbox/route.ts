@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: persona?.max_tokens ?? 300, temperature: persona?.temperatura ?? 0.7 } }),
+    body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: Math.max(persona?.max_tokens ?? 1000, 600), temperature: persona?.temperatura ?? 0.7 } }),
   });
 
   if (!res.ok) {

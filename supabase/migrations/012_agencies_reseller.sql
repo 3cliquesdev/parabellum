@@ -126,10 +126,10 @@ RETURNS SETOF uuid AS $$
   WHERE t.agency_id IN (SELECT agency_id FROM agency_users WHERE user_id = auth.uid());
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- Verifica se é super admin
+-- Verifica se é super admin (super_admins usa coluna email)
 CREATE OR REPLACE FUNCTION is_super_admin()
 RETURNS boolean AS $$
-  SELECT EXISTS (SELECT 1 FROM super_admins WHERE user_id = auth.uid());
+  SELECT EXISTS (SELECT 1 FROM super_admins WHERE email = auth.email());
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- Tenant impersonado na sessão atual

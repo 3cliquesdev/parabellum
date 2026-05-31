@@ -2,119 +2,219 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, Plus, TrendingUp, Globe, Building2, ArrowRight } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { Users, Plus, TrendingUp, Globe, Building2, ArrowRight, Bot, MessageSquare, AlertTriangle, Activity, CreditCard } from "lucide-react";
 
 export default function AgencyDashboard() {
-  const [stats, setStats] = useState({ customers: 0, maxTenants: 10, plan: "starter" });
-  const [recent, setRecent] = useState<any[]>([]);
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
 
   useEffect(() => {
-    const load = async () => {
-      const res = await fetch("/api/agency/customers");
-      if (!res.ok) return;
-      const d = await res.json();
-      setStats(s => ({ ...s, customers: d.customers?.length ?? 0 }));
-      setRecent((d.customers ?? []).slice(0, 5));
-      setLoading(false);
-    };
-    load();
+    fetch("/api/agency/stats").then(r => r.json()).then(d => { setData(d); setLoading(false); });
   }, []);
+
+  const agency = data?.agency;
+  const totals = data?.totals ?? {};
+  const plan = data?.plan;
+  const tenantStats: any[] = data?.tenant_stats ?? [];
+  const nearLimit: any[] = data?.near_limit ?? [];
+  const recentAudit: any[] = data?.recent_audit ?? [];
+
+  const trialDaysLeft = agency?.trial_ends_at
+    ? Math.max(0, Math.ceil((new Date(agency.trial_ends_at).getTime() - Date.now()) / 86400000))
+    : null;
+
+  const ACTION_LABELS: Record<string, string> = {
+    "tenant.created": "Criou cliente",
+    "login_as": "Entrou como cliente",
+    "branding.updated": "Atualizou branding",
+    "domain.added": "Adicionou domínio",
+    "team.invited": "Convidou membro",
+  };
 
   return (
     <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+
+      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Dashboard</h1>
-          <p className="text-sm mt-1" style={{ color: "#939da4" }}>Visão geral da sua agência</p>
+          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">
+            {agency?.display_name ?? "Dashboard"}
+          </h1>
+          <p className="text-sm mt-1" style={{ color: "#939da4" }}>Visão consolidada de todos os clientes</p>
         </div>
-        <Link href="/agency/customers/new"
-          className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
+        <Link href="/agency/customers/new" className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
           style={{ background: "#9aea62", color: "#0a0a0a" }}>
           <Plus className="w-4 h-4" /> Novo cliente
         </Link>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { icon: Users, label: "Clientes ativos", value: stats.customers, suffix: `/ ${stats.maxTenants}`, color: "#9aea62" },
-          { icon: TrendingUp, label: "Plano", value: stats.plan.charAt(0).toUpperCase() + stats.plan.slice(1), color: "#60a5fa" },
-          { icon: Globe, label: "Status", value: "Ativo", color: "#a78bfa" },
-        ].map(({ icon: Icon, label, value, suffix, color }) => (
-          <div key={label} className="rounded-2xl p-5" style={cardStyle}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${color}15` }}>
-                <Icon className="w-4 h-4" style={{ color }} />
-              </div>
-              <span className="text-xs font-medium" style={{ color: "#939da4" }}>{label}</span>
-            </div>
-            <p className="text-2xl font-extrabold text-white tracking-[-0.03em]">
-              {value}{suffix && <span className="text-sm font-medium ml-1" style={{ color: "#939da4" }}>{suffix}</span>}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Clientes recentes */}
-      <div className="rounded-2xl p-6" style={cardStyle}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-white">Clientes recentes</h2>
-          <Link href="/agency/customers" className="text-xs font-bold flex items-center gap-1" style={{ color: "#9aea62" }}>
-            Ver todos <ArrowRight className="w-3 h-3" />
-          </Link>
+      {/* Trial / payment alert */}
+      {agency?.payment_status === "trial" && trialDaysLeft !== null && trialDaysLeft <= 7 && (
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3"
+          style={{ background: "rgba(250,204,21,0.08)", border: "1px solid rgba(250,204,21,0.2)" }}>
+          <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: "#facc15" }} />
+          <p className="text-xs font-medium" style={{ color: "#facc15" }}>
+            Trial expira em <strong>{trialDaysLeft} dias</strong>.{" "}
+            <Link href="/agency/billing" style={{ textDecoration: "underline" }}>Fazer upgrade</Link>
+          </p>
         </div>
+      )}
+      {agency?.payment_status === "past_due" && (
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3"
+          style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
+          <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: "#f87171" }} />
+          <p className="text-xs font-medium" style={{ color: "#f87171" }}>
+            Pagamento em atraso — regularize para evitar suspensão dos clientes.{" "}
+            <Link href="/agency/billing" style={{ textDecoration: "underline" }}>Ver fatura</Link>
+          </p>
+        </div>
+      )}
 
-        {loading ? (
-          <div className="flex justify-center py-8"><div className="w-4 h-4 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
-        ) : recent.length === 0 ? (
-          <div className="py-12 text-center">
-            <Building2 className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(147,157,164,0.3)" }} />
-            <p className="text-sm" style={{ color: "#939da4" }}>Nenhum cliente ainda</p>
-            <Link href="/agency/customers/new" className="text-xs mt-2 inline-block font-bold" style={{ color: "#9aea62" }}>
-              + Criar primeiro cliente
-            </Link>
+      {/* Stats principais */}
+      {loading ? (
+        <div className="grid grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="rounded-2xl h-24 animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          {[
+            { icon: Building2, label: "Clientes", value: totals.tenants, suffix: `/ ${totals.max_tenants}`, color: "#9aea62", href: "/agency/customers" },
+            { icon: Users, label: "Membros totais", value: totals.members, color: "#60a5fa" },
+            { icon: Bot, label: "IA usada (mês)", value: totals.ai_calls_this_month?.toLocaleString("pt-BR"), color: "#a78bfa" },
+            { icon: MessageSquare, label: "Mensagens (mês)", value: totals.messages_this_month?.toLocaleString("pt-BR"), color: "#f97316" },
+          ].map(({ icon: Icon, label, value, suffix, color, href }) => (
+            <div key={label} className="rounded-2xl p-5" style={cardStyle}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}15` }}>
+                  <Icon className="w-4 h-4" style={{ color }} />
+                </div>
+                <span className="text-xs font-medium" style={{ color: "#939da4" }}>{label}</span>
+              </div>
+              <p className="text-2xl font-extrabold text-white tracking-[-0.03em]">
+                {value ?? "—"}
+                {suffix && <span className="text-sm font-medium ml-1" style={{ color: "#939da4" }}>{suffix}</span>}
+              </p>
+              {href && (
+                <Link href={href} className="text-[10px] mt-2 block" style={{ color }}>Ver todos →</Link>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+        {/* Top clientes por uso */}
+        <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-white">Clientes por uso de IA</h2>
+            <TrendingUp className="w-4 h-4" style={{ color: "#939da4" }} />
           </div>
-        ) : (
-          <div className="space-y-2">
-            {recent.map(c => (
-              <Link key={c.id} href={`/agency/customers/${c.id}`}
-                className="flex items-center justify-between p-3 rounded-xl transition-all hover:bg-white/5"
-                style={{ border: "1px solid rgba(255,255,255,0.04)" }}>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                    style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
-                    {c.name.charAt(0).toUpperCase()}
+          {loading ? (
+            <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-8 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />)}</div>
+          ) : tenantStats.length === 0 ? (
+            <p className="text-xs text-center py-4" style={{ color: "#939da4" }}>Nenhum dado ainda</p>
+          ) : (
+            <div className="space-y-3">
+              {tenantStats.slice(0, 6).map(t => (
+                <div key={t.id}>
+                  <div className="flex items-center justify-between mb-1">
+                    <Link href={`/agency/customers/${t.id}`} className="text-xs font-medium text-white hover:text-[#9aea62] transition-colors">{t.name}</Link>
+                    <span className="text-[10px]" style={{ color: "#939da4" }}>{t.ai_calls} chamadas</span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">{c.name}</p>
-                    <p className="text-[10px]" style={{ color: "#939da4" }}>{c.member_count} membro(s)</p>
+                  <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <div className="h-full rounded-full transition-all" style={{
+                      width: `${Math.min(t.usage_pct, 100)}%`,
+                      background: t.usage_pct >= 80 ? "#f87171" : t.usage_pct >= 60 ? "#facc15" : "#9aea62"
+                    }} />
                   </div>
                 </div>
-                <ArrowRight className="w-3.5 h-3.5" style={{ color: "#939da4" }} />
-              </Link>
-            ))}
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Alertas de limite + Auditoria recente */}
+        <div className="space-y-4">
+          {/* Perto do limite */}
+          {nearLimit.length > 0 && (
+            <div className="rounded-2xl p-5 space-y-3" style={{ ...cardStyle, border: "1px solid rgba(248,113,113,0.15)" }}>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" style={{ color: "#f87171" }} />
+                <h2 className="text-sm font-bold" style={{ color: "#f87171" }}>Perto do limite ({nearLimit.length})</h2>
+              </div>
+              {nearLimit.map(t => (
+                <div key={t.id} className="flex items-center justify-between">
+                  <Link href={`/agency/customers/${t.id}`} className="text-xs text-white hover:text-[#9aea62]">{t.name}</Link>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(248,113,113,0.1)", color: "#f87171" }}>
+                    {t.usage_pct}% usado
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Auditoria recente */}
+          <div className="rounded-2xl p-5 space-y-3" style={cardStyle}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-white">Atividade recente</h2>
+              <Activity className="w-4 h-4" style={{ color: "#939da4" }} />
+            </div>
+            {loading ? (
+              <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-6 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />)}</div>
+            ) : recentAudit.length === 0 ? (
+              <p className="text-xs text-center py-2" style={{ color: "#939da4" }}>Nenhuma atividade registrada</p>
+            ) : (
+              <div className="space-y-2">
+                {recentAudit.map((log, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <span className="text-xs" style={{ color: "#939da4" }}>
+                      {ACTION_LABELS[log.action] ?? log.action}
+                      {log.details?.tenant_name && <span className="text-white ml-1">· {log.details.tenant_name}</span>}
+                    </span>
+                    <span className="text-[10px]" style={{ color: "rgba(147,157,164,0.4)" }}>
+                      {new Date(log.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Quick links */}
-      <div className="grid grid-cols-2 gap-4">
-        {[
-          { href: "/agency/branding", label: "Configurar branding", desc: "Logo, cores e nome", icon: "🎨" },
-          { href: "/agency/domain", label: "Configurar domínio", desc: "Domínio personalizado", icon: "🌐" },
-        ].map(({ href, label, desc, icon }) => (
-          <Link key={href} href={href} className="rounded-2xl p-5 transition-all hover:border-white/15"
-            style={cardStyle}>
-            <span className="text-2xl mb-2 block">{icon}</span>
-            <p className="text-sm font-bold text-white">{label}</p>
-            <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{desc}</p>
+      {/* Plano atual */}
+      <div className="rounded-2xl p-5" style={cardStyle}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(154,234,98,0.1)" }}>
+              <CreditCard className="w-4 h-4" style={{ color: "#9aea62" }} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">
+                Plano {plan?.display_name ?? "Starter"}
+                {agency?.payment_status === "trial" && (
+                  <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>
+                    Trial — {trialDaysLeft}d restantes
+                  </span>
+                )}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>
+                {plan?.max_tenants} clientes · {plan?.max_ai_calls_per_month?.toLocaleString("pt-BR")} chamadas IA/mês
+              </p>
+            </div>
+          </div>
+          <Link href="/agency/billing" className="px-4 h-8 rounded-xl text-xs font-bold inline-flex items-center"
+            style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
+            Gerenciar plano
           </Link>
-        ))}
+        </div>
       </div>
+
     </div>
   );
 }

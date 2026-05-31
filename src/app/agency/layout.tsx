@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
-  LayoutDashboard, Users, Palette, Globe, Settings, LogOut, Building2,
+  LayoutDashboard, Users, Palette, Globe, Settings, LogOut, Building2, CreditCard,
 } from "lucide-react";
 
 const NAV = [
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/agency/branding", icon: Palette, label: "Branding" },
   { href: "/agency/domain", icon: Globe, label: "Domínio" },
   { href: "/agency/team", icon: Settings, label: "Equipe" },
+  { href: "/agency/billing", icon: CreditCard, label: "Faturamento" },
 ];
 
 export default function AgencyLayout({ children }: { children: React.ReactNode }) {

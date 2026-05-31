@@ -67,6 +67,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Buscar agência para o nome
   const { data: agency } = await admin.from("agencies").select("display_name, name").eq("id", agencyUser.agency_id).single() as { data: any };
 
+  // Registrar auditoria
+  await admin.from("agency_audit_logs").insert({
+    agency_id: agencyUser.agency_id,
+    user_id: user.id,
+    action: "login_as",
+    entity_type: "tenant",
+    entity_id: tenantId,
+    details: { tenant_name: tenant.name, reason },
+    ip_address: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip"),
+  });
+
   const response = NextResponse.json({
     success: true,
     session_id: session?.id,

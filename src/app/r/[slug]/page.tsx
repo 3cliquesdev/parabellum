@@ -1,20 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle, ArrowRight, Zap, Users, MessageSquare } from "lucide-react";
+import { CheckCircle, ArrowRight, Zap, Users, MessageSquare, Bot, BarChart2, Megaphone } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+
+const FEATURES = [
+  { icon: Users, title: "Pipeline de vendas", desc: "Kanban visual com todas as etapas do funil. Arraste leads de uma etapa para outra em segundos." },
+  { icon: MessageSquare, title: "Inbox WhatsApp com IA", desc: "Resposta automática 24h via WhatsApp. A IA atende, qualifica e transfere para humano quando necessário." },
+  { icon: Bot, title: "Agentes de IA treinados", desc: "Treine o agente com o seu produto, preços e objeções. Ele vende igual ao seu melhor vendedor, sem parar." },
+  { icon: Megaphone, title: "Broadcast em massa", desc: "Envie campanhas para toda a base de leads com segmentação avançada e alta taxa de entrega." },
+  { icon: BarChart2, title: "Dashboard e relatórios", desc: "Acompanhe leads ativos, valor do pipeline, mensagens enviadas e performance da equipe em tempo real." },
+  { icon: Zap, title: "Fluxos de automação", desc: "Configure fluxos visuais que ativam ações automáticas: boas-vindas, qualificação, follow-up e muito mais." },
+];
+
+const TESTIMONIALS = [
+  { name: "Carlos M.", role: "Agência de Marketing", text: "Automatizamos 80% do atendimento. A IA qualifica os leads e só transfere quando está pronto para fechar." },
+  { name: "Ana P.", role: "Infoprodutora", text: "Triplicamos o volume de atendimento sem contratar. O CRM paga sozinho no primeiro mês." },
+];
 
 export default function ReferralPage() {
   const { slug } = useParams<{ slug: string }>();
-  const router = useRouter();
   const [agency, setAgency] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    // Buscar agência pelo slug do link
     const supabase = createClient();
     supabase
       .from("agency_referral_links")
@@ -23,12 +35,10 @@ export default function ReferralPage() {
       .eq("ativo", true)
       .single()
       .then(({ data, error }: { data: any; error: any }) => {
-        if (error || !data) {
-          setNotFound(true);
-        } else {
+        if (error || !data) { setNotFound(true); }
+        else {
           setAgency({ ...data.agencies, link_slug: data.slug });
-          // Registrar click (fire and forget)
-          fetch(`/api/r/${slug}/click`, { method: "POST" }).catch(() => {});
+          fetch(`/api/r/${slug}`, { method: "POST" }).catch(() => {});
         }
         setLoading(false);
       });
@@ -49,86 +59,144 @@ export default function ReferralPage() {
 
   const cor = agency?.primary_color ?? "#9aea62";
   const nome = agency?.display_name ?? agency?.name ?? "Liberty CRM";
+  const signupUrl = `/signup?ref=${slug}&agency=${agency?.id}`;
 
   return (
-    <div className="min-h-screen" style={{ background: "#000", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ background: "#000", fontFamily: "-apple-system, 'Helvetica Neue', Arial, sans-serif", color: "#fff" }}>
 
-      {/* Header */}
-      <header className="px-6 py-5 flex items-center justify-between max-w-5xl mx-auto">
-        <div className="flex items-center gap-3">
-          {agency?.logo_url
-            ? <img src={agency.logo_url} alt={nome} className="h-8 w-auto" />
-            : <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: cor }}>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" /></svg>
-              </div>
-          }
-          <span className="font-bold text-white text-sm">{nome}</span>
+      {/* NAV */}
+      <nav style={{ position: "sticky", top: 0, zIndex: 50, borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {agency?.logo_url
+              ? <img src={agency.logo_url} alt={nome} style={{ height: 28, width: "auto" }} />
+              : <div style={{ width: 28, height: 28, borderRadius: 8, background: cor, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" /></svg>
+                </div>
+            }
+            <span style={{ fontWeight: 700, fontSize: 14, color: "#fff" }}>{nome}</span>
+          </div>
+          <Link href={signupUrl} style={{ padding: "8px 20px", borderRadius: 10, background: cor, color: "#0a0a0a", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Começar grátis
+          </Link>
         </div>
-        <Link href={`/signup?ref=${slug}&agency=${agency?.id}`}
-          className="px-4 py-2 rounded-xl text-xs font-bold"
-          style={{ background: cor, color: "#0a0a0a" }}>
-          Começar grátis
-        </Link>
-      </header>
+      </nav>
 
-      {/* Hero */}
-      <main className="max-w-3xl mx-auto px-6 py-20 text-center">
+      {/* HERO */}
+      <section style={{ maxWidth: 800, margin: "0 auto", padding: "100px 24px 80px", textAlign: "center" }}>
         {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8 text-xs font-bold"
-          style={{ background: `${cor}15`, border: `1px solid ${cor}30`, color: cor }}>
-          <Zap className="w-3.5 h-3.5" />
-          30 dias grátis — sem cartão de crédito
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 16px", borderRadius: 100, background: `${cor}15`, border: `1px solid ${cor}30`, marginBottom: 32 }}>
+          <Zap size={13} color={cor} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: cor }}>30 dias grátis · sem cartão de crédito</span>
         </div>
 
-        <h1 className="text-4xl font-extrabold text-white mb-6 leading-tight tracking-[-0.03em]">
-          O CRM que vai{" "}
-          <span style={{ color: cor }}>transformar<br />sua agência</span>
+        <h1 style={{ fontSize: "clamp(36px, 5vw, 56px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: "-0.04em", marginBottom: 24 }}>
+          O CRM que vende enquanto<br />
+          <span style={{ color: cor }}>você dorme</span>
         </h1>
 
-        <p className="text-lg mb-10 max-w-xl mx-auto" style={{ color: "rgba(147,157,164,0.8)" }}>
-          Pipeline visual, inbox com IA, broadcast e muito mais —
-          tudo em uma plataforma criada para agências digitais.
+        <p style={{ fontSize: 18, color: "rgba(147,157,164,0.85)", lineHeight: 1.65, marginBottom: 40, maxWidth: 580, margin: "0 auto 40px" }}>
+          Pipeline visual, inbox com IA, broadcast e automações em uma plataforma feita para agências e negócios digitais.
         </p>
 
-        <Link href={`/signup?ref=${slug}&agency=${agency?.id}`}
-          className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-base font-bold transition-opacity hover:opacity-90"
-          style={{ background: cor, color: "#0a0a0a" }}>
-          Criar minha conta grátis
-          <ArrowRight className="w-5 h-5" />
-        </Link>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <Link href={signupUrl} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", borderRadius: 14, background: cor, color: "#0a0a0a", fontSize: 15, fontWeight: 800, textDecoration: "none", letterSpacing: "-0.01em" }}>
+            Criar minha conta grátis <ArrowRight size={16} />
+          </Link>
+        </div>
 
-        <p className="text-xs mt-4" style={{ color: "rgba(147,157,164,0.4)" }}>
+        <p style={{ fontSize: 12, color: "rgba(147,157,164,0.4)", marginTop: 16 }}>
           Parceiro: {nome}{agency?.support_email ? ` · ${agency.support_email}` : ""}
         </p>
-      </main>
+      </section>
 
-      {/* Features */}
-      <section className="max-w-4xl mx-auto px-6 pb-20">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* SOCIAL PROOF */}
+      <section style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px 80px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24, textAlign: "center" }}>
           {[
-            { icon: Users, title: "Pipeline de vendas", desc: "Kanban visual com todas as etapas do seu funil" },
-            { icon: MessageSquare, title: "Inbox com IA", desc: "Respostas automáticas via WhatsApp com Gemini" },
-            { icon: Zap, title: "Automações", desc: "Fluxos visuais que atendem leads 24h por dia" },
-          ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="rounded-2xl p-6"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
-                style={{ background: `${cor}15` }}>
-                <Icon className="w-5 h-5" style={{ color: cor }} />
-              </div>
-              <p className="text-sm font-bold text-white mb-1">{title}</p>
-              <p className="text-xs" style={{ color: "#939da4" }}>{desc}</p>
+            { value: "+2.000", label: "empresas usando" },
+            { value: "80%", label: "redução no tempo de atendimento" },
+            { value: "3x", label: "mais leads convertidos" },
+          ].map(({ value, label }) => (
+            <div key={label} style={{ padding: "24px 16px", borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <p style={{ fontSize: 32, fontWeight: 800, color: cor, letterSpacing: "-0.03em", marginBottom: 4 }}>{value}</p>
+              <p style={{ fontSize: 13, color: "rgba(147,157,164,0.7)" }}>{label}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="text-center pb-8">
-        <p className="text-xs" style={{ color: "rgba(147,157,164,0.3)" }}>
+      {/* FEATURES */}
+      <section style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px 100px" }}>
+        <div style={{ textAlign: "center", marginBottom: 48 }}>
+          <h2 style={{ fontSize: "clamp(28px, 4vw, 40px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 12 }}>
+            Tudo que você precisa em um lugar só
+          </h2>
+          <p style={{ fontSize: 16, color: "rgba(147,157,164,0.7)", maxWidth: 500, margin: "0 auto" }}>
+            Pare de pagar por 5 ferramentas diferentes. O CRM tem tudo integrado.
+          </p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+          {FEATURES.map(({ icon: Icon, title, desc }) => (
+            <div key={title} style={{ padding: "28px 28px", borderRadius: 18, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: `${cor}15`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                <Icon size={20} color={cor} />
+              </div>
+              <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{title}</p>
+              <p style={{ fontSize: 13, color: "rgba(147,157,164,0.7)", lineHeight: 1.6 }}>{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* TESTIMONIALS */}
+      <section style={{ maxWidth: 900, margin: "0 auto", padding: "0 24px 100px" }}>
+        <h2 style={{ fontSize: "clamp(24px, 3vw, 36px)", fontWeight: 800, letterSpacing: "-0.03em", textAlign: "center", marginBottom: 40 }}>
+          O que nossos clientes dizem
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 20 }}>
+          {TESTIMONIALS.map(({ name, role, text }) => (
+            <div key={name} style={{ padding: "28px", borderRadius: 18, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.75)", lineHeight: 1.7, marginBottom: 20 }}>"{text}"</p>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700 }}>{name}</p>
+                <p style={{ fontSize: 12, color: "rgba(147,157,164,0.55)" }}>{role}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA FINAL */}
+      <section style={{ maxWidth: 700, margin: "0 auto", padding: "0 24px 120px", textAlign: "center" }}>
+        <div style={{ padding: "60px 40px", borderRadius: 24, background: `linear-gradient(135deg, ${cor}10 0%, rgba(0,0,0,0) 100%)`, border: `1px solid ${cor}20` }}>
+          <h2 style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 800, letterSpacing: "-0.04em", marginBottom: 16 }}>
+            Comece hoje, grátis por 30 dias
+          </h2>
+          <p style={{ fontSize: 15, color: "rgba(147,157,164,0.75)", marginBottom: 32 }}>
+            Sem cartão de crédito. Configure em menos de 5 minutos.
+          </p>
+          <Link href={signupUrl} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "16px 40px", borderRadius: 14, background: cor, color: "#0a0a0a", fontSize: 16, fontWeight: 800, textDecoration: "none", letterSpacing: "-0.01em" }}>
+            Criar conta grátis <ArrowRight size={18} />
+          </Link>
+          <div style={{ display: "flex", gap: 24, justifyContent: "center", marginTop: 24 }}>
+            {["30 dias grátis", "Cancele quando quiser", "Suporte incluso"].map(t => (
+              <div key={t} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <CheckCircle size={13} color={cor} />
+                <span style={{ fontSize: 12, color: "rgba(147,157,164,0.6)" }}>{t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer style={{ textAlign: "center", paddingBottom: 40, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <p style={{ fontSize: 12, color: "rgba(147,157,164,0.3)", paddingTop: 32 }}>
           {nome} · Powered by Liberty CRM
         </p>
       </footer>
+
     </div>
   );
 }

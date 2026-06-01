@@ -69,62 +69,16 @@ function IconBox({ icon: Icon, color = SLATE, size = 17 }: { icon: any; color?: 
   );
 }
 
-// ─── Hero Mockup (dark interior) ───
+// ─── Hero Mockup — imagem real do produto ───
 function HeroMockup({ cor, nome }: { cor: string; nome: string }) {
   return (
-    <div className="relative w-full max-w-[780px]" style={{ fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ background: CARD, borderRadius: 28, padding: 6, boxShadow: MOCK_SHADOW, border: `1px solid ${CARD_BORDER}` }}>
+    <div className="relative w-full max-w-[780px]">
+      <div style={{ background: "#FFFFFF", borderRadius: 28, padding: 6, border: "1px solid #E9EDF2", boxShadow: "0 20px 60px rgba(15,23,42,0.14), 0 4px 16px rgba(15,23,42,0.07)" }}>
         <div style={{ transform: "perspective(1800px) rotateX(3deg) rotateY(-1deg)" }}>
-          <div className="rounded-[22px] overflow-hidden" style={{ background: "linear-gradient(180deg, #0D1526 0%, #080F1C 100%)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <div className="px-4 h-10 flex items-center gap-2" style={{ borderBottom: `1px solid ${cor}15`, background: "#060D19" }}>
-              <div className="w-4 h-4 rounded-md flex items-center justify-center" style={{ background: cor }}>
-                <svg width="8" height="8" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#000" /></svg>
-              </div>
-              <span className="text-xs font-bold" style={{ color: M_WHITE }}>{nome}</span>
-              <div className="ml-auto">
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${cor}18`, color: cor }}>● IA ativa</span>
-              </div>
-            </div>
-            <div className="p-4 space-y-3">
-              <div className="grid grid-cols-4 gap-2">
-                {[{ l: "Leads", v: "248", c: cor }, { l: "Conversão", v: "34%", c: "#4ADE80" }, { l: "MRR", v: "R$14k", c: "#60a5fa" }, { l: "IA ativa", v: "97%", c: "#22D3EE" }].map(m => (
-                  <div key={m.l} className="rounded-lg p-2.5 text-center" style={{ background: `${m.c}09`, border: `1px solid ${m.c}18` }}>
-                    <p className="text-sm font-extrabold leading-none" style={{ color: m.c }}>{m.v}</p>
-                    <p className="text-[9px] mt-0.5" style={{ color: M_MUTED }}>{m.l}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${M_BORDER}` }}>
-                <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: "#4B5563" }}>Pipeline</p>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[{ l: "Novo", c: "#60a5fa", items: ["João S."] }, { l: "Prop.", c: "#EAB308", items: ["Maria C."] }, { l: "Negoc.", c: "#F97316", items: ["Pedro L."] }, { l: "Ganho", c: "#4ADE80", items: ["Ana T.", "Bruno K."] }].map(col => (
-                    <div key={col.l}>
-                      <p className="text-[8px] font-bold mb-1 px-0.5" style={{ color: `${col.c}80` }}>{col.l}</p>
-                      {col.items.map(n => <div key={n} className="mb-1 px-1.5 py-1 rounded text-[8px] font-medium truncate" style={{ background: `${col.c}12`, border: `1px solid ${col.c}20`, color: M_WHITE }}>{n}</div>)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${M_BORDER}` }}>
-                <div className="px-3 py-1.5 flex items-center gap-2" style={{ background: "rgba(0,0,0,0.3)", borderBottom: `1px solid ${M_BORDER}` }}>
-                  <MessageSquare size={10} style={{ color: "#4ADE80" }} />
-                  <span className="text-[9px] font-bold" style={{ color: M_WHITE }}>Inbox WhatsApp</span>
-                  <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${cor}15`, color: cor }}>IA ativa</span>
-                </div>
-                <div className="p-2.5 space-y-1.5" style={{ background: "#060D19" }}>
-                  <div className="flex justify-end"><div className="px-2 py-1 rounded-lg text-[9px]" style={{ background: "#1E3A2F", color: "#86EFAC" }}>Qual o plano mais completo?</div></div>
-                  <div className="flex gap-1.5">
-                    <div className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center" style={{ background: `${cor}18` }}><Bot size={8} style={{ color: cor }} /></div>
-                    <div className="px-2 py-1 rounded-lg text-[9px] flex-1" style={{ background: `${cor}10`, color: cor }}>O plano Pro inclui IA, pipeline e broadcast!</div>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-lg px-3 py-2 flex items-center gap-3" style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)" }}>
-                <Send size={10} style={{ color: "#4ADE80" }} />
-                <p className="text-[9px] font-bold" style={{ color: "#4ADE80" }}>Campanha ativa</p>
-                <p className="text-[9px]" style={{ color: M_MUTED }}>1.248 enviados • 32% abertura</p>
-              </div>
-            </div>
+          <div className="rounded-[22px] overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/sales/hero-dashboard.png" alt="Dashboard CRM em tempo real"
+              style={{ display: "block", width: "100%", height: "auto" }} />
           </div>
         </div>
       </div>
@@ -149,135 +103,21 @@ function HeroMockup({ cor, nome }: { cor: string; nome: string }) {
   );
 }
 
-// ─── Product Theatre Mockup (dark interior) ───
+// ─── Product Theatre Mockup — imagem real ───
 function ProductTheatreMockup({ cor, nome }: { cor: string; nome: string }) {
   return (
-    <div className="rounded-[22px] overflow-hidden" style={{ background: "linear-gradient(180deg, #0D1526, #060D19)", border: "1px solid rgba(255,255,255,0.08)" }}>
-      <div className="px-5 h-11 flex items-center gap-3" style={{ borderBottom: `1px solid ${cor}12`, background: "#040C1A" }}>
-        <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: cor }}>
-          <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#000" /></svg>
-        </div>
-        <span className="text-sm font-bold" style={{ color: M_WHITE }}>{nome}</span>
-        <div className="hidden sm:flex items-center gap-5 ml-6">
-          {["Dashboard", "Inbox", "Pipeline", "Campanhas", "IA"].map((t, i) => (
-            <span key={t} className="text-[10px] font-semibold pb-0.5" style={{ color: i === 1 ? cor : "#4B5563", borderBottom: i === 1 ? `1px solid ${cor}` : "none" }}>{t}</span>
-          ))}
-        </div>
-        <div className="ml-auto"><span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${cor}18`, color: cor }}>● IA ativa</span></div>
-      </div>
-      <div className="grid grid-cols-5 min-h-[260px]">
-        <div className="col-span-3 p-4 space-y-3" style={{ borderRight: "1px solid rgba(255,255,255,0.05)" }}>
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4B5563" }}>Inbox WhatsApp</p>
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${cor}18`, color: cor }}>IA respondendo</span>
-          </div>
-          <div className="space-y-2">
-            {[{ name: "João Silva", msg: "Tenho interesse no plano Pro", time: "14:22", unread: true }, { name: "Maria Costa", msg: "Qual é a diferença do plano Premium?", time: "14:18", unread: false }, { name: "Pedro Lima", msg: "Obrigado! Vou testar", time: "13:55", unread: false }].map(c => (
-              <div key={c.name} className="flex items-start gap-2.5 px-2.5 py-2 rounded-lg" style={{ background: c.unread ? `${cor}08` : "rgba(255,255,255,0.02)", border: `1px solid ${c.unread ? `${cor}18` : "rgba(255,255,255,0.04)"}` }}>
-                <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: `${cor}18`, color: cor }}>{c.name[0]}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-bold" style={{ color: M_WHITE }}>{c.name}</p>
-                    <p className="text-[8px]" style={{ color: "#4B5563" }}>{c.time}</p>
-                  </div>
-                  <p className="text-[9px] truncate" style={{ color: M_MUTED }}>{c.msg}</p>
-                </div>
-                {c.unread && <div className="w-1.5 h-1.5 rounded-full shrink-0 mt-1" style={{ background: cor }} />}
-              </div>
-            ))}
-          </div>
-          <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${cor}20` }}>
-            <div className="px-3 py-1.5 flex items-center gap-2" style={{ background: `${cor}08`, borderBottom: `1px solid ${cor}12` }}>
-              <Bot size={10} style={{ color: cor }} />
-              <span className="text-[9px] font-bold" style={{ color: cor }}>IA respondendo João Silva</span>
-            </div>
-            <div className="p-2.5 space-y-1.5" style={{ background: "#060D19" }}>
-              <div className="flex justify-end"><div className="px-2 py-1 rounded-lg text-[9px]" style={{ background: "#1E3A2F", color: "#86EFAC" }}>Tenho interesse no plano Pro</div></div>
-              <div className="flex gap-1.5">
-                <div className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center" style={{ background: `${cor}18` }}><Bot size={7} style={{ color: cor }} /></div>
-                <div className="px-2 py-1 rounded-lg text-[9px]" style={{ background: `${cor}10`, color: cor }}>Ótimo! O plano Pro inclui IA 24h, pipeline e broadcast. Posso te mostrar?</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-span-2 p-4 space-y-3">
-          <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "#4B5563" }}>Pipeline</p>
-          <div className="space-y-1.5">
-            {[{ l: "Novo lead", n: 8, c: "#60a5fa", w: "55%" }, { l: "Proposta", n: 5, c: "#EAB308", w: "35%" }, { l: "Negociação", n: 3, c: "#F97316", w: "22%" }, { l: "Ganho", n: 11, c: "#4ADE80", w: "80%" }].map(p => (
-              <div key={p.l} className="flex items-center gap-2">
-                <p className="text-[9px] w-16 shrink-0" style={{ color: M_MUTED }}>{p.l}</p>
-                <div className="flex-1 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }}>
-                  <div style={{ width: p.w, height: "100%", borderRadius: 99, background: p.c }} />
-                </div>
-                <p className="text-[9px] font-bold w-4 text-right shrink-0" style={{ color: p.c }}>{p.n}</p>
-              </div>
-            ))}
-          </div>
-          <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${M_BORDER}` }}>
-            <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: "#4B5563" }}>Receita mensal</p>
-            <div className="flex items-end gap-1 h-10">
-              {[25, 40, 55, 45, 65, 78, 90, 100].map((h, i) => (
-                <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, background: i === 7 ? cor : `${cor}25` }} />
-              ))}
-            </div>
-            <p className="text-[9px] font-bold mt-1" style={{ color: cor }}>R$14.248/mês ▲ +23%</p>
-          </div>
-        </div>
-      </div>
-      <div className="px-5 py-2.5 flex items-center gap-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", background: "#040C1A" }}>
-        <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full" style={{ background: "#4ADE80" }} /><p className="text-[9px]" style={{ color: M_MUTED }}>Follow-up agendado 14:30</p></div>
-        <p className="text-[9px]" style={{ color: "#4B5563" }}>•</p>
-        <p className="text-[9px] font-bold" style={{ color: cor }}>Proposta enviada</p>
-      </div>
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/images/sales/product-theatre.png" alt="CRM trabalhando em tempo real"
+      style={{ display: "block", width: "100%", height: "auto", borderRadius: 22 }} loading="lazy" />
   );
 }
 
-// ─── Broadcast Mockup (dark interior) ───
+// ─── Broadcast Mockup — imagem real ───
 function BroadcastMockup({ cor }: { cor: string }) {
   return (
-    <div className="rounded-[20px] overflow-hidden" style={{ background: "linear-gradient(180deg, #0D1526, #080F1C)", border: "1px solid rgba(255,255,255,0.08)" }}>
-      <div className="px-5 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "#060D19" }}>
-        <Send size={13} style={{ color: cor }} />
-        <span className="text-xs font-bold" style={{ color: M_WHITE }}>Campanha — Black Friday Reativação</span>
-        <div className="ml-auto flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#4ADE80" }} />
-          <span className="text-[9px] font-bold" style={{ color: "#4ADE80" }}>Enviando</span>
-        </div>
-      </div>
-      <div className="p-5 space-y-4">
-        <div className="grid grid-cols-4 gap-2">
-          {[{ v: "1.248", l: "contatos", c: cor }, { v: "32%", l: "abertura", c: "#60a5fa" }, { v: "84", l: "respostas", c: "#4ADE80" }, { v: "17", l: "oportunidades", c: "#A78BFA" }].map(m => (
-            <div key={m.l} className="rounded-xl p-3 text-center" style={{ background: `${m.c}09`, border: `1px solid ${m.c}18` }}>
-              <p className="text-xl font-extrabold leading-none" style={{ color: m.c }}>{m.v}</p>
-              <p className="text-[9px] mt-1" style={{ color: M_MUTED }}>{m.l}</p>
-            </div>
-          ))}
-        </div>
-        <div>
-          <div className="flex justify-between mb-1">
-            <p className="text-[9px] font-bold" style={{ color: "#4B5563" }}>Entregues</p>
-            <p className="text-[9px] font-bold" style={{ color: "#4ADE80" }}>87%</p>
-          </div>
-          <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-            <div style={{ width: "87%", height: "100%", borderRadius: 99, background: "linear-gradient(90deg, #4ADE80, #22D3EE)" }} />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          {[{ name: "João S.", status: "Leu 14:31", c: "#4ADE80" }, { name: "Maria C.", status: "Respondeu", c: "#22D3EE" }, { name: "Pedro L.", status: "Entregue", c: M_MUTED }, { name: "Ana T.", status: "Aguardando", c: "#374151" }].map(d => (
-            <div key={d.name} className="flex items-center gap-3 px-2 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.02)" }}>
-              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: d.c, opacity: d.c === "#374151" ? 0.4 : 1 }} />
-              <span className="flex-1 text-[10px] font-medium" style={{ color: M_WHITE }}>{d.name}</span>
-              <span className="text-[9px] font-bold" style={{ color: d.c }}>{d.status}</span>
-            </div>
-          ))}
-        </div>
-        <div className="rounded-xl p-3" style={{ background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.18)" }}>
-          <p className="text-xs font-bold" style={{ color: "#4ADE80" }}>R$8.240 em oportunidades geradas</p>
-          <p className="text-[10px] mt-0.5" style={{ color: M_MUTED }}>17 oportunidades × ticket médio R$484</p>
-        </div>
-      </div>
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/images/sales/broadcast-metrics.png" alt="Painel de campanhas e métricas"
+      style={{ display: "block", width: "100%", height: "auto", borderRadius: 20 }} loading="lazy" />
   );
 }
 
@@ -637,6 +477,15 @@ export default function ReferralPage() {
               </motion.div>
             ))}
           </div>
+
+          {/* Showcase — painel completo de funcionalidades */}
+          <motion.div {...fadeF(0.2)} className="mt-14">
+            <div style={{ background: "#FFFFFF", borderRadius: 24, padding: 6, border: "1px solid #E9EDF2", boxShadow: "0 20px 60px rgba(15,23,42,0.12), 0 4px 16px rgba(15,23,42,0.06)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/sales/features-panel.png" alt="Painel completo de funcionalidades do CRM"
+                style={{ display: "block", width: "100%", height: "auto", borderRadius: 20 }} loading="lazy" />
+            </div>
+          </motion.div>
         </div>
       </section>
 
@@ -681,9 +530,9 @@ export default function ReferralPage() {
             </h2>
             <p className="text-lg mt-4" style={{ color: TEXT_SEC }}>É assim que sua operação fica com {nome}</p>
           </motion.div>
-          <motion.div {...fadeF(0.15)} style={{ transform: "perspective(2000px) rotateX(3deg)" }}>
+          <motion.div {...fadeF(0.15)}>
             <div className="relative">
-              <div style={{ background: CARD, borderRadius: 28, padding: 6, boxShadow: MOCK_SHADOW, border: `1px solid ${CARD_BORDER}` }}>
+              <div style={{ background: "#FFFFFF", borderRadius: 30, padding: 14, border: "1px solid #E2E8F0", boxShadow: "0 30px 90px rgba(15,23,42,0.18)" }}>
                 <ProductTheatreMockup cor={cor} nome={nome} />
               </div>
               {[
@@ -723,41 +572,10 @@ export default function ReferralPage() {
             </div>
           </motion.div>
           <motion.div {...fadeF(0.15)}>
-            <div style={{ background: CARD, borderRadius: 24, padding: 4, boxShadow: MOCK_SHADOW, border: `1px solid ${CARD_BORDER}` }}>
-              <div className="rounded-[20px] overflow-hidden" style={{ background: "#0D1526" }}>
-                <div className="px-4 py-3 flex items-center gap-2" style={{ background: "#060D19", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${cor}20`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Bot size={14} style={{ color: cor }} />
-                  </div>
-                  <div><p className="text-xs font-bold" style={{ color: M_WHITE }}>Assistente</p><p className="text-[10px]" style={{ color: "#4ADE80" }}>● online</p></div>
-                </div>
-                <div className="px-3 py-2 text-[9px] font-medium flex items-center gap-1.5" style={{ background: `${cor}06`, borderBottom: `1px solid ${cor}12`, color: M_MUTED }}>
-                  <Layers size={10} style={{ color: cor }} /> Consultou: FAQ, tabela de preços, regras comerciais
-                </div>
-                <div className="p-4 space-y-2.5">
-                  {[
-                    { from: "c", text: "Oi, queria saber os valores." },
-                    { from: "ai", text: "Claro! Antes de te passar a melhor opção, pode me dizer o que precisa organizar: atendimento, vendas ou automação?" },
-                    { from: "c", text: "Principalmente atendimento pelo WhatsApp." },
-                    { from: "ai", text: "Perfeito. O plano com Inbox WhatsApp e IA centraliza suas conversas e responde automaticamente. Quer ver como funciona?" },
-                    { from: "c", text: "Sim, quero!" },
-                    { from: "ai", text: "Ótimo! Vou te mostrar como configurar em menos de 5 minutos. Pode começar o teste grátis agora?" },
-                  ].map((m, i) => (
-                    <div key={i} className={`flex ${m.from === "c" ? "justify-end" : "justify-start gap-1.5"}`}>
-                      {m.from === "ai" && <div style={{ width: 20, height: 20, borderRadius: "50%", background: `${cor}18`, flexShrink: 0, marginTop: 2, display: "flex", alignItems: "center", justifyContent: "center" }}><Bot size={9} style={{ color: cor }} /></div>}
-                      <div className="px-2.5 py-1.5 rounded-xl text-[10px] max-w-[84%] leading-relaxed"
-                        style={m.from === "c" ? { background: "#1E3A2F", color: "#86EFAC" } : { background: "rgba(255,255,255,0.04)", color: M_LIGHT }}>
-                        {m.text}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {["Criar oportunidade", "Transferir", "Enviar proposta"].map(b => (
-                      <button key={b} className="px-2.5 py-1 rounded-full text-[9px] font-medium" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: M_LIGHT }}>{b}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+            <div style={{ background: "#FFFFFF", borderRadius: 24, padding: 4, border: "1px solid #E9EDF2", boxShadow: "0 20px 60px rgba(15,23,42,0.14), 0 4px 16px rgba(15,23,42,0.07)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/sales/ia-chat.png" alt="IA treinada respondendo no WhatsApp"
+                style={{ display: "block", width: "100%", height: "auto", borderRadius: 20 }} loading="lazy" />
             </div>
           </motion.div>
         </div>
@@ -808,38 +626,13 @@ export default function ReferralPage() {
               <span style={{ color: BLUE }}>Agora é operação.</span>
             </h2>
           </motion.div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <motion.div {...fade} className="rounded-[20px] p-7" style={{ background: "#FFF5F5", border: "1px solid rgba(239,68,68,0.12)", boxShadow: "0 1px 3px rgba(239,68,68,0.05)" }}>
-              <p className="text-xs font-semibold uppercase tracking-wider mb-5" style={{ color: "#F87171", letterSpacing: "0.1em" }}>Sem CRM</p>
-              {["Conversas espalhadas", "Leads perdidos", "Follow-up manual", "Sem visão do funil", "Atendimento lento", "Campanhas difíceis"].map(item => (
-                <div key={item} className="flex items-center gap-2.5 py-2.5" style={{ borderBottom: "1px solid rgba(239,68,68,0.07)" }}>
-                  <X size={12} style={{ color: "#F87171", opacity: 0.6, flexShrink: 0 }} />
-                  <span className="text-sm" style={{ color: "#94A3B8" }}>{item}</span>
-                </div>
-              ))}
-            </motion.div>
-            <motion.div {...fadeF(0.15)} className="rounded-[20px] p-7"
-              style={{ background: CARD, border: `1px solid ${BLUE_SOFT}`, boxShadow: "0 2px 16px rgba(37,99,235,0.07)" }}>
-              <div className="flex items-center justify-between mb-5">
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: BLUE, letterSpacing: "0.1em" }}>Com {nome}</p>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: BLUE_SOFT, color: BLUE }}>● ativo</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                {[{ v: "248", l: "Leads", c: BLUE }, { v: "34%", l: "Conv.", c: GREEN }, { v: "97%", l: "IA ativa", c: SLATE }].map(m => (
-                  <div key={m.l} className="rounded-lg p-2 text-center" style={{ background: BG2, border: `1px solid ${CARD_BORDER}` }}>
-                    <p className="text-sm font-extrabold leading-none" style={{ color: m.c }}>{m.v}</p>
-                    <p className="text-[8px] mt-0.5" style={{ color: TEXT_MUT }}>{m.l}</p>
-                  </div>
-                ))}
-              </div>
-              {["Tudo centralizado", "Pipeline organizado", "Follow-up automático", "IA respondendo 24h", "Dashboard em tempo real", "Broadcast para toda base"].map(item => (
-                <div key={item} className="flex items-center gap-2.5 py-2" style={{ borderBottom: `1px solid ${BORDER}` }}>
-                  <CheckCircle size={13} style={{ color: BLUE, flexShrink: 0 }} />
-                  <span className="text-sm font-medium" style={{ color: TEXT }}>{item}</span>
-                </div>
-              ))}
-            </motion.div>
-          </div>
+          <motion.div {...fadeF(0.1)}>
+            <div style={{ background: "#FFFFFF", borderRadius: 24, padding: 4, border: "1px solid #E9EDF2", boxShadow: "0 16px 48px rgba(15,23,42,0.10), 0 2px 8px rgba(15,23,42,0.05)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/sales/comparison.png" alt="Antes e depois do CRM — Sem CRM vs Com Sales Sales"
+                style={{ display: "block", width: "100%", height: "auto", borderRadius: 20 }} loading="lazy" />
+            </div>
+          </motion.div>
         </div>
       </section>
 

@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Kanban, Users, CheckSquare,
-  MessageSquare, Settings, LogOut, Sparkles, Megaphone,
+  MessageSquare, Settings, LogOut, Sparkles, Megaphone, Building2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useBranding } from "@/hooks/useBranding";
+import { useEffect, useState } from "react";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -24,6 +25,16 @@ export function Sidebar() {
   const router = useRouter();
   const branding = useBranding();
   const cor = branding.primary_color;
+  const [isAgencyUser, setIsAgencyUser] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("agency_users").select("id").eq("user_id", user.id).limit(1)
+        .then(({ data }: { data: any }) => setIsAgencyUser((data ?? []).length > 0));
+    });
+  }, []);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -75,6 +86,13 @@ export function Sidebar() {
       {/* Bottom */}
       <div className="px-3 pb-5 space-y-0.5" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
         <div className="pt-3">
+          {isAgencyUser && (
+            <Link href="/agency" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5"
+              style={{ background: `${cor}10`, color: cor, border: `1px solid ${cor}20` }}>
+              <Building2 className="w-4 h-4 shrink-0" style={{ color: cor }} />
+              Painel da Agência
+            </Link>
+          )}
           <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
             style={{ color: "rgba(255,255,255,0.35)", border: "1px solid transparent" }}>
             <Settings className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />

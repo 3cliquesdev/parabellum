@@ -7,8 +7,13 @@ function admin() {
 }
 
 async function getAgencyId(userId: string) {
-  const { data } = await admin().from("agency_users").select("agency_id, role").eq("user_id", userId).single();
-  return data;
+  const { data, error } = await admin()
+    .from("agency_users")
+    .select("agency_id, role")
+    .eq("user_id", userId)
+    .limit(1);
+  if (error || !data || data.length === 0) return null;
+  return data[0];
 }
 
 export async function GET(request: NextRequest) {

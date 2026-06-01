@@ -3,8 +3,9 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 async function getAgencyId(userId: string, admin: any): Promise<string | null> {
-  const { data } = await admin.from("agency_users").select("agency_id").eq("user_id", userId).single();
-  return data?.agency_id ?? null;
+  const { data, error } = await admin.from("agency_users").select("agency_id").eq("user_id", userId).limit(1);
+  if (error || !data || data.length === 0) return null;
+  return data[0]?.agency_id ?? null;
 }
 
 export async function GET(request: NextRequest) {

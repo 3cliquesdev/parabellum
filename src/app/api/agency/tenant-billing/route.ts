@@ -11,8 +11,9 @@ function admin() {
 }
 
 async function getAgencyId(userId: string): Promise<{ agencyId: string; role: string } | null> {
-  const { data } = await admin().from("agency_users").select("agency_id, role").eq("user_id", userId).single();
-  return data ? { agencyId: data.agency_id, role: data.role } : null;
+  const { data, error } = await admin().from("agency_users").select("agency_id, role").eq("user_id", userId).limit(1);
+  if (error || !data || data.length === 0) return null;
+  return { agencyId: data[0].agency_id, role: data[0].role };
 }
 
 // GET — buscar billing de um tenant específico

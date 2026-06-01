@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export function NavBar() {
+export function NavBar({ hideCTA = false }: { hideCTA?: boolean }) {
   return (
     <header className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-8 h-16"
       style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
@@ -33,11 +33,13 @@ export function NavBar() {
           style={{ fontWeight: 500 }}>
           Entrar
         </Link>
-        <Link href="/signup"
-          className="btn-lime text-sm px-5 py-2.5 inline-flex items-center"
-          style={{ fontSize: "13px", fontWeight: 700 }}>
-          Começar grátis
-        </Link>
+        {!hideCTA && (
+          <Link href="/signup"
+            className="btn-lime text-sm px-5 py-2.5 inline-flex items-center"
+            style={{ fontSize: "13px", fontWeight: 700 }}>
+            Começar grátis
+          </Link>
+        )}
       </div>
     </header>
   );

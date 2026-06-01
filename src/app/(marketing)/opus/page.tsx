@@ -174,7 +174,7 @@ const FAQ = [
 export default function OpusPage() {
   return (
     <main style={{ background: BG, color: WHITE, fontFamily: "var(--font-sans)", overflowX: "hidden" }}>
-      <NavBar />
+      <NavBar hideCTA />
 
       {/* ── HERO ── */}
       <section className="relative min-h-screen flex items-center pt-16 px-6 md:px-12">

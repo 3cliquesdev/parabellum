@@ -84,3 +84,47 @@ export async function DELETE(request: NextRequest) {
   await admin().from("agency_client_plans").update({ ativo: false }).eq("id", plan_id).eq("agency_id", agencyData.agency_id);
   return NextResponse.json({ success: true });
 }
+
+// PUT — criar planos padrão (seed)
+export async function PUT(request: NextRequest) {
+  const cookieStore = await cookies();
+  const supabase = createServerClient<any>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const agencyData = await getAgencyId(user.id);
+  if (!agencyData) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+
+  // Verificar se já tem planos
+  const { data: existing } = await admin().from("agency_client_plans").select("id").eq("agency_id", agencyData.agency_id).limit(1);
+  if ((existing ?? []).length > 0) return NextResponse.json({ error: "Agência já possui planos" }, { status: 409 });
+
+  const DEFAULT_PLANS = [
+    {
+      nome: "Básico",
+      descricao: "Para quem está começando",
+      price_brl: 297,
+      billing_cycle: "mensal",
+      features: ["Pipeline de vendas", "WhatsApp com IA", "Suporte por chat"],
+    },
+    {
+      nome: "Pro",
+      descricao: "O mais popular entre nossos clientes",
+      price_brl: 497,
+      billing_cycle: "mensal",
+      features: ["Pipeline de vendas", "WhatsApp com IA", "Agentes de IA", "Broadcast em massa", "Suporte prioritário"],
+    },
+    {
+      nome: "Premium",
+      descricao: "Para operações completas",
+      price_brl: 797,
+      billing_cycle: "mensal",
+      features: ["Pipeline de vendas", "WhatsApp com IA", "Agentes de IA", "Broadcast", "Chat Flows", "Base de conhecimento", "Suporte dedicado"],
+    },
+  ];
+
+  const toInsert = DEFAULT_PLANS.map(p => ({ ...p, agency_id: agencyData.agency_id, ativo: true }));
+  const { data, error } = await admin().from("agency_client_plans").insert(toInsert).select();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ plans: data, created: true });
+}

@@ -112,12 +112,19 @@ function PlanForm({ plan, agencyId, onSave, onCancel }: {
   );
 }
 
+const DEFAULT_PREVIEW = [
+  { nome: "Básico", price_brl: 297, desc: "Para quem está começando", features: ["Pipeline de vendas", "WhatsApp com IA", "Suporte por chat"] },
+  { nome: "Pro", price_brl: 497, desc: "O mais popular", features: ["Pipeline de vendas", "WhatsApp com IA", "Agentes de IA", "Broadcast em massa", "Suporte prioritário"] },
+  { nome: "Premium", price_brl: 797, desc: "Para operações completas", features: ["Tudo do Pro", "Chat Flows", "Base de conhecimento", "Suporte dedicado"] },
+];
+
 export default function AgencyPlansPage() {
   const [plans, setPlans] = useState<any[]>([]);
   const [agencyId, setAgencyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
+  const [seeding, setSeeding] = useState(false);
 
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
 
@@ -134,6 +141,14 @@ export default function AgencyPlansPage() {
         });
     });
   }, []);
+
+  async function seedPlans() {
+    setSeeding(true);
+    const r = await fetch("/api/agency/client-plans", { method: "PUT" });
+    const d = await r.json();
+    if (d.plans) setPlans(d.plans);
+    setSeeding(false);
+  }
 
   async function deletePlan(id: string) {
     if (!confirm("Desativar este plano?")) return;
@@ -194,15 +209,42 @@ export default function AgencyPlansPage() {
         <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
       ) : activePlans.length === 0 && !showForm ? (
         <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(154,234,98,0.06)", boxShadow: "0 0 32px rgba(154,234,98,0.06)" }}>
-            <LayoutList size={24} style={{ color: "rgba(154,234,98,0.5)" }} />
+          <p className="text-sm font-bold text-white mb-1">Nenhum plano configurado ainda</p>
+          <p className="text-xs mb-8" style={{ color: "#939da4" }}>Use os planos sugeridos ou crie do zero</p>
+
+          {/* Preview dos 3 planos padrão */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-3xl mb-8">
+            {DEFAULT_PREVIEW.map((p, i) => (
+              <div key={p.nome} className="rounded-2xl p-5 text-left" style={{
+                background: i === 1 ? "linear-gradient(180deg, rgba(154,234,98,0.06) 0%, rgba(13,13,13,0.92) 100%)" : cardStyle.background,
+                border: i === 1 ? "1px solid rgba(154,234,98,0.25)" : cardStyle.border,
+                opacity: 0.75,
+              }}>
+                {i === 1 && <span className="text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider mb-2 inline-block" style={{ background: "#9aea62", color: "#0a0a0a" }}>SUGERIDO</span>}
+                <p className="text-sm font-extrabold text-white mt-1">{p.nome}</p>
+                <p className="text-xs mb-2" style={{ color: "#939da4" }}>{p.desc}</p>
+                <p className="text-2xl font-extrabold mb-3" style={{ color: i === 1 ? "#9aea62" : "white" }}>R${p.price_brl}<span className="text-sm font-normal" style={{ color: "#939da4" }}>/mês</span></p>
+                {p.features.map(f => (
+                  <div key={f} className="flex items-center gap-1.5 mb-1">
+                    <CheckCircle size={10} style={{ color: "#9aea62" }} />
+                    <span className="text-[10px]" style={{ color: "#939da4" }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
-          <p className="text-sm font-bold text-white mb-1">Nenhum plano criado ainda</p>
-          <p className="text-xs mb-4" style={{ color: "#939da4" }}>Crie seus planos para exibi-los na sua página de vendas</p>
-          <button onClick={() => setShowForm(true)} className="px-5 h-9 rounded-xl text-sm font-bold"
-            style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
-            + Criar primeiro plano
-          </button>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button onClick={seedPlans} disabled={seeding}
+              className="px-6 h-10 rounded-xl text-sm font-bold flex items-center gap-2"
+              style={{ background: "#9aea62", color: "#0a0a0a" }}>
+              {seeding ? "Criando..." : "Criar estes 3 planos"}
+            </button>
+            <button onClick={() => setShowForm(true)} className="px-6 h-10 rounded-xl text-sm font-bold"
+              style={{ background: "rgba(255,255,255,0.06)", color: "#939da4", border: "1px solid rgba(255,255,255,0.08)" }}>
+              Criar do zero
+            </button>
+          </div>
         </div>
       ) : (
         <div className={`grid gap-5 ${activePlans.length === 1 ? "grid-cols-1 max-w-sm" : activePlans.length === 2 ? "grid-cols-2" : "grid-cols-1 md:grid-cols-3"}`}>

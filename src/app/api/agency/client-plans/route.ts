@@ -99,7 +99,7 @@ export async function PUT(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const agencyData = await getAgencyId(user.id);
-  if (!agencyData) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+  if (!agencyData) return NextResponse.json({ error: "Sem permissão", debug_uid: user.id, debug_email: user.email }, { status: 403 });
 
   // Verificar se já tem planos
   const { data: existing } = await admin().from("agency_client_plans").select("id").eq("agency_id", agencyData.agency_id).limit(1);

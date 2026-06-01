@@ -243,7 +243,39 @@ export async function POST(request: NextRequest) {
         try {
           const yearMonth = new Date().toISOString().slice(0, 7);
 
-          // Verificar limite do plano
+          // ─── Verificar e atualizar limites da agência (tenant_limits) ───
+          const { data: tenantLimits } = await supabase
+            .from("tenant_limits")
+            .select("ai_calls_this_month, max_ai_calls_per_month, messages_this_month, reset_at")
+            .eq("tenant_id", tenantId).single() as { data: any };
+
+          if (tenantLimits) {
+            // Reset mensal automático
+            if (tenantLimits.reset_at && new Date(tenantLimits.reset_at) <= new Date()) {
+              await supabase.from("tenant_limits").update({
+                ai_calls_this_month: 0,
+                messages_this_month: 0,
+                reset_at: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString(),
+                updated_at: new Date().toISOString(),
+              }).eq("tenant_id", tenantId);
+              tenantLimits.ai_calls_this_month = 0;
+            }
+            // Bloquear se limite de IA atingido
+            const maxAi = tenantLimits.max_ai_calls_per_month ?? 10000;
+            if ((tenantLimits.ai_calls_this_month ?? 0) >= maxAi) {
+              console.log(`Tenant ${tenantId} atingiu limite de IA (${maxAi} chamadas/mês)`);
+              continue;
+            }
+          }
+
+          // Incrementar mensagem recebida
+          await supabase.from("tenant_limits").upsert({
+            tenant_id: tenantId,
+            messages_this_month: (tenantLimits?.messages_this_month ?? 0) + 1,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "tenant_id" });
+
+          // Verificar limite do plano legacy (ai_usage)
           const { data: tenantData } = await supabase.from("tenants").select("plans(name)").eq("id", tenantId).single() as { data: any; error: unknown };
           const planName = tenantData?.plans?.name ?? "Starter";
           const limit = AI_LIMITS[planName] ?? 200;
@@ -374,12 +406,19 @@ export async function POST(request: NextRequest) {
               await supabase.from("mensagens").update({ enviada: true }).eq("conversa_id", conversa.id).eq("remetente", "ia").eq("enviada", false);
             }
 
-            // Atualizar contador de uso
+            // Atualizar contadores de uso
             const currentCount = usage?.count ?? 0;
             await supabase.from("ai_usage").upsert(
               { tenant_id: tenantId, year_month: yearMonth, count: currentCount + 1, updated_at: new Date().toISOString() },
               { onConflict: "tenant_id,year_month" }
             );
+            // Incrementar tenant_limits.ai_calls_this_month
+            if (tenantLimits) {
+              await supabase.from("tenant_limits").update({
+                ai_calls_this_month: (tenantLimits.ai_calls_this_month ?? 0) + 1,
+                updated_at: new Date().toISOString(),
+              }).eq("tenant_id", tenantId);
+            }
           }
         } catch (aiErr) {
           console.error("AI error:", aiErr);

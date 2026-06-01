@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { Resend } from "resend";
+import { sendMail } from "@/lib/mailer";
 
 const ROLE_LABEL: Record<string, string> = { admin: "Administrador", member: "Membro" };
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-six.vercel.app";
@@ -219,10 +220,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
-  // Buscar info do tenant (com branding)
+  // Buscar info do tenant (com branding) e SMTP da agência
   const { data: tenant } = await admin.from("tenants")
-    .select("name, nome_fantasia, logo_url, cor_primaria, white_label")
+    .select("name, nome_fantasia, logo_url, cor_primaria, white_label, agency_id")
     .eq("id", tenant_id).single() as { data: any; error: unknown };
+
+  // Buscar SMTP da agência (se houver)
+  let agencySmtp = null;
+  if (tenant?.agency_id) {
+    const { data: ag } = await admin.from("agencies")
+      .select("smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, smtp_from_name, display_name, name")
+      .eq("id", tenant.agency_id).single() as { data: any };
+    agencySmtp = ag;
+  }
 
   // Criar invite token
   const { data: invite, error: inviteError } = await admin.from("invite_tokens").insert({
@@ -239,25 +249,19 @@ export async function POST(request: NextRequest) {
     corPrimaria: tenant?.cor_primaria ?? "#9aea62",
     whiteLabel: tenant?.white_label ?? false,
   };
-  const fromName = `${tenantName} | Liberty CRM`;
+  const agencyDisplayName = agencySmtp?.display_name ?? agencySmtp?.name;
+  const fromName = agencyDisplayName ? `${agencyDisplayName}` : `${tenantName} | Liberty CRM`;
 
-  // Enviar via Resend
-  let emailSent = false;
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const { error: emailError } = await resend.emails.send({
-        from: `${fromName} <noreply@adsliberty.com>`,
-        to: email,
-        subject: `Você foi convidado para ${tenantName}`,
-        html: inviteEmailHtml(tenantName, inviteUrl, role, user.email ?? "Alguém", branding),
-      });
-      emailSent = !emailError;
-      if (emailError) console.error("Resend error:", emailError);
-    } catch (e) {
-      console.error("Resend exception:", e);
-    }
-  }
+  // Enviar via SMTP da agência ou Resend (fallback)
+  const emailSent = await sendMail(
+    {
+      to: email,
+      subject: `Você foi convidado para ${tenantName}`,
+      html: inviteEmailHtml(tenantName, inviteUrl, role, user.email ?? "Alguém", branding),
+      fromName,
+    },
+    agencySmtp ?? undefined
+  );
 
   return NextResponse.json({
     success: true,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,12 +44,62 @@ const M_BORDER = "rgba(255,255,255,0.10)";
 
 const fade = { initial: { opacity: 0, y: 28 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true as const }, transition: { duration: 0.6 } };
 const fadeF = (delay: number) => ({ ...fade, transition: { duration: 0.6, delay } });
+// Premium cinematic reveal — ease-out-expo, scale + lift (frontend-design skill)
+const premiumReveal = (delay = 0) => ({
+  initial: { opacity: 0, y: 40, scale: 0.97 },
+  whileInView: { opacity: 1, y: 0, scale: 1 },
+  viewport: { once: true as const },
+  transition: { duration: 0.85, delay, ease: [0.22, 1, 0.36, 1] as const },
+});
 
 // ─── Section Label — neutral, not colorful ───
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", color: TEXT_MUT, textTransform: "uppercase", marginBottom: 12 }}>
       {children}
+    </p>
+  );
+}
+
+// ─── Animated Number — countUp on scroll ───
+function AnimatedNumber({ value, color }: { value: string; color: string }) {
+  const numeric = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
+  const suffix = value.replace(/[0-9.,\s]/g, "").trim();
+  const [display, setDisplay] = useState(0);
+  const [started, setStarted] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (started || numeric === 0) return;
+    const observer = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started) {
+        setStarted(true);
+        const dur = 1400;
+        const fps = 60;
+        const frames = (dur / 1000) * fps;
+        let frame = 0;
+        const tick = () => {
+          frame++;
+          const progress = 1 - Math.pow(1 - frame / frames, 4); // ease-out-quart
+          setDisplay(numeric * Math.min(progress, 1));
+          if (frame < frames) requestAnimationFrame(tick);
+          else setDisplay(numeric);
+        };
+        requestAnimationFrame(tick);
+      }
+    }, { threshold: 0.5 });
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [numeric, started]);
+
+  const formatted = numeric >= 1000
+    ? Math.round(display).toLocaleString("pt-BR")
+    : display < 1 ? display.toFixed(0)
+    : Math.round(display).toString();
+
+  return (
+    <p ref={ref} className="text-xl font-black leading-tight" style={{ color }}>
+      {formatted}{suffix}
     </p>
   );
 }
@@ -95,7 +145,7 @@ function HeroMockup({ cor, nome }: { cor: string; nome: string }) {
           className={`${pos} rounded-2xl px-3 py-2.5`}
           style={{ background: "rgba(255,255,255,0.97)", border: `1px solid ${CARD_BORDER}`, backdropFilter: "blur(12px)", boxShadow: CARD_HOVER }}>
           <p className="text-[9px] font-medium" style={{ color: TEXT_MUT }}>{label}</p>
-          {value && <p className="text-xl font-black leading-tight" style={{ color: BLUE }}>{value}</p>}
+          {value && <AnimatedNumber value={value} color={BLUE} />}
           <p className="text-[9px] font-medium" style={{ color: value ? TEXT_MUT : BLUE }}>{sub}</p>
         </motion.div>
       ))}
@@ -229,7 +279,7 @@ export default function ReferralPage() {
   );
 
   return (
-    <main style={{ background: BG, color: TEXT, fontFamily: "-apple-system, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif", overflowX: "hidden" }}>
+    <main style={{ background: BG, color: TEXT, fontFamily: "var(--font-sans), -apple-system, system-ui, sans-serif", overflowX: "hidden", scrollBehavior: "smooth" }}>
 
       {/* ── NAVBAR ── */}
       <nav style={{
@@ -265,7 +315,13 @@ export default function ReferralPage() {
 
       {/* ── HERO ── */}
       <section className="relative min-h-screen flex items-center px-6 pt-8 pb-20" style={{ background: BG }}>
-        <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(circle at 65% 30%, rgba(37,99,235,0.04), transparent 40%), radial-gradient(circle at 25% 70%, rgba(37,99,235,0.03), transparent 40%)` }} />
+        {/* Gradient mesh premium — cria profundidade sem poluir */}
+        <div className="absolute inset-0 pointer-events-none" style={{ background: `
+          radial-gradient(ellipse 800px 600px at 70% -10%, rgba(37,99,235,0.06), transparent),
+          radial-gradient(ellipse 600px 400px at 100% 50%, rgba(6,182,212,0.04), transparent),
+          radial-gradient(ellipse 700px 500px at 0% 80%, rgba(37,99,235,0.05), transparent),
+          radial-gradient(ellipse 400px 300px at 50% 50%, rgba(6,182,212,0.03), transparent)
+        ` }} />
         <div className="relative max-w-[1260px] mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <motion.div {...fade}>
             {/* Badge neutro */}
@@ -284,7 +340,12 @@ export default function ReferralPage() {
               Centralize atendimento, pipeline, automações e campanhas em uma plataforma simples e feita para negócios que vendem pelo WhatsApp.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
-              <PrimaryBtn href={signupUrl} large>Criar minha conta grátis <ArrowRight size={18} /></PrimaryBtn>
+              <motion.div
+                animate={{ boxShadow: ["0 4px 14px rgba(37,99,235,0.22)", "0 4px 32px rgba(37,99,235,0.42)", "0 4px 14px rgba(37,99,235,0.22)"] }}
+                transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                style={{ borderRadius: 16, display: "inline-flex" }}>
+                <PrimaryBtn href={signupUrl} large>Criar minha conta grátis <ArrowRight size={18} /></PrimaryBtn>
+              </motion.div>
               <a href="#funcionalidades" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm"
                 style={{ background: CARD, border: `1px solid ${CARD_BORDER}`, color: TEXT_SEC, textDecoration: "none", boxShadow: CARD_SHADOW }}>
                 Ver como funciona
@@ -292,7 +353,7 @@ export default function ReferralPage() {
             </div>
             <p style={{ fontSize: 12, color: TEXT_MUT }}>Sem cartão de crédito • Configure em minutos • Cancele quando quiser</p>
           </motion.div>
-          <motion.div {...fadeF(0.2)} className="flex justify-center lg:justify-end">
+          <motion.div {...premiumReveal(0.15)} className="flex justify-center lg:justify-end">
             <HeroMockup cor={cor} nome={nome} />
           </motion.div>
         </div>
@@ -510,7 +571,7 @@ export default function ReferralPage() {
               ))}
             </div>
           </motion.div>
-          <motion.div {...fadeF(0.15)}>
+          <motion.div {...premiumReveal(0.15)}>
             <div style={{ background: CARD, borderRadius: 24, padding: 4, boxShadow: MOCK_SHADOW, border: `1px solid ${CARD_BORDER}` }}>
               <BroadcastMockup cor={cor} />
             </div>
@@ -530,7 +591,7 @@ export default function ReferralPage() {
             </h2>
             <p className="text-lg mt-4" style={{ color: TEXT_SEC }}>É assim que sua operação fica com {nome}</p>
           </motion.div>
-          <motion.div {...fadeF(0.15)}>
+          <motion.div {...premiumReveal(0.15)}>
             <div className="relative">
               <div style={{ background: "#FFFFFF", borderRadius: 30, padding: 14, border: "1px solid #E2E8F0", boxShadow: "0 30px 90px rgba(15,23,42,0.18)" }}>
                 <ProductTheatreMockup cor={cor} nome={nome} />
@@ -571,7 +632,7 @@ export default function ReferralPage() {
               ))}
             </div>
           </motion.div>
-          <motion.div {...fadeF(0.15)}>
+          <motion.div {...premiumReveal(0.15)}>
             <div style={{ background: "#FFFFFF", borderRadius: 24, padding: 4, border: "1px solid #E9EDF2", boxShadow: "0 20px 60px rgba(15,23,42,0.14), 0 4px 16px rgba(15,23,42,0.07)" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/images/sales/ia-chat.png" alt="IA treinada respondendo no WhatsApp"

@@ -72,6 +72,39 @@ export default function AgencyDashboard() {
         </div>
       )}
 
+      {/* Onboarding — primeiro acesso sem clientes */}
+      {!loading && tenantStats.length === 0 && (
+        <div className="rounded-2xl p-8 text-center space-y-6"
+          style={{ background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(154,234,98,0.15)" }}>
+          <div>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: "rgba(154,234,98,0.1)" }}>
+              <Building2 className="w-7 h-7" style={{ color: "#9aea62" }} />
+            </div>
+            <h2 className="text-lg font-extrabold text-white tracking-[-0.03em]">Bem-vindo ao Painel da Agência!</h2>
+            <p className="text-sm mt-2 max-w-md mx-auto" style={{ color: "#939da4" }}>
+              Aqui você gerencia os workspaces CRM que vende para seus clientes.
+              Seu CRM pessoal continua no botão <strong className="text-white">Meu CRM</strong> abaixo.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-left max-w-2xl mx-auto">
+            {[
+              { n: "1", title: "Crie um cliente", desc: "Crie o workspace CRM de um novo cliente seu", href: "/agency/customers/new", cta: "Criar cliente" },
+              { n: "2", title: "Gere um link", desc: "Link de captação para clientes se cadastrarem sozinhos", href: "/agency/links", cta: "Ver links" },
+              { n: "3", title: "Configure sua marca", desc: "Logo, cor e domínio personalizado", href: "/agency/branding", cta: "Configurar" },
+            ].map(({ n, title, desc, href, cta }) => (
+              <div key={n} className="rounded-xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black"
+                  style={{ background: "rgba(154,234,98,0.15)", color: "#9aea62" }}>{n}</div>
+                <p className="text-xs font-bold text-white">{title}</p>
+                <p className="text-[10px]" style={{ color: "#939da4" }}>{desc}</p>
+                <Link href={href} className="text-[10px] font-bold" style={{ color: "#9aea62" }}>{cta} →</Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats principais */}
       {loading ? (
         <div className="grid grid-cols-4 gap-4">

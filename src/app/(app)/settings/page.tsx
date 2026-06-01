@@ -216,6 +216,21 @@ export default function SettingsPage() {
                 Fazer upgrade do plano
               </button>
             </div>
+
+            {/* Link para plano da agência */}
+            <div className="rounded-2xl p-5 flex items-center justify-between" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.1)" }}>
+              <div>
+                <p className="text-sm font-bold text-white">Você é revendedor?</p>
+                <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>
+                  Gerencie o plano da sua agência e os workspaces dos seus clientes
+                </p>
+              </div>
+              <Link href="/agency/billing"
+                className="flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-bold shrink-0 ml-4"
+                style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
+                Painel da Agência →
+              </Link>
+            </div>
           </div>
         )}
       </main>

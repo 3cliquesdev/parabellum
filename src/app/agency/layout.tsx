@@ -61,7 +61,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
         style={{ borderRight: "1px solid rgba(255,255,255,0.06)", background: "#050505" }}>
 
         {/* Brand */}
-        <div className="px-3 mb-6">
+        <div className="px-3 mb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center"
               style={{ background: "#9aea62" }}>
@@ -71,6 +71,12 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
               <p className="text-xs font-extrabold text-white leading-tight">{agencyName}</p>
               <p className="text-[9px]" style={{ color: "rgba(147,157,164,0.5)" }}>Painel da Agência</p>
             </div>
+          </div>
+          {/* Contexto */}
+          <div className="mt-3 px-2 py-2 rounded-lg" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.08)" }}>
+            <p className="text-[9px] leading-relaxed" style={{ color: "rgba(147,157,164,0.6)" }}>
+              Aqui você gerencia os workspaces CRM que vende para seus clientes.
+            </p>
           </div>
         </div>
 

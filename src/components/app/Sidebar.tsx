@@ -87,10 +87,13 @@ export function Sidebar() {
       <div className="px-3 pb-5 space-y-0.5" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
         <div className="pt-3">
           {isAgencyUser && (
-            <Link href="/agency" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5"
-              style={{ background: `${cor}10`, color: cor, border: `1px solid ${cor}20` }}>
-              <Building2 className="w-4 h-4 shrink-0" style={{ color: cor }} />
-              Painel da Agência
+            <Link href="/agency" className="flex items-start gap-3 px-3 py-2.5 rounded-xl font-medium mb-1"
+              style={{ background: `${cor}10`, border: `1px solid ${cor}20` }}>
+              <Building2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: cor }} />
+              <div>
+                <p className="text-sm font-bold leading-tight" style={{ color: cor }}>Painel da Agência</p>
+                <p className="text-[10px] leading-tight mt-0.5" style={{ color: `${cor}80` }}>Gerencie seus clientes CRM</p>
+              </div>
             </Link>
           )}
           <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"

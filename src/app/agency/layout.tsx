@@ -5,17 +5,20 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
-  LayoutDashboard, Users, Palette, Globe, Settings, LogOut, Building2, CreditCard, SlidersHorizontal, Link2,
+  LayoutDashboard, Users, Palette, Globe, Settings, LogOut, Building2,
+  CreditCard, SlidersHorizontal, Link2, DollarSign, ShieldCheck,
 } from "lucide-react";
 
 const NAV = [
   { href: "/agency", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/agency/customers", icon: Users, label: "Clientes" },
+  { href: "/agency/billing-clients", icon: DollarSign, label: "Cobranças" },
   { href: "/agency/links", icon: Link2, label: "Links" },
   { href: "/agency/branding", icon: Palette, label: "Branding" },
   { href: "/agency/domain", icon: Globe, label: "Domínio" },
   { href: "/agency/team", icon: Settings, label: "Equipe" },
-  { href: "/agency/billing", icon: CreditCard, label: "Faturamento" },
+  { href: "/agency/billing", icon: CreditCard, label: "Meu Plano" },
+  { href: "/agency/audit", icon: ShieldCheck, label: "Auditoria" },
   { href: "/agency/settings", icon: SlidersHorizontal, label: "Configurações" },
 ];
 

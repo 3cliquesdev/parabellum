@@ -35,8 +35,25 @@ export default function BillingPage() {
   return (
     <div className="p-8 space-y-6 max-w-3xl" style={{ fontFamily: "var(--font-sans)" }}>
       <div>
-        <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Plano & Faturamento</h1>
-        <p className="text-sm mt-1" style={{ color: "#939da4" }}>Gerencie sua assinatura e limites</p>
+        <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Meu Plano</h1>
+        <p className="text-sm mt-1" style={{ color: "#939da4" }}>Seu plano com a Liberty CRM</p>
+      </div>
+
+      {/* Banners de contexto */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl p-4" style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.15)" }}>
+          <p className="text-xs font-bold mb-1" style={{ color: "#60a5fa" }}>Estes são os planos que você paga à Liberty CRM</p>
+          <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.6)" }}>
+            Dão acesso à plataforma e definem seus limites de clientes e uso de IA.
+          </p>
+        </div>
+        <Link href="/agency/billing-clients" className="rounded-xl p-4 transition-all hover:border-[#9aea62]/30"
+          style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+          <p className="text-xs font-bold mb-1" style={{ color: "#9aea62" }}>Cobranças dos seus clientes →</p>
+          <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.6)" }}>
+            Defina o que cada cliente paga à sua agência por usar o CRM.
+          </p>
+        </Link>
       </div>
 
       {/* Status atual */}

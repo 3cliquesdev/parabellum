@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Users, Plus, TrendingUp, Globe, Building2, ArrowRight, Bot, MessageSquare, AlertTriangle, Activity, CreditCard } from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function AgencyDashboard() {
   const [data, setData] = useState<any>(null);
@@ -119,8 +120,12 @@ export default function AgencyDashboard() {
             { icon: Users, label: "Membros totais", value: totals.members, color: "#60a5fa" },
             { icon: Bot, label: "IA usada (mês)", value: totals.ai_calls_this_month?.toLocaleString("pt-BR"), color: "#a78bfa" },
             { icon: MessageSquare, label: "Mensagens (mês)", value: totals.messages_this_month?.toLocaleString("pt-BR"), color: "#f97316" },
-          ].map(({ icon: Icon, label, value, suffix, color, href }) => (
-            <div key={label} className="rounded-2xl p-5" style={cardStyle}>
+          ].map(({ icon: Icon, label, value, suffix, color, href }, i) => (
+            <motion.div key={label}
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.07 }}
+              className="rounded-2xl p-5" style={cardStyle}
+              whileHover={{ y: -2, transition: { duration: 0.15 } }}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}15` }}>
                   <Icon className="w-4 h-4" style={{ color }} />
@@ -134,7 +139,7 @@ export default function AgencyDashboard() {
               {href && (
                 <Link href={href} className="text-[10px] mt-2 block" style={{ color }}>Ver todos →</Link>
               )}
-            </div>
+            </motion.div>
           ))}
         </div>
       )}

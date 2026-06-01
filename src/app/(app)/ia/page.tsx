@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bot, BookOpen, Zap, MessageSquare, FlaskConical, ThumbsUp, ArrowRight, Sparkles, GitBranch } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
+import { motion } from "framer-motion";
 
 interface Stats {
   agents: number;
@@ -128,22 +129,30 @@ export default function StudioIAPage() {
 
       {/* Tools grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {TOOLS.map(({ href, icon: Icon, label, desc, color, statKey, statLabel }) => {
+        {TOOLS.map(({ href, icon: Icon, label, desc, color, statKey, statLabel }, idx) => {
           const statValue = statKey ? (stats as any)[statKey] : null;
           return (
-            <Link key={href} href={href}
-              className="group rounded-2xl p-6 flex flex-col gap-4 transition-all duration-200"
+            <motion.div key={href}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: idx * 0.06, ease: [0.16, 1, 0.3, 1] }}>
+            <Link href={href}
+              className="group rounded-2xl p-6 flex flex-col gap-4 transition-all duration-200 h-full block"
               style={{
                 background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
                 border: "1px solid rgba(255,255,255,0.07)",
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.border = `1px solid ${color}25`;
-                e.currentTarget.style.background = `linear-gradient(180deg, rgba(23,23,23,0.95) 0%, rgba(13,13,13,0.98) 100%)`;
+                const el = e.currentTarget as HTMLAnchorElement;
+                el.style.border = `1px solid ${color}25`;
+                el.style.transform = "translateY(-3px)";
+                el.style.boxShadow = `0 8px 24px rgba(0,0,0,0.4), 0 0 20px ${color}08`;
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.border = "1px solid rgba(255,255,255,0.07)";
-                e.currentTarget.style.background = "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)";
+                const el = e.currentTarget as HTMLAnchorElement;
+                el.style.border = "1px solid rgba(255,255,255,0.07)";
+                el.style.transform = "translateY(0)";
+                el.style.boxShadow = "none";
               }}>
 
               <div className="flex items-start justify-between">
@@ -170,6 +179,7 @@ export default function StudioIAPage() {
                 )}
               </div>
             </Link>
+            </motion.div>
           );
         })}
       </div>

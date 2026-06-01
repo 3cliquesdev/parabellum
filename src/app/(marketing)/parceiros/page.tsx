@@ -19,6 +19,7 @@ const CARD = "#101720";
 const BORDER = "#1F2937";
 const WHITE = "#F8FAFC";
 const MUTED = "#94A3B8";
+const LIGHT = "#CBD5E1";
 const GREEN = "#22C55E";
 const BLUE = "#3B82F6";
 const CYAN = "#22D3EE";
@@ -169,6 +170,15 @@ function CRMMockup() {
         <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4B5563" }}>White-label</p>
         <p className="text-base font-extrabold" style={{ color: "#A78BFA" }}>✓ Ativo</p>
         <p className="text-[9px]" style={{ color: "#4B5563" }}>Sua marca, seu domínio</p>
+      </motion.div>
+
+      {/* 5º card — WhatsApp + IA */}
+      <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 5.5, repeat: Infinity, delay: 3 }}
+        className="absolute top-1/2 -right-3 rounded-2xl px-4 py-3 hidden xl:block"
+        style={{ background: "rgba(16,23,32,0.92)", border: "1px solid rgba(74,222,128,0.25)", backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,0.6), 0 0 16px rgba(74,222,128,0.08)" }}>
+        <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4B5563" }}>WhatsApp + IA</p>
+        <p className="text-base font-extrabold" style={{ color: "#4ADE80" }}>24h / 7d</p>
+        <p className="text-[9px]" style={{ color: "#4B5563" }}>Atendimento incluso</p>
       </motion.div>
     </div>
   );
@@ -328,12 +338,71 @@ const FLOW_NODES = [
 ];
 
 const TECH_CARDS = [
-  { icon: Bot, title: "Gemini IA contextual", desc: "Memória, contexto e aprendizado com documentos.", color: "#A78BFA" },
-  { icon: Layers, title: "RAG com documentos", desc: "PDF, sites e arquivos viram respostas da IA.", color: BLUE },
-  { icon: MessageSquare, title: "WhatsApp API oficial", desc: "Meta Cloud API, sem risco de banimento.", color: "#4ADE80" },
-  { icon: CreditCard, title: "Split ASAAS", desc: "Comissões distribuídas automaticamente.", color: GREEN },
-  { icon: Globe, title: "Multi-workspace", desc: "Cada cliente tem seu ambiente isolado.", color: CYAN },
-  { icon: ShieldCheck, title: "White-label completo", desc: "Zero menção à Liberty em nenhum lugar.", color: "#F97316" },
+  {
+    icon: Bot, title: "Gemini IA contextual", desc: "Memória, contexto e aprendizado com documentos.", color: "#A78BFA",
+    mini: (
+      <div className="mt-3 rounded-lg p-2.5 space-y-1.5" style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.12)" }}>
+        <div className="flex justify-end"><div className="px-2 py-1 rounded-lg text-[9px]" style={{ background: "#1E1B3A", color: "#C4B5FD" }}>Como funciona o plano?</div></div>
+        <div className="px-2 py-1 rounded-lg text-[9px] max-w-[90%]" style={{ background: "rgba(255,255,255,0.04)", color: LIGHT }}>O plano inclui IA, pipeline e WhatsApp. Posso mostrar detalhes?</div>
+      </div>
+    ),
+  },
+  {
+    icon: Layers, title: "RAG com documentos", desc: "PDF, sites e arquivos viram respostas da IA.", color: BLUE,
+    mini: (
+      <div className="mt-3 flex items-center gap-2">
+        <div className="px-2 py-1.5 rounded-lg text-[9px] flex items-center gap-1" style={{ background: `${BLUE}10`, border: `1px solid ${BLUE}20`, color: BLUE }}>📄 PDF</div>
+        <div style={{ color: "#4B5563", fontSize: 10 }}>→</div>
+        <div className="px-2 py-1.5 rounded-lg text-[9px]" style={{ background: `${BLUE}10`, border: `1px solid ${BLUE}20`, color: BLUE }}>🧠 IA</div>
+        <div style={{ color: "#4B5563", fontSize: 10 }}>→</div>
+        <div className="px-2 py-1.5 rounded-lg text-[9px]" style={{ background: `${BLUE}10`, border: `1px solid ${BLUE}20`, color: BLUE }}>💬 Resp.</div>
+      </div>
+    ),
+  },
+  {
+    icon: MessageSquare, title: "WhatsApp API oficial", desc: "Meta Cloud API, sem risco de banimento.", color: "#4ADE80",
+    mini: (
+      <div className="mt-3 rounded-lg p-2.5" style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.12)" }}>
+        <div className="flex items-center gap-1.5 mb-1"><div className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" /><span className="text-[9px] font-bold text-[#4ADE80]">online • IA ativa</span></div>
+        <p className="text-[9px]" style={{ color: LIGHT }}>"Olá! Como posso ajudar hoje? 😊"</p>
+      </div>
+    ),
+  },
+  {
+    icon: CreditCard, title: "Split ASAAS", desc: "Comissões distribuídas automaticamente.", color: GREEN,
+    mini: (
+      <div className="mt-3 rounded-lg overflow-hidden" style={{ border: `1px solid ${GREEN}18` }}>
+        <div className="h-2 flex">
+          <div style={{ width: "15%", background: "#4B5563" }} />
+          <div style={{ width: "85%", background: `linear-gradient(90deg, ${GREEN}, ${BLUE})` }} />
+        </div>
+        <div className="flex justify-between px-2 py-1">
+          <span className="text-[9px]" style={{ color: "#4B5563" }}>Liberty 15%</span>
+          <span className="text-[9px] font-bold" style={{ color: GREEN }}>Agência 85%</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    icon: Globe, title: "Multi-workspace", desc: "Cada cliente tem seu ambiente isolado.", color: CYAN,
+    mini: (
+      <div className="mt-3 flex gap-1.5">
+        {["SA", "PX", "CL"].map(c => (
+          <div key={c} className="flex-1 py-2 rounded-lg text-center text-[9px] font-bold" style={{ background: `${CYAN}10`, border: `1px solid ${CYAN}18`, color: CYAN }}>{c}</div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    icon: ShieldCheck, title: "White-label completo", desc: "Zero menção à Liberty em nenhum lugar.", color: "#F97316",
+    mini: (
+      <div className="mt-3 flex items-center gap-2">
+        <div className="px-2 py-1 rounded text-[9px] line-through" style={{ background: "rgba(248,113,113,0.08)", color: "#F87171" }}>Liberty CRM</div>
+        <div style={{ color: "#4B5563", fontSize: 10 }}>→</div>
+        <div className="px-2 py-1 rounded text-[9px] font-bold" style={{ background: "rgba(251,146,60,0.08)", border: "1px solid rgba(251,146,60,0.2)", color: "#F97316" }}>Sua Marca</div>
+      </div>
+    ),
+  },
 ];
 
 const TARGETS = [
@@ -374,7 +443,7 @@ export default function ParceirosPage() {
                 gere recorrência
               </span>{" "}todos os meses
             </h1>
-            <p className="text-lg md:text-xl mb-10 leading-relaxed" style={{ color: MUTED, maxWidth: 520 }}>
+            <p className="text-lg md:text-xl mb-10 leading-relaxed" style={{ color: LIGHT, maxWidth: 520 }}>
               Venda CRM, WhatsApp com IA e automações para seus clientes sem precisar desenvolver tecnologia do zero.
             </p>
             <div className="flex flex-wrap gap-4 mb-8">
@@ -728,16 +797,17 @@ export default function ParceirosPage() {
             </h2>
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {TECH_CARDS.map(({ icon: Icon, title, desc, color }, i) => (
-              <motion.div key={title} {...fadeF(i * 0.08)} className="rounded-[20px] p-7 cursor-default"
+            {TECH_CARDS.map(({ icon: Icon, title, desc, color, mini }, i) => (
+              <motion.div key={title} {...fadeF(i * 0.08)} className="rounded-[20px] p-7 cursor-default flex flex-col"
                 style={{ background: `linear-gradient(180deg, ${CARD}, ${BG2})`, border: `1px solid ${BORDER}`, transition: "transform 0.2s, box-shadow 0.2s" }}
                 onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = "translateY(-4px)"; el.style.boxShadow = `0 12px 32px rgba(0,0,0,0.5), 0 0 20px ${color}12`; }}
                 onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = ""; el.style.boxShadow = ""; }}>
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5" style={{ background: `${color}12`, boxShadow: `0 0 20px ${color}18` }}>
                   <Icon size={22} style={{ color }} />
                 </div>
-                <p className="text-base font-bold mb-2" style={{ color: WHITE }}>{title}</p>
-                <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{desc}</p>
+                <p className="text-base font-bold mb-1.5" style={{ color: WHITE }}>{title}</p>
+                <p className="text-sm leading-relaxed" style={{ color: LIGHT }}>{desc}</p>
+                {mini}
               </motion.div>
             ))}
           </div>

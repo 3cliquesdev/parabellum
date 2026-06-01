@@ -135,6 +135,22 @@ function OpusMockup() {
         <p className="text-base font-extrabold" style={{ color: BLUE_L }}>Setup completo</p>
         <p className="text-[9px]" style={{ color: SOFT }}>Para sua operação</p>
       </motion.div>
+
+      <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 6, repeat: Infinity, delay: 2.5 }}
+        className="absolute -bottom-5 -right-5 rounded-2xl px-4 py-3 hidden lg:block"
+        style={{ background: `linear-gradient(135deg, ${CARD}, ${BG2})`, border: `1px solid ${SILVER}18`, backdropFilter: "blur(16px)", boxShadow: "0 8px 32px rgba(0,0,0,0.7)" }}>
+        <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: SOFT }}>Liberty</p>
+        <p className="text-base font-extrabold" style={{ color: SILVER }}>Invisível</p>
+        <p className="text-[9px]" style={{ color: SOFT }}>Nos bastidores</p>
+      </motion.div>
+
+      <motion.div animate={{ y: [0, 9, 0] }} transition={{ duration: 4.5, repeat: Infinity, delay: 3.5 }}
+        className="absolute -top-5 -left-5 rounded-2xl px-4 py-3 hidden lg:block"
+        style={{ background: `linear-gradient(135deg, ${CARD}, ${BG2})`, border: `1px solid ${BLUE_L}22`, backdropFilter: "blur(16px)", boxShadow: "0 8px 32px rgba(0,0,0,0.7)" }}>
+        <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: SOFT }}>Pipeline</p>
+        <p className="text-base font-extrabold" style={{ color: BLUE_L }}>R$340k</p>
+        <p className="text-[9px]" style={{ color: SOFT }}>Em andamento</p>
+      </motion.div>
     </div>
   );
 }
@@ -398,15 +414,15 @@ export default function OpusPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {MONTAMOS_CARDS.map(({ n, icon: Icon, title, desc }, i) => (
               <motion.div key={n} {...fade(i * 0.08)} className="rounded-[22px] p-8"
-                style={{ background: `linear-gradient(180deg, ${CARD}, ${BG2})`, border: `1px solid ${BORDER}`, boxShadow: "0 4px 24px rgba(0,0,0,0.4)" }}>
+                style={{ background: `linear-gradient(180deg, ${CARD}, ${BG2})`, border: `1px solid ${CHAMP}20`, boxShadow: `0 4px 24px rgba(0,0,0,0.5), 0 0 0 1px ${CHAMP}08` }}>
                 <div className="flex items-start gap-4">
-                  <p className="font-extrabold leading-none shrink-0" style={{ fontSize: 56, background: `linear-gradient(135deg, ${CHAMP}35, ${BLUE}35)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{n}</p>
+                  <p className="font-extrabold leading-none shrink-0" style={{ fontSize: 64, background: `linear-gradient(135deg, ${CHAMP}60, ${BLUE_L}60)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{n}</p>
                   <div>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: `${CHAMP}10` }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: `${CHAMP}12`, boxShadow: `0 0 12px ${CHAMP}18` }}>
                       <Icon size={18} style={{ color: CHAMP }} />
                     </div>
-                    <p className="text-sm font-bold mb-1.5" style={{ color: WHITE }}>{title}</p>
-                    <p className="text-xs leading-relaxed" style={{ color: MUTED }}>{desc}</p>
+                    <p className="mb-1.5 font-bold" style={{ fontSize: 15, color: WHITE }}>{title}</p>
+                    <p className="text-xs leading-relaxed" style={{ color: SILVER }}>{desc}</p>
                   </div>
                 </div>
               </motion.div>

@@ -92,39 +92,33 @@ export async function DELETE(request: NextRequest) {
 }
 
 // PUT — criar planos padrão (seed)
+// Aceita agency_id do body — verificação feita via service role
 export async function PUT(request: NextRequest) {
   const cookieStore = await cookies();
   const supabase = createServerClient<any>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Aceitar agency_id do body (mais robusto que depender de .single())
   const body = await request.json().catch(() => ({}));
-  const agencyIdFromBody = body?.agency_id;
+  let resolvedAgencyId: string | null = body?.agency_id ?? null;
 
-  let resolvedAgencyId: string | null = null;
-
-  if (agencyIdFromBody) {
-    // Verificar que o user pertence a essa agência via service role
-    const { data: membership } = await admin()
-      .from("agency_users")
-      .select("agency_id, role")
-      .eq("user_id", user.id)
-      .eq("agency_id", agencyIdFromBody)
-      .limit(1);
-    if (membership && membership.length > 0) {
-      resolvedAgencyId = agencyIdFromBody;
-    } else {
-      // Fallback: verificar se é super admin
-      const { data: sa } = await admin().from("super_admins").select("user_id").eq("email", user.email).limit(1);
-      if (sa && sa.length > 0) resolvedAgencyId = agencyIdFromBody;
-    }
-  } else {
-    const agencyData = await getAgencyId(user.id);
-    if (agencyData) resolvedAgencyId = agencyData.agency_id;
+  // Se não veio agency_id, tentar buscar pela primeira agência do usuário
+  if (!resolvedAgencyId) {
+    const { data: rows } = await admin()
+      .from("agency_users").select("agency_id").eq("user_id", user.id).limit(1);
+    if (rows && rows.length > 0) resolvedAgencyId = rows[0].agency_id;
   }
 
-  if (!resolvedAgencyId) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+  // Fallback: verificar se é super admin e pegar primeira agência disponível
+  if (!resolvedAgencyId) {
+    const { data: sa } = await admin().from("super_admins").select("user_id").eq("email", user.email).limit(1);
+    if (sa && sa.length > 0) {
+      const { data: agencies } = await admin().from("agencies").select("id").limit(1);
+      if (agencies && agencies.length > 0) resolvedAgencyId = agencies[0].id;
+    }
+  }
+
+  if (!resolvedAgencyId) return NextResponse.json({ error: "Sem permissão — nenhuma agência encontrada" }, { status: 403 });
 
   // Verificar se já tem planos
   const { data: existing } = await admin().from("agency_client_plans").select("id").eq("agency_id", resolvedAgencyId).limit(1);

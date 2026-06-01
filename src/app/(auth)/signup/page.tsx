@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,10 +17,13 @@ const highlights = [
   "30 dias grátis, sem cartão de crédito",
 ];
 
-export default function SignupPage() {
+function SignupPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const branding = useBranding();
   const cor = branding.primary_color;
+  const refSlug = searchParams.get("ref");
+  const agencyId = searchParams.get("agency");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +48,14 @@ export default function SignupPage() {
       setError(signUpError.message);
       setLoading(false);
       return;
+    }
+    // Vincular à agência se veio de link de indicação
+    if (agencyId || refSlug) {
+      await fetch("/api/signup/link-agency", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agency_id: agencyId, ref_slug: refSlug }),
+      });
     }
     router.push("/dashboard");
   }
@@ -224,4 +235,8 @@ export default function SignupPage() {
       </div>
     </div>
   );
+}
+
+export default function SignupPage() {
+  return <Suspense fallback={<div className="min-h-screen" style={{ background: "#fff" }} />}><SignupPageInner /></Suspense>;
 }

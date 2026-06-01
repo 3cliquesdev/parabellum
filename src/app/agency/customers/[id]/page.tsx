@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, LogIn, Users, Calendar, CreditCard, ExternalLink, CheckCircle, Clock, AlertTriangle, XCircle, Save } from "lucide-react";
+import { ArrowLeft, LogIn, Users, Calendar, CreditCard, ExternalLink, CheckCircle, Clock, AlertTriangle, XCircle, Save, FileText } from "lucide-react";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   trial:     { label: "Trial", color: "#facc15", icon: Clock },
@@ -224,7 +224,12 @@ export default function CustomerDetailPage() {
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <Link href={`/agency/customers/${id}/invoice`}
+            className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
+            style={{ background: "rgba(255,255,255,0.05)", color: "#939da4", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <FileText className="w-3.5 h-3.5" /> Ver fatura
+          </Link>
           <button onClick={saveBilling} disabled={savingBilling}
             className="flex items-center gap-2 px-5 h-9 rounded-xl text-sm font-bold"
             style={{ background: savedBilling ? "rgba(154,234,98,0.1)" : "#9aea62", color: savedBilling ? "#9aea62" : "#0a0a0a" }}>

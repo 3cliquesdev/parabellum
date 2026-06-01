@@ -7,6 +7,7 @@ import {
   MessageSquare, Settings, LogOut, Sparkles, Megaphone,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useBranding } from "@/hooks/useBranding";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -21,6 +22,8 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const branding = useBranding();
+  const cor = branding.primary_color;
 
   async function handleLogout() {
     const supabase = createClient();
@@ -36,12 +39,15 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-5 h-16 flex items-center gap-3 shrink-0"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#9aea62" }}>
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
-          </svg>
-        </div>
-        <span className="font-bold text-sm text-white tracking-tight">Liberty CRM</span>
+        {branding.logo_url
+          ? <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto shrink-0" />
+          : <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: cor }}>
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
+              </svg>
+            </div>
+        }
+        <span className="font-bold text-sm text-white tracking-tight truncate">{branding.display_name}</span>
       </div>
 
       {/* Nav */}
@@ -56,9 +62,9 @@ export function Sidebar() {
               <Link href={href}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
                 style={active ? {
-                  background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.15)",
+                  background: `${cor}18`, color: cor, border: `1px solid ${cor}25`,
                 } : { color: "rgba(255,255,255,0.45)", border: "1px solid transparent" }}>
-                <Icon className="w-4 h-4 shrink-0" style={{ color: active ? "#9aea62" : "rgba(255,255,255,0.3)" }} />
+                <Icon className="w-4 h-4 shrink-0" style={{ color: active ? cor : "rgba(255,255,255,0.3)" }} />
                 {label}
               </Link>
             </div>

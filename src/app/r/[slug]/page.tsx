@@ -36,12 +36,12 @@ function GrainOverlay() {
 // ─── Hero Mockup Expandido ───
 function HeroMockup({ cor, nome }: { cor: string; nome: string }) {
   return (
-    <div className="relative w-full max-w-[720px]" style={{ fontFamily: "system-ui, sans-serif" }}>
+    <div className="relative w-full max-w-[780px]" style={{ fontFamily: "system-ui, sans-serif" }}>
       <div style={{ transform: "perspective(1800px) rotateX(3deg) rotateY(-1deg)" }}>
         <div className="rounded-[22px] overflow-hidden" style={{
           background: "linear-gradient(180deg, #0D1526 0%, #080F1C 100%)",
-          border: `1px solid rgba(255,255,255,0.1)`,
-          boxShadow: `0 80px 160px rgba(0,0,0,0.9), 0 0 100px ${cor}12`,
+          border: `1px solid rgba(255,255,255,0.12)`,
+          boxShadow: `0 80px 160px rgba(0,0,0,0.9), 0 0 80px ${cor}15, 0 0 160px rgba(34,211,238,0.08)`,
         }}>
           {/* Header */}
           <div className="px-5 h-11 flex items-center gap-3" style={{ borderBottom: `1px solid ${cor}15`, background: "#060D19" }}>
@@ -127,7 +127,7 @@ function HeroMockup({ cor, nome }: { cor: string; nome: string }) {
         className="absolute -top-5 -right-4 rounded-2xl px-3 py-2.5 hidden md:block"
         style={{ background: "rgba(13,19,32,0.95)", border: `1px solid ${cor}28`, backdropFilter: "blur(12px)", boxShadow: `0 8px 24px rgba(0,0,0,0.7), 0 0 16px ${cor}10` }}>
         <p className="text-[9px] font-bold" style={{ color: cor }}>IA respondeu</p>
-        <p className="text-lg font-extrabold leading-none" style={{ color: cor }}>1.247</p>
+        <p className="text-xl font-extrabold leading-none" style={{ color: cor }}>1.247</p>
         <p className="text-[9px]" style={{ color: MUTED }}>mensagens este mês</p>
       </motion.div>
 
@@ -135,7 +135,7 @@ function HeroMockup({ cor, nome }: { cor: string; nome: string }) {
         className="absolute -bottom-4 -left-4 rounded-2xl px-3 py-2.5 hidden md:block"
         style={{ background: "rgba(13,19,32,0.95)", border: "1px solid rgba(96,165,250,0.28)", backdropFilter: "blur(12px)", boxShadow: "0 8px 24px rgba(0,0,0,0.7)" }}>
         <p className="text-[9px] font-bold" style={{ color: "#60a5fa" }}>Oportunidades</p>
-        <p className="text-lg font-extrabold leading-none" style={{ color: "#60a5fa" }}>67</p>
+        <p className="text-xl font-extrabold leading-none" style={{ color: "#60a5fa" }}>67</p>
         <p className="text-[9px]" style={{ color: MUTED }}>abertas no pipeline</p>
       </motion.div>
 
@@ -143,7 +143,7 @@ function HeroMockup({ cor, nome }: { cor: string; nome: string }) {
         className="absolute -top-5 -left-4 rounded-2xl px-3 py-2.5 hidden lg:block"
         style={{ background: "rgba(13,19,32,0.95)", border: "1px solid rgba(74,222,128,0.28)", backdropFilter: "blur(12px)", boxShadow: "0 8px 24px rgba(0,0,0,0.7)" }}>
         <p className="text-[9px] font-bold" style={{ color: "#4ADE80" }}>Taxa de conversão</p>
-        <p className="text-lg font-extrabold leading-none" style={{ color: "#4ADE80" }}>38%</p>
+        <p className="text-xl font-extrabold leading-none" style={{ color: "#4ADE80" }}>38%</p>
         <p className="text-[9px]" style={{ color: MUTED }}>acima da média</p>
       </motion.div>
 
@@ -335,6 +335,12 @@ function BroadcastMockup({ cor }: { cor: string }) {
               <span className="text-[9px] font-bold" style={{ color: d.c }}>{d.status}</span>
             </div>
           ))}
+        </div>
+
+        {/* Resultado comercial */}
+        <div className="rounded-xl p-3" style={{ background: `rgba(74,222,128,0.07)`, border: `1px solid rgba(74,222,128,0.20)` }}>
+          <p className="text-xs font-bold" style={{ color: "#4ADE80" }}>R$8.240 em oportunidades geradas</p>
+          <p className="text-[10px] mt-0.5" style={{ color: MUTED }}>17 oportunidades × ticket médio R$484</p>
         </div>
       </div>
     </div>
@@ -765,14 +771,42 @@ export default function ReferralPage() {
             <p className="text-lg mt-4" style={{ color: MUTED }}>É assim que sua operação fica com {nome}</p>
           </motion.div>
           <motion.div {...fadeF(0.15)} style={{ transform: "perspective(2000px) rotateX(3deg)" }}>
-            <ProductTheatreMockup cor={cor} nome={nome} />
+            <div className="relative">
+              <ProductTheatreMockup cor={cor} nome={nome} />
+              {/* Floating cards */}
+              <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 3.5, repeat: Infinity }}
+                className="absolute -top-4 -right-4 rounded-2xl px-3 py-2.5 hidden md:block"
+                style={{ background: "rgba(13,19,32,0.95)", border: `1px solid ${cor}28`, backdropFilter: "blur(12px)", boxShadow: `0 8px 24px rgba(0,0,0,0.7), 0 0 16px ${cor}10` }}>
+                <p className="text-[9px] font-bold" style={{ color: cor }}>Lead qualificado</p>
+                <p className="text-[9px]" style={{ color: MUTED }}>pelo WhatsApp agora</p>
+              </motion.div>
+              <motion.div animate={{ y: [0, 9, 0] }} transition={{ duration: 4.2, repeat: Infinity, delay: 1 }}
+                className="absolute -bottom-4 -left-4 rounded-2xl px-3 py-2.5 hidden md:block"
+                style={{ background: "rgba(13,19,32,0.95)", border: "1px solid rgba(96,165,250,0.28)", backdropFilter: "blur(12px)", boxShadow: "0 8px 24px rgba(0,0,0,0.7)" }}>
+                <p className="text-[9px] font-bold" style={{ color: "#60a5fa" }}>IA respondeu</p>
+                <p className="text-base font-extrabold leading-none" style={{ color: "#60a5fa" }}>1.247</p>
+                <p className="text-[9px]" style={{ color: MUTED }}>mensagens este mês</p>
+              </motion.div>
+              <motion.div animate={{ y: [0, -7, 0] }} transition={{ duration: 5, repeat: Infinity, delay: 2 }}
+                className="absolute -top-4 -left-4 rounded-2xl px-3 py-2.5 hidden lg:block"
+                style={{ background: "rgba(13,19,32,0.95)", border: "1px solid rgba(74,222,128,0.28)", backdropFilter: "blur(12px)", boxShadow: "0 8px 24px rgba(0,0,0,0.7)" }}>
+                <p className="text-[9px] font-bold" style={{ color: "#4ADE80" }}>Follow-up enviado</p>
+                <p className="text-[9px]" style={{ color: MUTED }}>automático</p>
+              </motion.div>
+              <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 4.8, repeat: Infinity, delay: 3 }}
+                className="absolute -bottom-4 -right-4 rounded-2xl px-3 py-2.5 hidden lg:block"
+                style={{ background: "rgba(13,19,32,0.95)", border: "1px solid rgba(167,139,250,0.28)", backdropFilter: "blur(12px)", boxShadow: "0 8px 24px rgba(0,0,0,0.7)" }}>
+                <p className="text-[9px] font-bold" style={{ color: "#A78BFA" }}>Oportunidade criada</p>
+                <p className="text-[9px]" style={{ color: MUTED }}>João Silva</p>
+              </motion.div>
+            </div>
           </motion.div>
         </div>
       </section>
 
       {/* ── IA NO ATENDIMENTO ── */}
       <section id="ia" className="py-32 px-6" style={{ background: BG2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
-        <div className="max-w-[1000px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+        <div className="max-w-[1100px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
           <motion.div {...fade}>
             <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: cor, letterSpacing: "0.1em" }}>IA NO ATENDIMENTO</p>
             <h2 className="font-extrabold leading-[1.1] tracking-[-0.03em] mb-8" style={{ fontSize: "clamp(28px, 3.5vw, 44px)" }}>
@@ -842,12 +876,12 @@ export default function ReferralPage() {
               { name: "Renato S.", role: "Consultoria Comercial", metric: "R$34k MRR em 4 meses", text: "O broadcast trouxe vendas da base parada. Reativamos clientes que estavam dormindo há meses." },
               { name: "Marina L.", role: "E-commerce", metric: "89% taxa de entrega", text: "O CRM integrou tudo: atendimento, pipeline e campanhas. Parece que a equipe dobrou de tamanho." },
             ].map(({ name, role, metric, text }, i) => (
-              <motion.div key={name} {...fadeF(i * 0.08)} className="rounded-[20px] p-7"
-                style={{ background: CARD, border: `1px solid ${BORDER}`, borderTop: `3px solid ${cor}` }}>
-                <p className="text-xl font-extrabold mb-3" style={{ color: cor }}>{metric}</p>
-                <p className="text-sm leading-relaxed italic mb-6" style={{ color: LIGHT }}>"{text}"</p>
+              <motion.div key={name} {...fadeF(i * 0.08)} className="rounded-[20px] p-7 flex flex-col"
+                style={{ background: CARD, border: `1px solid ${BORDER}`, borderTop: `3px solid ${cor}`, minHeight: 200 }}>
+                <p className="text-2xl font-extrabold mb-3" style={{ color: cor }}>{metric}</p>
+                <p className="text-sm leading-relaxed italic mb-6 flex-1" style={{ color: LIGHT }}>"{text}"</p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold" style={{ background: `${cor}18`, color: cor }}>
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-base font-bold shrink-0" style={{ background: `${cor}18`, color: cor }}>
                     {name.charAt(0)}
                   </div>
                   <div>
@@ -937,19 +971,20 @@ export default function ReferralPage() {
               {plans.map((plan, i) => {
                 const isHighlight = plans.length >= 3 && i === middleIdx;
                 return (
-                  <motion.div key={plan.id} {...fadeF(i * 0.1)} className="rounded-[22px] p-7 flex flex-col"
+                  <motion.div key={plan.id} {...fadeF(i * 0.1)} className="rounded-[22px] flex flex-col"
                     style={{
-                      background: isHighlight ? `linear-gradient(180deg, ${cor}10, ${CARD})` : CARD,
-                      border: isHighlight ? `1px solid ${cor}50` : `1px solid ${BORDER}`,
-                      boxShadow: isHighlight ? `0 0 50px ${cor}12, 0 20px 60px rgba(0,0,0,0.5)` : "none",
-                      transform: isHighlight ? "scale(1.03)" : "none",
-                      padding: isHighlight ? "32px" : "28px",
+                      background: isHighlight ? `linear-gradient(180deg, ${cor}12, ${CARD})` : CARD,
+                      border: isHighlight ? `1px solid ${cor}60` : `1px solid ${BORDER}`,
+                      boxShadow: isHighlight ? `0 0 60px ${cor}18, 0 20px 60px rgba(0,0,0,0.5)` : "none",
+                      transform: isHighlight ? "scale(1.05)" : "none",
+                      padding: isHighlight ? "36px" : "28px",
                     }}>
                     {isHighlight && (
                       <span className="text-[9px] font-black px-2.5 py-1 rounded-full self-start mb-4 uppercase tracking-wider"
-                        style={{ background: cor, color: "#0a0a0a" }}>RECOMENDADO</span>
+                        style={{ background: cor, color: "#0a0a0a" }}>⭐ MAIS ESCOLHIDO</span>
                     )}
                     <p className="text-lg font-extrabold mb-1" style={{ color: WHITE }}>{plan.nome}</p>
+                    {isHighlight && <p className="text-xs mt-0.5 mb-2" style={{ color: `${cor}80` }}>Ideal para vender com IA e automação</p>}
                     {plan.descricao && <p className="text-xs mb-4" style={{ color: MUTED }}>{plan.descricao}</p>}
                     <div className="mb-6">
                       <span className="text-4xl font-extrabold" style={{ color: isHighlight ? cor : WHITE }}>
@@ -1057,6 +1092,32 @@ export default function ReferralPage() {
         </div>
       </section>
 
+      {/* ── TRUST SECTION ── */}
+      <section className="py-16 px-6" style={{ background: BG2, borderTop: `1px solid ${BORDER}` }}>
+        <div className="max-w-[900px] mx-auto">
+          <motion.div {...fade} className="text-center mb-8">
+            <h2 className="text-2xl font-extrabold tracking-[-0.02em]" style={{ color: WHITE }}>Comece sem risco</h2>
+          </motion.div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { icon: ShieldCheck, title: "30 dias grátis", desc: "Teste completo sem limitação" },
+              { icon: CreditCard, title: "Sem cartão", desc: "Não pedimos dados de pagamento" },
+              { icon: Repeat, title: "Cancele quando quiser", desc: "Sem fidelidade ou multa" },
+              { icon: Users, title: "Suporte incluso", desc: "Ajuda para começar do zero" },
+            ].map(({ icon: Icon, title, desc }, i) => (
+              <motion.div key={title} {...fadeF(i * 0.08)} className="rounded-[18px] p-5 text-center"
+                style={{ background: CARD, border: `1px solid ${BORDER}` }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ background: `${cor}12` }}>
+                  <Icon size={18} style={{ color: cor }} />
+                </div>
+                <p className="text-sm font-bold mb-1" style={{ color: WHITE }}>{title}</p>
+                <p className="text-xs leading-relaxed" style={{ color: MUTED }}>{desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── CTA FINAL ── */}
       <section className="py-32 px-6 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse 50% 60% at 50% 50%, ${cor}10, transparent 70%)` }} />
@@ -1073,10 +1134,10 @@ export default function ReferralPage() {
               </span>
             </h2>
             <p className="text-lg mb-10 leading-relaxed" style={{ color: LIGHT }}>
-              Configure em minutos. Veja os primeiros resultados em horas.
+              Crie sua conta grátis, centralize seus leads e veja o CRM trabalhando na sua operação antes de pagar.
             </p>
             <Link href={signupUrl} className="inline-flex items-center gap-2.5 px-12 py-5 rounded-2xl font-bold text-base transition-all hover:-translate-y-0.5"
-              style={{ background: `linear-gradient(135deg, ${cor}, #60a5fa)`, color: "#fff", textDecoration: "none", boxShadow: `0 0 60px ${cor}30, 0 8px 32px rgba(0,0,0,0.4)`, fontSize: 16 }}>
+              style={{ background: `linear-gradient(135deg, ${cor}, #60a5fa)`, color: "#fff", textDecoration: "none", boxShadow: `0 0 80px ${cor}35, 0 8px 32px rgba(0,0,0,0.4)`, fontSize: 16 }}>
               Criar conta grátis agora <ArrowRight size={20} />
             </Link>
             <p className="text-sm mt-6" style={{ color: MUTED }}>30 dias grátis • sem cartão • configuração em minutos</p>

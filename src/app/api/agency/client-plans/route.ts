@@ -98,11 +98,36 @@ export async function PUT(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const agencyData = await getAgencyId(user.id);
-  if (!agencyData) return NextResponse.json({ error: "Sem permissão", debug_uid: user.id, debug_email: user.email }, { status: 403 });
+  // Aceitar agency_id do body (mais robusto que depender de .single())
+  const body = await request.json().catch(() => ({}));
+  const agencyIdFromBody = body?.agency_id;
+
+  let resolvedAgencyId: string | null = null;
+
+  if (agencyIdFromBody) {
+    // Verificar que o user pertence a essa agência via service role
+    const { data: membership } = await admin()
+      .from("agency_users")
+      .select("agency_id, role")
+      .eq("user_id", user.id)
+      .eq("agency_id", agencyIdFromBody)
+      .limit(1);
+    if (membership && membership.length > 0) {
+      resolvedAgencyId = agencyIdFromBody;
+    } else {
+      // Fallback: verificar se é super admin
+      const { data: sa } = await admin().from("super_admins").select("user_id").eq("email", user.email).limit(1);
+      if (sa && sa.length > 0) resolvedAgencyId = agencyIdFromBody;
+    }
+  } else {
+    const agencyData = await getAgencyId(user.id);
+    if (agencyData) resolvedAgencyId = agencyData.agency_id;
+  }
+
+  if (!resolvedAgencyId) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   // Verificar se já tem planos
-  const { data: existing } = await admin().from("agency_client_plans").select("id").eq("agency_id", agencyData.agency_id).limit(1);
+  const { data: existing } = await admin().from("agency_client_plans").select("id").eq("agency_id", resolvedAgencyId).limit(1);
   if ((existing ?? []).length > 0) return NextResponse.json({ error: "Agência já possui planos" }, { status: 409 });
 
   const DEFAULT_PLANS = [
@@ -129,7 +154,7 @@ export async function PUT(request: NextRequest) {
     },
   ];
 
-  const toInsert = DEFAULT_PLANS.map(p => ({ ...p, agency_id: agencyData.agency_id, ativo: true }));
+  const toInsert = DEFAULT_PLANS.map(p => ({ ...p, agency_id: resolvedAgencyId, ativo: true }));
   const { data, error } = await admin().from("agency_client_plans").insert(toInsert).select();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ plans: data, created: true });

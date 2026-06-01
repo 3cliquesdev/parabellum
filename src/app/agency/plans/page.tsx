@@ -143,8 +143,13 @@ export default function AgencyPlansPage() {
   }, []);
 
   async function seedPlans() {
+    if (!agencyId) return;
     setSeeding(true);
-    const r = await fetch("/api/agency/client-plans", { method: "PUT" });
+    const r = await fetch("/api/agency/client-plans", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agency_id: agencyId }),
+    });
     const d = await r.json();
     if (d.plans) setPlans(d.plans);
     setSeeding(false);

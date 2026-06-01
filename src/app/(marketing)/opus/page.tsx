@@ -33,11 +33,20 @@ const fade = (delay = 0) => ({
   transition: { duration: 0.8, delay },
 });
 
+// ─── Grain Overlay ───
+function GrainOverlay({ opacity = 0.025 }: { opacity?: number }) {
+  return (
+    <div className="pointer-events-none absolute inset-0" style={{ zIndex: 0, opacity,
+      backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
+    }} />
+  );
+}
+
 // ─── Mockup Premium com pseudo-perspectiva ───
 function OpusMockup() {
   return (
-    <div className="relative w-full max-w-[580px]">
-      <div style={{ transform: "perspective(1200px) rotateX(2deg) rotateY(-1deg)" }}>
+    <div className="relative w-full max-w-[620px]">
+      <div style={{ transform: "perspective(1200px) rotateX(3deg) rotateY(-2deg)" }}>
         <div className="rounded-[24px] overflow-hidden" style={{
           background: `linear-gradient(180deg, #141B2A 0%, #0C1321 100%)`,
           border: `1px solid rgba(214,179,106,0.2)`,
@@ -196,8 +205,13 @@ export default function OpusPage() {
       {/* ── HERO ── */}
       <section className="relative min-h-screen flex items-center pt-16 px-6 md:px-12">
         <div className="absolute inset-0 pointer-events-none" style={{
-          background: `radial-gradient(circle at 65% 25%, rgba(214,179,106,0.13), transparent 38%), radial-gradient(circle at 30% 70%, rgba(37,99,235,0.1), transparent 40%)`,
+          background: `radial-gradient(circle at 65% 25%, rgba(214,179,106,0.13), transparent 38%), radial-gradient(circle at 30% 70%, rgba(37,99,235,0.1), transparent 40%), radial-gradient(circle at 50% 50%, rgba(214,179,106,0.04), transparent 60%)`,
         }} />
+        <div className="absolute inset-0 pointer-events-none opacity-[0.02]" style={{
+          backgroundImage: `linear-gradient(rgba(214,179,106,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(214,179,106,0.5) 1px, transparent 1px)`,
+          backgroundSize: "60px 60px",
+        }} />
+        <GrainOverlay opacity={0.025} />
         <div className="relative max-w-[1260px] mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center py-20">
           <motion.div {...fade()}>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-xs font-bold uppercase tracking-widest"
@@ -491,6 +505,104 @@ export default function OpusPage() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── PRODUCT THEATRE ── */}
+      <section className="py-24 px-6 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse 70% 60% at 50% 50%, rgba(214,179,106,0.06), transparent 70%)` }} />
+        <GrainOverlay opacity={0.02} />
+        <div className="relative max-w-[1100px] mx-auto">
+          <motion.div {...fade()} className="text-center mb-12">
+            <p className="section-label mb-4">Product Theatre</p>
+            <h2 className="font-extrabold leading-[1.1] tracking-[-0.03em]" style={{ fontSize: "clamp(32px, 4vw, 52px)" }}>
+              Uma operação exclusiva <span className="font-serif italic font-normal" style={{ color: CHAMP }}>com a sua marca</span>
+            </h2>
+            <p className="text-lg mt-4" style={{ color: MUTED }}>É assim que sua empresa opera com o Liberty Opus</p>
+          </motion.div>
+
+          <motion.div {...fade(0.15)} style={{ transform: "perspective(2000px) rotateX(3deg)" }}>
+            <div className="rounded-[24px] overflow-hidden" style={{
+              background: "linear-gradient(180deg, #141B2A, #0C1220)",
+              border: `1px solid rgba(214,179,106,0.2)`,
+              boxShadow: `0 80px 160px rgba(0,0,0,0.9), 0 0 120px rgba(214,179,106,0.08)`,
+            }}>
+              {/* Header */}
+              <div className="px-6 h-12 flex items-center gap-3" style={{ borderBottom: `1px solid rgba(214,179,106,0.12)`, background: "#08101E" }}>
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs" style={{ background: `linear-gradient(135deg,${CHAMP},${GOLD})`, color: "#000" }}>A</div>
+                <span className="text-sm font-bold" style={{ color: WHITE }}>Atlas Sales OS</span>
+                <div className="ml-auto flex items-center gap-3">
+                  <span className="text-xs font-mono" style={{ color: "#4B5563" }}>atlas.vendas.com</span>
+                  <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: `${CHAMP}12`, color: CHAMP }}>100% white-label</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-0">
+                {/* Sidebar */}
+                <div className="col-span-2 py-5 px-3 space-y-2" style={{ borderRight: `1px solid rgba(255,255,255,0.05)`, background: "rgba(0,0,0,0.3)" }}>
+                  {[Building2, Users, MessageSquare, BarChart2, Bot, Database, Workflow, Globe].map((Icon, i) => (
+                    <div key={i} className="w-9 h-9 rounded-xl flex items-center justify-center mx-auto" style={{ background: i === 0 ? `${CHAMP}18` : "rgba(255,255,255,0.04)" }}>
+                      <Icon size={14} style={{ color: i === 0 ? CHAMP : "#4B5563" }} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Main */}
+                <div className="col-span-10 p-5 space-y-4">
+                  <div className="grid grid-cols-4 gap-3">
+                    {[
+                      { l: "Oportunidades", v: "R$340k", c: CHAMP, sub: "▲ +18%" },
+                      { l: "Conversão", v: "38%", c: BLUE_L, sub: "Meta: 40%" },
+                      { l: "IA ativa", v: "97%", c: "#4ADE80", sub: "Atendendo" },
+                      { l: "Equipe", v: "8 usuários", c: "#A78BFA", sub: "Online" },
+                    ].map(m => (
+                      <div key={m.l} className="rounded-xl p-3" style={{ background: `${m.c}08`, border: `1px solid ${m.c}15` }}>
+                        <p className="text-lg font-extrabold leading-none" style={{ color: m.c }}>{m.v}</p>
+                        <p className="text-[10px] mt-1 font-medium" style={{ color: WHITE }}>{m.l}</p>
+                        <p className="text-[9px]" style={{ color: "#4B5563" }}>{m.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* Pipeline */}
+                    <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}>
+                      <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: "#4B5563" }}>Pipeline</p>
+                      {[{ l: "Lead", n: 12, c: BLUE_L }, { l: "Proposta", n: 7, c: CHAMP }, { l: "Negoc.", n: 4, c: "#F97316" }, { l: "Ganho", n: 15, c: "#4ADE80" }].map(p => (
+                        <div key={p.l} className="flex items-center justify-between py-1">
+                          <span className="text-[9px]" style={{ color: MUTED }}>{p.l}</span>
+                          <span className="text-[9px] font-bold" style={{ color: p.c }}>{p.n}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* WhatsApp IA */}
+                    <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Bot size={10} style={{ color: CHAMP }} />
+                        <span className="text-[9px] font-bold" style={{ color: CHAMP }}>WhatsApp IA</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="px-2 py-1 rounded-lg text-[9px]" style={{ background: "#1E3A2F", color: "#86EFAC" }}>Qual o plano premium?</div>
+                        <div className="px-2 py-1 rounded-lg text-[9px]" style={{ background: `${CHAMP}10`, color: CHAMP }}>O premium inclui IA e automações…</div>
+                      </div>
+                    </div>
+
+                    {/* Chart */}
+                    <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}>
+                      <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: "#4B5563" }}>Receita</p>
+                      <div className="flex items-end gap-1 h-12">
+                        {[20, 35, 50, 65, 72, 82, 90, 100].map((h, i) => (
+                          <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, background: i === 7 ? `linear-gradient(180deg,${CHAMP},${GOLD})` : `${CHAMP}20` }} />
+                        ))}
+                      </div>
+                      <p className="text-[9px] font-bold mt-1" style={{ color: CHAMP }}>R$340k ▲</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useBranding } from "@/hooks/useBranding";
 
 const features = [
   {
@@ -46,6 +47,8 @@ const features = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const branding = useBranding();
+  const cor = branding.primary_color;
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,12 +93,15 @@ export default function LoginPage() {
         {/* Top — Logo */}
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#9aea62" }}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
-              </svg>
-            </div>
-            <span className="text-white font-bold text-sm tracking-tight">Liberty CRM</span>
+            {branding.logo_url
+              ? <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto" />
+              : <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
+                  </svg>
+                </div>
+            }
+            <span className="text-white font-bold text-sm tracking-tight">{branding.display_name}</span>
           </Link>
         </div>
 
@@ -128,9 +134,13 @@ export default function LoginPage() {
         </div>
 
         {/* Bottom */}
-        <p className="relative text-xs" style={{ color: "rgba(147,157,164,0.4)" }}>
-          © 2026 Liberty CRM · Acesso restrito
-        </p>
+        <div className="relative flex items-center gap-3">
+          <p className="text-xs" style={{ color: "rgba(147,157,164,0.4)" }}>
+            © {new Date().getFullYear()} {branding.display_name}
+          </p>
+          {branding.terms_url && <a href={branding.terms_url} target="_blank" className="text-xs" style={{ color: "rgba(147,157,164,0.4)" }}>Termos</a>}
+          {branding.privacy_url && <a href={branding.privacy_url} target="_blank" className="text-xs" style={{ color: "rgba(147,157,164,0.4)" }}>Privacidade</a>}
+        </div>
       </div>
 
       {/* RIGHT PANEL */}
@@ -140,12 +150,15 @@ export default function LoginPage() {
         {/* Mobile logo */}
         <div className="lg:hidden absolute top-8 left-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#9aea62" }}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
-              </svg>
-            </div>
-            <span className="font-bold text-sm" style={{ color: "#0a0a0a" }}>Liberty CRM</span>
+            {branding.logo_url
+              ? <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto" />
+              : <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
+                  </svg>
+                </div>
+            }
+            <span className="font-bold text-sm" style={{ color: "#0a0a0a" }}>{branding.display_name}</span>
           </Link>
         </div>
 

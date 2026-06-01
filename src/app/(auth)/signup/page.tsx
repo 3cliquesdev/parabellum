@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useBranding } from "@/hooks/useBranding";
 
 const highlights = [
   "Pipeline visual com kanban e valor por negócio",
@@ -18,6 +19,8 @@ const highlights = [
 
 export default function SignupPage() {
   const router = useRouter();
+  const branding = useBranding();
+  const cor = branding.primary_color;
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,12 +70,12 @@ export default function SignupPage() {
         {/* Logo */}
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#9aea62" }}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
               </svg>
             </div>
-            <span className="text-white font-bold text-sm tracking-tight">Liberty CRM</span>
+            <span className="text-white font-bold text-sm tracking-tight">{branding.display_name}</span>
           </Link>
         </div>
 
@@ -82,7 +85,7 @@ export default function SignupPage() {
             <p className="section-label mb-3">Comece agora</p>
             <h2 className="text-[32px] font-extrabold text-white leading-[1.1] tracking-[-0.03em]">
               Sua agência merece um{" "}
-              <span className="font-serif italic font-normal" style={{ color: "#9aea62" }}>
+              <span className="font-serif italic font-normal" style={{ color: cor }}>
                 CRM de verdade.
               </span>
             </h2>
@@ -105,7 +108,7 @@ export default function SignupPage() {
 
         {/* Bottom */}
         <p className="relative text-xs" style={{ color: "rgba(147,157,164,0.4)" }}>
-          © 2026 Liberty CRM · Acesso restrito
+          © {new Date().getFullYear()} {branding.display_name}
         </p>
       </div>
 
@@ -116,12 +119,12 @@ export default function SignupPage() {
         {/* Mobile logo */}
         <div className="lg:hidden absolute top-8 left-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#9aea62" }}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
               </svg>
             </div>
-            <span className="font-bold text-sm" style={{ color: "#0a0a0a" }}>Liberty CRM</span>
+            <span className="font-bold text-sm" style={{ color: "#0a0a0a" }}>{branding.display_name}</span>
           </Link>
         </div>
 
@@ -216,7 +219,7 @@ export default function SignupPage() {
         </div>
 
         <p className="absolute bottom-8 text-xs text-center" style={{ color: "#d1d5db" }}>
-          Acesso restrito · Liberty CRM © 2026
+          Acesso restrito · {branding.display_name} © 2026
         </p>
       </div>
     </div>

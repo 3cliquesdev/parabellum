@@ -23,6 +23,7 @@ const TESTIMONIALS = [
 export default function ReferralPage() {
   const { slug } = useParams<{ slug: string }>();
   const [agency, setAgency] = useState<any>(null);
+  const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -37,8 +38,14 @@ export default function ReferralPage() {
       .then(({ data, error }: { data: any; error: any }) => {
         if (error || !data) { setNotFound(true); }
         else {
-          setAgency({ ...data.agencies, link_slug: data.slug });
+          const agencyData = { ...data.agencies, link_slug: data.slug };
+          setAgency(agencyData);
           fetch(`/api/r/${slug}`, { method: "POST" }).catch(() => {});
+          // Buscar planos da agência
+          if (agencyData.id) {
+            fetch(`/api/agency/client-plans?agency_id=${agencyData.id}`)
+              .then(r => r.json()).then(d => setPlans(d.plans ?? [])).catch(() => {});
+          }
         }
         setLoading(false);
       });
@@ -166,6 +173,80 @@ export default function ReferralPage() {
           ))}
         </div>
       </section>
+
+      {/* PRICING — só aparece se a agência tem planos */}
+      {plans.length > 0 && (
+        <section style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px 100px" }}>
+          <h2 style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 800, letterSpacing: "-0.03em", textAlign: "center", marginBottom: 12 }}>
+            Escolha seu plano
+          </h2>
+          <p style={{ textAlign: "center", color: "rgba(147,157,164,0.75)", fontSize: 16, marginBottom: 48 }}>
+            Comece com 30 dias grátis em qualquer plano
+          </p>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${Math.min(plans.length, 3)}, 1fr)`,
+            gap: 20,
+          }}>
+            {plans.map((plan, i) => {
+              const isHighlight = plans.length >= 3 && i === Math.floor(plans.length / 2);
+              const CYCLE_SUFFIX: Record<string, string> = { mensal: "/mês", trimestral: "/trim.", semestral: "/sem.", anual: "/ano" };
+              const suffix = CYCLE_SUFFIX[plan.billing_cycle] ?? "/mês";
+              return (
+                <div key={plan.id} style={{
+                  padding: "32px 28px",
+                  borderRadius: 20,
+                  background: isHighlight
+                    ? `linear-gradient(180deg, ${cor}10, rgba(0,0,0,0.02))`
+                    : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${isHighlight ? cor + "35" : "rgba(255,255,255,0.08)"}`,
+                  boxShadow: isHighlight ? `0 0 40px ${cor}10` : "none",
+                  display: "flex", flexDirection: "column",
+                }}>
+                  {isHighlight && (
+                    <span style={{ fontSize: 9, fontWeight: 900, padding: "3px 10px", borderRadius: 99, background: cor, color: "#0a0a0a", alignSelf: "flex-start", marginBottom: 16, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      MAIS POPULAR
+                    </span>
+                  )}
+                  <p style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{plan.nome}</p>
+                  {plan.descricao && (
+                    <p style={{ fontSize: 13, color: "rgba(147,157,164,0.7)", marginBottom: 16 }}>{plan.descricao}</p>
+                  )}
+                  <div style={{ marginBottom: 24 }}>
+                    <span style={{ fontSize: 40, fontWeight: 900, color: isHighlight ? cor : "#fff", letterSpacing: "-0.04em" }}>
+                      R${parseFloat(plan.price_brl).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
+                    </span>
+                    <span style={{ fontSize: 14, color: "rgba(147,157,164,0.6)" }}>{suffix}</span>
+                  </div>
+                  {(plan.features ?? []).length > 0 && (
+                    <div style={{ flex: 1, marginBottom: 28 }}>
+                      {(plan.features ?? []).map((f: string) => (
+                        <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                          <CheckCircle size={14} color={cor} style={{ flexShrink: 0 }} />
+                          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.75)" }}>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Link href={`/signup?ref=${slug}&agency=${agency?.id}&plan=${plan.id}`}
+                    style={{
+                      display: "block", padding: "13px 24px", borderRadius: 12, textAlign: "center",
+                      fontSize: 14, fontWeight: 700, textDecoration: "none",
+                      background: isHighlight ? cor : "rgba(255,255,255,0.08)",
+                      color: isHighlight ? "#0a0a0a" : "#fff",
+                      border: isHighlight ? "none" : "1px solid rgba(255,255,255,0.12)",
+                    }}>
+                    Começar com {plan.nome}
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+          <p style={{ textAlign: "center", fontSize: 12, color: "rgba(147,157,164,0.4)", marginTop: 24 }}>
+            30 dias grátis em todos os planos • Sem cartão de crédito
+          </p>
+        </section>
+      )}
 
       {/* CTA FINAL */}
       <section style={{ maxWidth: 700, margin: "0 auto", padding: "0 24px 120px", textAlign: "center" }}>

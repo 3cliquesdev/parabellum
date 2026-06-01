@@ -6,13 +6,14 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
   LayoutDashboard, Users, Palette, Globe, Settings, LogOut, Building2,
-  CreditCard, SlidersHorizontal, Link2, DollarSign, ShieldCheck,
+  CreditCard, SlidersHorizontal, Link2, DollarSign, ShieldCheck, LayoutList,
 } from "lucide-react";
 
 const NAV = [
   { href: "/agency", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/agency/customers", icon: Users, label: "Clientes" },
   { href: "/agency/billing-clients", icon: DollarSign, label: "Cobranças" },
+  { href: "/agency/plans", icon: LayoutList, label: "Planos" },
   { href: "/agency/links", icon: Link2, label: "Links" },
   { href: "/agency/branding", icon: Palette, label: "Branding" },
   { href: "/agency/domain", icon: Globe, label: "Domínio" },

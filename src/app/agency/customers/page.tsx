@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Building2, ArrowRight, Search, Users } from "lucide-react";
+import { Plus, Building2, ArrowRight, Search, CheckCircle, Clock, AlertTriangle, XCircle } from "lucide-react";
+
+const STATUS_DOT: Record<string, string> = {
+  trial: "#facc15", active: "#9aea62", pending: "#f97316", overdue: "#f87171", cancelled: "#939da4",
+};
+const STATUS_LABEL: Record<string, string> = {
+  trial: "Trial", active: "Pago", pending: "Pendente", overdue: "Em atraso", cancelled: "Cancelado",
+};
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -76,10 +83,25 @@ export default function CustomersPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xs px-2 py-1 rounded-full font-medium"
-                  style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
-                  Ativo
-                </span>
+                {c.billing ? (
+                  <div className="text-right">
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: STATUS_DOT[c.billing.payment_status] ?? "#939da4" }} />
+                      <span className="text-[10px] font-bold" style={{ color: STATUS_DOT[c.billing.payment_status] ?? "#939da4" }}>
+                        {STATUS_LABEL[c.billing.payment_status] ?? "—"}
+                      </span>
+                    </div>
+                    {c.billing.price_brl > 0 && (
+                      <p className="text-xs font-bold text-white mt-0.5">
+                        R$ {parseFloat(c.billing.price_brl).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/{c.billing.billing_cycle === "mensal" ? "mês" : c.billing.billing_cycle}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.05)", color: "#939da4" }}>
+                    Sem cobrança
+                  </span>
+                )}
                 <ArrowRight className="w-4 h-4" style={{ color: "#939da4" }} />
               </div>
             </Link>

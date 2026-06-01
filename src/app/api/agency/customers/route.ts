@@ -56,10 +56,20 @@ export async function GET(request: NextRequest) {
     countMap[m.tenant_id] = (countMap[m.tenant_id] ?? 0) + 1;
   });
 
+  // Buscar billing de todos os tenants
+  const { data: billingData } = await admin
+    .from("tenant_billing")
+    .select("tenant_id, price_brl, billing_cycle, plan_name, payment_status, next_billing_date")
+    .in("tenant_id", tenantIds);
+
+  const billingMap: Record<string, any> = {};
+  (billingData ?? []).forEach((b: any) => { billingMap[b.tenant_id] = b; });
+
   return NextResponse.json({
     customers: (tenants ?? []).map((t: any) => ({
       ...t,
       member_count: countMap[t.id] ?? 0,
+      billing: billingMap[t.id] ?? null,
     })),
   });
 }

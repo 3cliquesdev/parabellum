@@ -10,7 +10,7 @@ import {
   CheckCircle, ArrowRight, Zap, Users, MessageSquare, Bot,
   BarChart2, Megaphone, Globe, ShieldCheck,
   Workflow, Layers, TrendingUp, Wifi, Mic, Volume2, Plus, Minus,
-  Building2, CreditCard
+  Building2, DollarSign, CreditCard
 } from "lucide-react";
 
 const BG = "#050608";

@@ -193,14 +193,6 @@ function AccordionFAQ() {
   );
 }
 
-const MONTAMOS_CARDS = [
-  { n: "01", icon: Cpu, title: "Diagnóstico da operação", desc: "Mapeamos atendimento, vendas, equipe, gargalos e objetivos." },
-  { n: "02", icon: TrendingUp, title: "Mapeamento do funil", desc: "Organizamos etapas, regras comerciais e jornada do lead." },
-  { n: "03", icon: Bot, title: "Treinamento da IA", desc: "A IA aprende produtos, preços, objeções e linguagem da empresa." },
-  { n: "04", icon: MessageSquare, title: "Configuração do WhatsApp", desc: "Canais, transferências, equipe e atendimento configurados." },
-  { n: "05", icon: Workflow, title: "Criação dos fluxos", desc: "Boas-vindas, qualificação, follow-up e automações." },
-  { n: "06", icon: Users, title: "Implantação com equipe", desc: "Treinamento, ajustes e entrada em operação." },
-];
 
 const NICHES = [
   { icon: Stethoscope, name: "Clínicas", desc: "Triagem, agendamento e follow-up automático." },
@@ -213,10 +205,73 @@ const NICHES = [
   { icon: MessageSquare, name: "Ops. WhatsApp", desc: "Atendimento em escala com IA." },
 ];
 
+// ─── ZPPIA Steps (Opus) ───
+const OPUS_STEPS = [
+  { num: "01", title: "Diagnóstico", desc: "Mapeamos atendimento, vendas, equipe, gargalos e objetivos do negócio." },
+  { num: "02", title: "Arquitetura", desc: "Desenhamos funil, etapas comerciais e jornada do lead exclusivamente para você." },
+  { num: "03", title: "IA treinada", desc: "A IA aprende seus produtos, preços, objeções e a linguagem da sua empresa." },
+  { num: "04", title: "Marca aplicada", desc: "Logo, domínio, cores e identidade visual configurados em cada ponto do sistema." },
+  { num: "05", title: "Operação no ar", desc: "Treinamos sua equipe, ajustamos tudo e acionamos a operação completa." },
+];
+
+function ZPPIAStepsOpus({ steps, color }: { steps: { num: string; title: string; desc: string }[]; color: string }) {
+  return (
+    <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      {steps.map(({ num, title, desc }, i) => (
+        <motion.div
+          key={num}
+          {...fade(i * 0.08)}
+          className="relative flex items-start gap-8 py-10 px-8 cursor-default overflow-hidden"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", transition: "background 0.3s, border-left 0.3s, padding-left 0.3s" }}
+          onMouseEnter={e => {
+            const el = e.currentTarget as HTMLDivElement;
+            el.style.background = `${color}04`;
+            el.style.borderLeft = `4px solid ${color}60`;
+            el.style.paddingLeft = "28px";
+          }}
+          onMouseLeave={e => {
+            const el = e.currentTarget as HTMLDivElement;
+            el.style.background = "";
+            el.style.borderLeft = "";
+            el.style.paddingLeft = "32px";
+          }}
+        >
+          {/* Número watermark */}
+          <div
+            className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none select-none font-black leading-none"
+            style={{ fontSize: "clamp(80px, 12vw, 160px)", color: `${color}06`, letterSpacing: "-0.05em" }}
+          >
+            {num}
+          </div>
+          {/* Conteúdo */}
+          <div className="relative" style={{ zIndex: 1 }}>
+            <p className="font-mono font-bold mb-3" style={{ fontSize: 11, color: `${color}60` }}>{num}</p>
+            <h3
+              className="font-extrabold tracking-[-0.02em] mb-2"
+              style={{ fontSize: "clamp(22px, 2.5vw, 34px)", color: WHITE }}
+            >
+              {title}
+            </h3>
+            <p className="text-base leading-relaxed" style={{ color: MUTED, maxWidth: 560 }}>{desc}</p>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 export default function OpusPage() {
   return (
     <main style={{ background: BG, color: WHITE, fontFamily: "var(--font-sans)", overflowX: "hidden" }}>
-      <NavBar hideCTA />
+      <NavBar
+        hideCTA
+        links={[
+          { label: "Estrutura", href: "#estrutura" },
+          { label: "IA", href: "#ia" },
+          { label: "Implantação", href: "#implantacao" },
+          { label: "FAQ", href: "#faq" },
+        ]}
+      />
 
       {/* ── HERO ── */}
       <section className="relative min-h-screen flex items-center pt-16 px-6 md:px-12">
@@ -401,33 +456,17 @@ export default function OpusPage() {
         </div>
       </section>
 
-      {/* ── MONTAMOS SUA OPERAÇÃO ── */}
-      <section className="py-32 px-6" style={{ background: BG2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+      {/* ── MONTAMOS SUA OPERAÇÃO — ZPPIA ── */}
+      <section id="implantacao" className="py-32 px-6" style={{ background: BG2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
         <div className="max-w-[1100px] mx-auto">
-          <motion.div {...fade()} className="text-center mb-16">
+          <motion.div {...fade()} className="mb-16">
             <p className="section-label mb-4">Nossa Entrega</p>
             <h2 className="font-extrabold leading-[1.1] tracking-[-0.03em]" style={{ fontSize: "clamp(32px, 4vw, 56px)" }}>
               Não instalamos um CRM.<br />
               <span className="font-serif italic font-normal" style={{ color: CHAMP }}>Montamos sua operação.</span>
             </h2>
           </motion.div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {MONTAMOS_CARDS.map(({ n, icon: Icon, title, desc }, i) => (
-              <motion.div key={n} {...fade(i * 0.08)} className="rounded-[22px] p-8"
-                style={{ background: `linear-gradient(180deg, ${CARD}, ${BG2})`, border: `1px solid ${CHAMP}20`, boxShadow: `0 4px 24px rgba(0,0,0,0.5), 0 0 0 1px ${CHAMP}08` }}>
-                <div className="flex items-start gap-4">
-                  <p className="font-extrabold leading-none shrink-0" style={{ fontSize: 64, background: `linear-gradient(135deg, ${CHAMP}60, ${BLUE_L}60)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{n}</p>
-                  <div>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: `${CHAMP}12`, boxShadow: `0 0 12px ${CHAMP}18` }}>
-                      <Icon size={18} style={{ color: CHAMP }} />
-                    </div>
-                    <p className="mb-1.5 font-bold" style={{ fontSize: 15, color: WHITE }}>{title}</p>
-                    <p className="text-xs leading-relaxed" style={{ color: SILVER }}>{desc}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          <ZPPIAStepsOpus steps={OPUS_STEPS} color={CHAMP} />
         </div>
       </section>
 
@@ -623,7 +662,7 @@ export default function OpusPage() {
       </section>
 
       {/* ── IA REAL ── */}
-      <section className="py-28 px-6" style={{ background: BG2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+      <section id="ia" className="py-28 px-6" style={{ background: BG2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
         <div className="max-w-[1000px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
           <motion.div {...fade()}>
             <p className="section-label mb-4">Inteligência Artificial</p>
@@ -868,7 +907,7 @@ export default function OpusPage() {
       </section>
 
       {/* ── FAQ ACCORDION ── */}
-      <section className="py-20 px-6" style={{ borderTop: `1px solid ${BORDER}` }}>
+      <section id="faq" className="py-20 px-6" style={{ borderTop: `1px solid ${BORDER}` }}>
         <div className="max-w-[700px] mx-auto">
           <motion.div {...fade()} className="mb-8">
             <h2 className="text-2xl font-extrabold tracking-[-0.02em]" style={{ color: WHITE }}>Perguntas Frequentes</h2>

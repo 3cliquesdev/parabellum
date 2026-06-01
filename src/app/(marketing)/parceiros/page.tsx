@@ -8,9 +8,9 @@ import { Footer } from "@/components/marketing/Footer";
 import { MRRCalculator } from "@/components/marketing/MRRCalculator";
 import {
   CheckCircle, ArrowRight, Zap, Users, MessageSquare, Bot,
-  BarChart2, Megaphone, Globe, DollarSign, ShieldCheck,
+  BarChart2, Megaphone, Globe, ShieldCheck,
   Workflow, Layers, TrendingUp, Wifi, Mic, Volume2, Plus, Minus,
-  Building2, Database, CreditCard
+  Building2, CreditCard
 } from "lucide-react";
 
 const BG = "#050608";
@@ -50,7 +50,7 @@ function CRMMockup() {
           <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: GREEN }}>
             <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#000" /></svg>
           </div>
-          <span className="text-xs font-bold" style={{ color: WHITE }}>Minha Agência CRM</span>
+          <span className="text-xs font-bold" style={{ color: WHITE }}>Digital Pro CRM</span>
           <div className="ml-auto flex items-center gap-3">
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${GREEN}18`, color: GREEN }}>● Online</span>
             <div className="flex gap-1">{["#22C55E","#EAB308","#EF4444"].map(c=><div key={c} style={{width:7,height:7,borderRadius:99,background:c,opacity:0.7}}/>)}</div>
@@ -330,12 +330,6 @@ const DORES = [
   { title: "Pouco ativo", desc: "Entrega mas não acumula valor." },
 ];
 
-const FLOW_NODES = [
-  { icon: Database, title: "Liberty CRM", sub: "Tecnologia & infraestrutura", color: "#A78BFA" },
-  { icon: Building2, title: "Sua Agência", sub: "Marca própria & clientes", color: GREEN },
-  { icon: Users, title: "Seus Clientes", sub: "CRM White-label completo", color: BLUE },
-  { icon: DollarSign, title: "Receita Recorrente", sub: "R$/mês para sempre", color: CYAN },
-];
 
 const TECH_CARDS = [
   {
@@ -414,10 +408,74 @@ const TARGETS = [
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun"];
 const MRR_GROWTH = [2490, 4970, 7460, 9940, 12430, 14910];
 
+// ─── ZPPIA Steps ───
+const PARCEIROS_STEPS = [
+  { num: "01", title: "Ative sua marca", desc: "Configure logo, cores, domínio e URL personalizada em menos de 30 minutos." },
+  { num: "02", title: "Cadastre seus clientes", desc: "Cada cliente recebe um workspace isolado com acesso e dados individuais." },
+  { num: "03", title: "Venda a mensalidade", desc: "Defina o valor que quiser. 85% do MRR fica com você todo mês, automaticamente." },
+  { num: "04", title: "Acompanhe seu MRR", desc: "Dashboard exclusivo: veja faturamento, comissões e crescimento em tempo real." },
+  { num: "05", title: "Escale sem desenvolver", desc: "Adicione novos clientes sem custo de infraestrutura, código ou equipe técnica." },
+];
+
+function ZPPIASteps({ steps, color }: { steps: { num: string; title: string; desc: string }[]; color: string }) {
+  return (
+    <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      {steps.map(({ num, title, desc }, i) => (
+        <motion.div
+          key={num}
+          {...fadeF(i * 0.08)}
+          className="relative flex items-start gap-8 py-10 px-8 cursor-default overflow-hidden"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", transition: "background 0.3s, box-shadow 0.3s, border-left 0.3s, padding-left 0.3s" }}
+          onMouseEnter={e => {
+            const el = e.currentTarget as HTMLDivElement;
+            el.style.background = `${color}04`;
+            el.style.borderLeft = `4px solid ${color}60`;
+            el.style.paddingLeft = "28px";
+          }}
+          onMouseLeave={e => {
+            const el = e.currentTarget as HTMLDivElement;
+            el.style.background = "";
+            el.style.borderLeft = "";
+            el.style.paddingLeft = "32px";
+          }}
+        >
+          {/* Número watermark */}
+          <div
+            className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none select-none font-black leading-none"
+            style={{ fontSize: "clamp(80px, 12vw, 160px)", color: `${color}06`, letterSpacing: "-0.05em" }}
+          >
+            {num}
+          </div>
+          {/* Conteúdo */}
+          <div className="relative" style={{ zIndex: 1 }}>
+            <p className="font-mono font-bold mb-3" style={{ fontSize: 11, color: `${color}60` }}>{num}</p>
+            <h3
+              className="font-extrabold tracking-[-0.02em] mb-2"
+              style={{ fontSize: "clamp(22px, 2.5vw, 34px)", color: WHITE }}
+            >
+              {title}
+            </h3>
+            <p className="text-base leading-relaxed" style={{ color: MUTED, maxWidth: 560 }}>{desc}</p>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 export default function ParceirosPage() {
   return (
     <main style={{ background: BG, color: WHITE, fontFamily: "var(--font-sans)", overflowX: "hidden" }}>
-      <NavBar />
+      <NavBar
+        links={[
+          { label: "Como funciona", href: "#como-funciona" },
+          { label: "Ganhos", href: "#mrr" },
+          { label: "Produto", href: "#produto" },
+          { label: "FAQ", href: "#faq" },
+        ]}
+        ctaLabel="Quero virar parceiro"
+        ctaHref="/signup"
+      />
 
       {/* ── HERO ── */}
       <section className="relative min-h-screen flex items-center pt-16 px-6 md:px-12">
@@ -521,46 +579,19 @@ export default function ParceirosPage() {
         </motion.div>
       </section>
 
-      {/* ── FLOW VISUAL ── */}
+      {/* ── COMO FUNCIONA — ZPPIA ── */}
       <section id="como-funciona" className="py-32 px-6">
         <div className="max-w-[1100px] mx-auto">
-          <motion.div {...fade} className="text-center mb-16">
+          <motion.div {...fade} className="mb-16">
             <p className="section-label mb-4">Como Funciona</p>
-            <h2 className="font-extrabold leading-[1.1] tracking-[-0.03em]" style={{ fontSize: "clamp(36px, 4vw, 52px)" }}>
-              Você vende. Seu cliente usa.{" "}
-              <span style={{ color: GREEN }}>Você recebe todo mês.</span>
+            <h2 className="font-extrabold leading-[1.05] tracking-[-0.03em]" style={{ fontSize: "clamp(36px, 4vw, 56px)" }}>
+              5 passos para sua agência{" "}
+              <span style={{ background: `linear-gradient(135deg, ${GREEN}, ${BLUE})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                virar SaaS
+              </span>
             </h2>
           </motion.div>
-
-          {/* Flow */}
-          <div className="relative">
-            {/* Connector line (desktop) */}
-            <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-0.5 -translate-y-1/2" style={{ zIndex: 0 }}>
-              <div style={{ height: "100%", background: `linear-gradient(90deg, #A78BFA, ${GREEN}, ${BLUE}, ${CYAN})`, opacity: 0.5 }} />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative" style={{ zIndex: 1 }}>
-              {FLOW_NODES.map(({ icon: Icon, title, sub, color }, i) => (
-                <motion.div key={title} {...fadeF(i * 0.12)} className="text-center">
-                  <div className="relative inline-flex flex-col items-center">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 mx-auto"
-                      style={{ background: `${color}12`, border: `1px solid ${color}25`, boxShadow: `0 0 24px ${color}15` }}>
-                      <Icon size={26} style={{ color }} />
-                    </div>
-                    <div className="rounded-2xl p-5 w-full" style={{ background: `linear-gradient(180deg, ${CARD}, ${BG2})`, border: `1px solid ${BORDER}` }}>
-                      <p className="text-sm font-bold mb-1" style={{ color: WHITE }}>{title}</p>
-                      <p className="text-xs" style={{ color: MUTED }}>{sub}</p>
-                    </div>
-                  </div>
-                  {i < FLOW_NODES.length - 1 && (
-                    <div className="lg:hidden flex justify-center my-3">
-                      <ArrowRight size={16} className="rotate-90" style={{ color: `${GREEN}50` }} />
-                    </div>
-                  )}
-                </motion.div>
-              ))}
-            </div>
-          </div>
+          <ZPPIASteps steps={PARCEIROS_STEPS} color={GREEN} />
         </div>
       </section>
 
@@ -666,7 +697,7 @@ export default function ParceirosPage() {
       </section>
 
       {/* ── MRR SEÇÃO MELHORADA ── */}
-      <section className="py-20 px-6 relative overflow-hidden" style={{ background: BG2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+      <section id="mrr" className="py-20 px-6 relative overflow-hidden" style={{ background: BG2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
         <div className="max-w-[1000px] mx-auto">
           <motion.div {...fade} className="text-center mb-12">
             <p className="section-label mb-4">Potencial de Recorrência</p>
@@ -758,7 +789,7 @@ export default function ParceirosPage() {
       </section>
 
       {/* ── O QUE SUA AGÊNCIA ENTREGA ── */}
-      <section className="py-32 px-6" style={{ background: BG2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+      <section id="produto" className="py-32 px-6" style={{ background: BG2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
         <div className="max-w-[1100px] mx-auto">
           <motion.div {...fade} className="text-center mb-14">
             <p className="section-label mb-4">O Produto</p>
@@ -993,7 +1024,7 @@ export default function ParceirosPage() {
       </section>
 
       {/* ── FAQ ACCORDION ── */}
-      <section className="py-20 px-6" style={{ borderTop: `1px solid ${BORDER}` }}>
+      <section id="faq" className="py-20 px-6" style={{ borderTop: `1px solid ${BORDER}` }}>
         <div className="max-w-[700px] mx-auto">
           <motion.div {...fade} className="mb-8">
             <h2 className="text-2xl font-extrabold tracking-[-0.02em]" style={{ color: WHITE }}>Perguntas Frequentes</h2>

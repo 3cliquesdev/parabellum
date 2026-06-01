@@ -350,6 +350,7 @@ export default function ParceirosPage() {
           backgroundImage: `linear-gradient(rgba(34,197,94,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(34,197,94,0.5) 1px, transparent 1px)`,
           backgroundSize: "60px 60px",
         }} />
+
         <div className="relative max-w-[1260px] mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center py-20">
           <motion.div {...fade}>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-xs font-bold uppercase tracking-widest"
@@ -456,7 +457,7 @@ export default function ParceirosPage() {
           <div className="relative">
             {/* Connector line (desktop) */}
             <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-0.5 -translate-y-1/2" style={{ zIndex: 0 }}>
-              <div style={{ height: "100%", background: `linear-gradient(90deg, #A78BFA, ${GREEN}, ${BLUE}, ${CYAN})`, opacity: 0.3 }} />
+              <div style={{ height: "100%", background: `linear-gradient(90deg, #A78BFA, ${GREEN}, ${BLUE}, ${CYAN})`, opacity: 0.5 }} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative" style={{ zIndex: 1 }}>
@@ -596,8 +597,10 @@ export default function ParceirosPage() {
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {TECH_CARDS.map(({ icon: Icon, title, desc, color }, i) => (
-              <motion.div key={title} {...fadeF(i * 0.08)} className="rounded-[20px] p-7"
-                style={{ background: `linear-gradient(180deg, ${CARD}, ${BG2})`, border: `1px solid ${BORDER}` }}>
+              <motion.div key={title} {...fadeF(i * 0.08)} className="rounded-[20px] p-7 cursor-default"
+                style={{ background: `linear-gradient(180deg, ${CARD}, ${BG2})`, border: `1px solid ${BORDER}`, transition: "transform 0.2s, box-shadow 0.2s" }}
+                onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = "translateY(-4px)"; el.style.boxShadow = `0 12px 32px rgba(0,0,0,0.5), 0 0 20px ${color}12`; }}
+                onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = ""; el.style.boxShadow = ""; }}>
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5" style={{ background: `${color}12`, boxShadow: `0 0 20px ${color}18` }}>
                   <Icon size={22} style={{ color }} />
                 </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { NavBar } from "@/components/marketing/NavBar";
 import { Footer } from "@/components/marketing/Footer";
@@ -26,6 +26,55 @@ const CYAN = "#22D3EE";
 
 const fade = { initial: { opacity: 0, y: 40 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true as const }, transition: { duration: 0.6 } };
 const fadeF = (delay: number) => ({ ...fade, transition: { duration: 0.6, delay } });
+// Premium cinematic reveal — ease-out-expo (design skills)
+const premiumReveal = (delay = 0) => ({
+  initial: { opacity: 0, y: 40, scale: 0.97 },
+  whileInView: { opacity: 1, y: 0, scale: 1 },
+  viewport: { once: true as const },
+  transition: { duration: 0.85, delay, ease: [0.22, 1, 0.36, 1] as const },
+});
+
+// AnimatedNumber — countUp on scroll (green version)
+function AnimatedNumber({ value, color, prefix = "" }: { value: string; color: string; prefix?: string }) {
+  const numeric = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
+  const suffix = value.replace(/[0-9.,\s]/g, "").trim();
+  const [display, setDisplay] = useState(0);
+  const [started, setStarted] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (started || numeric === 0) return;
+    const observer = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started) {
+        setStarted(true);
+        const dur = 1400;
+        const fps = 60;
+        const frames = (dur / 1000) * fps;
+        let frame = 0;
+        const tick = () => {
+          frame++;
+          const progress = 1 - Math.pow(1 - frame / frames, 4);
+          setDisplay(numeric * Math.min(progress, 1));
+          if (frame < frames) requestAnimationFrame(tick);
+          else setDisplay(numeric);
+        };
+        requestAnimationFrame(tick);
+      }
+    }, { threshold: 0.5 });
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [numeric, started]);
+
+  const formatted = numeric >= 1000
+    ? Math.round(display).toLocaleString("pt-BR")
+    : Math.round(display).toString();
+
+  return (
+    <p ref={ref} className="text-xl font-extrabold" style={{ color }}>
+      {prefix}{formatted}{suffix}
+    </p>
+  );
+}
 
 // ─── Grain Overlay ───
 function GrainOverlay({ opacity = 0.025 }: { opacity?: number }) {
@@ -61,7 +110,7 @@ function CRMMockup() {
         className="absolute -top-5 -right-3 rounded-2xl px-4 py-3 hidden md:block"
         style={{ background: "rgba(16,23,32,0.92)", border: `1px solid ${BORDER}`, backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
         <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4B5563" }}>Recorrência</p>
-        <p className="text-xl font-extrabold" style={{ color: GREEN }}>85%</p>
+        <AnimatedNumber value="85%" color={GREEN} />
         <p className="text-[9px]" style={{ color: "#4B5563" }}>do que você cobrar</p>
       </motion.div>
 
@@ -69,7 +118,7 @@ function CRMMockup() {
         className="absolute -bottom-4 -right-3 rounded-2xl px-4 py-3 hidden md:block"
         style={{ background: "rgba(16,23,32,0.92)", border: `1px solid ${BORDER}`, backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
         <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4B5563" }}>Sua comissão</p>
-        <p className="text-xl font-extrabold" style={{ background: `linear-gradient(135deg,${GREEN},${BLUE})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>+R$12.673</p>
+        <AnimatedNumber value="12.673" color={GREEN} prefix="+R$" />
         <p className="text-[9px]" style={{ color: "#4B5563" }}>30 clientes ativos</p>
       </motion.div>
 
@@ -77,7 +126,7 @@ function CRMMockup() {
         className="absolute -top-5 -left-3 rounded-2xl px-4 py-3 hidden lg:block"
         style={{ background: "rgba(16,23,32,0.92)", border: `1px solid ${BORDER}`, backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
         <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4B5563" }}>Clientes</p>
-        <p className="text-xl font-extrabold" style={{ color: CYAN }}>30</p>
+        <AnimatedNumber value="30" color={CYAN} />
         <p className="text-[9px]" style={{ color: "#4B5563" }}>workspaces ativos</p>
       </motion.div>
 
@@ -328,7 +377,7 @@ function ZPPIASteps({ steps, color }: { steps: { num: string; title: string; des
 
 export default function ParceirosPage() {
   return (
-    <main style={{ background: BG, color: WHITE, fontFamily: "var(--font-sans)", overflowX: "hidden" }}>
+    <main style={{ background: BG, color: WHITE, fontFamily: "var(--font-sans)", overflowX: "hidden", scrollBehavior: "smooth" }}>
       <NavBar
         links={[
           { label: "Como funciona", href: "#como-funciona" },
@@ -348,9 +397,13 @@ export default function ParceirosPage() {
           className="absolute inset-0 w-full h-full object-cover pointer-events-none"
           style={{ opacity: 0.30, mixBlendMode: "luminosity", zIndex: 0 }}
         />
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background: `radial-gradient(circle at 70% 30%, rgba(34,197,94,0.14), transparent 40%), radial-gradient(circle at 25% 70%, rgba(59,130,246,0.12), transparent 40%), radial-gradient(circle at 50% 50%, rgba(34,197,94,0.05), transparent 60%)`,
-        }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: `
+          radial-gradient(ellipse 700px 500px at 70% -10%, rgba(34,197,94,0.12), transparent),
+          radial-gradient(ellipse 500px 400px at 100% 45%, rgba(59,130,246,0.08), transparent),
+          radial-gradient(ellipse 600px 450px at 20% 75%, rgba(59,130,246,0.07), transparent),
+          radial-gradient(ellipse 350px 250px at 50% 50%, rgba(34,197,94,0.04), transparent),
+          radial-gradient(ellipse 280px 200px at 85% 85%, rgba(34,211,238,0.05), transparent)
+        ` }} />
         <div className="absolute inset-0 pointer-events-none opacity-[0.035]" style={{
           backgroundImage: `linear-gradient(rgba(34,197,94,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(34,197,94,0.5) 1px, transparent 1px)`,
           backgroundSize: "60px 60px",
@@ -374,10 +427,15 @@ export default function ParceirosPage() {
               Venda CRM, WhatsApp com IA e automações para seus clientes sem precisar desenvolver tecnologia do zero.
             </p>
             <div className="flex flex-wrap gap-4 mb-8">
-              <Link href="/signup" className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-200 hover:-translate-y-0.5"
-                style={{ background: `linear-gradient(135deg, ${GREEN}, ${BLUE})`, color: WHITE, boxShadow: `0 0 40px rgba(34,197,94,0.25)` }}>
-                Quero virar parceiro <ArrowRight size={18} />
-              </Link>
+              <motion.div
+                animate={{ boxShadow: ["0 0 40px rgba(34,197,94,0.25)", "0 0 70px rgba(34,197,94,0.52)", "0 0 40px rgba(34,197,94,0.25)"] }}
+                transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                style={{ borderRadius: 16, display: "inline-flex" }}>
+                <Link href="/signup" className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-200 hover:-translate-y-0.5"
+                  style={{ background: `linear-gradient(135deg, ${GREEN}, ${BLUE})`, color: WHITE }}>
+                  Quero virar parceiro <ArrowRight size={18} />
+                </Link>
+              </motion.div>
               <Link href="#como-funciona" className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-base"
                 style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, color: WHITE }}>
                 Ver como funciona
@@ -679,7 +737,7 @@ export default function ParceirosPage() {
             <p className="text-lg mt-4" style={{ color: MUTED }}>É assim que seus clientes veem o produto que você vende</p>
           </motion.div>
 
-          <motion.div {...fadeF(0.15)} style={{ transform: "perspective(2000px) rotateX(3deg)" }}>
+          <motion.div {...premiumReveal(0.15)} style={{ transform: "perspective(2000px) rotateX(3deg)" }}>
             <div style={{
               borderRadius: 20,
               overflow: "hidden",

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { NavBar } from "@/components/marketing/NavBar";
 import { Footer } from "@/components/marketing/Footer";
@@ -32,6 +32,55 @@ const fade = (delay = 0) => ({
   viewport: { once: true as const },
   transition: { duration: 0.8, delay },
 });
+// Premium cinematic reveal — ease-out-expo (design skills)
+const premiumReveal = (delay = 0) => ({
+  initial: { opacity: 0, y: 40, scale: 0.97 },
+  whileInView: { opacity: 1, y: 0, scale: 1 },
+  viewport: { once: true as const },
+  transition: { duration: 0.85, delay, ease: [0.22, 1, 0.36, 1] as const },
+});
+
+// AnimatedNumber — countUp on scroll (champagne version)
+function AnimatedNumber({ value, color }: { value: string; color: string }) {
+  const numeric = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
+  const suffix = value.replace(/[0-9.,\s]/g, "").trim();
+  const [display, setDisplay] = useState(0);
+  const [started, setStarted] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (started || numeric === 0) return;
+    const observer = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started) {
+        setStarted(true);
+        const dur = 1400;
+        const fps = 60;
+        const frames = (dur / 1000) * fps;
+        let frame = 0;
+        const tick = () => {
+          frame++;
+          const progress = 1 - Math.pow(1 - frame / frames, 4);
+          setDisplay(numeric * Math.min(progress, 1));
+          if (frame < frames) requestAnimationFrame(tick);
+          else setDisplay(numeric);
+        };
+        requestAnimationFrame(tick);
+      }
+    }, { threshold: 0.5 });
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [numeric, started]);
+
+  const formatted = numeric >= 1000
+    ? Math.round(display).toLocaleString("pt-BR")
+    : Math.round(display).toString();
+
+  return (
+    <p ref={ref} className="text-base font-extrabold" style={{ color }}>
+      R${formatted}{suffix}
+    </p>
+  );
+}
 
 // ─── Grain Overlay ───
 function GrainOverlay({ opacity = 0.025 }: { opacity?: number }) {
@@ -91,7 +140,7 @@ function OpusMockup() {
         className="absolute -top-5 -left-5 rounded-2xl px-4 py-3 hidden lg:block"
         style={{ background: `linear-gradient(135deg, ${CARD}, ${BG2})`, border: `1px solid ${BLUE_L}22`, backdropFilter: "blur(16px)", boxShadow: "0 8px 32px rgba(0,0,0,0.7)" }}>
         <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: SOFT }}>Pipeline</p>
-        <p className="text-base font-extrabold" style={{ color: BLUE_L }}>R$340k</p>
+        <AnimatedNumber value="340k" color={BLUE_L} />
         <p className="text-[9px]" style={{ color: SOFT }}>Em andamento</p>
       </motion.div>
     </div>
@@ -205,7 +254,7 @@ function ZPPIAStepsOpus({ steps, color }: { steps: { num: string; title: string;
 
 export default function OpusPage() {
   return (
-    <main style={{ background: BG, color: WHITE, fontFamily: "var(--font-sans)", overflowX: "hidden" }}>
+    <main style={{ background: BG, color: WHITE, fontFamily: "var(--font-sans)", overflowX: "hidden", scrollBehavior: "smooth" }}>
       <NavBar
         hideCTA
         links={[
@@ -224,9 +273,13 @@ export default function OpusPage() {
           className="absolute inset-0 w-full h-full object-cover pointer-events-none"
           style={{ opacity: 0.28, mixBlendMode: "luminosity", zIndex: 0 }}
         />
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background: `radial-gradient(circle at 65% 25%, rgba(214,179,106,0.13), transparent 38%), radial-gradient(circle at 30% 70%, rgba(37,99,235,0.1), transparent 40%), radial-gradient(circle at 50% 50%, rgba(214,179,106,0.04), transparent 60%)`,
-        }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: `
+          radial-gradient(ellipse 700px 500px at 65% -15%, rgba(214,179,106,0.12), transparent),
+          radial-gradient(ellipse 500px 400px at 100% 40%, rgba(37,99,235,0.08), transparent),
+          radial-gradient(ellipse 600px 450px at 30% 75%, rgba(37,99,235,0.07), transparent),
+          radial-gradient(ellipse 350px 250px at 50% 50%, rgba(214,179,106,0.04), transparent),
+          radial-gradient(ellipse 300px 200px at 80% 90%, rgba(96,165,250,0.05), transparent)
+        ` }} />
         <div className="absolute inset-0 pointer-events-none opacity-[0.02]" style={{
           backgroundImage: `linear-gradient(rgba(214,179,106,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(214,179,106,0.5) 1px, transparent 1px)`,
           backgroundSize: "60px 60px",
@@ -247,11 +300,16 @@ export default function OpusPage() {
               Uma estrutura premium com IA, WhatsApp e automações personalizadas para sua empresa operar vendas e atendimento como uma grande operação tecnológica.
             </p>
             <div className="flex flex-wrap gap-4 mb-10">
-              <Link href="mailto:contato@libertycrm.com.br?subject=Liberty Opus"
-                className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl font-bold text-base transition-all hover:-translate-y-0.5"
-                style={{ background: `linear-gradient(135deg, ${CHAMP}, #F4E3B2, ${GOLD})`, color: BG2, boxShadow: `0 0 50px rgba(214,179,106,0.22)` }}>
-                Agendar apresentação <ArrowRight size={18} />
-              </Link>
+              <motion.div
+                animate={{ boxShadow: ["0 0 50px rgba(214,179,106,0.22)", "0 0 80px rgba(214,179,106,0.48)", "0 0 50px rgba(214,179,106,0.22)"] }}
+                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+                style={{ borderRadius: 16, display: "inline-flex" }}>
+                <Link href="mailto:contato@libertycrm.com.br?subject=Liberty Opus"
+                  className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl font-bold text-base transition-all hover:-translate-y-0.5"
+                  style={{ background: `linear-gradient(135deg, ${CHAMP}, #F4E3B2, ${GOLD})`, color: BG2 }}>
+                  Agendar apresentação <ArrowRight size={18} />
+                </Link>
+              </motion.div>
               <Link href="#estrutura" className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-base"
                 style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, color: WHITE }}>
                 Ver estrutura do Opus
@@ -537,7 +595,7 @@ export default function OpusPage() {
             <p className="text-lg mt-4" style={{ color: MUTED }}>É assim que sua empresa opera com o Liberty Opus</p>
           </motion.div>
 
-          <motion.div {...fade(0.15)} style={{ transform: "perspective(2000px) rotateX(3deg)" }}>
+          <motion.div {...premiumReveal(0.15)} style={{ transform: "perspective(2000px) rotateX(3deg)" }}>
             <div style={{
               borderRadius: 24,
               overflow: "hidden",
@@ -571,7 +629,7 @@ export default function OpusPage() {
             </div>
           </motion.div>
 
-          <motion.div {...fade(0.15)}>
+          <motion.div {...premiumReveal(0.15)}>
             <div style={{ borderRadius: 20, overflow: "hidden", border: "1px solid rgba(214,179,106,0.18)", boxShadow: "0 40px 80px rgba(0,0,0,0.7), 0 0 60px rgba(214,179,106,0.08)" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/images/opus/mockup-inbox.png" alt="WhatsApp com IA treinada"
@@ -595,7 +653,7 @@ export default function OpusPage() {
             </p>
           </motion.div>
 
-          <motion.div {...fade(0.1)} className="mt-12">
+          <motion.div {...premiumReveal(0.1)} className="mt-12">
             <div style={{ borderRadius: 20, overflow: "hidden", border: "1px solid rgba(214,179,106,0.15)", boxShadow: "0 40px 80px rgba(0,0,0,0.7)" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/images/opus/mockup-knowledge.png" alt="Base de conhecimento com IA"
@@ -614,7 +672,7 @@ export default function OpusPage() {
               Controle sua operação <span style={{ color: CHAMP }}>com clareza</span>
             </h2>
           </motion.div>
-          <motion.div {...fade(0.1)}>
+          <motion.div {...premiumReveal(0.1)}>
             <div style={{ borderRadius: 24, overflow: "hidden", border: "1px solid rgba(214,179,106,0.15)", boxShadow: "0 40px 80px rgba(0,0,0,0.7), 0 0 60px rgba(214,179,106,0.06)" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/images/opus/mockup-dashboard.png" alt="Dashboard executivo — visão da operação"

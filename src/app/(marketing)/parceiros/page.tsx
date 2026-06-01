@@ -36,106 +36,23 @@ function GrainOverlay({ opacity = 0.025 }: { opacity?: number }) {
   );
 }
 
-// ─── CRM Mockup V2 (maior e mais elaborado) ───
+// ─── CRM Mockup — imagem real do produto ───
 function CRMMockup() {
   return (
-    <div className="relative w-full max-w-[680px]" style={{ fontFamily: "var(--font-sans)" }}>
-      <div className="rounded-[22px] overflow-hidden" style={{
-        background: "linear-gradient(180deg, #131B2A 0%, #0B1120 100%)",
-        border: "1px solid rgba(255,255,255,0.1)",
-        boxShadow: "0 60px 120px rgba(0,0,0,0.9), 0 0 0 1px rgba(34,197,94,0.08)",
-      }}>
-        {/* Header */}
-        <div className="px-5 h-11 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "#0D1526" }}>
-          <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: GREEN }}>
-            <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#000" /></svg>
-          </div>
-          <span className="text-xs font-bold" style={{ color: WHITE }}>Digital Pro CRM</span>
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${GREEN}18`, color: GREEN }}>● Online</span>
-            <div className="flex gap-1">{["#22C55E","#EAB308","#EF4444"].map(c=><div key={c} style={{width:7,height:7,borderRadius:99,background:c,opacity:0.7}}/>)}</div>
-          </div>
-        </div>
-
-        <div className="flex">
-          {/* Sidebar */}
-          <div className="w-12 flex flex-col items-center gap-3 py-4 shrink-0" style={{ borderRight: "1px solid rgba(255,255,255,0.06)", background: "#0A1020" }}>
-            {[
-              { Icon: BarChart2, active: false },
-              { Icon: Users, active: true },
-              { Icon: MessageSquare, active: false },
-              { Icon: Megaphone, active: false },
-              { Icon: Bot, active: false },
-            ].map(({ Icon, active }, i) => (
-              <div key={i} className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: active ? `${GREEN}20` : "rgba(255,255,255,0.04)" }}>
-                <Icon size={13} style={{ color: active ? GREEN : "#4B5563" }} />
-              </div>
-            ))}
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 p-4 space-y-3">
-            {/* MRR row */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl p-3" style={{ background: `${GREEN}08`, border: `1px solid ${GREEN}18` }}>
-                <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "#4B5563" }}>MRR</p>
-                <p className="text-lg font-extrabold leading-none" style={{ color: GREEN }}>R$14.910</p>
-                <p className="text-[9px] mt-0.5 font-bold" style={{ color: `${GREEN}70` }}>▲ +23% este mês</p>
-              </div>
-              <div className="rounded-xl p-3" style={{ background: `${BLUE}08`, border: `1px solid ${BLUE}18` }}>
-                <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "#4B5563" }}>Sua comissão</p>
-                <p className="text-lg font-extrabold leading-none" style={{ color: BLUE }}>R$12.673</p>
-                <p className="text-[9px] mt-0.5 font-bold" style={{ color: `${BLUE}70` }}>85% do MRR</p>
-              </div>
-            </div>
-
-            {/* Clients */}
-            <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}` }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4B5563" }}>Workspaces ativos</p>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${GREEN}15`, color: GREEN }}>30 total</span>
-              </div>
-              {[
-                { name: "Studio Pixel", color: GREEN, mrr: "R$497" },
-                { name: "Clínica Vital", color: BLUE, mrr: "R$397" },
-                { name: "Imóveis Plus", color: "#A78BFA", mrr: "R$597" },
-              ].map(c => (
-                <div key={c.name} className="flex items-center gap-2 py-1.5">
-                  <div className="shrink-0" style={{ width: 6, height: 6, borderRadius: 99, background: c.color }} />
-                  <span className="flex-1 text-[10px] font-medium" style={{ color: MUTED }}>{c.name}</span>
-                  <span className="text-[10px] font-bold" style={{ color: c.color }}>{c.mrr}/mês</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Pipeline mini */}
-            <div className="grid grid-cols-4 gap-1.5">
-              {[
-                { l: "Novo", n: 8, c: BLUE, w: "60%" },
-                { l: "Proposta", n: 5, c: "#EAB308", w: "40%" },
-                { l: "Negoc.", n: 3, c: "#F97316", w: "25%" },
-                { l: "Ganhos", n: 11, c: GREEN, w: "85%" },
-              ].map(p => (
-                <div key={p.l} className="rounded-lg p-2" style={{ background: `${p.c}10`, border: `1px solid ${p.c}22` }}>
-                  <p className="text-base font-extrabold leading-none" style={{ color: p.c }}>{p.n}</p>
-                  <p className="text-[8px] mt-1" style={{ color: `${p.c}80` }}>{p.l}</p>
-                  <div className="mt-1.5 h-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
-                    <div style={{ width: p.w, height: "100%", borderRadius: 99, background: p.c }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* IA card */}
-            <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: `${GREEN}07`, border: `1px solid ${GREEN}18` }}>
-              <Bot size={14} style={{ color: GREEN }} />
-              <div className="flex-1">
-                <p className="text-[10px] font-bold" style={{ color: GREEN }}>IA respondendo agora</p>
-                <p className="text-[9px]" style={{ color: "#4B5563" }}>"Olá! Posso ajudar com o que precisar 😊"</p>
-              </div>
-              <div className="flex gap-0.5">{[0,1,2].map(i=><div key={i} className="w-1 h-1 rounded-full animate-bounce" style={{background:GREEN,animationDelay:`${i*0.15}s`}}/>)}</div>
-            </div>
-          </div>
+    <div className="relative w-full max-w-[720px]">
+      <div style={{ transform: "perspective(1800px) rotateX(2deg) rotateY(-1deg)" }}>
+        <div style={{
+          borderRadius: 22,
+          overflow: "hidden",
+          border: "1px solid rgba(255,255,255,0.12)",
+          boxShadow: "0 80px 160px rgba(0,0,0,0.9), 0 0 100px rgba(34,197,94,0.12)",
+        }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/parceiros/mockup-parceiro.webp"
+            alt="Digital Pro CRM — Painel de Parceiro"
+            style={{ display: "block", width: "100%", height: "auto" }}
+          />
         </div>
       </div>
 
@@ -223,94 +140,40 @@ function AccordionFAQ() {
   );
 }
 
-// ─── Delivery Mockups ───
+// ─── Delivery Mockups — imagens reais ───
 function InboxMockup() {
   return (
-    <div className="rounded-[18px] overflow-hidden" style={{ background: "linear-gradient(180deg,#131B2A,#0B1120)", border:`1px solid ${BORDER}` }}>
-      <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom:`1px solid ${BORDER}`, background:"#0D1526" }}>
-        <MessageSquare size={12} style={{color:"#4ADE80"}}/>
-        <span className="text-[10px] font-bold" style={{color:WHITE}}>Inbox WhatsApp</span>
-        <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{background:`${GREEN}18`,color:GREEN}}>IA ativa 24h</span>
-      </div>
-      <div className="p-4 space-y-2">
-        {[
-          { from:"client", text:"Qual o plano ideal para mim?", time:"14:23" },
-          { from:"ai", text:"Para até 500 leads, o plano Pro é perfeito! Quer que eu mostre o que inclui?", time:"14:23" },
-          { from:"client", text:"Sim, me mostra!", time:"14:24" },
-          { from:"ai", text:"O plano Pro inclui: pipeline ilimitado, WhatsApp com IA, relatórios avançados e suporte. Por apenas R$197/mês 🚀", time:"14:24" },
-        ].map((m,i)=>(
-          <div key={i} className={`flex ${m.from==="client"?"justify-end":"justify-start gap-1.5"}`}>
-            {m.from==="ai" && <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{background:`${GREEN}18`}}><Bot size={9} style={{color:GREEN}}/></div>}
-            <div>
-              <div className="px-2.5 py-1.5 rounded-xl text-[10px] max-w-[82%] leading-relaxed"
-                style={m.from==="client" ? {background:"#1E3A2F",color:"#86EFAC"} : {background:"#1C1F2E",color:MUTED}}>
-                {m.text}
-              </div>
-              <p className="text-[8px] mt-0.5 px-1" style={{color:"#374151",textAlign:m.from==="client"?"right":"left"}}>{m.time}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/images/parceiros/mockup-inbox.webp"
+      alt="Inbox WhatsApp com IA"
+      loading="lazy"
+      style={{ display: "block", width: "100%", borderRadius: 12 }}
+    />
   );
 }
 
 function PipelineMockup() {
   return (
-    <div className="rounded-[18px] overflow-hidden" style={{ background: "linear-gradient(180deg,#131B2A,#0B1120)", border:`1px solid ${BORDER}` }}>
-      <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom:`1px solid ${BORDER}`, background:"#0D1526" }}>
-        <BarChart2 size={12} style={{color:BLUE}}/>
-        <span className="text-[10px] font-bold" style={{color:WHITE}}>Pipeline Comercial</span>
-        <span className="ml-auto text-[9px] font-bold" style={{color:"#EAB308"}}>R$47.000 em negociação</span>
-      </div>
-      <div className="p-3 grid grid-cols-4 gap-2">
-        {[
-          {l:"Novo",items:["João S.","Maria C.","Pedro L."],c:BLUE},
-          {l:"Proposta",items:["Ana T.","Carlos M."],c:"#EAB308"},
-          {l:"Negoc.",items:["Lucia F."],c:"#F97316"},
-          {l:"Ganho",items:["Bruno K.","Carla N.","Rita S."],c:GREEN},
-        ].map(col=>(
-          <div key={col.l}>
-            <p className="text-[9px] font-bold mb-1.5 px-1" style={{color:`${col.c}90`}}>{col.l} ({col.items.length})</p>
-            {col.items.map(n=>(
-              <div key={n} className="mb-1.5 px-2 py-1.5 rounded-lg text-[9px] font-medium" style={{background:`${col.c}12`,border:`1px solid ${col.c}20`,color:WHITE}}>
-                {n}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/images/parceiros/mockup-pipeline.webp"
+      alt="Pipeline Comercial"
+      loading="lazy"
+      style={{ display: "block", width: "100%", borderRadius: 12 }}
+    />
   );
 }
 
 function DashboardMockup() {
   return (
-    <div className="rounded-[18px] overflow-hidden" style={{ background: "linear-gradient(180deg,#131B2A,#0B1120)", border:`1px solid ${BORDER}` }}>
-      <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom:`1px solid ${BORDER}`, background:"#0D1526" }}>
-        <TrendingUp size={12} style={{color:CYAN}}/>
-        <span className="text-[10px] font-bold" style={{color:WHITE}}>Dashboard Performance</span>
-      </div>
-      <div className="p-3 space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          {[{l:"Leads",v:"248",c:BLUE},{l:"Conversão",v:"34%",c:GREEN},{l:"MRR",v:"R$14.910",c:CYAN},{l:"Mensagens",v:"1.247",c:"#A78BFA"}].map(m=>(
-            <div key={m.l} className="rounded-lg p-2.5" style={{background:`${m.c}09`,border:`1px solid ${m.c}18`}}>
-              <p className="text-base font-extrabold leading-none" style={{color:m.c}}>{m.v}</p>
-              <p className="text-[9px] mt-0.5" style={{color:"#4B5563"}}>{m.l}</p>
-            </div>
-          ))}
-        </div>
-        {/* Mini bar chart */}
-        <div className="rounded-lg p-2.5" style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${BORDER}`}}>
-          <p className="text-[9px] font-bold mb-2" style={{color:"#4B5563"}}>Leads / semana</p>
-          <div className="flex items-end gap-1 h-8">
-            {[30,45,38,60,55,80,72].map((h,i)=>(
-              <div key={i} className="flex-1 rounded-sm" style={{height:`${h}%`,background:i===5?GREEN:BLUE,opacity:i===5?1:0.4}}/>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/images/parceiros/mockup-dashboard.webp"
+      alt="Dashboard de Performance"
+      loading="lazy"
+      style={{ display: "block", width: "100%", borderRadius: 12 }}
+    />
   );
 }
 
@@ -479,6 +342,12 @@ export default function ParceirosPage() {
 
       {/* ── HERO ── */}
       <section className="relative min-h-screen flex items-center pt-16 px-6 md:px-12">
+        {/* Background atmosférico */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/parceiros/bg-hero.webp" alt="" aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          style={{ opacity: 0.30, mixBlendMode: "luminosity", zIndex: 0 }}
+        />
         <div className="absolute inset-0 pointer-events-none" style={{
           background: `radial-gradient(circle at 70% 30%, rgba(34,197,94,0.14), transparent 40%), radial-gradient(circle at 25% 70%, rgba(59,130,246,0.12), transparent 40%), radial-gradient(circle at 50% 50%, rgba(34,197,94,0.05), transparent 60%)`,
         }} />
@@ -602,68 +471,20 @@ export default function ParceirosPage() {
         <div className="relative max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-5 gap-12 items-center">
           {/* Mockup painel agência — 3 colunas */}
           <motion.div {...fadeF(0.1)} className="lg:col-span-3">
-            <div className="rounded-[22px] overflow-hidden" style={{
-              background: "linear-gradient(180deg, #0D1526 0%, #080F1C 100%)",
-              border: `1px solid rgba(34,197,94,0.2)`,
-              boxShadow: `0 40px 100px rgba(0,0,0,0.8), 0 0 80px rgba(34,197,94,0.08)`,
+            <div style={{
+              borderRadius: 22,
+              overflow: "hidden",
+              border: "1px solid rgba(34,197,94,0.18)",
+              boxShadow: "0 40px 100px rgba(0,0,0,0.8), 0 0 80px rgba(34,197,94,0.10)",
               transform: "perspective(1800px) rotateX(2deg) rotateY(1deg)",
             }}>
-              {/* Header */}
-              <div className="px-5 h-10 flex items-center gap-3" style={{ borderBottom: `1px solid rgba(34,197,94,0.12)`, background: "#060D19" }}>
-                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: GREEN }}>
-                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#000" /></svg>
-                </div>
-                <span className="text-xs font-bold" style={{ color: WHITE }}>Agência Digital Pro — Painel de Parceiro</span>
-                <div className="ml-auto flex items-center gap-2">
-                  <span className="text-[9px] font-mono" style={{ color: "#4B5563" }}>agenciadigitalpro.crm.com.br</span>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${GREEN}18`, color: GREEN }}>white-label: ativo</span>
-                </div>
-              </div>
-              <div className="p-5 space-y-4">
-                {/* KPIs */}
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { l: "Clientes ativos", v: "30", c: GREEN },
-                    { l: "MRR total", v: "R$14.910", c: BLUE },
-                    { l: "Sua comissão", v: "R$12.673", c: CYAN },
-                    { l: "Workspaces", v: "30/50", c: "#A78BFA" },
-                  ].map(m => (
-                    <div key={m.l} className="rounded-xl p-3" style={{ background: `${m.c}08`, border: `1px solid ${m.c}18` }}>
-                      <p className="text-sm font-extrabold leading-none" style={{ color: m.c }}>{m.v}</p>
-                      <p className="text-[9px] mt-1" style={{ color: "#4B5563" }}>{m.l}</p>
-                    </div>
-                  ))}
-                </div>
-                {/* Client list */}
-                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4B5563" }}>Clientes</p>
-                    <button className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${GREEN}15`, color: GREEN }}>+ Criar novo cliente</button>
-                  </div>
-                  {[
-                    { name: "Studio Pixel", mrr: "R$497", status: "Pago", sc: GREEN },
-                    { name: "Clínica Vital", mrr: "R$397", status: "Pago", sc: GREEN },
-                    { name: "Imóveis Plus", mrr: "R$597", status: "Trial 12d", sc: "#EAB308" },
-                    { name: "Escritório JM", mrr: "R$297", status: "Pendente", sc: "#F97316" },
-                  ].map(c => (
-                    <div key={c.name} className="flex items-center gap-3 py-1.5" style={{ borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
-                      <div className="w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold shrink-0" style={{ background: `${GREEN}15`, color: GREEN }}>{c.name[0]}</div>
-                      <span className="flex-1 text-[10px] font-medium" style={{ color: MUTED }}>{c.name}</span>
-                      <span className="text-[9px] font-bold" style={{ color: GREEN }}>{c.mrr}/mês</span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${c.sc}12`, color: c.sc }}>{c.status}</span>
-                    </div>
-                  ))}
-                </div>
-                {/* Growth chart */}
-                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}>
-                  <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: "#4B5563" }}>Crescimento MRR</p>
-                  <div className="flex items-end gap-1.5 h-10">
-                    {[15, 25, 35, 48, 60, 75, 88, 100].map((h, i) => (
-                      <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, background: i === 7 ? `linear-gradient(180deg,${GREEN},${BLUE})` : `${GREEN}25`, boxShadow: i === 7 ? `0 0 10px ${GREEN}40` : "none" }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/parceiros/mockup-parceiro.webp"
+                alt="Painel de Parceiro — Digital Pro CRM"
+                style={{ display: "block", width: "100%", height: "auto" }}
+                loading="lazy"
+              />
             </div>
           </motion.div>
 
@@ -859,89 +680,19 @@ export default function ParceirosPage() {
           </motion.div>
 
           <motion.div {...fadeF(0.15)} style={{ transform: "perspective(2000px) rotateX(3deg)" }}>
-            <div className="rounded-[20px] overflow-hidden" style={{
-              background: "linear-gradient(180deg, #0D1526, #060D19)",
-              border: `1px solid rgba(34,197,94,0.2)`,
-              boxShadow: `0 80px 160px rgba(0,0,0,0.9), 0 0 120px rgba(34,197,94,0.08)`,
+            <div style={{
+              borderRadius: 20,
+              overflow: "hidden",
+              border: "1px solid rgba(34,197,94,0.22)",
+              boxShadow: "0 80px 160px rgba(0,0,0,0.9), 0 0 120px rgba(34,197,94,0.10)",
             }}>
-              {/* App header */}
-              <div className="px-6 h-12 flex items-center gap-3" style={{ borderBottom: `1px solid rgba(34,197,94,0.12)`, background: "#040C1A" }}>
-                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: GREEN }}>
-                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#000" /></svg>
-                </div>
-                <span className="text-sm font-bold" style={{ color: WHITE }}>Digital Pro CRM</span>
-                <div className="ml-auto flex items-center gap-3">
-                  <span className="text-xs font-mono" style={{ color: "#4B5563" }}>digitalpro.crm.com.br</span>
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: `${GREEN}15`, color: GREEN }}>✓ white-label</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-12 gap-0">
-                {/* Sidebar */}
-                <div className="col-span-2 py-5 px-3 space-y-2" style={{ borderRight: `1px solid rgba(255,255,255,0.05)`, background: "rgba(0,0,0,0.2)" }}>
-                  {[Building2, Users, MessageSquare, BarChart2, Bot, DollarSign].map((Icon, i) => (
-                    <div key={i} className="w-9 h-9 rounded-xl flex items-center justify-center mx-auto" style={{ background: i === 0 ? `${GREEN}20` : "rgba(255,255,255,0.04)" }}>
-                      <Icon size={14} style={{ color: i === 0 ? GREEN : "#4B5563" }} />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Main content */}
-                <div className="col-span-10 p-5 space-y-4">
-                  {/* Metrics */}
-                  <div className="grid grid-cols-4 gap-3">
-                    {[
-                      { l: "Clientes", v: "30", c: GREEN, sub: "+3 este mês" },
-                      { l: "MRR", v: "R$14.910", c: BLUE, sub: "▲ +23%" },
-                      { l: "Comissão", v: "R$12.673", c: CYAN, sub: "85% do MRR" },
-                      { l: "IA ativa", v: "100%", c: "#A78BFA", sub: "24h por dia" },
-                    ].map(m => (
-                      <div key={m.l} className="rounded-xl p-3" style={{ background: `${m.c}08`, border: `1px solid ${m.c}15` }}>
-                        <p className="text-lg font-extrabold leading-none" style={{ color: m.c }}>{m.v}</p>
-                        <p className="text-[10px] mt-1 font-medium" style={{ color: WHITE }}>{m.l}</p>
-                        <p className="text-[9px]" style={{ color: "#4B5563" }}>{m.sub}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Content grid */}
-                  <div className="grid grid-cols-3 gap-3">
-                    {/* Client list */}
-                    <div className="col-span-2 rounded-xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "#4B5563" }}>Workspaces ativos</p>
-                      {[
-                        { n: "Studio Pixel", v: "R$497/mês", s: "Pago", c: GREEN },
-                        { n: "Clínica Vital", v: "R$397/mês", s: "Pago", c: GREEN },
-                        { n: "Imóveis Plus", v: "R$597/mês", s: "Trial", c: "#EAB308" },
-                        { n: "Escritório JM", v: "R$297/mês", s: "Pago", c: GREEN },
-                        { n: "E-shop Br", v: "R$497/mês", s: "Pendente", c: "#F97316" },
-                      ].map(c => (
-                        <div key={c.n} className="flex items-center gap-3 py-2" style={{ borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
-                          <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-bold shrink-0" style={{ background: `${GREEN}15`, color: GREEN }}>{c.n[0]}</div>
-                          <span className="flex-1 text-[10px] font-medium" style={{ color: MUTED }}>{c.n}</span>
-                          <span className="text-[9px] font-bold" style={{ color: GREEN }}>{c.v}</span>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${c.c}12`, color: c.c }}>{c.s}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Chart */}
-                    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}` }}>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "#4B5563" }}>Crescimento MRR</p>
-                      <div className="flex items-end gap-1 h-16 mb-2">
-                        {[10, 20, 30, 42, 55, 68, 80, 95, 100].map((h, i) => (
-                          <div key={i} className="flex-1 rounded-t-sm" style={{
-                            height: `${h}%`,
-                            background: i === 8 ? `linear-gradient(180deg,${GREEN},${BLUE})` : `${GREEN}20`,
-                            boxShadow: i === 8 ? `0 0 8px ${GREEN}50` : "none",
-                          }} />
-                        ))}
-                      </div>
-                      <p className="text-[10px] font-bold" style={{ color: GREEN }}>R$14.910/mês ▲</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/parceiros/mockup-dashboard.webp"
+                alt="Digital Pro CRM — Seu SaaS white-label em operação"
+                style={{ display: "block", width: "100%", height: "auto" }}
+                loading="lazy"
+              />
             </div>
           </motion.div>
         </div>
@@ -996,6 +747,11 @@ export default function ParceirosPage() {
 
       {/* ── CTA FINAL ── */}
       <section className="py-32 px-6 relative overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/parceiros/bg-cta.webp" alt="" aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          style={{ opacity: 0.20, mixBlendMode: "screen", zIndex: 0 }}
+        />
         <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse 60% 50% at 50% 50%, rgba(34,197,94,0.08), transparent 70%)` }} />
         <motion.div {...fade} className="relative max-w-[700px] mx-auto text-center">
           <div className="rounded-[28px] p-12 md:p-16" style={{

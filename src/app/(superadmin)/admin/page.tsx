@@ -3,12 +3,20 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Users, TrendingUp, DollarSign, Activity, LogOut, RefreshCw, LayoutDashboard, Puzzle, MessageSquare, CheckCircle, XCircle, Bot } from "lucide-react";
+import { Users, TrendingUp, DollarSign, Activity, LogOut, RefreshCw, LayoutDashboard, Puzzle, MessageSquare, CheckCircle, XCircle, Bot, Building2 } from "lucide-react";
 
 interface TenantOverview {
   id: string; name: string; slug: string; created_at: string;
   plan_name: string; price_brl: number; subscription_status: string;
   current_period_end: string | null; member_count: number; lead_count: number;
+  agency_id: string | null; agency_name: string | null; agency_display_name: string | null;
+  client_price_brl: number; client_payment_status: string | null;
+}
+interface AgencyRow {
+  id: string; name: string; display_name: string | null; slug: string;
+  plan: string; status: string; payment_status: string;
+  max_tenants: number; created_at: string;
+  tenant_count: number; mrr: number;
 }
 interface WaConfig {
   tenant_id: string; phone_number_id: string; active: boolean; created_at: string;
@@ -26,8 +34,9 @@ const statusColor: Record<string, string> = { active: "#9aea62", trialing: "#fac
 export default function SuperAdminPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"clientes" | "integracoes">("clientes");
+  const [tab, setTab] = useState<"clientes" | "agencias" | "integracoes">("clientes");
   const [tenants, setTenants] = useState<TenantOverview[]>([]);
+  const [agencies, setAgencies] = useState<AgencyRow[]>([]);
   const [waConfigs, setWaConfigs] = useState<WaConfig[]>([]);
   const [aiUsage, setAiUsage] = useState<AiUsageRow[]>([]);
   const [gemini, setGemini] = useState<GeminiStats>({ active: false, totalMessages: 0, yearMonth: "" });
@@ -56,11 +65,13 @@ export default function SuperAdminPage() {
       setWaConfigs((waData as WaConfig[]) ?? []);
       setAiUsage((aiData as AiUsageRow[]) ?? []);
       if (apiRes?.gemini) setGemini(apiRes.gemini);
+      if (apiRes?.agencies) setAgencies(apiRes.agencies);
+      const mrrTotal = list.reduce((s, t) => s + Number(t.client_price_brl ?? 0), 0);
       setStats({
         total: list.length,
         active: list.filter(t => ["active", "trialing"].includes(t.subscription_status)).length,
         leads: list.reduce((s, t) => s + Number(t.lead_count ?? 0), 0),
-        mrr: list.filter(t => t.subscription_status === "active").reduce((s, t) => s + Number(t.price_brl ?? 0), 0),
+        mrr: mrrTotal || list.filter(t => t.subscription_status === "active").reduce((s, t) => s + Number(t.price_brl ?? 0), 0),
       });
     } finally { setLoading(false); }
   }
@@ -100,6 +111,7 @@ export default function SuperAdminPage() {
         <nav className="flex-1 px-3 py-4 space-y-0.5">
           {[
             { id: "clientes", icon: LayoutDashboard, label: "Clientes" },
+            { id: "agencias", icon: Building2, label: "Agências" },
             { id: "integracoes", icon: Puzzle, label: "Integrações" },
           ].map(({ id, icon: Icon, label }) => (
             <button key={id} onClick={() => setTab(id as typeof tab)}
@@ -181,14 +193,15 @@ export default function SuperAdminPage() {
               ) : (
                 <>
                   <div className="grid px-6 py-3 text-xs font-bold"
-                    style={{ gridTemplateColumns: "2fr 1fr 1fr 80px 80px 60px", color: "#939da4", background: "rgba(0,0,0,0.3)" }}>
-                    <span>Empresa</span><span>Plano</span><span>Status</span><span>Leads</span><span>Desde</span><span>WA</span>
+                    style={{ gridTemplateColumns: "2fr 1.2fr 1fr 1fr 80px 60px", color: "#939da4", background: "rgba(0,0,0,0.3)" }}>
+                    <span>Empresa</span><span>Agência</span><span>Plano</span><span>Status</span><span>Leads</span><span>WA</span>
                   </div>
                   {tenants.map((t, i) => {
                     const wa = waByTenant[t.id];
+                    const agencyLabel = t.agency_display_name ?? t.agency_name;
                     return (
                       <div key={t.id} className="grid px-6 py-4 items-center transition-colors"
-                        style={{ gridTemplateColumns: "2fr 1fr 1fr 80px 80px 60px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.04)" }}
+                        style={{ gridTemplateColumns: "2fr 1.2fr 1fr 1fr 80px 60px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.04)" }}
                         onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
                         onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                         <div className="flex items-center gap-3">
@@ -201,13 +214,16 @@ export default function SuperAdminPage() {
                             <p className="text-xs" style={{ color: "#939da4" }}>@{t.slug}</p>
                           </div>
                         </div>
+                        <span className="text-xs font-medium"
+                          style={{ color: agencyLabel ? "#60a5fa" : "rgba(147,157,164,0.4)" }}>
+                          {agencyLabel ?? "Direto"}
+                        </span>
                         <span className="text-xs font-medium text-white">{t.plan_name ?? "Starter"}</span>
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full w-fit"
                           style={{ color: statusColor[t.subscription_status] ?? "#939da4", background: `${statusColor[t.subscription_status] ?? "#939da4"}15` }}>
                           {statusLabel[t.subscription_status] ?? t.subscription_status}
                         </span>
                         <span className="text-sm font-semibold text-white">{t.lead_count ?? 0}</span>
-                        <span className="text-xs" style={{ color: "#939da4" }}>{new Date(t.created_at).toLocaleDateString("pt-BR")}</span>
                         <div>
                           {wa?.active
                             ? <CheckCircle className="w-4 h-4" style={{ color: "#9aea62" }} />
@@ -220,6 +236,78 @@ export default function SuperAdminPage() {
               )}
             </div>
           </>
+        )}
+
+        {/* ─── ABA AGÊNCIAS ─── */}
+        {tab === "agencias" && (
+          <div className="space-y-6">
+            {/* Stats agências */}
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { icon: Building2, label: "Total de agências", value: agencies.length, color: "#60a5fa" },
+                { icon: Users, label: "Clientes via agências", value: agencies.reduce((s, a) => s + a.tenant_count, 0), color: "#a78bfa" },
+                { icon: DollarSign, label: "MRR (clientes agências)", value: `R$ ${agencies.reduce((s, a) => s + a.mrr, 0).toLocaleString("pt-BR")}`, color: "#9aea62" },
+              ].map(({ icon: Icon, label, value, color }) => (
+                <div key={label} className="rounded-2xl p-6 flex flex-col gap-4" style={cardStyle}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${color}15`, border: `1px solid ${color}20` }}>
+                    <Icon className="w-4 h-4" style={{ color }} />
+                  </div>
+                  <div>
+                    <p className="text-[22px] font-extrabold text-white tracking-[-0.02em]">{value}</p>
+                    <p className="text-xs mt-0.5 font-medium" style={{ color: "#939da4" }}>{label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tabela de agências */}
+            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="px-6 py-4 flex items-center justify-between"
+                style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <h2 className="text-sm font-bold text-white">Todas as agências</h2>
+                <span className="text-xs font-medium" style={{ color: "#939da4" }}>{agencies.length} agências</span>
+              </div>
+              {agencies.length === 0 ? (
+                <div className="py-16 text-center">
+                  <p className="text-sm" style={{ color: "#939da4" }}>Nenhuma agência ainda.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid px-6 py-3 text-xs font-bold"
+                    style={{ gridTemplateColumns: "2fr 1fr 1fr 80px 100px 100px", color: "#939da4", background: "rgba(0,0,0,0.3)" }}>
+                    <span>Agência</span><span>Plano</span><span>Status</span><span>Clientes</span><span>MRR</span><span>Criada em</span>
+                  </div>
+                  {agencies.map((a, i) => (
+                    <div key={a.id} className="grid px-6 py-4 items-center transition-colors"
+                      style={{ gridTemplateColumns: "2fr 1fr 1fr 80px 100px 100px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.04)" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                          style={{ background: "rgba(96,165,250,0.1)", color: "#60a5fa" }}>
+                          {(a.display_name ?? a.name)?.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-white">{a.display_name ?? a.name}</p>
+                          <p className="text-xs" style={{ color: "#939da4" }}>@{a.slug}</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-medium text-white capitalize">{a.plan}</span>
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full w-fit"
+                        style={{ color: a.status === "active" ? "#9aea62" : "#f87171", background: a.status === "active" ? "rgba(154,234,98,0.1)" : "rgba(248,113,113,0.1)" }}>
+                        {a.status === "active" ? "Ativo" : a.status}
+                      </span>
+                      <span className="text-sm font-semibold text-white">{a.tenant_count}</span>
+                      <span className="text-sm font-bold" style={{ color: "#9aea62" }}>
+                        {a.mrr > 0 ? `R$ ${a.mrr.toLocaleString("pt-BR")}` : "—"}
+                      </span>
+                      <span className="text-xs" style={{ color: "#939da4" }}>{new Date(a.created_at).toLocaleDateString("pt-BR")}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
         )}
 
         {/* ─── ABA INTEGRAÇÕES ─── */}

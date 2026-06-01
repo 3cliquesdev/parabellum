@@ -24,11 +24,33 @@ export async function GET() {
 
   const yearMonth = new Date().toISOString().slice(0, 7);
 
-  const [{ data: tenants }, { data: waConfigs }, { data: aiUsage }] = await Promise.all([
+  const [{ data: tenants }, { data: waConfigs }, { data: aiUsage }, { data: agencies }, { data: agencyTenants }] = await Promise.all([
     admin.from("admin_tenant_overview").select("*").order("created_at", { ascending: false }),
     admin.from("whatsapp_configs").select("tenant_id, phone_number_id, active, created_at"),
     admin.from("ai_usage").select("tenant_id, count, year_month").eq("year_month", yearMonth),
+    admin.from("agencies").select("id, name, display_name, slug, plan, status, payment_status, max_tenants, created_at").order("created_at", { ascending: false }),
+    admin.from("tenants").select("agency_id").not("agency_id", "is", null),
   ]);
+
+  // Contar tenants por agência
+  const tenantCountByAgency: Record<string, number> = {};
+  (agencyTenants ?? []).forEach((t: any) => {
+    tenantCountByAgency[t.agency_id] = (tenantCountByAgency[t.agency_id] ?? 0) + 1;
+  });
+
+  // MRR por agência (soma de client_price_brl dos tenants ativos da agência)
+  const mrrByAgency: Record<string, number> = {};
+  (tenants ?? []).forEach((t: any) => {
+    if (t.agency_id && t.client_payment_status === "active") {
+      mrrByAgency[t.agency_id] = (mrrByAgency[t.agency_id] ?? 0) + Number(t.client_price_brl ?? 0);
+    }
+  });
+
+  const agenciesWithStats = (agencies ?? []).map((a: any) => ({
+    ...a,
+    tenant_count: tenantCountByAgency[a.id] ?? 0,
+    mrr: mrrByAgency[a.id] ?? 0,
+  }));
 
   const geminiActive = !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   const totalAiMessages = (aiUsage ?? []).reduce((s: number, r: any) => s + Number(r.count), 0);
@@ -37,6 +59,7 @@ export async function GET() {
     tenants: tenants ?? [],
     waConfigs: waConfigs ?? [],
     aiUsage: aiUsage ?? [],
+    agencies: agenciesWithStats,
     gemini: { active: geminiActive, totalMessages: totalAiMessages, yearMonth },
   });
 }

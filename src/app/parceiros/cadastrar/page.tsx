@@ -126,7 +126,7 @@ function CadastrarParceiro() {
               </span>
             </h1>
             <p style={{ fontSize: 15, color: LIGHT, lineHeight: 1.65, maxWidth: 400 }}>
-              Venda CRM com sua marca. Você define o preço. Liberty fica com apenas 15% — contra os 30% que os concorrentes cobram de você.
+              Venda CRM com sua marca, defina o seu preço e fique com <strong style={{ color: WHITE }}>85% de tudo que você cobrar</strong> — todos os meses, de forma recorrente.
             </p>
           </div>
 
@@ -145,8 +145,8 @@ function CadastrarParceiro() {
           <motion.div {...premiumReveal(0.45)}>
             <div style={{ padding: "14px 18px", borderRadius: 14, background: `${GREEN}07`, border: `1px solid ${GREEN}18` }}>
               <p style={{ fontSize: 13, color: `${GREEN}90`, fontWeight: 600, lineHeight: 1.5 }}>
-                Bolten cobra 30% de você. Nós ficamos com apenas 15%.<br />
-                <span style={{ color: WHITE, fontWeight: 700 }}>Sua margem é 2× maior aqui.</span>
+                Cada cliente seu = receita recorrente todo mês.<br />
+                <span style={{ color: WHITE, fontWeight: 700 }}>85% fica no seu bolso. Sempre.</span>
               </p>
             </div>
           </motion.div>

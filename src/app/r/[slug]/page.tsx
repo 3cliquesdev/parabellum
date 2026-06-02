@@ -293,12 +293,14 @@ export default function ReferralPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {agency?.logo_url
-              ? <img src={agency.logo_url} alt={nome} style={{ height: 28, width: "auto" }} />
-              : <div style={{ width: 28, height: 28, borderRadius: 8, background: cor, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" /></svg>
-                </div>
+              ? <img src={agency.logo_url} alt={nome} style={{ height: 32, width: "auto", maxWidth: 160 }} />
+              : <>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: cor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" /></svg>
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: TEXT, letterSpacing: "-0.02em" }}>{nome}</span>
+                </>
             }
-            <span style={{ fontWeight: 700, fontSize: 15, color: TEXT, letterSpacing: "-0.02em" }}>{nome}</span>
           </div>
           <div className="hidden md:flex items-center gap-7">
             {[{ label: "Funcionalidades", href: "#funcionalidades" }, { label: "IA", href: "#ia" }, { label: "Planos", href: "#planos" }, { label: "FAQ", href: "#faq" }].map(l => (
@@ -874,12 +876,14 @@ export default function ReferralPage() {
         <div className="max-w-[1000px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2.5">
             {agency?.logo_url
-              ? <img src={agency.logo_url} alt={nome} style={{ height: 24, width: "auto" }} />
-              : <div style={{ width: 24, height: 24, borderRadius: 7, background: cor, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" /></svg>
-                </div>
+              ? <img src={agency.logo_url} alt={nome} style={{ height: 28, width: "auto", maxWidth: 140 }} />
+              : <>
+                  <div style={{ width: 24, height: 24, borderRadius: 7, background: cor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" /></svg>
+                  </div>
+                  <span className="text-sm font-bold" style={{ color: TEXT, letterSpacing: "-0.01em" }}>{nome}</span>
+                </>
             }
-            <span className="text-sm font-bold" style={{ color: TEXT, letterSpacing: "-0.01em" }}>{nome}</span>
           </div>
           <div className="flex items-center gap-6">
             <Link href="/privacidade" className="text-xs" style={{ color: TEXT_MUT, textDecoration: "none" }}>Privacidade</Link>

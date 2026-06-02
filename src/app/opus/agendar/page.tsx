@@ -39,6 +39,14 @@ export default function AgendarApresentacaoPage() {
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const setPhone = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const n = e.target.value.replace(/\D/g, "").slice(0, 11);
+    const fmt = n.length <= 10
+      ? n.replace(/^(\d{0,2})(\d{0,4})(\d{0,4})$/, (_, a, b, c) => [a && `(${a}`, b && `) ${b}`, c && `-${c}`].filter(Boolean).join(""))
+      : n.replace(/^(\d{2})(\d{5})(\d{0,4})$/, "($1) $2-$3");
+    setForm(f => ({ ...f, telefone: fmt }));
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nome.trim() || !form.email.trim()) { setError("Preencha nome e email."); return; }
@@ -199,7 +207,7 @@ export default function AgendarApresentacaoPage() {
                       style={inputStyle}
                       placeholder="(11) 99999-9999"
                       value={form.telefone}
-                      onChange={set("telefone")}
+                      onChange={setPhone}
                       onFocus={e => (e.target.style.borderColor = CHAMP)}
                       onBlur={e => (e.target.style.borderColor = BORDER)}
                     />

@@ -43,13 +43,14 @@ export async function PATCH(request: NextRequest) {
   );
 
   // Verificar que o usuário é owner/admin do tenant
-  const { data: member } = await admin
+  const { data: members } = await admin
     .from("tenant_members")
     .select("role")
     .eq("tenant_id", tenant_id)
     .eq("user_id", user.id)
-    .single();
+    .limit(1);
 
+  const member = members?.[0];
   if (!member || !["owner", "admin"].includes(member.role)) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }

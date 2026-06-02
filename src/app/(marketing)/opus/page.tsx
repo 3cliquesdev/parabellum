@@ -304,10 +304,10 @@ export default function OpusPage() {
                 animate={{ boxShadow: ["0 0 50px rgba(214,179,106,0.22)", "0 0 80px rgba(214,179,106,0.48)", "0 0 50px rgba(214,179,106,0.22)"] }}
                 transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
                 style={{ borderRadius: 16, display: "inline-flex" }}>
-                <Link href="mailto:contato@libertycrm.com.br?subject=Liberty Opus"
-                  className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl font-bold text-base transition-all hover:-translate-y-0.5"
-                  style={{ background: `linear-gradient(135deg, ${CHAMP}, #F4E3B2, ${GOLD})`, color: BG2 }}>
-                  Agendar apresentação <ArrowRight size={18} />
+                <Link href="/opus/agendar"
+                  className="inline-flex items-center gap-3 rounded-2xl font-bold transition-all hover:-translate-y-0.5"
+                  style={{ background: `linear-gradient(135deg, ${CHAMP}, #F4E3B2, ${GOLD})`, color: BG2, padding: "14px 32px", fontSize: 16, letterSpacing: "-0.01em" }}>
+                  Agendar apresentação estratégica <ArrowRight size={20} />
                 </Link>
               </motion.div>
               <Link href="#estrutura" className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-base"
@@ -732,10 +732,10 @@ export default function OpusPage() {
             <p className="text-sm mb-10" style={{ color: SOFT }}>
               Diagnóstico gratuito • Setup completo • IA treinada • Suporte dedicado
             </p>
-            <Link href="mailto:contato@libertycrm.com.br?subject=Liberty Opus"
-              className="inline-flex items-center gap-2.5 px-14 py-5 rounded-2xl font-bold text-base transition-all hover:-translate-y-0.5"
-              style={{ background: `linear-gradient(135deg, ${CHAMP}, #F4E3B2, ${GOLD})`, color: BG2, boxShadow: `0 0 60px rgba(214,179,106,0.28)`, fontSize: 15 }}>
-              AGENDAR APRESENTAÇÃO ESTRATÉGICA <ArrowRight size={18} />
+            <Link href="/opus/agendar"
+              className="inline-flex items-center gap-3 rounded-2xl font-bold transition-all hover:-translate-y-0.5"
+              style={{ background: `linear-gradient(135deg, ${CHAMP}, #F4E3B2, ${GOLD})`, color: BG2, boxShadow: `0 0 60px rgba(214,179,106,0.28)`, fontSize: 16, padding: "16px 40px", letterSpacing: "-0.01em" }}>
+              Agendar apresentação estratégica <ArrowRight size={20} />
             </Link>
             <p className="mt-6 text-xs" style={{ color: SOFT }}>Setup a partir de R$2.000 • Manutenção mensal</p>
           </div>

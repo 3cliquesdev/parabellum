@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+
+function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tenant_id = searchParams.get("tenant_id");
   if (!tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
 
-  const admin = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-
-  const { data, error } = await admin
+  const { data, error } = await adminClient()
     .from("tenants")
     .select("nome_fantasia, cor_primaria, logo_url, white_label")
     .eq("id", tenant_id)
@@ -36,11 +39,7 @@ export async function PATCH(request: NextRequest) {
   const { tenant_id, nome_fantasia, cor_primaria, logo_url } = await request.json();
   if (!tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
 
-  const admin = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
+  const admin = adminClient();
 
   // Verificar que o usuário é owner/admin do tenant
   const { data: members } = await admin

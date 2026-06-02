@@ -386,7 +386,7 @@ export default function ParceirosPage() {
           { label: "FAQ", href: "#faq" },
         ]}
         ctaLabel="Quero virar parceiro"
-        ctaHref="/signup"
+        ctaHref="/parceiros/cadastrar"
       />
 
       {/* ── HERO ── */}
@@ -431,7 +431,7 @@ export default function ParceirosPage() {
                 animate={{ boxShadow: ["0 0 40px rgba(34,197,94,0.25)", "0 0 70px rgba(34,197,94,0.52)", "0 0 40px rgba(34,197,94,0.25)"] }}
                 transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
                 style={{ borderRadius: 16, display: "inline-flex" }}>
-                <Link href="/signup" className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-200 hover:-translate-y-0.5"
+                <Link href="/parceiros/cadastrar" className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-200 hover:-translate-y-0.5"
                   style={{ background: `linear-gradient(135deg, ${GREEN}, ${BLUE})`, color: WHITE }}>
                   Quero virar parceiro <ArrowRight size={18} />
                 </Link>
@@ -633,7 +633,7 @@ export default function ParceirosPage() {
           </motion.div>
 
           <motion.div {...fadeF(0.2)} className="text-center">
-            <Link href="/signup" className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl font-bold"
+            <Link href="/parceiros/cadastrar" className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl font-bold"
               style={{ background: `linear-gradient(135deg, ${GREEN}, ${BLUE})`, color: WHITE, boxShadow: `0 0 40px rgba(34,197,94,0.2)` }}>
               Quero construir minha recorrência <ArrowRight size={18} />
             </Link>
@@ -647,7 +647,7 @@ export default function ParceirosPage() {
           <p className="text-base font-medium mb-4" style={{ color: MUTED }}>
             Pronto para transformar sua agência em uma empresa de tecnologia?
           </p>
-          <Link href="/signup" className="inline-flex items-center gap-2 px-7 py-3 rounded-2xl font-bold text-sm"
+          <Link href="/parceiros/cadastrar" className="inline-flex items-center gap-2 px-7 py-3 rounded-2xl font-bold text-sm"
             style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${GREEN}25`, color: GREEN }}>
             Quero transformar minha agência em SaaS <ArrowRight size={16} />
           </Link>
@@ -821,7 +821,7 @@ export default function ParceirosPage() {
               <span style={{ background: `linear-gradient(135deg, ${GREEN}, ${BLUE})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>recorrência hoje</span>
             </h2>
             <p className="text-lg mb-10 leading-relaxed" style={{ color: MUTED }}>Você cuida dos clientes. A Liberty cuida da tecnologia.</p>
-            <Link href="/signup" className="inline-flex items-center gap-2.5 px-10 py-4 rounded-2xl font-bold text-base transition-all hover:-translate-y-0.5"
+            <Link href="/parceiros/cadastrar" className="inline-flex items-center gap-2.5 px-10 py-4 rounded-2xl font-bold text-base transition-all hover:-translate-y-0.5"
               style={{ background: `linear-gradient(135deg, ${GREEN}, ${BLUE})`, color: WHITE, boxShadow: `0 0 50px rgba(34,197,94,0.3)` }}>
               QUERO VIRAR PARCEIRO <ArrowRight size={18} />
             </Link>

@@ -74,13 +74,6 @@ export function NavBar({
       </nav>
 
       <div className="flex items-center gap-3 shrink-0">
-        <Link
-          href="/login"
-          className="text-sm transition-colors duration-150 hover:text-white px-3 py-2"
-          style={{ color: "#71717A", fontWeight: 500 }}
-        >
-          Entrar
-        </Link>
         {!hideCTA && (
           <Link
             href={ctaHref}

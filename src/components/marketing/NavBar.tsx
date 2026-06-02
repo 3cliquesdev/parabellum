@@ -43,7 +43,7 @@ export function NavBar({
         boxShadow: scrolled ? "0 1px 40px rgba(0,0,0,0.6)" : "none",
       }}
     >
-      <Link href="/" className="flex items-center gap-2.5 shrink-0">
+      <div className="flex items-center gap-2.5 shrink-0">
         <div
           className="w-7 h-7 rounded-md flex items-center justify-center"
           style={{ background: "#22C55E" }}
@@ -58,7 +58,7 @@ export function NavBar({
         >
           Liberty CRM
         </span>
-      </Link>
+      </div>
 
       <nav className="hidden md:flex items-center gap-7">
         {navLinks.map((item) => (

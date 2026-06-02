@@ -311,7 +311,12 @@ export default function ReferralPage() {
               </a>
             ))}
           </div>
-          <PrimaryBtn href={signupUrl}>Começar grátis</PrimaryBtn>
+          <a href="#planos" style={{
+            padding: "9px 22px", borderRadius: 12,
+            background: CTA_GRAD, color: "#fff", fontSize: 13, fontWeight: 700,
+            textDecoration: "none", letterSpacing: "-0.01em",
+            boxShadow: "0 4px 14px rgba(37,99,235,0.22)",
+          }}>Começar grátis</a>
         </div>
       </nav>
 

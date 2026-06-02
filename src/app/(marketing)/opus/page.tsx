@@ -310,10 +310,6 @@ export default function OpusPage() {
                   Agendar apresentação estratégica <ArrowRight size={20} />
                 </Link>
               </motion.div>
-              <Link href="#estrutura" className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-base"
-                style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, color: WHITE }}>
-                Ver estrutura do Opus
-              </Link>
             </div>
             <div className="flex flex-wrap gap-2">
               {["✓ Domínio próprio", "✓ Login personalizado", "✓ Dashboard com sua marca", "✓ Sem menção à Liberty", "✓ IA treinada"].map(t => (

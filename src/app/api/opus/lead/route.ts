@@ -11,7 +11,7 @@ function admin() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { nome, empresa, email, telefone, equipe, observacoes } = await req.json();
+    const { nome, empresa, email, telefone, equipe, instagram, site, observacoes } = await req.json();
 
     if (!nome?.trim() || !email?.trim()) {
       return NextResponse.json({ error: "nome e email são obrigatórios" }, { status: 400 });
@@ -37,6 +37,8 @@ export async function POST(req: NextRequest) {
     const obs = [
       empresa ? `Empresa: ${empresa}` : null,
       equipe ? `Tamanho da equipe: ${equipe}` : null,
+      instagram ? `Instagram: @${instagram.trim().replace(/^@/, "")}` : null,
+      site ? `Site: ${site.trim()}` : null,
       observacoes ? `Mensagem: ${observacoes}` : null,
       `Origem: Página Liberty Opus — Agendar Apresentação`,
     ].filter(Boolean).join("\n");

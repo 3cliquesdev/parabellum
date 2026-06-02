@@ -31,7 +31,7 @@ const EQUIPE_OPTIONS = [
 ];
 
 export default function AgendarApresentacaoPage() {
-  const [form, setForm] = useState({ nome: "", empresa: "", email: "", telefone: "", equipe: "", observacoes: "" });
+  const [form, setForm] = useState({ nome: "", empresa: "", email: "", telefone: "", equipe: "", instagram: "", site: "", observacoes: "" });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -216,6 +216,32 @@ export default function AgendarApresentacaoPage() {
                       <option value="">Selecione</option>
                       {EQUIPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: MUTED }}>Instagram da empresa</label>
+                    <input
+                      style={inputStyle}
+                      placeholder="@suaempresa"
+                      value={form.instagram}
+                      onChange={set("instagram")}
+                      onFocus={e => (e.target.style.borderColor = CHAMP)}
+                      onBlur={e => (e.target.style.borderColor = BORDER)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: MUTED }}>Site (se tiver)</label>
+                    <input
+                      type="url"
+                      style={inputStyle}
+                      placeholder="www.suaempresa.com.br"
+                      value={form.site}
+                      onChange={set("site")}
+                      onFocus={e => (e.target.style.borderColor = CHAMP)}
+                      onBlur={e => (e.target.style.borderColor = BORDER)}
+                    />
                   </div>
                 </div>
 

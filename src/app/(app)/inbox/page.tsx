@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Mensagem } from "@/types/database";
 
 const DISPATCH_BADGE: Record<string, { label: string; color: string }> = {
-  ia:       { label: "IA",       color: "#9aea62" },
+  ia:       { label: "IA",       color: "var(--status-ganho)" },
   atribuido:{ label: "Atribuído", color: "#60a5fa" },
   fila:     { label: "Na fila",  color: "#facc15" },
   resolvido:{ label: "Resolvido", color: "var(--text-secondary)" },
@@ -166,7 +166,7 @@ export default function InboxPage() {
               <button key={f.id} onClick={() => setFiltro(f.id as typeof filtro)}
                 className="px-3 h-6 rounded-full text-[10px] font-bold transition-all"
                 style={filtro === f.id
-                  ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.25)" }
+                  ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.25)" }
                   : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.07)" }}>
                 {f.label}
               </button>
@@ -199,7 +199,7 @@ export default function InboxPage() {
                   borderLeft: selectedId === c.id ? "2px solid #9aea62" : "2px solid transparent",
                 }}>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-                  style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+                  style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
                   {c.lead_nome.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -209,7 +209,7 @@ export default function InboxPage() {
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                         style={{ color: badge.color, background: `${badge.color}15` }}>{badge.label}</span>
                       {c.ia_ativa
-                        ? <Bot className="w-3 h-3" style={{ color: "#9aea62" }} />
+                        ? <Bot className="w-3 h-3" style={{ color: "var(--status-ganho)" }} />
                         : <User className="w-3 h-3" style={{ color: "var(--text-secondary)" }} />}
                     </div>
                   </div>
@@ -237,7 +237,7 @@ export default function InboxPage() {
             style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
-                style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+                style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
                 {selected.lead_nome.charAt(0).toUpperCase()}
               </div>
               <div>
@@ -248,7 +248,7 @@ export default function InboxPage() {
             <button onClick={() => toggleIA(selected)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
               style={selected.ia_ativa
-                ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
+                ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
                 : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <Bot className="w-3.5 h-3.5" />
               IA {selected.ia_ativa ? "ativa" : "desativada"}
@@ -274,8 +274,8 @@ export default function InboxPage() {
                     <div className="max-w-[70%]">
                       {isIA && (
                         <div className="flex items-center gap-1 mb-1 justify-end">
-                          <Bot className="w-3 h-3" style={{ color: "#9aea62" }} />
-                          <span className="text-[10px] font-bold" style={{ color: "#9aea62" }}>IA</span>
+                          <Bot className="w-3 h-3" style={{ color: "var(--status-ganho)" }} />
+                          <span className="text-[10px] font-bold" style={{ color: "var(--status-ganho)" }}>IA</span>
                         </div>
                       )}
                       <div className="rounded-2xl overflow-hidden text-sm"

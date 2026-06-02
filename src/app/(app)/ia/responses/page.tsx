@@ -78,7 +78,7 @@ export default function ResponsesPage() {
         <div className="flex gap-2">
           {responses.length === 0 && (
             <button onClick={addDefaults} className="px-4 h-9 rounded-xl text-sm font-bold"
-              style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
+              style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}>
               Adicionar padrões
             </button>
           )}
@@ -135,7 +135,7 @@ export default function ResponsesPage() {
                         <span className="text-sm font-bold text-white">{r.titulo}</span>
                         {r.atalho && (
                           <span className="text-xs px-1.5 py-0.5 rounded font-mono font-bold"
-                            style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>{r.atalho}</span>
+                            style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>{r.atalho}</span>
                         )}
                       </div>
                       <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">

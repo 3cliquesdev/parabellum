@@ -87,7 +87,7 @@ export default function SandboxPage() {
               ].map(({ n, label }) => (
                 <div key={n} className="flex items-center gap-1.5">
                   <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black shrink-0"
-                    style={{ background: "rgba(154,234,98,0.15)", color: "#9aea62" }}>{n}</span>
+                    style={{ background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)" }}>{n}</span>
                   <span className="text-xs" style={{ color: "rgba(147,157,164,0.6)" }}>{label}</span>
                   {n !== "4" && <span className="text-[10px]" style={{ color: "rgba(147,157,164,0.2)" }}>›</span>}
                 </div>
@@ -102,7 +102,7 @@ export default function SandboxPage() {
             </button>
             <button onClick={() => setKbEnabled(!kbEnabled)}
               className="flex items-center gap-2 px-3 h-8 rounded-xl text-xs font-bold"
-              style={kbEnabled ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
+              style={kbEnabled ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
                 : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
               KB {kbEnabled ? "Ativada" : "Desativada"}
             </button>
@@ -130,8 +130,8 @@ export default function SandboxPage() {
               <div className="max-w-[75%]">
                 {msg.role === "assistant" && (
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <Bot className="w-3.5 h-3.5" style={{ color: "#9aea62" }} />
-                    <span className="text-xs font-bold" style={{ color: "#9aea62" }}>IA</span>
+                    <Bot className="w-3.5 h-3.5" style={{ color: "var(--status-ganho)" }} />
+                    <span className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>IA</span>
                     {msg.kbArticles && msg.kbArticles.length > 0 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(96,165,250,0.1)", color: "#60a5fa" }}>
                         {msg.kbArticles.length} artigo(s) KB

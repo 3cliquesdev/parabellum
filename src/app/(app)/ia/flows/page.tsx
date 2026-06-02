@@ -216,7 +216,7 @@ export default function FlowsPage() {
         <div className="flex gap-2">
           <button onClick={() => setShowTemplates(!showTemplates)}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-            style={showTemplates ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            style={showTemplates ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <LayoutTemplate className="w-4 h-4" /> Templates
           </button>
           <Link href="/ia/flows/new" className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
@@ -264,7 +264,7 @@ export default function FlowsPage() {
 
       {/* Explicação */}
       <div className="rounded-xl p-4" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.12)" }}>
-        <p className="text-xs font-bold mb-1" style={{ color: "#9aea62" }}>Como funciona</p>
+        <p className="text-xs font-bold mb-1" style={{ color: "var(--status-ganho)" }}>Como funciona</p>
         <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
           Quando um lead manda uma mensagem, o sistema verifica se alguma keyword ativa um fluxo.
           Dentro do fluxo, a IA tenta resolver o problema — só transfere para humano quando o fluxo mandar.
@@ -325,7 +325,7 @@ export default function FlowsPage() {
                     </button>
                     <button onClick={() => toggleAtivo(flow)}>
                       {flow.ativo
-                        ? <ToggleRight className="w-5 h-5" style={{ color: "#9aea62" }} />
+                        ? <ToggleRight className="w-5 h-5" style={{ color: "var(--status-ganho)" }} />
                         : <ToggleLeft className="w-5 h-5" style={{ color: "var(--text-secondary)" }} />}
                     </button>
                     <Link href={`/ia/flows/${flow.id}/edit`}><Edit2 className="w-4 h-4" style={{ color: "var(--text-secondary)" }} /></Link>

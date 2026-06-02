@@ -89,7 +89,7 @@ export default function SettingsPage() {
           {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
             <button key={id} onClick={() => setSection(id as NavSection)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
-              style={section === id ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.15)" }
+              style={section === id ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.15)" }
                 : { color: "var(--text-secondary)", border: "1px solid transparent" }}>
               <Icon className="w-4 h-4 shrink-0" style={{ color: section === id ? "#9aea62" : "var(--text-faint)" }} />
               {label}
@@ -116,12 +116,12 @@ export default function SettingsPage() {
                 <button key={c.id} onClick={() => setCategory(c.id)}
                   className="px-4 h-8 rounded-full text-xs font-bold transition-all"
                   style={category === c.id
-                    ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.25)" }
+                    ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.25)" }
                     : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                   {c.label}
                   {c.id === "instalado" && (
                     <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px]"
-                      style={{ background: "rgba(154,234,98,0.15)", color: "#9aea62" }}>
+                      style={{ background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)" }}>
                       {INTEGRATIONS.filter(i => i.status === "installed").length}
                     </span>
                   )}
@@ -227,7 +227,7 @@ export default function SettingsPage() {
               </div>
               <Link href="/agency/billing"
                 className="flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-bold shrink-0 ml-4"
-                style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
+                style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}>
                 Painel da Agência →
               </Link>
             </div>
@@ -263,9 +263,9 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            {installed && <><CheckCircle className="w-3.5 h-3.5" style={{ color: "#9aea62" }} /><span className="text-xs font-bold" style={{ color: "#9aea62" }}>Instalado</span></>}
+            {installed && <><CheckCircle className="w-3.5 h-3.5" style={{ color: "var(--status-ganho)" }} /><span className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Instalado</span></>}
             {soon && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Em breve</span>}
-            {status === "available" && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>Disponível</span>}
+            {status === "available" && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>Disponível</span>}
           </div>
           {installed && (
             <button onClick={onManage}
@@ -277,7 +277,7 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
           {status === "available" && (
             <button onClick={onManage}
               className="px-3 h-7 rounded-lg text-xs font-bold transition-all"
-              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
               {isActive ? "Fechar" : "+ Instalar"}
             </button>
           )}
@@ -361,7 +361,7 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
           {phoneOptions.map(p => (
             <button key={p.id} onClick={() => selectPhone(p)} className="w-full flex items-center justify-between p-3 rounded-xl text-left" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}>
               <div><p className="text-sm font-semibold text-white">{p.verified_name}</p><p className="text-xs" style={{ color: "var(--text-secondary)" }}>{p.display_phone_number}</p></div>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>Selecionar</span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>Selecionar</span>
             </button>
           ))}
         </div>
@@ -401,7 +401,7 @@ function ResendManagePanel() {
   return (
     <div className="p-5">
       <div className="flex items-center gap-2 p-3 rounded-xl" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
-        <CheckCircle className="w-4 h-4" style={{ color: "#9aea62" }} />
+        <CheckCircle className="w-4 h-4" style={{ color: "var(--status-ganho)" }} />
         <div>
           <p className="text-xs font-bold text-white">Resend configurado</p>
           <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Usado para e-mails de convite da equipe</p>
@@ -710,7 +710,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
       <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
         <div className="flex items-center justify-between">
           <div><p className="text-sm font-bold text-white">Membros</p><p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{members.length} membro(s)</p></div>
-          <button onClick={() => setShowInvite(!showInvite)} className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
+          <button onClick={() => setShowInvite(!showInvite)} className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}>
             <Plus className="w-3.5 h-3.5" /> Convidar
           </button>
         </div>
@@ -728,10 +728,10 @@ function TeamSection({ tenantId }: { tenantId: string }) {
             </div>
             {inviteLink && (
               <div className="rounded-lg p-3 space-y-2" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
-                <p className="text-xs font-bold" style={{ color: "#9aea62" }}>Link de convite gerado!</p>
+                <p className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Link de convite gerado!</p>
                 <p className="text-xs font-mono break-all" style={{ color: "var(--text-secondary)" }}>{inviteLink}</p>
                 <button onClick={() => { navigator.clipboard.writeText(inviteLink); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-                  className="flex items-center gap-1.5 text-xs font-bold" style={{ color: "#9aea62" }}>
+                  className="flex items-center gap-1.5 text-xs font-bold" style={{ color: "var(--status-ganho)" }}>
                   {copied ? <><Check className="w-3 h-3" /> Copiado!</> : <><Copy className="w-3 h-3" /> Copiar link</>}
                 </button>
               </div>
@@ -742,7 +742,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
           {members.map(m => (
             <div key={m.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
                   {(m.email ?? "?").charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0"><p className="text-sm font-medium text-white truncate">{m.email ?? m.user_id}</p></div>
@@ -804,7 +804,7 @@ function MemberConfig({ member, tenantId }: { member: any; tenantId: string }) {
         disabled={saving}
         className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-bold transition-all"
         style={disp
-          ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
+          ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
           : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
         <div className="w-1.5 h-1.5 rounded-full" style={{ background: disp ? "#9aea62" : "#939da4" }} />
         {disp ? "Disponível" : "Offline"}
@@ -867,7 +867,7 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
     <div className="p-5 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold text-white">Seus webhooks</p>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
+        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
           <Plus className="w-3 h-3" /> Novo webhook
         </button>
       </div>
@@ -885,7 +885,7 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
                 <button key={ev.id} onClick={() => toggleEvento(ev.id)}
                   className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
                   style={form.eventos.includes(ev.id)
-                    ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" }
+                    ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" }
                     : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                   {ev.label}
                 </button>
@@ -927,7 +927,7 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {(wh.eventos ?? []).map((ev: string) => (
-                  <span key={ev} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.08)", color: "#9aea62" }}>
+                  <span key={ev} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.08)", color: "var(--status-ganho)" }}>
                     {WEBHOOK_EVENTS.find(e => e.id === ev)?.label ?? ev}
                   </span>
                 ))}

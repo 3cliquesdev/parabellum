@@ -6,7 +6,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 
 const ROLES = [
-  { id: "sales", label: "Vendas", icon: Zap, color: "#9aea62", desc: "Qualifica leads e fecha negócios" },
+  { id: "sales", label: "Vendas", icon: Zap, color: "var(--status-ganho)", desc: "Qualifica leads e fecha negócios" },
   { id: "support", label: "Suporte", icon: Headphones, color: "#60a5fa", desc: "Resolve dúvidas e problemas" },
   { id: "onboarding", label: "Onboarding", icon: Users, color: "#a78bfa", desc: "Recebe e orienta novos clientes" },
   { id: "custom", label: "Personalizado", icon: Bot, color: "var(--text-secondary)", desc: "Comportamento totalmente customizado" },
@@ -181,7 +181,7 @@ export default function AgentsPage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Criatividade</label>
-                <span className="text-xs font-bold" style={{ color: "#9aea62" }}>{form.temperatura}</span>
+                <span className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>{form.temperatura}</span>
               </div>
               <input type="range" min="0.1" max="1.0" step="0.1" value={form.temperatura}
                 onChange={e => setForm(f => ({ ...f, temperatura: parseFloat(e.target.value) }))}
@@ -319,7 +319,7 @@ export default function AgentsPage() {
                   <button onClick={() => toggleRule(rule.id, rule.ativo)}
                     className="text-xs font-bold px-2.5 py-1 rounded-full"
                     style={rule.ativo
-                      ? { background: "rgba(154,234,98,0.1)", color: "#9aea62" }
+                      ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }
                       : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>
                     {rule.ativo ? "Ativo" : "Inativo"}
                   </button>

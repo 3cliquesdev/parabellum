@@ -157,7 +157,7 @@ export default function KnowledgePage() {
           {articles.some(a => !a.embedding) && (
             <button onClick={generateAllEmbeddings} disabled={embeddingId === "all"}
               className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold transition-all"
-              style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
+              style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}>
               <Zap className="w-4 h-4" />
               {embeddingId === "all" ? "Gerando..." : "Gerar todos embeddings"}
             </button>
@@ -218,7 +218,7 @@ export default function KnowledgePage() {
               <Upload className="w-4 h-4 shrink-0" style={{ color: importFile ? "#9aea62" : "#939da4" }} />
               <div className="flex-1 min-w-0">
                 {importFile
-                  ? <p className="text-xs font-bold truncate" style={{ color: "#9aea62" }}>{importFile.name}</p>
+                  ? <p className="text-xs font-bold truncate" style={{ color: "var(--status-ganho)" }}>{importFile.name}</p>
                   : <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Clique para selecionar PDF, DOCX ou TXT (máx. 10MB)</p>}
               </div>
               {importFile && <button onClick={e => { e.preventDefault(); setImportFile(null); }}><X className="w-3.5 h-3.5" style={{ color: "var(--text-secondary)" }} /></button>}
@@ -247,7 +247,7 @@ export default function KnowledgePage() {
         {[["artigos", "Artigos"], ["candidatos", `Candidatos (${candidates.length})`]].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v as typeof tab)}
             className="px-4 h-8 rounded-xl text-xs font-bold"
-            style={tab === v ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
+            style={tab === v ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
               : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {l}
           </button>
@@ -315,14 +315,14 @@ export default function KnowledgePage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {a.embedding
-                    ? <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>✓ Embedding</span>
+                    ? <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>✓ Embedding</span>
                     : <button onClick={() => generateEmbedding(a)} disabled={embeddingId === a.id}
                         className="text-[10px] px-2 py-1 rounded-full font-bold transition-all"
                         style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>
                         {embeddingId === a.id ? "..." : "Gerar embedding"}
                       </button>}
                   <button onClick={() => togglePublish(a.id, a.publicado)} title={a.publicado ? "Despublicar" : "Publicar"}>
-                    {a.publicado ? <CheckCircle className="w-4 h-4" style={{ color: "#9aea62" }} /> : <Circle className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />}
+                    {a.publicado ? <CheckCircle className="w-4 h-4" style={{ color: "var(--status-ganho)" }} /> : <Circle className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />}
                   </button>
                   <button onClick={() => { setEditing(a); setForm({ titulo: a.titulo, conteudo: a.conteudo, categoria: a.categoria, tags: a.tags.join(", ") }); setShowForm(true); }}>
                     <Edit2 className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />
@@ -348,7 +348,7 @@ export default function KnowledgePage() {
           <div className="space-y-3">
             {candidates.map(c => (
               <div key={c.id} className="rounded-xl p-5" style={cardStyle}>
-                <p className="text-xs font-bold mb-1" style={{ color: "#9aea62" }}>Pergunta</p>
+                <p className="text-xs font-bold mb-1" style={{ color: "var(--status-ganho)" }}>Pergunta</p>
                 <p className="text-sm text-white mb-3">{c.pergunta}</p>
                 <p className="text-xs font-bold mb-1" style={{ color: "var(--text-secondary)" }}>Resposta sugerida</p>
                 <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>{c.resposta}</p>

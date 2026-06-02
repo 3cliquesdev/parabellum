@@ -43,8 +43,8 @@ export default function FeedbackPage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: "Aprovação", value: `${rate}%`, color: "#9aea62" },
-          { label: "Positivos", value: pos, color: "#9aea62", icon: ThumbsUp },
+          { label: "Aprovação", value: `${rate}%`, color: "var(--status-ganho)" },
+          { label: "Positivos", value: pos, color: "var(--status-ganho)", icon: ThumbsUp },
           { label: "Negativos", value: neg, color: "#f87171", icon: ThumbsDown },
         ].map(({ label, value, color, icon: Icon }) => (
           <div key={label} className="rounded-2xl p-5"
@@ -62,7 +62,7 @@ export default function FeedbackPage() {
           <button key={v} onClick={() => setFilter(v as typeof filter)}
             className="px-4 h-8 rounded-xl text-xs font-bold"
             style={filter === v
-              ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
+              ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
               : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {l}
           </button>
@@ -85,7 +85,7 @@ export default function FeedbackPage() {
               <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
                 style={{ background: f.tipo === "positivo" ? "rgba(154,234,98,0.1)" : "rgba(248,113,113,0.1)" }}>
                 {f.tipo === "positivo"
-                  ? <ThumbsUp className="w-4 h-4" style={{ color: "#9aea62" }} />
+                  ? <ThumbsUp className="w-4 h-4" style={{ color: "var(--status-ganho)" }} />
                   : <ThumbsDown className="w-4 h-4" style={{ color: "#f87171" }} />}
               </div>
               <div className="flex-1 min-w-0">

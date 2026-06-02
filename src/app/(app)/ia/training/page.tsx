@@ -75,7 +75,7 @@ export default function TrainingPage() {
         <div className="flex gap-2">
           {examples.length === 0 && (
             <button onClick={addDefault} className="px-4 h-9 rounded-xl text-sm font-bold"
-              style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
+              style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}>
               Adicionar exemplos padrão
             </button>
           )}

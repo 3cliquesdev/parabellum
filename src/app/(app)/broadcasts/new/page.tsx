@@ -149,7 +149,7 @@ export default function NewBroadcastPage() {
           <div key={s} className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
-                style={i < step ? { background: "#9aea62", color: "#0a0a0a" } : i === step ? { background: "rgba(154,234,98,0.2)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>
+                style={i < step ? { background: "#9aea62", color: "#0a0a0a" } : i === step ? { background: "rgba(154,234,98,0.2)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>
                 {i < step ? <Check className="w-3 h-3" /> : i + 1}
               </div>
               <span className="text-xs font-medium hidden sm:block" style={{ color: i === step ? "#fff" : "#939da4" }}>{s}</span>
@@ -189,7 +189,7 @@ export default function NewBroadcastPage() {
                       <div className="flex items-center gap-2 mb-0.5">
                         <p className="text-sm font-bold text-white">{f.label}</p>
                         {f.destaque && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.15)", color: "#9aea62" }}>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)" }}>
                             Recomendado
                           </span>
                         )}
@@ -212,7 +212,7 @@ export default function NewBroadcastPage() {
               {templates.length === 0 ? (
                 <div className="p-4 rounded-xl text-center" style={{ border: "1px dashed rgba(255,255,255,0.1)" }}>
                   <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Nenhum template aprovado.</p>
-                  <Link href="/broadcasts/templates" className="text-xs font-bold mt-1 block" style={{ color: "#9aea62" }}>Cadastrar templates →</Link>
+                  <Link href="/broadcasts/templates" className="text-xs font-bold mt-1 block" style={{ color: "var(--status-ganho)" }}>Cadastrar templates →</Link>
                 </div>
               ) : templates.map(t => (
                 <button key={t.id} onClick={() => setForm(f => ({ ...f, template_id: t.id }))}
@@ -227,7 +227,7 @@ export default function NewBroadcastPage() {
 
           {isInbox24h && (
             <div className="rounded-xl p-4" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
-              <p className="text-xs font-bold mb-1" style={{ color: "#9aea62" }}>Janela de 24 horas ativa</p>
+              <p className="text-xs font-bold mb-1" style={{ color: "var(--status-ganho)" }}>Janela de 24 horas ativa</p>
               <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Dentro da janela de atendimento da Meta, você pode enviar qualquer texto sem template aprovado e sem custo por mensagem.</p>
             </div>
           )}
@@ -255,7 +255,7 @@ export default function NewBroadcastPage() {
                       setForm(f => ({ ...f, segmento_filtros: { ...f.segmento_filtros, status: sel ? curr.filter((x: string) => x !== s) : [...curr, s] } }));
                     }}
                       className="px-3 h-7 rounded-full text-xs font-medium transition-all capitalize"
-                      style={sel ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" }
+                      style={sel ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" }
                         : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                       {s.replace("_", " ")}
                     </button>
@@ -287,7 +287,7 @@ export default function NewBroadcastPage() {
                 onClick={() => fileRef.current?.click()}>
                 {csvData.phones.length > 0 ? (
                   <>
-                    <p className="text-2xl font-extrabold" style={{ color: "#9aea62" }}>{csvData.phones.length}</p>
+                    <p className="text-2xl font-extrabold" style={{ color: "var(--status-ganho)" }}>{csvData.phones.length}</p>
                     <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>números importados</p>
                     <button className="text-xs mt-2 font-medium" style={{ color: "var(--text-secondary)" }} onClick={e => { e.stopPropagation(); setCsvData({ phones: [], names: [] }); }}>Trocar arquivo</button>
                   </>
@@ -322,10 +322,10 @@ export default function NewBroadcastPage() {
             <div className="rounded-xl p-4 grid grid-cols-3 gap-3" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.12)" }}>
               <div><p className="text-xs" style={{ color: "var(--text-secondary)" }}>Com WhatsApp</p><p className="text-xl font-bold text-white">{preview.com_whatsapp}</p></div>
               <div><p className="text-xs" style={{ color: "var(--text-secondary)" }}>Opt-outs</p><p className="text-xl font-bold" style={{ color: "#f87171" }}>{preview.opted_out}</p></div>
-              <div><p className="text-xs font-bold" style={{ color: "#9aea62" }}>Elegíveis</p><p className="text-2xl font-extrabold" style={{ color: "#9aea62" }}>{preview.elegiveis}</p></div>
+              <div><p className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Elegíveis</p><p className="text-2xl font-extrabold" style={{ color: "var(--status-ganho)" }}>{preview.elegiveis}</p></div>
               {preview.janela_gratuita && (
                 <div className="col-span-3 pt-2" style={{ borderTop: "1px solid rgba(154,234,98,0.1)" }}>
-                  <p className="text-[10px] font-bold" style={{ color: "#9aea62" }}>Dentro da janela de 24h — envio gratuito, sem template necessário</p>
+                  <p className="text-[10px] font-bold" style={{ color: "var(--status-ganho)" }}>Dentro da janela de 24h — envio gratuito, sem template necessário</p>
                 </div>
               )}
             </div>

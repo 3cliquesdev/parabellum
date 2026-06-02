@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
     const obs = [
       empresa ? `Empresa: ${empresa}` : null,
       equipe ? `Tamanho da equipe: ${equipe}` : null,
-      instagram ? `Instagram: @${instagram.trim().replace(/^@/, "")}` : null,
       site ? `Site: ${site.trim()}` : null,
       observacoes ? `Mensagem: ${observacoes}` : null,
       `Origem: Página Liberty Opus — Agendar Apresentação`,
@@ -48,6 +47,7 @@ export async function POST(req: NextRequest) {
       nome: nome.trim(),
       email: email.trim().toLowerCase(),
       whatsapp: telefone?.trim() || null,
+      instagram: instagram?.trim().replace(/^@/, "") || null,
       servico_interesse: "Liberty Opus — CRM Exclusivo",
       observacoes: obs,
       status: "qualificado",

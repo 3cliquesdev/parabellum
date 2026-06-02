@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { X, Phone, MessageSquare, Mail } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Phone, MessageSquare, Mail, Clock, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Lead, LeadStatus } from "@/types/database";
 import { Input } from "@/components/ui/input";
@@ -24,8 +24,25 @@ interface LeadSheetProps {
   tenantId: string;
 }
 
+const TIPO_OPTIONS = [
+  { value: "ligacao", label: "Ligação" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "email", label: "E-mail" },
+  { value: "reuniao", label: "Reunião" },
+  { value: "outro", label: "Nota" },
+];
+
+function fmtDate(d: string) {
+  return new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps) {
   const [saving, setSaving] = useState(false);
+  const [atividades, setAtividades] = useState<Array<{ id: string; tipo: string; titulo: string; descricao: string | null; created_at: string }>>([]);
+  const [showAddAtiv, setShowAddAtiv] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
+  const [savingAtiv, setSavingAtiv] = useState(false);
+  const [newAtiv, setNewAtiv] = useState({ tipo: "ligacao", titulo: "", descricao: "" });
   const [form, setForm] = useState({
     nome: lead.nome,
     whatsapp: lead.whatsapp ?? "",
@@ -36,6 +53,34 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
     observacoes: lead.observacoes ?? "",
     status: lead.status,
   });
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from("atividades").select("id,tipo,titulo,descricao,created_at")
+      .eq("lead_id", lead.id)
+      .order("created_at", { ascending: false })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }: { data: any }) => setAtividades(data ?? []));
+  }, [lead.id]);
+
+  async function saveAtividade() {
+    if (!newAtiv.titulo.trim()) return;
+    setSavingAtiv(true);
+    const supabase = createClient();
+    const { data } = await supabase.from("atividades").insert({
+      tenant_id: tenantId,
+      lead_id: lead.id,
+      tipo: newAtiv.tipo,
+      titulo: newAtiv.titulo.trim(),
+      descricao: newAtiv.descricao.trim() || null,
+      concluida: true,
+      concluida_em: new Date().toISOString(),
+    }).select("id,tipo,titulo,descricao,created_at").single() as { data: { id: string; tipo: string; titulo: string; descricao: string | null; created_at: string } | null };
+    if (data) setAtividades((prev) => [data, ...prev]);
+    setNewAtiv({ tipo: "ligacao", titulo: "", descricao: "" });
+    setShowAddAtiv(false);
+    setSavingAtiv(false);
+  }
 
   function set(key: string, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -137,6 +182,94 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
             <textarea value={form.observacoes} onChange={(e) => set("observacoes", e.target.value)}
               rows={4} className="w-full rounded-xl text-sm p-3 resize-none outline-none text-white"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          </div>
+
+          {/* ── HISTÓRICO / TIMELINE ── */}
+          <div className="pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <button className="w-full flex items-center justify-between py-2 text-left"
+              onClick={() => setShowHistory(h => !h)}>
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#939da4" }}>
+                <Clock className="inline w-3 h-3 mr-1.5 mb-0.5" />Histórico
+              </span>
+              {showHistory ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "#939da4" }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: "#939da4" }} />}
+            </button>
+
+            {showHistory && (
+              <div className="space-y-2 mt-1">
+                {/* Botão registrar */}
+                {!showAddAtiv ? (
+                  <button onClick={() => setShowAddAtiv(true)}
+                    className="w-full flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-colors"
+                    style={{ background: "rgba(154,234,98,0.08)", border: "1px solid rgba(154,234,98,0.2)", color: "#9aea62" }}>
+                    <Plus className="w-3.5 h-3.5" /> Registrar atividade
+                  </button>
+                ) : (
+                  <div className="rounded-xl p-3 space-y-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <select value={newAtiv.tipo} onChange={e => setNewAtiv(a => ({ ...a, tipo: e.target.value }))}
+                      className="w-full h-8 rounded-lg text-xs px-2 outline-none text-white"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      {TIPO_OPTIONS.map(o => <option key={o.value} value={o.value} style={{ background: "#111" }}>{o.label}</option>)}
+                    </select>
+                    <input value={newAtiv.titulo} onChange={e => setNewAtiv(a => ({ ...a, titulo: e.target.value }))}
+                      placeholder="Título da atividade *"
+                      className="w-full h-8 rounded-lg text-xs px-2 outline-none text-white"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                    <textarea value={newAtiv.descricao} onChange={e => setNewAtiv(a => ({ ...a, descricao: e.target.value }))}
+                      placeholder="Descrição (opcional)" rows={2}
+                      className="w-full rounded-lg text-xs p-2 resize-none outline-none text-white"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                    <div className="flex gap-2">
+                      <button onClick={saveAtividade} disabled={savingAtiv || !newAtiv.titulo.trim()}
+                        className="flex-1 h-7 rounded-lg text-xs font-bold transition-opacity"
+                        style={{ background: "#9aea62", color: "#0a0a0a", opacity: savingAtiv ? 0.6 : 1 }}>
+                        {savingAtiv ? "Salvando..." : "Salvar"}
+                      </button>
+                      <button onClick={() => setShowAddAtiv(false)}
+                        className="flex-1 h-7 rounded-lg text-xs font-medium"
+                        style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Evento de criação */}
+                <div className="flex gap-3 py-2">
+                  <div className="flex flex-col items-center">
+                    <div className="w-2 h-2 rounded-full mt-0.5 shrink-0" style={{ background: "#9aea62" }} />
+                    {atividades.length > 0 && <div className="w-px flex-1 mt-1" style={{ background: "rgba(255,255,255,0.06)" }} />}
+                  </div>
+                  <div className="pb-3 flex-1">
+                    <p className="text-xs font-semibold text-white">Lead recebido</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: "#939da4" }}>
+                      {lead.utm_source ? `via ${lead.utm_source}` : "cadastro"} • {fmtDate(lead.created_at ?? new Date().toISOString())}
+                    </p>
+                    {lead.email && <p className="text-[11px]" style={{ color: "#939da4" }}>{lead.email}</p>}
+                  </div>
+                </div>
+
+                {/* Atividades */}
+                {atividades.map((atv, idx) => (
+                  <div key={atv.id} className="flex gap-3 py-1">
+                    <div className="flex flex-col items-center">
+                      <div className="w-2 h-2 rounded-full mt-0.5 shrink-0" style={{ background: "#60a5fa" }} />
+                      {idx < atividades.length - 1 && <div className="w-px flex-1 mt-1" style={{ background: "rgba(255,255,255,0.06)" }} />}
+                    </div>
+                    <div className="pb-3 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                          style={{ background: "rgba(96,165,250,0.12)", color: "#60a5fa" }}>
+                          {TIPO_OPTIONS.find(o => o.value === atv.tipo)?.label ?? atv.tipo}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-white mt-0.5">{atv.titulo}</p>
+                      {atv.descricao && <p className="text-[11px] mt-0.5" style={{ color: "#939da4" }}>{atv.descricao}</p>}
+                      <p className="text-[11px] mt-0.5" style={{ color: "#4B5563" }}>{fmtDate(atv.created_at)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

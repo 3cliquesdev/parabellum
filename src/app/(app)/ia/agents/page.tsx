@@ -9,7 +9,7 @@ const ROLES = [
   { id: "sales", label: "Vendas", icon: Zap, color: "#9aea62", desc: "Qualifica leads e fecha negócios" },
   { id: "support", label: "Suporte", icon: Headphones, color: "#60a5fa", desc: "Resolve dúvidas e problemas" },
   { id: "onboarding", label: "Onboarding", icon: Users, color: "#a78bfa", desc: "Recebe e orienta novos clientes" },
-  { id: "custom", label: "Personalizado", icon: Bot, color: "#939da4", desc: "Comportamento totalmente customizado" },
+  { id: "custom", label: "Personalizado", icon: Bot, color: "var(--text-secondary)", desc: "Comportamento totalmente customizado" },
 ];
 
 const MODELS = [
@@ -45,8 +45,8 @@ export default function AgentsPage() {
   const [saving, setSaving] = useState(false);
 
   const cardStyle = {
-    background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
-    border: "1px solid rgba(255,255,255,0.07)",
+    background: "var(--surface-gradient)",
+    border: "1px solid var(--border-subtle)",
   };
 
   async function fetchData() {
@@ -117,7 +117,7 @@ export default function AgentsPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Agentes de IA</h1>
-          <p className="text-sm mt-1" style={{ color: "#939da4" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
             Crie agentes especializados com personalidades e funções diferentes
           </p>
         </div>
@@ -145,7 +145,7 @@ export default function AgentsPage() {
                     : { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <Icon className="w-4 h-4 mb-2" style={{ color: form.role === r.id ? r.color : "#939da4" }} />
                   <p className="text-xs font-bold" style={{ color: form.role === r.id ? r.color : "#fff" }}>{r.label}</p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "#939da4" }}>{r.desc}</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--text-secondary)" }}>{r.desc}</p>
                 </button>
               );
             })}
@@ -153,34 +153,34 @@ export default function AgentsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium" style={{ color: "#939da4" }}>Nome do agente</label>
+              <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Nome do agente</label>
               <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
                 placeholder="Ex: Ana Vendas, Carlos Suporte..."
                 className="w-full h-10 px-3 rounded-xl text-sm text-white outline-none"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium" style={{ color: "#939da4" }}>Modelo LLM</label>
+              <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Modelo LLM</label>
               <select value={form.modelo} onChange={e => setForm(f => ({ ...f, modelo: e.target.value }))}
                 className="w-full h-10 px-3 rounded-xl text-sm outline-none"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
                 {MODELS.map(m => <option key={m.id} value={m.id} style={{ background: "#111" }}>{m.label}</option>)}
               </select>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium" style={{ color: "#939da4" }}>Instruções do agente</label>
+            <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Instruções do agente</label>
             <textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
               rows={3} placeholder="Ex: Você é um especialista em vendas de marketing digital. Seja direto, use gatilhos de urgência e sempre tente marcar uma reunião."
               className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium" style={{ color: "#939da4" }}>Criatividade</label>
+                <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Criatividade</label>
                 <span className="text-xs font-bold" style={{ color: "#9aea62" }}>{form.temperatura}</span>
               </div>
               <input type="range" min="0.1" max="1.0" step="0.1" value={form.temperatura}
@@ -188,10 +188,10 @@ export default function AgentsPage() {
                 className="w-full accent-[#9aea62]" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium" style={{ color: "#939da4" }}>Tamanho da resposta</label>
+              <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Tamanho da resposta</label>
               <select value={form.max_tokens} onChange={e => setForm(f => ({ ...f, max_tokens: parseInt(e.target.value) }))}
                 className="w-full h-10 px-3 rounded-xl text-sm outline-none"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
                 <option value={150} style={{ background: "#111" }}>Curto</option>
                 <option value={300} style={{ background: "#111" }}>Médio</option>
                 <option value={600} style={{ background: "#111" }}>Longo</option>
@@ -201,7 +201,7 @@ export default function AgentsPage() {
 
           <div className="flex gap-3 justify-end">
             <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm"
-              style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Cancelar</button>
+              style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Cancelar</button>
             <button onClick={saveAgent} disabled={saving || !form.nome}
               className="px-6 h-9 rounded-xl text-sm font-bold"
               style={{ background: "#9aea62", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
@@ -216,7 +216,7 @@ export default function AgentsPage() {
         <div className="py-20 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
           <Bot className="w-12 h-12 mx-auto mb-4" style={{ color: "rgba(147,157,164,0.3)" }} />
           <p className="text-sm font-medium text-white mb-1">Nenhum agente ainda</p>
-          <p className="text-xs" style={{ color: "#939da4" }}>Crie agentes especializados para diferentes funções</p>
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Crie agentes especializados para diferentes funções</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -239,7 +239,7 @@ export default function AgentsPage() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button onClick={() => { setEditing(agent); setForm({ nome: agent.nome, role: agent.role, modelo: agent.modelo ?? "gemini-2.0-flash", descricao: agent.descricao ?? "", temperatura: agent.temperatura ?? 0.7, max_tokens: agent.max_tokens ?? 300, kb_categories: agent.kb_categories ?? [], ativo: agent.ativo }); setShowForm(true); }}>
-                      <Edit2 className="w-4 h-4" style={{ color: "#939da4" }} />
+                      <Edit2 className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />
                     </button>
                     <button onClick={() => deleteAgent(agent.id)}>
                       <Trash2 className="w-4 h-4" style={{ color: "rgba(248,113,113,0.5)" }} />
@@ -247,7 +247,7 @@ export default function AgentsPage() {
                   </div>
                 </div>
 
-                <p className="text-xs line-clamp-2 mb-4" style={{ color: "#939da4" }}>
+                <p className="text-xs line-clamp-2 mb-4" style={{ color: "var(--text-secondary)" }}>
                   {agent.descricao || "Sem instruções definidas"}
                 </p>
 
@@ -279,7 +279,7 @@ export default function AgentsPage() {
                     addRoutingRule(agent.id, defaultIntents[agent.role] ?? []);
                   }}
                     className="mt-3 w-full h-8 rounded-xl text-xs font-medium transition-all"
-                    style={{ background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    style={{ background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     + Adicionar regra de roteamento
                   </button>
                 )}
@@ -291,10 +291,10 @@ export default function AgentsPage() {
 
       {/* Routing rules section */}
       {rules.length > 0 && (
-        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border-subtle)" }}>
           <div className="px-6 py-4" style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <h2 className="text-sm font-bold text-white">Regras de roteamento automático</h2>
-            <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>Quando o lead manda uma mensagem, qual agente responde</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Quando o lead manda uma mensagem, qual agente responde</p>
           </div>
           <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
             {rules.map(rule => {
@@ -304,7 +304,7 @@ export default function AgentsPage() {
                 <div key={rule.id} className="flex items-center gap-4 px-6 py-3">
                   <div className="flex-1 flex items-center gap-3">
                     <span className="text-xs font-medium text-white">{agent?.nome ?? "Agente"}</span>
-                    <span className="text-xs" style={{ color: "#939da4" }}>responde quando:</span>
+                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>responde quando:</span>
                     <div className="flex gap-1.5">
                       {rule.intents.map(i => (
                         <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
@@ -312,7 +312,7 @@ export default function AgentsPage() {
                       ))}
                       {rule.keywords.map(k => (
                         <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>"{k}"</span>
+                          style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>"{k}"</span>
                       ))}
                     </div>
                   </div>
@@ -320,7 +320,7 @@ export default function AgentsPage() {
                     className="text-xs font-bold px-2.5 py-1 rounded-full"
                     style={rule.ativo
                       ? { background: "rgba(154,234,98,0.1)", color: "#9aea62" }
-                      : { background: "rgba(255,255,255,0.05)", color: "#939da4" }}>
+                      : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>
                     {rule.ativo ? "Ativo" : "Inativo"}
                   </button>
                 </div>

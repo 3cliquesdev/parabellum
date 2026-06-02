@@ -91,7 +91,7 @@ export default function SettingsPage() {
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
               style={section === id ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.15)" }
                 : { color: "var(--text-secondary)", border: "1px solid transparent" }}>
-              <Icon className="w-4 h-4 shrink-0" style={{ color: section === id ? "#9aea62" : "rgba(255,255,255,0.3)" }} />
+              <Icon className="w-4 h-4 shrink-0" style={{ color: section === id ? "#9aea62" : "var(--text-faint)" }} />
               {label}
             </button>
           ))}

@@ -25,7 +25,7 @@ export default function SandboxPage() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
   async function sendMessage() {
     if (!input.trim() || !tenantId || loading) return;
@@ -97,18 +97,18 @@ export default function SandboxPage() {
           <div className="flex items-center gap-3">
             <button onClick={() => setShowKbPanel(!showKbPanel)}
               className="flex items-center gap-2 px-3 h-8 rounded-xl text-xs font-bold"
-              style={{ background: "rgba(255,255,255,0.05)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+              style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
               <BookOpen className="w-3.5 h-3.5" /> KB
             </button>
             <button onClick={() => setKbEnabled(!kbEnabled)}
               className="flex items-center gap-2 px-3 h-8 rounded-xl text-xs font-bold"
               style={kbEnabled ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
-                : { background: "rgba(255,255,255,0.05)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+                : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
               KB {kbEnabled ? "Ativada" : "Desativada"}
             </button>
             <button onClick={() => setMessages([])}
               className="px-3 h-8 rounded-xl text-xs font-medium"
-              style={{ background: "rgba(255,255,255,0.05)", color: "#939da4" }}>
+              style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>
               Limpar
             </button>
           </div>
@@ -119,7 +119,7 @@ export default function SandboxPage() {
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
               <Bot className="w-12 h-12" style={{ color: "rgba(154,234,98,0.3)" }} />
-              <p className="text-sm" style={{ color: "#939da4" }}>Envie uma mensagem para testar a IA</p>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Envie uma mensagem para testar a IA</p>
               <p className="text-xs max-w-sm" style={{ color: "rgba(147,157,164,0.5)" }}>
                 As respostas usam a persona, KB e exemplos de treinamento configurados
               </p>

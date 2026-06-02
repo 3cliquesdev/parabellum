@@ -22,7 +22,7 @@ export default function ResponsesPage() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
   async function fetchResponses() {
     if (!tenantId) return;
@@ -71,7 +71,7 @@ export default function ResponsesPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Respostas Rápidas</h1>
-          <p className="text-sm mt-1" style={{ color: "#939da4" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
             {responses.length} templates · Digite "!" no inbox para usar
           </p>
         </div>
@@ -109,7 +109,7 @@ export default function ResponsesPage() {
             placeholder="Conteúdo da resposta..." className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Cancelar</button>
+            <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Cancelar</button>
             <button onClick={saveResponse} disabled={saving} className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#9aea62", color: "#0a0a0a" }}>
               {saving ? "Salvando..." : "Salvar"}
             </button>
@@ -120,7 +120,7 @@ export default function ResponsesPage() {
       {/* By category */}
       {responses.length === 0 ? (
         <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-          <p className="text-sm" style={{ color: "#939da4" }}>Nenhuma resposta rápida ainda.</p>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhuma resposta rápida ainda.</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -143,14 +143,14 @@ export default function ResponsesPage() {
                           <Copy className="w-3.5 h-3.5" style={{ color: copied === r.id ? "#9aea62" : "#939da4" }} />
                         </button>
                         <button onClick={() => { setEditing(r); setForm({ titulo: r.titulo, atalho: r.atalho ?? "", conteudo: r.conteudo, categoria: r.categoria }); setShowForm(true); }}>
-                          <Edit2 className="w-3.5 h-3.5" style={{ color: "#939da4" }} />
+                          <Edit2 className="w-3.5 h-3.5" style={{ color: "var(--text-secondary)" }} />
                         </button>
                         <button onClick={() => deleteResponse(r.id)}>
                           <Trash2 className="w-3.5 h-3.5" style={{ color: "rgba(248,113,113,0.5)" }} />
                         </button>
                       </div>
                     </div>
-                    <p className="text-xs line-clamp-2" style={{ color: "#939da4" }}>{r.conteudo}</p>
+                    <p className="text-xs line-clamp-2" style={{ color: "var(--text-secondary)" }}>{r.conteudo}</p>
                     {r.uso_count > 0 && (
                       <p className="text-[10px] mt-2" style={{ color: "rgba(147,157,164,0.4)" }}>Usada {r.uso_count}x</p>
                     )}

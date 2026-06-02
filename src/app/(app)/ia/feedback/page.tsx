@@ -37,7 +37,7 @@ export default function FeedbackPage() {
     <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
       <div>
         <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Feedback da IA</h1>
-        <p className="text-sm mt-1" style={{ color: "#939da4" }}>Avaliações das respostas automáticas</p>
+        <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Avaliações das respostas automáticas</p>
       </div>
 
       {/* Stats */}
@@ -48,10 +48,10 @@ export default function FeedbackPage() {
           { label: "Negativos", value: neg, color: "#f87171", icon: ThumbsDown },
         ].map(({ label, value, color, icon: Icon }) => (
           <div key={label} className="rounded-2xl p-5"
-            style={{ background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
             {Icon && <Icon className="w-4 h-4 mb-3" style={{ color }} />}
             <p className="text-2xl font-extrabold" style={{ color }}>{value}</p>
-            <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{label}</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{label}</p>
           </div>
         ))}
       </div>
@@ -63,7 +63,7 @@ export default function FeedbackPage() {
             className="px-4 h-8 rounded-xl text-xs font-bold"
             style={filter === v
               ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
-              : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.06)" }}>
+              : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {l}
           </button>
         ))}
@@ -74,14 +74,14 @@ export default function FeedbackPage() {
         <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
       ) : filtered.length === 0 ? (
         <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-          <p className="text-sm" style={{ color: "#939da4" }}>Nenhum feedback ainda.</p>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum feedback ainda.</p>
           <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>O feedback aparece quando agentes avaliam respostas no Inbox.</p>
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map(f => (
             <div key={f.id} className="flex items-start gap-4 p-4 rounded-xl"
-              style={{ background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              style={{ background: "var(--surface-gradient)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
                 style={{ background: f.tipo === "positivo" ? "rgba(154,234,98,0.1)" : "rgba(248,113,113,0.1)" }}>
                 {f.tipo === "positivo"
@@ -90,7 +90,7 @@ export default function FeedbackPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white truncate">{f.mensagens?.conteudo ?? "Resposta da IA"}</p>
-                {f.comentario && <p className="text-xs mt-1" style={{ color: "#939da4" }}>"{f.comentario}"</p>}
+                {f.comentario && <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>"{f.comentario}"</p>}
                 <p className="text-[10px] mt-1.5" style={{ color: "rgba(147,157,164,0.4)" }}>
                   {new Date(f.created_at).toLocaleDateString("pt-BR")}
                 </p>

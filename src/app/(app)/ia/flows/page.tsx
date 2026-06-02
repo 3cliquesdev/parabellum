@@ -156,7 +156,7 @@ export default function FlowsPage() {
     setShowTemplates(false);
   }
 
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
   useEffect(() => {
     if (!tenantId) return;
@@ -209,14 +209,14 @@ export default function FlowsPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Chat Flows</h1>
-          <p className="text-sm mt-1" style={{ color: "#939da4" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
             Defina como a IA se comporta — ela tenta resolver antes de transferir
           </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowTemplates(!showTemplates)}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-            style={showTemplates ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.05)", color: "#939da4", border: "1px solid rgba(255,255,255,0.08)" }}>
+            style={showTemplates ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <LayoutTemplate className="w-4 h-4" /> Templates
           </button>
           <Link href="/ia/flows/new" className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
@@ -228,13 +228,13 @@ export default function FlowsPage() {
 
       {/* Templates Panel */}
       {showTemplates && (
-        <div className="rounded-2xl p-5 space-y-3" style={{ background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="rounded-2xl p-5 space-y-3" style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
           <div className="flex items-center justify-between mb-1">
             <div>
               <p className="text-sm font-bold text-white">Templates prontos</p>
-              <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>Fluxos de vendas e suporte — ative com 1 clique</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Fluxos de vendas e suporte — ative com 1 clique</p>
             </div>
-            <button onClick={() => setShowTemplates(false)}><X className="w-4 h-4" style={{ color: "#939da4" }} /></button>
+            <button onClick={() => setShowTemplates(false)}><X className="w-4 h-4" style={{ color: "var(--text-secondary)" }} /></button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {FLOW_TEMPLATES.map(t => (
@@ -242,13 +242,13 @@ export default function FlowsPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs font-bold text-white">{t.nome}</p>
-                    <p className="text-[10px] mt-0.5 leading-relaxed" style={{ color: "#939da4" }}>{t.desc}</p>
+                    <p className="text-[10px] mt-0.5 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{t.desc}</p>
                   </div>
                   <span className="shrink-0 w-2 h-2 rounded-full mt-1" style={{ background: t.cor }} />
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {t.keywords.slice(0, 4).map(k => (
-                    <span key={k} className="text-[9px] px-1.5 py-0.5 rounded-full font-mono" style={{ background: "rgba(255,255,255,0.05)", color: "#939da4" }}>"{k}"</span>
+                    <span key={k} className="text-[9px] px-1.5 py-0.5 rounded-full font-mono" style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>"{k}"</span>
                   ))}
                 </div>
                 <button onClick={() => createFromTemplate(t)} disabled={creatingTemplate === t.id}
@@ -265,7 +265,7 @@ export default function FlowsPage() {
       {/* Explicação */}
       <div className="rounded-xl p-4" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.12)" }}>
         <p className="text-xs font-bold mb-1" style={{ color: "#9aea62" }}>Como funciona</p>
-        <p className="text-xs" style={{ color: "#939da4" }}>
+        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
           Quando um lead manda uma mensagem, o sistema verifica se alguma keyword ativa um fluxo.
           Dentro do fluxo, a IA tenta resolver o problema — só transfere para humano quando o fluxo mandar.
         </p>
@@ -277,7 +277,7 @@ export default function FlowsPage() {
         <div className="py-20 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
           <GitBranch className="w-12 h-12 mx-auto mb-4" style={{ color: "rgba(147,157,164,0.3)" }} />
           <p className="text-sm font-medium text-white mb-1">Nenhum fluxo ainda</p>
-          <p className="text-xs mb-4" style={{ color: "#939da4" }}>Crie fluxos para controlar como a IA responde</p>
+          <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>Crie fluxos para controlar como a IA responde</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -302,18 +302,18 @@ export default function FlowsPage() {
                             <Crown className="w-2.5 h-2.5" /> Master
                           </span>
                         )}
-                        {!flow.ativo && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Inativo</span>}
+                        {!flow.ativo && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Inativo</span>}
                       </div>
-                      {flow.descricao && <p className="text-xs mb-2" style={{ color: "#939da4" }}>{flow.descricao}</p>}
+                      {flow.descricao && <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>{flow.descricao}</p>}
                       {(flow.trigger_keywords ?? []).length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
-                          <Zap className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#939da4" }} />
+                          <Zap className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--text-secondary)" }} />
                           {(flow.trigger_keywords ?? []).slice(0, 5).map((kw: string) => (
                             <span key={kw} className="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
-                              style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>"{kw}"</span>
+                              style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>"{kw}"</span>
                           ))}
                           {(flow.trigger_keywords ?? []).length > 5 && (
-                            <span className="text-[10px]" style={{ color: "#939da4" }}>+{flow.trigger_keywords.length - 5}</span>
+                            <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>+{flow.trigger_keywords.length - 5}</span>
                           )}
                         </div>
                       )}
@@ -326,9 +326,9 @@ export default function FlowsPage() {
                     <button onClick={() => toggleAtivo(flow)}>
                       {flow.ativo
                         ? <ToggleRight className="w-5 h-5" style={{ color: "#9aea62" }} />
-                        : <ToggleLeft className="w-5 h-5" style={{ color: "#939da4" }} />}
+                        : <ToggleLeft className="w-5 h-5" style={{ color: "var(--text-secondary)" }} />}
                     </button>
-                    <Link href={`/ia/flows/${flow.id}/edit`}><Edit2 className="w-4 h-4" style={{ color: "#939da4" }} /></Link>
+                    <Link href={`/ia/flows/${flow.id}/edit`}><Edit2 className="w-4 h-4" style={{ color: "var(--text-secondary)" }} /></Link>
                     <button onClick={() => deleteFlow(flow.id)}><Trash2 className="w-4 h-4" style={{ color: "rgba(248,113,113,0.5)" }} /></button>
                   </div>
                 </div>

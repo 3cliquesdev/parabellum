@@ -27,7 +27,7 @@ export default function TrainingPage() {
   const [form, setForm] = useState({ input_text: "", output_text: "", cenario: "normal" });
   const [saving, setSaving] = useState(false);
 
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
   async function fetchExamples() {
     if (!tenantId) return;
@@ -70,7 +70,7 @@ export default function TrainingPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Exemplos de Treinamento</h1>
-          <p className="text-sm mt-1" style={{ color: "#939da4" }}>Ensine a IA como responder em cada situação</p>
+          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Ensine a IA como responder em cada situação</p>
         </div>
         <div className="flex gap-2">
           {examples.length === 0 && (
@@ -94,14 +94,14 @@ export default function TrainingPage() {
             className="px-4 h-8 rounded-xl text-xs font-bold transition-all"
             style={cenario === c.id
               ? { background: `${c.cor}15`, color: c.cor, border: `1px solid ${c.cor}30` }
-              : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.06)" }}>
+              : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {c.label} ({examples.filter(e => e.cenario === c.id).length})
           </button>
         ))}
       </div>
 
       {cenarioInfo && (
-        <p className="text-xs" style={{ color: "#939da4" }}>
+        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
           {cenarioInfo.desc} — exemplos ensinados são injetados no contexto da IA
         </p>
       )}
@@ -112,23 +112,23 @@ export default function TrainingPage() {
           <h2 className="text-sm font-bold text-white">Novo exemplo</h2>
           <select value={form.cenario} onChange={e => setForm(f => ({ ...f, cenario: e.target.value }))}
             className="w-full h-10 px-3 rounded-xl text-sm outline-none"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
             {CENARIOS.map(c => <option key={c.id} value={c.id} style={{ background: "#111" }}>{c.label}</option>)}
           </select>
           <div className="space-y-1">
-            <label className="text-xs font-medium" style={{ color: "#939da4" }}>O que o lead diz (input)</label>
+            <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>O que o lead diz (input)</label>
             <textarea value={form.input_text} onChange={e => setForm(f => ({ ...f, input_text: e.target.value }))} rows={2}
               placeholder="Ex: Achei muito caro, tem desconto?" className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium" style={{ color: "#939da4" }}>Como a IA deve responder (ideal)</label>
+            <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Como a IA deve responder (ideal)</label>
             <textarea value={form.output_text} onChange={e => setForm(f => ({ ...f, output_text: e.target.value }))} rows={4}
               placeholder="Ex: Entendo! O valor inclui..." className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Cancelar</button>
+            <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Cancelar</button>
             <button onClick={saveExample} disabled={saving} className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#9aea62", color: "#0a0a0a" }}>
               {saving ? "Salvando..." : "Salvar"}
             </button>
@@ -139,7 +139,7 @@ export default function TrainingPage() {
       {/* Examples list */}
       {filtered.length === 0 ? (
         <div className="py-12 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-          <p className="text-sm" style={{ color: "#939da4" }}>Nenhum exemplo para este cenário.</p>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum exemplo para este cenário.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -152,8 +152,8 @@ export default function TrainingPage() {
                     <p className="text-sm text-white">{e.input_text}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold mb-1" style={{ color: "#939da4" }}>IA responde:</p>
-                    <p className="text-sm" style={{ color: "#939da4" }}>{e.output_text}</p>
+                    <p className="text-xs font-bold mb-1" style={{ color: "var(--text-secondary)" }}>IA responde:</p>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{e.output_text}</p>
                   </div>
                 </div>
                 <button onClick={() => deleteExample(e.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">

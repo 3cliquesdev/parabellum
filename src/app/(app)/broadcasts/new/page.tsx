@@ -67,7 +67,7 @@ export default function NewBroadcastPage() {
     segmento_filtros: { fonte: "pipeline", status: [] as string[] } as Record<string, any>,
   });
 
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
   const selectedTemplate = templates.find(t => t.id === form.template_id);
   const varCount = selectedTemplate?.variables_count ?? 0;
   const varNumbers = Array.from({ length: varCount }, (_, i) => String(i + 1));
@@ -135,12 +135,12 @@ export default function NewBroadcastPage() {
 
   return (
     <div className="p-8 max-w-2xl space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
-      <Link href="/broadcasts" className="flex items-center gap-1.5 text-xs" style={{ color: "#939da4" }}>
+      <Link href="/broadcasts" className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-secondary)" }}>
         <ArrowLeft className="w-3.5 h-3.5" /> Voltar
       </Link>
       <div>
         <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Nova campanha</h1>
-        <p className="text-sm mt-1" style={{ color: "#939da4" }}>Disparo em massa via WhatsApp</p>
+        <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Disparo em massa via WhatsApp</p>
       </div>
 
       {/* Steps indicator */}
@@ -149,7 +149,7 @@ export default function NewBroadcastPage() {
           <div key={s} className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
-                style={i < step ? { background: "#9aea62", color: "#0a0a0a" } : i === step ? { background: "rgba(154,234,98,0.2)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.06)", color: "#939da4" }}>
+                style={i < step ? { background: "#9aea62", color: "#0a0a0a" } : i === step ? { background: "rgba(154,234,98,0.2)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>
                 {i < step ? <Check className="w-3 h-3" /> : i + 1}
               </div>
               <span className="text-xs font-medium hidden sm:block" style={{ color: i === step ? "#fff" : "#939da4" }}>{s}</span>
@@ -163,16 +163,16 @@ export default function NewBroadcastPage() {
       {step === 0 && (
         <div className="space-y-5">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium" style={{ color: "#939da4" }}>Nome da campanha</label>
+            <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Nome da campanha</label>
             <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
               placeholder="Ex: Promoção de Junho, Follow-up Leads Quentes..."
               className="w-full h-10 px-3 rounded-xl text-sm text-white outline-none"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           </div>
 
           {/* Seleção de fonte */}
           <div className="space-y-2">
-            <label className="text-xs font-medium" style={{ color: "#939da4" }}>Para quem vai o disparo?</label>
+            <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Para quem vai o disparo?</label>
             {FONTES.map(f => {
               const Icon = f.icon;
               const selected = fonte === f.id;
@@ -193,11 +193,11 @@ export default function NewBroadcastPage() {
                             Recomendado
                           </span>
                         )}
-                        <span className="text-[10px] px-2 py-0.5 rounded-full ml-auto" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full ml-auto" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>
                           {f.badge}
                         </span>
                       </div>
-                      <p className="text-xs leading-relaxed" style={{ color: "#939da4" }}>{f.desc}</p>
+                      <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{f.desc}</p>
                     </div>
                   </div>
                 </button>
@@ -208,10 +208,10 @@ export default function NewBroadcastPage() {
           {/* Template — só se não for inbox_24h */}
           {!isInbox24h && (
             <div className="space-y-2">
-              <label className="text-xs font-medium" style={{ color: "#939da4" }}>Template aprovado pela Meta</label>
+              <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Template aprovado pela Meta</label>
               {templates.length === 0 ? (
                 <div className="p-4 rounded-xl text-center" style={{ border: "1px dashed rgba(255,255,255,0.1)" }}>
-                  <p className="text-xs" style={{ color: "#939da4" }}>Nenhum template aprovado.</p>
+                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Nenhum template aprovado.</p>
                   <Link href="/broadcasts/templates" className="text-xs font-bold mt-1 block" style={{ color: "#9aea62" }}>Cadastrar templates →</Link>
                 </div>
               ) : templates.map(t => (
@@ -219,7 +219,7 @@ export default function NewBroadcastPage() {
                   className="w-full p-4 rounded-xl text-left"
                   style={form.template_id === t.id ? { ...cardStyle, border: "1px solid rgba(154,234,98,0.3)", background: "rgba(154,234,98,0.04)" } : cardStyle}>
                   <div className="flex justify-between mb-1"><p className="text-sm font-bold text-white font-mono">{t.template_name}</p><span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: "#60a5fa", background: "rgba(96,165,250,0.1)" }}>{t.category}</span></div>
-                  <p className="text-xs line-clamp-2" style={{ color: "#939da4" }}>{t.body_text}</p>
+                  <p className="text-xs line-clamp-2" style={{ color: "var(--text-secondary)" }}>{t.body_text}</p>
                 </button>
               ))}
             </div>
@@ -228,7 +228,7 @@ export default function NewBroadcastPage() {
           {isInbox24h && (
             <div className="rounded-xl p-4" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
               <p className="text-xs font-bold mb-1" style={{ color: "#9aea62" }}>Janela de 24 horas ativa</p>
-              <p className="text-xs" style={{ color: "#939da4" }}>Dentro da janela de atendimento da Meta, você pode enviar qualquer texto sem template aprovado e sem custo por mensagem.</p>
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Dentro da janela de atendimento da Meta, você pode enviar qualquer texto sem template aprovado e sem custo por mensagem.</p>
             </div>
           )}
 
@@ -245,7 +245,7 @@ export default function NewBroadcastPage() {
         <div className="space-y-4">
           {fonte === "pipeline" && (
             <>
-              <p className="text-xs font-medium" style={{ color: "#939da4" }}>Filtrar por status no pipeline (deixe vazio para todos):</p>
+              <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Filtrar por status no pipeline (deixe vazio para todos):</p>
               <div className="flex flex-wrap gap-2">
                 {["novo","em_contato","qualificado","proposta","negociacao"].map(s => {
                   const sel = (form.segmento_filtros.status ?? []).includes(s);
@@ -256,7 +256,7 @@ export default function NewBroadcastPage() {
                     }}
                       className="px-3 h-7 rounded-full text-xs font-medium transition-all capitalize"
                       style={sel ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" }
-                        : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                       {s.replace("_", " ")}
                     </button>
                   );
@@ -268,34 +268,34 @@ export default function NewBroadcastPage() {
           {fonte === "inbox_24h" && (
             <div className="rounded-xl p-4" style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.15)" }}>
               <p className="text-xs font-bold mb-1" style={{ color: "#60a5fa" }}>Leads com conversa ativa nas últimas 24h</p>
-              <p className="text-xs" style={{ color: "#939da4" }}>Serão incluídos todos os leads que mandaram mensagem pelo WhatsApp nas últimas 24 horas.</p>
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Serão incluídos todos os leads que mandaram mensagem pelo WhatsApp nas últimas 24 horas.</p>
             </div>
           )}
 
           {fonte === "todos" && (
             <div className="rounded-xl p-4" style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.15)" }}>
               <p className="text-xs font-bold mb-1" style={{ color: "#a78bfa" }}>Toda a base de leads</p>
-              <p className="text-xs" style={{ color: "#939da4" }}>Todos os leads com número de WhatsApp cadastrado receberão a campanha.</p>
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Todos os leads com número de WhatsApp cadastrado receberão a campanha.</p>
             </div>
           )}
 
           {fonte === "csv" && (
             <div className="space-y-3">
-              <p className="text-xs font-medium" style={{ color: "#939da4" }}>Faça upload do arquivo CSV ou Excel:</p>
+              <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Faça upload do arquivo CSV ou Excel:</p>
               <div className="rounded-xl p-6 text-center border-dashed cursor-pointer transition-all"
                 style={{ border: csvData.phones.length > 0 ? "2px dashed rgba(154,234,98,0.4)" : "2px dashed rgba(255,255,255,0.1)" }}
                 onClick={() => fileRef.current?.click()}>
                 {csvData.phones.length > 0 ? (
                   <>
                     <p className="text-2xl font-extrabold" style={{ color: "#9aea62" }}>{csvData.phones.length}</p>
-                    <p className="text-xs mt-1" style={{ color: "#939da4" }}>números importados</p>
-                    <button className="text-xs mt-2 font-medium" style={{ color: "#939da4" }} onClick={e => { e.stopPropagation(); setCsvData({ phones: [], names: [] }); }}>Trocar arquivo</button>
+                    <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>números importados</p>
+                    <button className="text-xs mt-2 font-medium" style={{ color: "var(--text-secondary)" }} onClick={e => { e.stopPropagation(); setCsvData({ phones: [], names: [] }); }}>Trocar arquivo</button>
                   </>
                 ) : (
                   <>
                     <Upload className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(147,157,164,0.4)" }} />
                     <p className="text-sm font-medium text-white">Clique para selecionar</p>
-                    <p className="text-xs mt-1" style={{ color: "#939da4" }}>CSV ou Excel com colunas nome e telefone</p>
+                    <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>CSV ou Excel com colunas nome e telefone</p>
                   </>
                 )}
               </div>
@@ -305,7 +305,7 @@ export default function NewBroadcastPage() {
                 <div className="rounded-xl p-3 space-y-1" style={{ background: "rgba(255,255,255,0.03)" }}>
                   <p className="text-xs font-bold text-white">Prévia (primeiros 3):</p>
                   {csvData.phones.slice(0, 3).map((phone, i) => (
-                    <p key={i} className="text-xs font-mono" style={{ color: "#939da4" }}>{csvData.names[i] || "—"} · {phone}</p>
+                    <p key={i} className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>{csvData.names[i] || "—"} · {phone}</p>
                   ))}
                 </div>
               )}
@@ -314,14 +314,14 @@ export default function NewBroadcastPage() {
 
           {/* Preview de elegíveis */}
           <button onClick={loadPreview} className="w-full h-9 rounded-xl text-xs font-bold transition-all"
-            style={{ background: "rgba(255,255,255,0.05)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+            style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
             Calcular leads elegíveis
           </button>
 
           {preview && (
             <div className="rounded-xl p-4 grid grid-cols-3 gap-3" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.12)" }}>
-              <div><p className="text-xs" style={{ color: "#939da4" }}>Com WhatsApp</p><p className="text-xl font-bold text-white">{preview.com_whatsapp}</p></div>
-              <div><p className="text-xs" style={{ color: "#939da4" }}>Opt-outs</p><p className="text-xl font-bold" style={{ color: "#f87171" }}>{preview.opted_out}</p></div>
+              <div><p className="text-xs" style={{ color: "var(--text-secondary)" }}>Com WhatsApp</p><p className="text-xl font-bold text-white">{preview.com_whatsapp}</p></div>
+              <div><p className="text-xs" style={{ color: "var(--text-secondary)" }}>Opt-outs</p><p className="text-xl font-bold" style={{ color: "#f87171" }}>{preview.opted_out}</p></div>
               <div><p className="text-xs font-bold" style={{ color: "#9aea62" }}>Elegíveis</p><p className="text-2xl font-extrabold" style={{ color: "#9aea62" }}>{preview.elegiveis}</p></div>
               {preview.janela_gratuita && (
                 <div className="col-span-3 pt-2" style={{ borderTop: "1px solid rgba(154,234,98,0.1)" }}>
@@ -332,7 +332,7 @@ export default function NewBroadcastPage() {
           )}
 
           <div className="flex gap-2">
-            <button onClick={() => setStep(0)} className="flex-1 h-10 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Voltar</button>
+            <button onClick={() => setStep(0)} className="flex-1 h-10 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Voltar</button>
             <button onClick={() => setStep(2)} disabled={!canNext1}
               className="flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
               style={{ background: "#9aea62", color: "#0a0a0a", opacity: !canNext1 ? 0.4 : 1 }}>
@@ -347,28 +347,28 @@ export default function NewBroadcastPage() {
         <div className="space-y-4">
           {isInbox24h ? (
             <div className="space-y-3">
-              <label className="text-xs font-medium" style={{ color: "#939da4" }}>Mensagem (texto livre — janela 24h)</label>
+              <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Mensagem (texto livre — janela 24h)</label>
               <textarea value={form.template_variables["mensagem_livre"] ?? ""} onChange={e => setForm(f => ({ ...f, template_variables: { mensagem_livre: e.target.value } }))}
                 rows={5} placeholder="Olá {{nome}}! Temos uma novidade especial para você..."
                 className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
               <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.5)" }}>Use {`{{nome}}`} para personalizar com o nome do lead</p>
             </div>
           ) : varCount === 0 ? (
-            <p className="text-xs py-4 text-center" style={{ color: "#939da4" }}>Este template não tem variáveis.</p>
+            <p className="text-xs py-4 text-center" style={{ color: "var(--text-secondary)" }}>Este template não tem variáveis.</p>
           ) : varNumbers.map(num => (
             <div key={num} className="space-y-1.5">
               <label className="text-xs font-medium text-white">{`{{${num}}}`} → campo do lead</label>
               <select value={form.template_variables[num] ?? ""} onChange={e => setForm(f => ({ ...f, template_variables: { ...f.template_variables, [num]: e.target.value } }))}
                 className="w-full h-9 px-3 rounded-xl text-sm outline-none"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
                 <option value="" style={{ background: "#111" }}>Selecionar campo...</option>
                 {LEAD_FIELDS.map(f => <option key={f.id} value={f.id} style={{ background: "#111" }}>{f.label}</option>)}
               </select>
             </div>
           ))}
           <div className="flex gap-2">
-            <button onClick={() => setStep(1)} className="flex-1 h-10 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Voltar</button>
+            <button onClick={() => setStep(1)} className="flex-1 h-10 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Voltar</button>
             <button onClick={() => setStep(3)} className="flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2" style={{ background: "#9aea62", color: "#0a0a0a" }}>
               Próximo <ArrowRight className="w-4 h-4" />
             </button>
@@ -380,7 +380,7 @@ export default function NewBroadcastPage() {
       {step === 3 && (
         <div className="space-y-4">
           <div className="rounded-2xl p-5 space-y-3" style={cardStyle}>
-            <p className="text-xs font-bold" style={{ color: "#939da4" }}>Resumo da campanha</p>
+            <p className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>Resumo da campanha</p>
             {[
               { label: "Nome", value: form.nome },
               { label: "Fonte", value: FONTES.find(f => f.id === fonte)?.label },
@@ -388,7 +388,7 @@ export default function NewBroadcastPage() {
               { label: "Leads elegíveis", value: preview?.elegiveis ?? "—" },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between py-1.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                <span className="text-xs" style={{ color: "#939da4" }}>{label}</span>
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{label}</span>
                 <span className="text-xs font-bold text-white">{value}</span>
               </div>
             ))}
@@ -396,7 +396,7 @@ export default function NewBroadcastPage() {
 
           <div className="rounded-xl p-4" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)" }}>
             <p className="text-xs font-bold mb-1" style={{ color: "#f87171" }}>Atenção</p>
-            <ul className="text-xs space-y-1" style={{ color: "#939da4" }}>
+            <ul className="text-xs space-y-1" style={{ color: "var(--text-secondary)" }}>
               {!isInbox24h && <li>• Template deve estar aprovado pela Meta</li>}
               <li>• Leads que responderam "PARAR" são excluídos automaticamente</li>
               {isInbox24h && <li>• Válido apenas para quem conversou nas últimas 24h</li>}
@@ -404,7 +404,7 @@ export default function NewBroadcastPage() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={() => setStep(2)} className="flex-1 h-10 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Voltar</button>
+            <button onClick={() => setStep(2)} className="flex-1 h-10 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Voltar</button>
             <button onClick={createAndStart} disabled={starting}
               className="flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
               style={{ background: "#9aea62", color: "#0a0a0a", opacity: starting ? 0.6 : 1 }}>

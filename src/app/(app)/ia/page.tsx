@@ -116,12 +116,12 @@ export default function StudioIAPage() {
       {/* Header */}
       <div className="flex items-start gap-4">
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-          style={{ background: "rgba(154,234,98,0.1)", border: "1px solid rgba(154,234,98,0.2)" }}>
-          <Sparkles className="w-6 h-6" style={{ color: "#9aea62" }} />
+          style={{ background: "var(--primary-bg)", border: "1px solid var(--primary-border)" }}>
+          <Sparkles className="w-6 h-6" style={{ color: "var(--status-ganho)" }} />
         </div>
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Studio IA</h1>
-          <p className="text-sm mt-1" style={{ color: "#939da4" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
             Configure, treine e gerencie toda a inteligência artificial do seu CRM
           </p>
         </div>
@@ -139,18 +139,18 @@ export default function StudioIAPage() {
             <Link href={href}
               className="group rounded-2xl p-6 flex flex-col gap-4 transition-all duration-200 h-full block"
               style={{
-                background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                background: "var(--surface-gradient)",
+                border: "1px solid var(--border-subtle)",
               }}
               onMouseEnter={e => {
                 const el = e.currentTarget as HTMLAnchorElement;
                 el.style.border = `1px solid ${color}25`;
                 el.style.transform = "translateY(-3px)";
-                el.style.boxShadow = `0 8px 24px rgba(0,0,0,0.4), 0 0 20px ${color}08`;
+                el.style.boxShadow = `0 8px 24px rgba(0,0,0,0.15), 0 0 20px ${color}08`;
               }}
               onMouseLeave={e => {
                 const el = e.currentTarget as HTMLAnchorElement;
-                el.style.border = "1px solid rgba(255,255,255,0.07)";
+                el.style.border = "1px solid var(--border-subtle)";
                 el.style.transform = "translateY(0)";
                 el.style.boxShadow = "none";
               }}>
@@ -161,12 +161,12 @@ export default function StudioIAPage() {
                   <Icon className="w-5 h-5" style={{ color }} />
                 </div>
                 <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ color: "#939da4" }} />
+                  style={{ color: "var(--text-secondary)" }} />
               </div>
 
               <div className="flex-1">
                 <h3 className="text-sm font-bold text-white mb-1">{label}</h3>
-                <p className="text-xs leading-relaxed" style={{ color: "#939da4" }}>{desc}</p>
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{desc}</p>
               </div>
 
               <div className="flex items-center justify-between">
@@ -175,7 +175,7 @@ export default function StudioIAPage() {
                     {statValue} {statLabel}
                   </span>
                 ) : (
-                  <span className="text-xs font-medium" style={{ color: "#939da4" }}>{statLabel}</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>{statLabel}</span>
                 )}
               </div>
             </Link>
@@ -186,24 +186,24 @@ export default function StudioIAPage() {
 
       {/* Quick status */}
       {(stats.agents === 0 || stats.articles === 0) && (
-        <div className="rounded-2xl p-6" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.12)" }}>
+        <div className="rounded-2xl p-6" style={{ background: "var(--primary-bg)", border: "1px solid var(--primary-border)" }}>
           <h3 className="text-sm font-bold text-white mb-3">Comece por aqui</h3>
           <div className="space-y-2">
             {stats.agents === 0 && (
-              <Link href="/ia/agents" className="flex items-center gap-2 text-xs" style={{ color: "#9aea62" }}>
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#9aea62" }} />
+              <Link href="/ia/agents" className="flex items-center gap-2 text-xs" style={{ color: "var(--status-ganho)" }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--status-ganho)" }} />
                 Crie seu primeiro agente de IA
               </Link>
             )}
             {stats.articles === 0 && (
-              <Link href="/ia/knowledge" className="flex items-center gap-2 text-xs" style={{ color: "#9aea62" }}>
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#9aea62" }} />
+              <Link href="/ia/knowledge" className="flex items-center gap-2 text-xs" style={{ color: "var(--status-ganho)" }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--status-ganho)" }} />
                 Adicione artigos à base de conhecimento
               </Link>
             )}
             {stats.training === 0 && (
-              <Link href="/ia/training" className="flex items-center gap-2 text-xs" style={{ color: "#9aea62" }}>
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#9aea62" }} />
+              <Link href="/ia/training" className="flex items-center gap-2 text-xs" style={{ color: "var(--status-ganho)" }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--status-ganho)" }} />
                 Adicione exemplos de treinamento
               </Link>
             )}

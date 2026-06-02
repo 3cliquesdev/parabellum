@@ -18,7 +18,6 @@ export default function IALayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isHub = pathname === "/ia";
 
-  // Verificar se é sub-página de flows (editor) ou página direta
   const directName = PAGE_NAMES[pathname];
   const isFlowsSubpage = pathname.startsWith("/ia/flows/") && pathname !== "/ia/flows";
   const pageName = directName ?? (isFlowsSubpage ? "Chat Flows" : null);
@@ -27,19 +26,18 @@ export default function IALayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: "var(--font-sans)" }}>
-      {/* Breadcrumb — só aparece nas sub-páginas */}
       {!isHub && pageName && (
         <div className="flex items-center gap-2 px-8 py-3 shrink-0"
-          style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.2)" }}>
+          style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}>
           <Link href={backLink}
             className="flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-white"
-            style={{ color: "#939da4" }}>
+            style={{ color: "var(--text-secondary)" }}>
             <ChevronLeft className="w-3.5 h-3.5" />
             {backLabel}
           </Link>
           {!isFlowsSubpage && (
             <>
-              <span className="text-xs" style={{ color: "rgba(147,157,164,0.3)" }}>/</span>
+              <span className="text-xs" style={{ color: "var(--text-faint)" }}>/</span>
               <span className="text-xs font-medium text-white">{pageName}</span>
             </>
           )}

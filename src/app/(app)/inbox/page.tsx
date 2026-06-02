@@ -13,7 +13,7 @@ const DISPATCH_BADGE: Record<string, { label: string; color: string }> = {
   ia:       { label: "IA",       color: "#9aea62" },
   atribuido:{ label: "Atribuído", color: "#60a5fa" },
   fila:     { label: "Na fila",  color: "#facc15" },
-  resolvido:{ label: "Resolvido", color: "#939da4" },
+  resolvido:{ label: "Resolvido", color: "var(--text-secondary)" },
 };
 
 function timeLabel(dateStr: string) {
@@ -148,7 +148,7 @@ export default function InboxPage() {
 
       {/* Lista de conversas */}
       <aside className="w-72 shrink-0 flex flex-col overflow-hidden"
-        style={{ borderRight: "1px solid rgba(255,255,255,0.06)", background: "#0a0a0a" }}>
+        style={{ borderRight: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}>
         <div className="px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-white">Inbox</h2>
@@ -167,7 +167,7 @@ export default function InboxPage() {
                 className="px-3 h-6 rounded-full text-[10px] font-bold transition-all"
                 style={filtro === f.id
                   ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.25)" }
-                  : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.07)" }}>
                 {f.label}
               </button>
             ))}
@@ -182,7 +182,7 @@ export default function InboxPage() {
           ) : conversasFiltradas.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <MessageSquare className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(147,157,164,0.3)" }} />
-              <p className="text-xs" style={{ color: "#939da4" }}>
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
                 {filtro === "minhas" ? "Nenhuma conversa atribuída a você." : "Nenhuma conversa ainda."}
               </p>
             </div>
@@ -210,10 +210,10 @@ export default function InboxPage() {
                         style={{ color: badge.color, background: `${badge.color}15` }}>{badge.label}</span>
                       {c.ia_ativa
                         ? <Bot className="w-3 h-3" style={{ color: "#9aea62" }} />
-                        : <User className="w-3 h-3" style={{ color: "#939da4" }} />}
+                        : <User className="w-3 h-3" style={{ color: "var(--text-secondary)" }} />}
                     </div>
                   </div>
-                  <p className="text-xs truncate mt-0.5" style={{ color: "#939da4" }}>
+                  <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
                     {c.lead_whatsapp ?? "Sem número"}
                   </p>
                 </div>
@@ -228,13 +228,13 @@ export default function InboxPage() {
       {!selected ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <MessageSquare className="w-12 h-12" style={{ color: "rgba(147,157,164,0.2)" }} />
-          <p className="text-sm" style={{ color: "#939da4" }}>Selecione uma conversa</p>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Selecione uma conversa</p>
         </div>
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Header */}
           <div className="px-6 py-4 flex items-center justify-between shrink-0"
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "#0d0d0d" }}>
+            style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
                 style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>
@@ -242,14 +242,14 @@ export default function InboxPage() {
               </div>
               <div>
                 <p className="text-sm font-bold text-white">{selected.lead_nome}</p>
-                <p className="text-xs" style={{ color: "#939da4" }}>{selected.lead_whatsapp ?? "WhatsApp"}</p>
+                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{selected.lead_whatsapp ?? "WhatsApp"}</p>
               </div>
             </div>
             <button onClick={() => toggleIA(selected)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
               style={selected.ia_ativa
                 ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
-                : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.06)" }}>
+                : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <Bot className="w-3.5 h-3.5" />
               IA {selected.ia_ativa ? "ativa" : "desativada"}
             </button>
@@ -263,7 +263,7 @@ export default function InboxPage() {
               </div>
             ) : mensagens.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-sm" style={{ color: "#939da4" }}>Nenhuma mensagem ainda.</p>
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhuma mensagem ainda.</p>
               </div>
             ) : (
               mensagens.map((msg: Mensagem) => {
@@ -308,7 +308,7 @@ export default function InboxPage() {
             <div className="flex items-center gap-2">
               {/* Botão de anexo */}
               <label className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer transition-all shrink-0"
-                style={{ background: "rgba(255,255,255,0.05)", color: "#939da4" }}>
+                style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>
                 <Paperclip className="w-4 h-4" />
                 <input type="file" className="hidden"
                   accept="image/*,audio/*,video/*,application/pdf,.doc,.docx"
@@ -332,7 +332,7 @@ export default function InboxPage() {
                 onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
                 placeholder="Digite uma mensagem..."
                 className="flex-1 h-10 px-4 rounded-xl text-sm text-white outline-none"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
               />
               <button
                 onClick={handleSend}

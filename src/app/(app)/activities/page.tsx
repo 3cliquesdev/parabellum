@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Check, Clock } from "lucide-react";
+import { Check, Clock, MessageSquare } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 import type { Atividade, AtividadeTipo } from "@/types/database";
@@ -63,7 +63,7 @@ export default function ActivitiesPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Atividades</h1>
-          <p className="text-sm mt-1 font-medium" style={{ color: "#939da4" }}>
+          <p className="text-sm mt-1 font-medium" style={{ color: "var(--text-secondary)" }}>
             {atividades.filter(a => !a.concluida).length} pendentes · {atividades.filter(a => a.concluida).length} concluídas
           </p>
         </div>
@@ -74,8 +74,9 @@ export default function ActivitiesPage() {
         {[["all","Todas"], ["pending","Pendentes"], ["done","Concluídas"]].map(([v, l]) => (
           <button key={v} onClick={() => setFilter(v as typeof filter)}
             className="px-4 h-8 rounded-xl text-xs font-bold transition-all"
-            style={filter === v ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
-              : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.06)" }}>
+            style={filter === v
+              ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
+              : { background: "var(--input-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
             {l}
           </button>
         ))}
@@ -84,20 +85,23 @@ export default function ActivitiesPage() {
       {/* List */}
       <div className="space-y-2">
         {filtered.length === 0 ? (
-          <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="text-sm" style={{ color: "#939da4" }}>Nenhuma atividade aqui.</p>
+          <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)" }}>
+            <MessageSquare className="w-8 h-8 mx-auto mb-3" style={{ color: "var(--text-faint)" }} />
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhuma atividade aqui.</p>
           </div>
         ) : filtered.map(a => (
           <div key={a.id} className="flex items-center gap-4 p-4 rounded-xl transition-colors"
-            style={{ background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
             <button onClick={() => toggleDone(a.id, a.concluida)}
               className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 border-2 transition-all"
-              style={a.concluida ? { background: "#9aea62", borderColor: "#9aea62" } : { background: "transparent", borderColor: "rgba(255,255,255,0.2)" }}>
+              style={a.concluida
+                ? { background: "var(--status-ganho)", borderColor: "var(--status-ganho)" }
+                : { background: "transparent", borderColor: "var(--border-strong)" }}>
               {a.concluida && <Check className="w-3 h-3 text-black" />}
             </button>
             <div className="flex-1 min-w-0">
               <p className={`text-sm font-semibold ${a.concluida ? "line-through opacity-50" : "text-white"}`}>{a.titulo}</p>
-              <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{a.lead_nome ?? "Sem lead"}</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{a.lead_nome ?? "Sem lead"}</p>
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <span className="text-xs font-bold px-2 py-0.5 rounded-full"
@@ -106,8 +110,8 @@ export default function ActivitiesPage() {
               </span>
               {a.prazo && (
                 <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" style={{ color: "#939da4" }} />
-                  <span className="text-xs" style={{ color: "#939da4" }}>
+                  <Clock className="w-3 h-3" style={{ color: "var(--text-secondary)" }} />
+                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                     {new Date(a.prazo).toLocaleDateString("pt-BR")}
                   </span>
                 </div>

@@ -62,7 +62,7 @@ export default function SettingsPage() {
   const [category, setCategory] = useState("todos");
   const [activeIntegration, setActiveIntegration] = useState<string | null>(null);
 
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
   const filteredIntegrations = INTEGRATIONS.filter(i => {
     if (category === "todos") return true;
@@ -81,7 +81,7 @@ export default function SettingsPage() {
 
       {/* Left Nav */}
       <aside className="w-52 shrink-0 flex flex-col py-6 px-3"
-        style={{ borderRight: "1px solid rgba(255,255,255,0.06)", background: "#050505" }}>
+        style={{ borderRight: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}>
         <p className="px-3 mb-3 text-xs font-bold" style={{ color: "rgba(147,157,164,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
           Configurações
         </p>
@@ -90,7 +90,7 @@ export default function SettingsPage() {
             <button key={id} onClick={() => setSection(id as NavSection)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
               style={section === id ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.15)" }
-                : { color: "rgba(255,255,255,0.5)", border: "1px solid transparent" }}>
+                : { color: "var(--text-secondary)", border: "1px solid transparent" }}>
               <Icon className="w-4 h-4 shrink-0" style={{ color: section === id ? "#9aea62" : "rgba(255,255,255,0.3)" }} />
               {label}
             </button>
@@ -107,7 +107,7 @@ export default function SettingsPage() {
           <div className="p-8 space-y-6">
             <div>
               <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Integrações</h1>
-              <p className="text-sm mt-1" style={{ color: "#939da4" }}>Conecte o Liberty CRM com suas ferramentas favoritas</p>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Conecte o Liberty CRM com suas ferramentas favoritas</p>
             </div>
 
             {/* Category filter */}
@@ -117,7 +117,7 @@ export default function SettingsPage() {
                   className="px-4 h-8 rounded-full text-xs font-bold transition-all"
                   style={category === c.id
                     ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.25)" }
-                    : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                   {c.label}
                   {c.id === "instalado" && (
                     <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px]"
@@ -149,7 +149,7 @@ export default function SettingsPage() {
           <div className="p-8">
             <div className="mb-6">
               <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Equipe</h1>
-              <p className="text-sm mt-1" style={{ color: "#939da4" }}>Gerencie os membros do seu workspace</p>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Gerencie os membros do seu workspace</p>
             </div>
             <TeamSection tenantId={tenantId} />
           </div>
@@ -160,7 +160,7 @@ export default function SettingsPage() {
           <div className="p-8 space-y-6 max-w-2xl">
             <div>
               <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Workspace</h1>
-              <p className="text-sm mt-1" style={{ color: "#939da4" }}>Informações da sua empresa</p>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Informações da sua empresa</p>
             </div>
             <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
               {[
@@ -169,7 +169,7 @@ export default function SettingsPage() {
                 { label: "Criado em", value: tenant?.created_at ? new Date(tenant.created_at).toLocaleDateString("pt-BR") : "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                  <span className="text-sm" style={{ color: "#939da4" }}>{label}</span>
+                  <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{label}</span>
                   <span className="text-sm font-medium text-white">{value}</span>
                 </div>
               ))}
@@ -184,13 +184,13 @@ export default function SettingsPage() {
           <div className="p-8 space-y-6 max-w-2xl">
             <div>
               <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Plano & Faturamento</h1>
-              <p className="text-sm mt-1" style={{ color: "#939da4" }}>Gerencie sua assinatura</p>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Gerencie sua assinatura</p>
             </div>
             <div className="rounded-2xl p-6" style={cardStyle}>
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <p className="text-lg font-extrabold text-white">Starter — Trial</p>
-                  <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>30 dias grátis · sem cartão de crédito</p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>30 dias grátis · sem cartão de crédito</p>
                 </div>
                 <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>Trial ativo</span>
               </div>
@@ -202,8 +202,8 @@ export default function SettingsPage() {
                 ].map(({ label, used, limit }) => (
                   <div key={label}>
                     <div className="flex justify-between text-xs mb-1.5">
-                      <span style={{ color: "#939da4" }}>{label}</span>
-                      <span style={{ color: "#939da4" }}>{used} / {limit}</span>
+                      <span style={{ color: "var(--text-secondary)" }}>{label}</span>
+                      <span style={{ color: "var(--text-secondary)" }}>{used} / {limit}</span>
                     </div>
                     <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
                       <div className="h-full rounded-full" style={{ width: `${Math.min((used / limit) * 100, 100)}%`, background: "#9aea62" }} />
@@ -221,7 +221,7 @@ export default function SettingsPage() {
             <div className="rounded-2xl p-5 flex items-center justify-between" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.1)" }}>
               <div>
                 <p className="text-sm font-bold text-white">Você é revendedor?</p>
-                <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
                   Gerencie o plano da sua agência e os workspaces dos seus clientes
                 </p>
               </div>
@@ -245,7 +245,7 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
   const { id, name, desc, cor, status, icon } = integration;
   const installed = status === "installed";
   const soon = status === "soon";
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: `1px solid ${isActive ? cor + "40" : "rgba(255,255,255,0.07)"}` };
+  const cardStyle = { background: "var(--surface-gradient)", border: `1px solid ${isActive ? cor + "40" : "rgba(255,255,255,0.07)"}` };
 
   return (
     <div className="rounded-2xl overflow-hidden transition-all duration-200" style={cardStyle}>
@@ -257,20 +257,20 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-white">{name}</p>
-            <p className="text-xs mt-0.5 line-clamp-2 leading-relaxed" style={{ color: "#939da4" }}>{desc}</p>
+            <p className="text-xs mt-0.5 line-clamp-2 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{desc}</p>
           </div>
         </div>
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             {installed && <><CheckCircle className="w-3.5 h-3.5" style={{ color: "#9aea62" }} /><span className="text-xs font-bold" style={{ color: "#9aea62" }}>Instalado</span></>}
-            {soon && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Em breve</span>}
+            {soon && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Em breve</span>}
             {status === "available" && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>Disponível</span>}
           </div>
           {installed && (
             <button onClick={onManage}
               className="px-3 h-7 rounded-lg text-xs font-bold transition-all"
-              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "rgba(255,255,255,0.07)", color: "#939da4" }}>
+              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "rgba(255,255,255,0.07)", color: "var(--text-secondary)" }}>
               {isActive ? "Fechar" : "Gerenciar"}
             </button>
           )}
@@ -359,8 +359,8 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
       ) : waStatus === "select" ? (
         <div className="space-y-2">
           {phoneOptions.map(p => (
-            <button key={p.id} onClick={() => selectPhone(p)} className="w-full flex items-center justify-between p-3 rounded-xl text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div><p className="text-sm font-semibold text-white">{p.verified_name}</p><p className="text-xs" style={{ color: "#939da4" }}>{p.display_phone_number}</p></div>
+            <button key={p.id} onClick={() => selectPhone(p)} className="w-full flex items-center justify-between p-3 rounded-xl text-left" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}>
+              <div><p className="text-sm font-semibold text-white">{p.verified_name}</p><p className="text-xs" style={{ color: "var(--text-secondary)" }}>{p.display_phone_number}</p></div>
               <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}>Selecionar</span>
             </button>
           ))}
@@ -370,7 +370,7 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
           <div className="flex-1 h-10 rounded-xl flex items-center justify-center gap-2 text-xs" style={{ background: "rgba(24,119,242,0.1)", color: "#60a5fa" }}>
             <Loader2 className="w-4 h-4 animate-spin" /> Aguardando autorização...
           </div>
-          <button onClick={() => setWaStatus("idle")} className="px-3 h-10 rounded-xl text-xs" style={{ background: "rgba(255,255,255,0.05)", color: "#939da4" }}>Cancelar</button>
+          <button onClick={() => setWaStatus("idle")} className="px-3 h-10 rounded-xl text-xs" style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>Cancelar</button>
         </div>
       ) : (
         <button onClick={handleConnect} className="w-full h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all" style={{ background: "#1877f2", color: "#fff" }}>
@@ -390,7 +390,7 @@ function GeminiManagePanel() {
         <CheckCircle className="w-4 h-4" style={{ color: "#4285F4" }} />
         <div>
           <p className="text-xs font-bold text-white">Vertex AI conectado</p>
-          <p className="text-xs" style={{ color: "#939da4" }}>Projeto: adsliberty · Modelo: gemini-2.0-flash</p>
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Projeto: adsliberty · Modelo: gemini-2.0-flash</p>
         </div>
       </div>
     </div>
@@ -404,7 +404,7 @@ function ResendManagePanel() {
         <CheckCircle className="w-4 h-4" style={{ color: "#9aea62" }} />
         <div>
           <p className="text-xs font-bold text-white">Resend configurado</p>
-          <p className="text-xs" style={{ color: "#939da4" }}>Usado para e-mails de convite da equipe</p>
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Usado para e-mails de convite da equipe</p>
         </div>
       </div>
     </div>
@@ -430,7 +430,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
   const [form, setForm] = useState({ nome_fantasia: "", cor_primaria: "#9aea62", logo_url: "" });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
   useEffect(() => {
     if (!tenantId) return;
@@ -464,29 +464,29 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
     <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
       <div>
         <h2 className="text-sm font-bold text-white">Identidade nos Emails</h2>
-        <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>
+        <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
           Como sua marca aparece nos emails enviados pelo CRM
         </p>
       </div>
 
       <div className="space-y-3">
         <div className="space-y-1.5">
-          <Label className="text-xs" style={{ color: "#939da4" }}>Nome de exibição</Label>
+          <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Nome de exibição</Label>
           <Input value={form.nome_fantasia} onChange={e => setForm(f => ({ ...f, nome_fantasia: e.target.value }))}
             placeholder="Ex: Agência Exemplo"
-            className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.6)" }}>Aparece no remetente: <span style={{ color: previewColor }}>{previewName} | Liberty CRM</span></p>
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs" style={{ color: "#939da4" }}>Cor primária</Label>
+          <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Cor primária</Label>
           <div className="flex items-center gap-2">
             <input type="color" value={form.cor_primaria} onChange={e => setForm(f => ({ ...f, cor_primaria: e.target.value }))}
               className="w-9 h-9 rounded-xl border-0 cursor-pointer p-0.5"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
             <Input value={form.cor_primaria} onChange={e => setForm(f => ({ ...f, cor_primaria: e.target.value }))}
               placeholder="#9aea62" maxLength={7}
-              className="h-9 rounded-xl text-sm font-mono text-white w-32" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+              className="h-9 rounded-xl text-sm font-mono text-white w-32" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
             <span className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: `${previewColor}20`, color: previewColor }}>
               Botão do email
             </span>
@@ -499,7 +499,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
           {/* Simula o fundo do cliente de email */}
           <div className="rounded-xl p-3" style={{ background: "#060606", border: "1px solid rgba(255,255,255,0.06)" }}>
             {/* Card do email */}
-            <div className="rounded-2xl overflow-hidden mx-auto" style={{ background: "#0f0f0f", border: "1px solid rgba(255,255,255,0.07)", maxWidth: 480 }}>
+            <div className="rounded-2xl overflow-hidden mx-auto" style={{ background: "#0f0f0f", border: "1px solid var(--border-subtle)", maxWidth: 480 }}>
               {/* Accent bar top */}
               <div style={{ height: 2, background: `linear-gradient(90deg,${previewColor} 0%,${previewColor}60 60%,transparent 100%)` }} />
 
@@ -511,7 +511,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
                   </div>
                   <span className="text-xs font-bold text-white">{previewName}</span>
                 </div>
-                <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(147,157,164,0.5)" }}>
+                <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-subtle)", color: "rgba(147,157,164,0.5)" }}>
                   Convite de equipe
                 </span>
               </div>
@@ -595,7 +595,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
 function PersonaConfig({ tenantId }: { tenantId: string | null }) {
   const [form, setForm] = useState({ nome: "Assistente", empresa: "", descricao: "", temperatura: 0.7, max_tokens: 1000, responder_com_audio: false, voz_tts: "pt-BR-feminina" });
   const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [exists, setExists] = useState(false);
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
   useEffect(() => {
     if (!tenantId) return;
     createClient().from("personas").select("*").eq("tenant_id", tenantId).limit(1).maybeSingle().then(({ data }: { data: any }) => {
@@ -613,17 +613,17 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
     <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
       <h2 className="text-sm font-bold text-white">Personalidade da IA</h2>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5"><Label className="text-xs" style={{ color: "#939da4" }}>Nome</Label><Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} /></div>
-        <div className="space-y-1.5"><Label className="text-xs" style={{ color: "#939da4" }}>Empresa</Label><Input value={form.empresa} onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))} className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} /></div>
+        <div className="space-y-1.5"><Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Nome</Label><Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} /></div>
+        <div className="space-y-1.5"><Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Empresa</Label><Input value={form.empresa} onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))} className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} /></div>
       </div>
-      <div className="space-y-1.5"><Label className="text-xs" style={{ color: "#939da4" }}>Instruções</Label><textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} rows={3} className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} /></div>
+      <div className="space-y-1.5"><Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Instruções</Label><textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} rows={3} className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} /></div>
 
       {/* TTS */}
       <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(154,234,98,0.03)", border: "1px solid rgba(154,234,98,0.1)" }}>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-white">Responder com áudio</p>
-            <p className="text-[10px] mt-0.5" style={{ color: "#939da4" }}>IA converte respostas em voz e envia como áudio no WhatsApp</p>
+            <p className="text-[10px] mt-0.5" style={{ color: "var(--text-secondary)" }}>IA converte respostas em voz e envia como áudio no WhatsApp</p>
           </div>
           <button onClick={() => setForm(f => ({ ...f, responder_com_audio: !f.responder_com_audio }))}
             className="relative w-10 h-5 rounded-full transition-colors shrink-0"
@@ -634,10 +634,10 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
         </div>
         {form.responder_com_audio && (
           <div className="space-y-1.5">
-            <Label className="text-xs" style={{ color: "#939da4" }}>Voz</Label>
+            <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Voz</Label>
             <select value={form.voz_tts} onChange={e => setForm(f => ({ ...f, voz_tts: e.target.value }))}
               className="w-full h-9 px-3 rounded-xl text-sm outline-none"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
               <option value="pt-BR-feminina" style={{ background: "#111" }}>Feminina (Natural)</option>
               <option value="pt-BR-masculina" style={{ background: "#111" }}>Masculina</option>
               <option value="pt-BR-feminina-2" style={{ background: "#111" }}>Feminina 2</option>
@@ -661,13 +661,13 @@ function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onCo
   }
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium" style={{ background: "rgba(255,255,255,0.02)", color: "#939da4" }}>
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium" style={{ background: "rgba(255,255,255,0.02)", color: "var(--text-secondary)" }}>
         Configurar manualmente (avançado) {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
       {open && (
         <div className="px-4 py-3 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))} placeholder="Phone Number ID" className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
-          <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} placeholder="Access Token" className="h-9 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))} placeholder="Phone Number ID" className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+          <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} placeholder="Access Token" className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <div className="flex justify-end"><button onClick={save} disabled={saving || !form.phone_number_id || !form.access_token} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a" }}>{saving ? "..." : saved ? "Salvo!" : "Salvar"}</button></div>
         </div>
       )}
@@ -681,7 +681,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
   const [showInvite, setShowInvite] = useState(false); const [inviteForm, setInviteForm] = useState({ email: "", role: "member" });
   const [inviting, setInviting] = useState(false); const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
   const ROLE_COLOR: Record<string, string> = { owner: "#9aea62", admin: "#60a5fa", member: "#939da4" };
   const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Membro" };
 
@@ -709,7 +709,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
     <div className="space-y-4 max-w-2xl">
       <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
         <div className="flex items-center justify-between">
-          <div><p className="text-sm font-bold text-white">Membros</p><p className="text-xs mt-0.5" style={{ color: "#939da4" }}>{members.length} membro(s)</p></div>
+          <div><p className="text-sm font-bold text-white">Membros</p><p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{members.length} membro(s)</p></div>
           <button onClick={() => setShowInvite(!showInvite)} className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }}>
             <Plus className="w-3.5 h-3.5" /> Convidar
           </button>
@@ -717,8 +717,8 @@ function TeamSection({ tenantId }: { tenantId: string }) {
         {showInvite && (
           <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="flex gap-2">
-              <input value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="email@vendedor.com" type="email" className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
-              <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))} className="h-9 px-3 rounded-xl text-sm outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}>
+              <input value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="email@vendedor.com" type="email" className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+              <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))} className="h-9 px-3 rounded-xl text-sm outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
                 <option value="member" style={{ background: "#111" }}>Membro</option>
                 <option value="admin" style={{ background: "#111" }}>Admin</option>
               </select>
@@ -729,7 +729,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
             {inviteLink && (
               <div className="rounded-lg p-3 space-y-2" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
                 <p className="text-xs font-bold" style={{ color: "#9aea62" }}>Link de convite gerado!</p>
-                <p className="text-xs font-mono break-all" style={{ color: "#939da4" }}>{inviteLink}</p>
+                <p className="text-xs font-mono break-all" style={{ color: "var(--text-secondary)" }}>{inviteLink}</p>
                 <button onClick={() => { navigator.clipboard.writeText(inviteLink); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
                   className="flex items-center gap-1.5 text-xs font-bold" style={{ color: "#9aea62" }}>
                   {copied ? <><Check className="w-3 h-3" /> Copiado!</> : <><Copy className="w-3 h-3" /> Copiar link</>}
@@ -758,7 +758,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
         </div>
         {invites.length > 0 && (
           <div>
-            <p className="text-xs font-bold mb-2" style={{ color: "#939da4" }}>Convites pendentes</p>
+            <p className="text-xs font-bold mb-2" style={{ color: "var(--text-secondary)" }}>Convites pendentes</p>
             {invites.map(inv => (
               <div key={inv.id} className="flex items-center gap-3 py-2 px-3 rounded-xl mb-1.5" style={{ background: "rgba(250,204,21,0.04)", border: "1px solid rgba(250,204,21,0.1)" }}>
                 <p className="flex-1 text-xs font-medium text-white truncate">{inv.email}</p>
@@ -805,7 +805,7 @@ function MemberConfig({ member, tenantId }: { member: any; tenantId: string }) {
         className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-bold transition-all"
         style={disp
           ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
-          : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+          : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
         <div className="w-1.5 h-1.5 rounded-full" style={{ background: disp ? "#9aea62" : "#939da4" }} />
         {disp ? "Disponível" : "Offline"}
       </button>
@@ -875,25 +875,25 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
       {showForm && (
         <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
           <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome (ex: Notificar n8n)"
-            className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="https://hooks.zapier.com/..."
-            className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none font-mono" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none font-mono" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <div>
-            <p className="text-xs font-medium mb-2" style={{ color: "#939da4" }}>Eventos:</p>
+            <p className="text-xs font-medium mb-2" style={{ color: "var(--text-secondary)" }}>Eventos:</p>
             <div className="flex flex-wrap gap-2">
               {WEBHOOK_EVENTS.map(ev => (
                 <button key={ev.id} onClick={() => toggleEvento(ev.id)}
                   className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
                   style={form.eventos.includes(ev.id)
                     ? { background: "rgba(154,234,98,0.15)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.3)" }
-                    : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                   {ev.label}
                 </button>
               ))}
             </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowForm(false)} className="px-4 h-8 rounded-xl text-xs" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Cancelar</button>
+            <button onClick={() => setShowForm(false)} className="px-4 h-8 rounded-xl text-xs" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Cancelar</button>
             <button onClick={save} disabled={saving || !form.nome || !form.url || !form.eventos.length}
               className="px-5 h-8 rounded-xl text-xs font-bold" style={{ background: "#9aea62", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
               {saving ? "Salvando..." : "Salvar webhook"}
@@ -907,11 +907,11 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
       ) : (
         <div className="space-y-2">
           {webhooks.map(wh => (
-            <div key={wh.id} className="rounded-xl p-3 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div key={wh.id} className="rounded-xl p-3 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-subtle)" }}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-white">{wh.nome}</p>
-                  <p className="text-[10px] font-mono truncate" style={{ color: "#939da4" }}>{wh.url}</p>
+                  <p className="text-[10px] font-mono truncate" style={{ color: "var(--text-secondary)" }}>{wh.url}</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0 ml-2">
                   <button onClick={() => test(wh.id)} disabled={testing === wh.id}

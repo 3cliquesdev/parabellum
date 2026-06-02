@@ -20,7 +20,6 @@ const COLUMNS: { id: LeadStatus; label: string; color: string }[] = [
   { id: "perdido", label: "Perdido", color: "#f87171" },
 ];
 
-// Componente de coluna com useDroppable para aceitar drops
 function DroppableColumn({ col, children, isOver }: { col: typeof COLUMNS[0]; children: React.ReactNode; isOver: boolean }) {
   const { setNodeRef } = useDroppable({ id: col.id });
   return (
@@ -51,9 +50,7 @@ export function KanbanBoard({ leads, onStatusChange, onLeadUpdated, tenantId }: 
   const activeLead = leads.find((l) => l.id === activeId);
 
   function getColumnId(id: string): LeadStatus | null {
-    // É uma coluna diretamente?
     if (COLUMNS.find(c => c.id === id)) return id as LeadStatus;
-    // É um lead? Retorna a coluna desse lead
     const lead = leads.find(l => l.id === id);
     return lead?.status ?? null;
   }
@@ -97,37 +94,37 @@ export function KanbanBoard({ leads, onStatusChange, onLeadUpdated, tenantId }: 
             return (
               <div key={col.id} className="flex flex-col shrink-0 w-64 rounded-2xl transition-all"
                 style={{
-                  background: isOver ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
-                  border: isOver ? `1px solid ${col.color}30` : "1px solid rgba(255,255,255,0.05)",
+                  background: isOver ? "var(--input-bg)" : "var(--surface)",
+                  border: isOver ? `1px solid ${col.color}30` : "1px solid var(--border-subtle)",
                 }}>
 
                 {/* Header */}
                 <div className="px-4 py-3 flex items-center justify-between shrink-0"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: col.color }} />
                     <span className="text-xs font-bold text-white">{col.label}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {colValue > 0 && (
-                      <span className="text-[10px] font-bold" style={{ color: "#9aea62" }}>
+                      <span className="text-[10px] font-bold" style={{ color: "var(--status-ganho)" }}>
                         R$ {(colValue / 1000).toFixed(0)}k
                       </span>
                     )}
                     <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
-                      style={{ background: "rgba(255,255,255,0.08)", color: "#939da4" }}>
+                      style={{ background: "var(--input-border)", color: "var(--text-secondary)" }}>
                       {colLeads.length}
                     </span>
                   </div>
                 </div>
 
-                {/* Drop zone com useDroppable */}
+                {/* Drop zone */}
                 <SortableContext id={col.id} items={colLeads.map(l => l.id)} strategy={verticalListSortingStrategy}>
                   <DroppableColumn col={col} isOver={isOver}>
                     {colLeads.length === 0 && !isOver && (
                       <div className="flex items-center justify-center h-16 rounded-xl"
-                        style={{ border: "1px dashed rgba(255,255,255,0.06)" }}>
-                        <p className="text-xs" style={{ color: "rgba(147,157,164,0.3)" }}>Solte aqui</p>
+                        style={{ border: "1px dashed var(--border-subtle)" }}>
+                        <p className="text-xs" style={{ color: "var(--text-faint)" }}>Solte aqui</p>
                       </div>
                     )}
                     {colLeads.map(lead => (
@@ -144,13 +141,13 @@ export function KanbanBoard({ leads, onStatusChange, onLeadUpdated, tenantId }: 
           {activeLead && (
             <div className="rounded-xl p-4 w-64 rotate-2"
               style={{
-                background: "linear-gradient(180deg, rgba(28,28,28,0.95) 0%, rgba(18,18,18,1) 100%)",
-                border: "1px solid rgba(154,234,98,0.3)",
+                background: "var(--surface-alt)",
+                border: "1px solid var(--primary-border)",
                 boxShadow: "0 16px 48px rgba(0,0,0,0.6)",
               }}>
               <p className="text-sm font-semibold text-white">{activeLead.nome}</p>
               {activeLead.servico_interesse && (
-                <p className="text-xs mt-1" style={{ color: "#939da4" }}>{activeLead.servico_interesse}</p>
+                <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>{activeLead.servico_interesse}</p>
               )}
             </div>
           )}

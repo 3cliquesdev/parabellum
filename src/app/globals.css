@@ -95,6 +95,11 @@
   --input-bg:        rgba(255,255,255,0.04);
   --input-border:    rgba(255,255,255,0.08);
   --scrim:           rgba(0,0,0,0.6);
+
+  /* Primary accent backgrounds/borders */
+  --primary-bg:      rgba(154,234,98,0.08);
+  --primary-border:  rgba(154,234,98,0.2);
+  --surface-gradient: linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%);
 }
 
 /* ── Light Theme ── */
@@ -151,7 +156,14 @@ html.light {
   --input-bg:        #F8FAFC;
   --input-border:    #E2E8F0;
   --scrim:           rgba(15,23,42,0.5);
+
+  --primary-bg:      rgba(34,197,94,0.08);
+  --primary-border:  rgba(34,197,94,0.25);
+  --surface-gradient: #FFFFFF;
 }
+
+/* CRM app content: white text → foreground in light mode */
+html.light main.crm-main .text-white { color: var(--foreground); }
 
 @layer base {
   * {

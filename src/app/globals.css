@@ -75,6 +75,82 @@
   --lime-dark: #78c96c;
   --cream: #f9f6ec;
   --muted-text: #939da4;
+
+  /* ── Semantic tokens (dark default) ── */
+  --bg:              #000000;
+  --bg-subtle:       #0d0d0d;
+  --surface:         rgba(23,23,23,0.88);
+  --surface-alt:     rgba(28,28,28,0.95);
+  --surface-solid:   #171717;
+  --border-subtle:   rgba(255,255,255,0.07);
+  --border-strong:   rgba(255,255,255,0.12);
+  --text-primary:    #F8FAFC;
+  --text-secondary:  #939da4;
+  --text-faint:      rgba(147,157,164,0.5);
+  --status-novo:     rgba(255,255,255,0.2);
+  --status-contato:  #60a5fa;
+  --status-qualificado: #a78bfa;
+  --status-ganho:    #9aea62;
+  --status-perdido:  #f87171;
+  --input-bg:        rgba(255,255,255,0.04);
+  --input-border:    rgba(255,255,255,0.08);
+  --scrim:           rgba(0,0,0,0.6);
+}
+
+/* ── Light Theme ── */
+html.light {
+  --background: #F7F9FC;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  --primary: #22C55E;
+  --primary-foreground: #FFFFFF;
+  --secondary: rgba(15,23,42,0.06);
+  --secondary-foreground: #0F172A;
+  --muted: rgba(15,23,42,0.04);
+  --muted-foreground: #64748B;
+  --accent: rgba(34,197,94,0.1);
+  --accent-foreground: #16A34A;
+  --destructive: #DC2626;
+  --border: #E2E8F0;
+  --input: #F1F5F9;
+  --ring: rgba(34,197,94,0.4);
+
+  --sidebar: #F1F5F9;
+  --sidebar-foreground: #0F172A;
+  --sidebar-primary: #22C55E;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: rgba(15,23,42,0.05);
+  --sidebar-accent-foreground: #0F172A;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: rgba(34,197,94,0.4);
+
+  --lime: #22C55E;
+  --lime-dark: #16A34A;
+  --cream: #F8FAFC;
+  --muted-text: #64748B;
+
+  /* Semantic tokens (light) */
+  --bg:              #F7F9FC;
+  --bg-subtle:       #EEF3F8;
+  --surface:         #FFFFFF;
+  --surface-alt:     #F8FAFC;
+  --surface-solid:   #FFFFFF;
+  --border-subtle:   #E2E8F0;
+  --border-strong:   #CBD5E1;
+  --text-primary:    #0F172A;
+  --text-secondary:  #64748B;
+  --text-faint:      #94A3B8;
+  --status-novo:     #94A3B8;
+  --status-contato:  #3B82F6;
+  --status-qualificado: #8B5CF6;
+  --status-ganho:    #22C55E;
+  --status-perdido:  #EF4444;
+  --input-bg:        #F8FAFC;
+  --input-border:    #E2E8F0;
+  --scrim:           rgba(15,23,42,0.5);
 }
 
 @layer base {
@@ -89,8 +165,9 @@
   }
 
   body {
-    background-color: #000000;
-    color: #ffffff;
+    background-color: var(--background);
+    color: var(--foreground);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 }
 

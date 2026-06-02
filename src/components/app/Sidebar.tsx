@@ -9,6 +9,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useBranding } from "@/hooks/useBranding";
 import { useEffect, useState } from "react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -124,6 +125,12 @@ export function Sidebar() {
               </div>
             </Link>
           )}
+          {/* Theme toggle */}
+          <div className="flex items-center justify-between px-3 py-2 mb-0.5">
+            <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.22)" }}>Aparência</span>
+            <ThemeToggle />
+          </div>
+
           <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
             style={{ color: "rgba(255,255,255,0.35)", border: "1px solid transparent", transition: "all 0.15s ease" }}
             onMouseEnter={e => { const el = e.currentTarget as HTMLAnchorElement; el.style.color = "rgba(255,255,255,0.6)"; el.style.background = "rgba(255,255,255,0.04)"; }}

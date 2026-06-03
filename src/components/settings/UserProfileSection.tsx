@@ -310,7 +310,7 @@ export function UserProfileSection() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-7 max-w-6xl">
       <div>
         <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Meu perfil</h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
@@ -327,28 +327,28 @@ export function UserProfileSection() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid gap-7 xl:grid-cols-[380px_minmax(0,1fr)]">
         <div className="space-y-6">
-          <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
+          <div className="rounded-3xl p-7 space-y-6" style={cardStyle}>
             <div className="flex items-center gap-3">
               <div
-                className="flex h-10 w-10 items-center justify-center rounded-2xl"
+                className="flex h-12 w-12 items-center justify-center rounded-2xl"
                 style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)" }}
               >
                 <UserRound className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white">Foto e identidade</p>
-                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-base font-bold text-white">Foto e identidade</p>
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                   Essa foto pode ser usada em areas de conta e relacionamento.
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-4">
-              <Avatar size="lg" className="h-24 w-24">
+            <div className="flex flex-col items-center gap-5">
+              <Avatar size="lg" className="h-32 w-32">
                 {profile.avatar_url ? <AvatarImage src={profile.avatar_url} alt="Foto do usuario" /> : null}
-                <AvatarFallback className="bg-white/5 text-lg font-bold text-white">
+                <AvatarFallback className="bg-white/5 text-2xl font-bold text-white">
                   {initials.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -357,7 +357,7 @@ export function UserProfileSection() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingAvatar}
-                  className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold transition-opacity"
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-base font-bold transition-opacity"
                   style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}
                 >
                   {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
@@ -368,7 +368,7 @@ export function UserProfileSection() {
                   <button
                     onClick={handleRemoveAvatar}
                     disabled={uploadingAvatar}
-                    className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-opacity"
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-base font-medium transition-opacity"
                     style={{ background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
                   >
                     <X className="h-4 w-4" />
@@ -390,29 +390,29 @@ export function UserProfileSection() {
               />
             </div>
 
-            <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-              <div className="mb-1 flex items-center gap-2 text-xs font-bold text-white">
+            <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white">
                 <Mail className="h-3.5 w-3.5" style={{ color: "var(--text-faint)" }} />
                 Email de acesso
               </div>
-              <p className="text-sm text-white">{userEmail || "Nao identificado"}</p>
-              <p className="mt-1 text-[11px]" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-base text-white">{userEmail || "Nao identificado"}</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
                 O email continua sendo gerenciado pela autenticacao do sistema.
               </p>
             </div>
           </div>
 
-          <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+          <div className="rounded-3xl p-7 space-y-5" style={cardStyle}>
             <div className="flex items-center gap-3">
               <div
-                className="flex h-10 w-10 items-center justify-center rounded-2xl"
+                className="flex h-12 w-12 items-center justify-center rounded-2xl"
                 style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)" }}
               >
                 <Lock className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white">Seguranca</p>
-                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-base font-bold text-white">Seguranca</p>
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                   Atualize sua senha sempre que precisar.
                 </p>
               </div>
@@ -428,7 +428,7 @@ export function UserProfileSection() {
                   type="password"
                   value={passwordForm.newPassword}
                   onChange={event => setPasswordForm(current => ({ ...current, newPassword: event.target.value }))}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="Minimo de 6 caracteres"
                 />
               </div>
@@ -442,7 +442,7 @@ export function UserProfileSection() {
                   type="password"
                   value={passwordForm.confirmPassword}
                   onChange={event => setPasswordForm(current => ({ ...current, confirmPassword: event.target.value }))}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="Repita a nova senha"
                 />
               </div>
@@ -451,7 +451,7 @@ export function UserProfileSection() {
             <button
               onClick={handlePasswordChange}
               disabled={savingPassword}
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold transition-opacity"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-base font-bold transition-opacity"
               style={{ background: passwordSaved ? "rgba(154,234,98,0.12)" : "#9aea62", color: passwordSaved ? "#9aea62" : "#0a0a0a" }}
             >
               {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : passwordSaved ? <CheckCircle2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
@@ -461,23 +461,23 @@ export function UserProfileSection() {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
+          <div className="rounded-3xl p-7 space-y-6" style={cardStyle}>
             <div className="flex items-center gap-3">
               <div
-                className="flex h-10 w-10 items-center justify-center rounded-2xl"
+                className="flex h-12 w-12 items-center justify-center rounded-2xl"
                 style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)" }}
               >
                 <UserRound className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white">Dados pessoais</p>
-                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-base font-bold text-white">Dados pessoais</p>
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                   Nome e CPF para documentos, vendas e automacoes futuras.
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="first-name" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
                   Nome
@@ -486,7 +486,7 @@ export function UserProfileSection() {
                   id="first-name"
                   value={toFormValue(profile.first_name)}
                   onChange={event => updateField("first_name", event.target.value || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="Seu nome"
                 />
               </div>
@@ -499,7 +499,7 @@ export function UserProfileSection() {
                   id="last-name"
                   value={toFormValue(profile.last_name)}
                   onChange={event => updateField("last_name", event.target.value || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="Seu sobrenome"
                 />
               </div>
@@ -512,30 +512,30 @@ export function UserProfileSection() {
                   id="cpf"
                   value={toFormValue(profile.cpf)}
                   onChange={event => updateField("cpf", formatCpf(event.target.value) || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="000.000.000-00"
                 />
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
+          <div className="rounded-3xl p-7 space-y-6" style={cardStyle}>
             <div className="flex items-center gap-3">
               <div
-                className="flex h-10 w-10 items-center justify-center rounded-2xl"
+                className="flex h-12 w-12 items-center justify-center rounded-2xl"
                 style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)" }}
               >
                 <MapPinHouse className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white">Endereco</p>
-                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-base font-bold text-white">Endereco</p>
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                   Esses dados ficam prontos para preencher vendas, contratos e faturamento.
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-6">
+            <div className="grid gap-5 md:grid-cols-6">
               <div className="space-y-1.5 md:col-span-2">
                 <Label htmlFor="zip" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
                   CEP
@@ -544,7 +544,7 @@ export function UserProfileSection() {
                   id="zip"
                   value={toFormValue(profile.address_zip)}
                   onChange={event => updateField("address_zip", formatZip(event.target.value) || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="00000-000"
                 />
               </div>
@@ -557,7 +557,7 @@ export function UserProfileSection() {
                   id="street"
                   value={toFormValue(profile.address_street)}
                   onChange={event => updateField("address_street", event.target.value || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="Rua, avenida ou alameda"
                 />
               </div>
@@ -570,7 +570,7 @@ export function UserProfileSection() {
                   id="number"
                   value={toFormValue(profile.address_number)}
                   onChange={event => updateField("address_number", event.target.value || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="123"
                 />
               </div>
@@ -583,7 +583,7 @@ export function UserProfileSection() {
                   id="complement"
                   value={toFormValue(profile.address_complement)}
                   onChange={event => updateField("address_complement", event.target.value || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="Apto, bloco, sala..."
                 />
               </div>
@@ -596,7 +596,7 @@ export function UserProfileSection() {
                   id="neighborhood"
                   value={toFormValue(profile.address_neighborhood)}
                   onChange={event => updateField("address_neighborhood", event.target.value || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="Seu bairro"
                 />
               </div>
@@ -609,7 +609,7 @@ export function UserProfileSection() {
                   id="city"
                   value={toFormValue(profile.address_city)}
                   onChange={event => updateField("address_city", event.target.value || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="Sua cidade"
                 />
               </div>
@@ -622,7 +622,7 @@ export function UserProfileSection() {
                   id="state"
                   value={toFormValue(profile.address_state)}
                   onChange={event => updateField("address_state", event.target.value.toUpperCase() || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
                   placeholder="SP"
                   maxLength={2}
                 />
@@ -646,9 +646,9 @@ export function UserProfileSection() {
               <button
                 onClick={handleSaveProfile}
                 disabled={savingProfile}
-                className="flex h-11 items-center gap-2 rounded-xl px-5 text-sm font-bold transition-opacity"
-                style={{ background: profileSaved ? "rgba(154,234,98,0.12)" : "#9aea62", color: profileSaved ? "#9aea62" : "#0a0a0a" }}
-              >
+              className="flex h-12 items-center gap-2 rounded-2xl px-6 text-base font-bold transition-opacity"
+              style={{ background: profileSaved ? "rgba(154,234,98,0.12)" : "#9aea62", color: profileSaved ? "#9aea62" : "#0a0a0a" }}
+            >
                 {savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : profileSaved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                 {savingProfile ? "Salvando..." : profileSaved ? "Perfil salvo" : "Salvar perfil"}
               </button>

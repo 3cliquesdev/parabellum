@@ -1,11 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { LooseDatabase } from "@/types/database";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function createClient() {
   const cookieStore = await cookies();
 
-  return createServerClient<any>(
+  return createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

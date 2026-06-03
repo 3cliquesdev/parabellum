@@ -2,12 +2,57 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, Plus, TrendingUp, Globe, Building2, ArrowRight, Bot, MessageSquare, AlertTriangle, Activity, CreditCard } from "lucide-react";
+import { Users, Plus, TrendingUp, Building2, Bot, MessageSquare, AlertTriangle, Activity, CreditCard } from "lucide-react";
 import { motion } from "framer-motion";
 
+interface AgencyInfo {
+  display_name: string | null;
+  trial_ends_at: string | null;
+  payment_status: string | null;
+}
+
+interface AgencyTotals {
+  tenants: number;
+  max_tenants: number;
+  members: number;
+  ai_calls_this_month: number;
+  messages_this_month: number;
+}
+
+interface AgencyPlanInfo {
+  display_name: string | null;
+  max_tenants: number | null;
+  max_ai_calls_per_month: number | null;
+}
+
+interface TenantStat {
+  id: string;
+  name: string;
+  ai_calls: number;
+  usage_pct: number;
+}
+
+interface RecentAuditLog {
+  action: string;
+  details: {
+    tenant_name?: string;
+  } | null;
+  created_at: string;
+}
+
+interface AgencyDashboardData {
+  agency: AgencyInfo | null;
+  totals: AgencyTotals;
+  plan: AgencyPlanInfo | null;
+  tenant_stats: TenantStat[];
+  near_limit: TenantStat[];
+  recent_audit: RecentAuditLog[];
+}
+
 export default function AgencyDashboard() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<AgencyDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentTime] = useState(() => Date.now());
 
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
 
@@ -16,14 +61,14 @@ export default function AgencyDashboard() {
   }, []);
 
   const agency = data?.agency;
-  const totals = data?.totals ?? {};
+  const totals = data?.totals ?? { tenants: 0, max_tenants: 0, members: 0, ai_calls_this_month: 0, messages_this_month: 0 };
   const plan = data?.plan;
-  const tenantStats: any[] = data?.tenant_stats ?? [];
-  const nearLimit: any[] = data?.near_limit ?? [];
-  const recentAudit: any[] = data?.recent_audit ?? [];
+  const tenantStats = data?.tenant_stats ?? [];
+  const nearLimit = data?.near_limit ?? [];
+  const recentAudit = data?.recent_audit ?? [];
 
   const trialDaysLeft = agency?.trial_ends_at
-    ? Math.max(0, Math.ceil((new Date(agency.trial_ends_at).getTime() - Date.now()) / 86400000))
+    ? Math.max(0, Math.ceil((new Date(agency.trial_ends_at).getTime() - currentTime) / 86400000))
     : null;
 
   const ACTION_LABELS: Record<string, string> = {

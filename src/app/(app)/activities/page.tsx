@@ -6,6 +6,12 @@ import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 import type { Atividade, AtividadeTipo } from "@/types/database";
 
+interface AtividadeRow extends Atividade {
+  leads?: {
+    nome?: string | null;
+  } | null;
+}
+
 const TIPO_LABEL: Record<AtividadeTipo, string> = {
   ligacao: "Ligação", whatsapp: "WhatsApp", email: "E-mail", reuniao: "Reunião", outro: "Outro",
 };
@@ -20,8 +26,16 @@ export default function ActivitiesPage() {
   const [filter, setFilter] = useState<"all" | "pending" | "done">("pending");
 
   useEffect(() => {
-    if (!tenantLoading && tenantId) fetchAtividades();
-    if (!tenantLoading && !tenantId) setLoading(false);
+    queueMicrotask(() => {
+      if (!tenantLoading && tenantId) {
+        void fetchAtividades();
+        return;
+      }
+
+      if (!tenantLoading) {
+        setLoading(false);
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, tenantLoading]);
 
@@ -33,8 +47,9 @@ export default function ActivitiesPage() {
       .select("*, leads(nome)")
       .eq("tenant_id", tenantId!)
       .order("prazo", { ascending: true, nullsFirst: false });
-    setAtividades((data ?? []).map((a: Atividade & { leads?: { nome: string } }) => ({
-      ...a, lead_nome: a.leads?.nome,
+    const rows = (data ?? []) as unknown as AtividadeRow[];
+    setAtividades(rows.map((a) => ({
+      ...a, lead_nome: a.leads?.nome ?? undefined,
     })));
     setLoading(false);
   }

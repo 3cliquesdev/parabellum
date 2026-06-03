@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, MessageSquare, Paperclip, FileText, MapPin, Clock, UserCheck, RefreshCw } from "lucide-react";
+import { Send, Bot, User, MessageSquare, Paperclip, FileText, MapPin, Clock } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
@@ -94,7 +94,12 @@ export default function InboxPage() {
       if (!user) return;
       setMyUserId(user.id);
       if (tenantId) {
-        const { data: tm } = await supabase.from("tenant_members").select("role").eq("tenant_id", tenantId).eq("user_id", user.id).single() as { data: any };
+        const { data: tm } = await supabase
+          .from("tenant_members")
+          .select("role")
+          .eq("tenant_id", tenantId)
+          .eq("user_id", user.id)
+          .single() as { data: { role?: string | null } | null };
         setMyRole(tm?.role ?? "member");
       }
     });
@@ -102,7 +107,7 @@ export default function InboxPage() {
 
   // Filtrar conversas por agente
   const conversasFiltradas = filtro === "minhas" && myUserId
-    ? conversas.filter(c => (c as any).assigned_to === myUserId || !(c as any).assigned_to)
+    ? conversas.filter(c => c.assigned_to === myUserId || !c.assigned_to)
     : conversas;
 
   const selected = conversas.find(c => c.id === selectedId);
@@ -112,15 +117,19 @@ export default function InboxPage() {
   }, [mensagens]);
 
   async function handleSend() {
-    if (!text.trim() || !selectedId || !tenantId) return;
+    if (!text.trim() || !selectedId || !tenantId || !selected?.supports_outbound) return;
     setSending(true);
     const msg = text.trim();
     setText("");
     try {
-      const res = await fetch("/api/whatsapp/send", {
+      const res = await fetch("/api/inbox/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversa_id: selectedId, conteudo: msg, tenant_id: tenantId }),
+        body: JSON.stringify({
+          conversa_id: selectedId,
+          conteudo: msg,
+          tenant_id: tenantId,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -188,7 +197,7 @@ export default function InboxPage() {
             </div>
           ) : (
             conversasFiltradas.map(c => {
-              const dispatch = (c as any).dispatch_status ?? "ia";
+              const dispatch = c.dispatch_status ?? "ia";
               const badge = DISPATCH_BADGE[dispatch] ?? DISPATCH_BADGE.ia;
               return (
               <button key={c.id} onClick={() => setSelectedId(c.id)}
@@ -207,6 +216,8 @@ export default function InboxPage() {
                     <p className="text-sm font-semibold text-white truncate">{c.lead_nome}</p>
                     <div className="flex items-center gap-1 shrink-0 ml-2">
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ color: c.canal_color, background: `${c.canal_color}15` }}>{c.canal_label}</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                         style={{ color: badge.color, background: `${badge.color}15` }}>{badge.label}</span>
                       {c.ia_ativa
                         ? <Bot className="w-3 h-3" style={{ color: "var(--status-ganho)" }} />
@@ -214,7 +225,7 @@ export default function InboxPage() {
                     </div>
                   </div>
                   <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                    {c.lead_whatsapp ?? "Sem número"}
+                    {c.lead_identifier}
                   </p>
                 </div>
               </button>
@@ -242,7 +253,11 @@ export default function InboxPage() {
               </div>
               <div>
                 <p className="text-sm font-bold text-white">{selected.lead_nome}</p>
-                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{selected.lead_whatsapp ?? "WhatsApp"}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ color: selected.canal_color, background: `${selected.canal_color}15` }}>{selected.canal_label}</span>
+                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{selected.lead_identifier}</p>
+                </div>
               </div>
             </div>
             <button onClick={() => toggleIA(selected)}
@@ -307,20 +322,26 @@ export default function InboxPage() {
           <div className="px-6 py-4 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="flex items-center gap-2">
               {/* Botão de anexo */}
-              <label className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer transition-all shrink-0"
-                style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>
+              <label className="w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  color: "var(--text-secondary)",
+                  cursor: selected.supports_attachments ? "pointer" : "not-allowed",
+                  opacity: selected.supports_attachments ? 1 : 0.45,
+                }}>
                 <Paperclip className="w-4 h-4" />
                 <input type="file" className="hidden"
+                  disabled={!selected.supports_attachments || sending}
                   accept="image/*,audio/*,video/*,application/pdf,.doc,.docx"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
-                    if (!file || !selectedId || !tenantId) return;
+                    if (!file || !selectedId || !tenantId || !selected.supports_attachments) return;
                     setSending(true);
                     const fd = new FormData();
                     fd.append("file", file);
                     fd.append("conversa_id", selectedId);
                     fd.append("tenant_id", tenantId);
-                    const res = await fetch("/api/whatsapp/send", { method: "POST", body: fd });
+                    const res = await fetch("/api/inbox/send", { method: "POST", body: fd });
                     if (!res.ok) { const e = await res.json(); alert(e.error ?? "Erro ao enviar arquivo"); }
                     setSending(false);
                     e.target.value = "";
@@ -330,17 +351,22 @@ export default function InboxPage() {
                 value={text}
                 onChange={e => setText(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
-                placeholder="Digite uma mensagem..."
+                disabled={!selected.supports_outbound || sending}
+                placeholder={!selected.supports_outbound
+                  ? `Entrada via ${selected.canal_label}. Resposta ativa em breve.`
+                  : selected.canal === "email"
+                    ? "Escreva o corpo do email..."
+                    : "Digite uma mensagem..."}
                 className="flex-1 h-10 px-4 rounded-xl text-sm text-white outline-none"
                 style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
               />
               <button
                 onClick={handleSend}
-                disabled={!text.trim() || sending}
+                disabled={!selected.supports_outbound || !text.trim() || sending}
                 className="w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0"
                 style={{
-                  background: text.trim() && !sending ? "#9aea62" : "rgba(255,255,255,0.06)",
-                  color: text.trim() && !sending ? "#0a0a0a" : "#939da4",
+                  background: text.trim() && !sending && selected.supports_outbound ? "#9aea62" : "rgba(255,255,255,0.06)",
+                  color: text.trim() && !sending && selected.supports_outbound ? "#0a0a0a" : "#939da4",
                 }}>
                 <Send className="w-4 h-4" />
               </button>

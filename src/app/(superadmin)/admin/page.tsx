@@ -50,7 +50,7 @@ export default function SuperAdminPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = "/admin/login"; return; }
-      const { data: sa } = await supabase.from("super_admins").select("id").eq("email", user.email).single() as { data: { id: string } | null; error: unknown };
+      const { data: sa } = await supabase.from("super_admins").select("id").eq("email", user.email ?? "").single() as { data: { id: string } | null; error: unknown };
       if (!sa) { window.location.href = "/admin/login"; return; }
 
       // Buscar direto via client + dados de IA via API
@@ -60,10 +60,10 @@ export default function SuperAdminPage() {
         supabase.from("ai_usage").select("tenant_id, count, year_month").eq("year_month", new Date().toISOString().slice(0, 7)),
         fetch("/api/admin/data", { cache: "no-store" }).then(r => r.ok ? r.json() : { gemini: { active: false, totalMessages: 0 } }),
       ]);
-      const list: TenantOverview[] = (tenantData as TenantOverview[]) ?? [];
+      const list: TenantOverview[] = (tenantData as unknown as TenantOverview[]) ?? [];
       setTenants(list);
-      setWaConfigs((waData as WaConfig[]) ?? []);
-      setAiUsage((aiData as AiUsageRow[]) ?? []);
+      setWaConfigs((waData as unknown as WaConfig[]) ?? []);
+      setAiUsage((aiData as unknown as AiUsageRow[]) ?? []);
       if (apiRes?.gemini) setGemini(apiRes.gemini);
       if (apiRes?.agencies) setAgencies(apiRes.agencies);
       const mrrTotal = list.reduce((s, t) => s + Number(t.client_price_brl ?? 0), 0);

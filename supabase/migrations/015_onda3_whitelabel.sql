@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS agency_webhooks (
 
 CREATE INDEX IF NOT EXISTS idx_agency_webhooks_agency ON agency_webhooks(agency_id);
 ALTER TABLE agency_webhooks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "agency_webhooks_isolation" ON agency_webhooks;
 CREATE POLICY "agency_webhooks_isolation" ON agency_webhooks
   FOR ALL TO authenticated
   USING (

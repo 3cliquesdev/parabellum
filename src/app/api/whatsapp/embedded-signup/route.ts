@@ -1,30 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { LooseDatabase } from "@/types/database";
 
-const META_APP_ID = "2016623082257479"; // LibertyCRM app
+const META_APP_ID = "2016623082257479";
 
-export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
+interface EmbeddedSignupBody {
+  code?: string;
+  tenant_id?: string;
+}
 
-  // Verificar sessão
-  const supabase = createServerClient<any>(
+interface EmbeddedSignupSelectionBody {
+  tenant_id?: string;
+  phone_number_id?: string;
+  access_token?: string;
+  waba_id?: string;
+}
+
+interface MetaPhoneNumber {
+  id: string;
+  display_phone_number: string;
+  verified_name: string;
+}
+
+interface MetaWaba {
+  id: string;
+}
+
+interface MetaBusiness {
+  whatsapp_business_accounts?: {
+    data?: MetaWaba[];
+  };
+}
+
+function createAuthClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  return createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
   );
+}
+
+function createAdminClient() {
+  return createServerClient<LooseDatabase>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { cookies: { getAll: () => [], setAll: () => {} } }
+  );
+}
+
+export async function POST(request: NextRequest) {
+  const cookieStore = await cookies();
+  const supabase = createAuthClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { code, tenant_id } = await request.json();
-  if (!code || !tenant_id) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  const body = (await request.json()) as EmbeddedSignupBody;
+  if (!body.code || !body.tenant_id) {
+    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  }
 
-  // Trocar code por access token
   const tokenRes = await fetch(
-    `https://graph.facebook.com/v20.0/oauth/access_token?` +
-    `client_id=${META_APP_ID}` +
-    `&client_secret=${process.env.META_APP_SECRET}` +
-    `&code=${code}`,
+    `https://graph.facebook.com/v20.0/oauth/access_token?client_id=${META_APP_ID}&client_secret=${process.env.META_APP_SECRET}&code=${body.code}`,
     { method: "GET" }
   );
 
@@ -34,32 +71,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Falha ao obter token da Meta" }, { status: 500 });
   }
 
-  const tokenData = await tokenRes.json();
-  const accessToken: string = tokenData.access_token;
+  const tokenData = (await tokenRes.json()) as { access_token?: string };
+  const accessToken = tokenData.access_token;
 
   if (!accessToken) {
     return NextResponse.json({ error: "Token não retornado pela Meta" }, { status: 500 });
   }
 
-  // Buscar os WhatsApp Business Accounts do usuário
   const wabaRes = await fetch(
     `https://graph.facebook.com/v20.0/me/businesses?access_token=${accessToken}&fields=id,name,whatsapp_business_accounts`
   );
-  const wabaData = await wabaRes.json();
+  const wabaData = (await wabaRes.json()) as { data?: MetaBusiness[] };
 
-  // Buscar phone numbers do primeiro WABA
-  let phoneNumbers: { id: string; display_phone_number: string; verified_name: string }[] = [];
+  let phoneNumbers: MetaPhoneNumber[] = [];
   let wabaId = "";
 
-  const businesses = wabaData.data ?? [];
-  for (const business of businesses) {
-    const wabas = business.whatsapp_business_accounts?.data ?? [];
-    for (const waba of wabas) {
+  for (const business of (wabaData.data ?? [])) {
+    for (const waba of (business.whatsapp_business_accounts?.data ?? [])) {
       wabaId = waba.id;
       const phoneRes = await fetch(
         `https://graph.facebook.com/v20.0/${waba.id}/phone_numbers?access_token=${accessToken}&fields=id,display_phone_number,verified_name`
       );
-      const phoneData = await phoneRes.json();
+      const phoneData = (await phoneRes.json()) as { data?: MetaPhoneNumber[] };
       phoneNumbers = [...phoneNumbers, ...(phoneData.data ?? [])];
     }
   }
@@ -68,17 +101,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nenhum número encontrado nesta conta Meta", code: "no_phones" }, { status: 400 });
   }
 
-  // Se apenas 1 número, salva automaticamente
   if (phoneNumbers.length === 1) {
     const phone = phoneNumbers[0];
-    const admin = createServerClient<any>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { cookies: { getAll: () => [], setAll: () => {} } }
-    );
+    const admin = createAdminClient();
 
     await admin.from("whatsapp_configs").upsert({
-      tenant_id,
+      tenant_id: body.tenant_id,
       phone_number_id: phone.id,
       waba_id: wabaId,
       access_token: accessToken,
@@ -93,7 +121,6 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Múltiplos números — retorna lista para seleção
   return NextResponse.json({
     status: "select_phone",
     phones: phoneNumbers,
@@ -102,52 +129,37 @@ export async function POST(request: NextRequest) {
   });
 }
 
-// Salvar número específico após seleção
 export async function PUT(request: NextRequest) {
   const cookieStore = await cookies();
-  const supabase = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
+  const supabase = createAuthClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { tenant_id, phone_number_id, access_token, waba_id } = await request.json();
-
-  const admin = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
+  const body = (await request.json()) as EmbeddedSignupSelectionBody;
+  const admin = createAdminClient();
 
   await admin.from("whatsapp_configs").upsert({
-    tenant_id, phone_number_id, waba_id, access_token,
-    verify_token: "liberty-crm", active: true,
+    tenant_id: body.tenant_id,
+    phone_number_id: body.phone_number_id,
+    waba_id: body.waba_id,
+    access_token: body.access_token,
+    verify_token: "liberty-crm",
+    active: true,
   }, { onConflict: "tenant_id" });
 
   return NextResponse.json({ status: "connected" });
 }
 
-// Desconectar WhatsApp
 export async function DELETE(request: NextRequest) {
   const cookieStore = await cookies();
-  const supabase = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
+  const supabase = createAuthClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { tenant_id } = await request.json();
+  const body = (await request.json()) as { tenant_id?: string };
+  if (!body.tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
+  const admin = createAdminClient();
 
-  const admin = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-
-  await admin.from("whatsapp_configs").update({ active: false }).eq("tenant_id", tenant_id);
+  await admin.from("whatsapp_configs").update({ active: false }).eq("tenant_id", body.tenant_id);
   return NextResponse.json({ status: "disconnected" });
 }

@@ -4,6 +4,24 @@ import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Upload, X } from "lucide-react";
 
+interface AgencyBrandingRow {
+  display_name: string | null;
+  primary_color: string | null;
+  support_email: string | null;
+  logo_url: string | null;
+  name: string | null;
+}
+
+interface AgencyUserBrandingRow {
+  agency_id: string;
+  agencies: AgencyBrandingRow | AgencyBrandingRow[] | null;
+}
+
+function getAgencyBranding(agencies: AgencyUserBrandingRow["agencies"]): AgencyBrandingRow | null {
+  if (Array.isArray(agencies)) return agencies[0] ?? null;
+  return agencies ?? null;
+}
+
 export default function BrandingPage() {
   const [form, setForm] = useState({ display_name: "", primary_color: "#9aea62", support_email: "" });
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -20,16 +38,17 @@ export default function BrandingPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       supabase.from("agency_users").select("agency_id, agencies(display_name, primary_color, support_email, logo_url, name)")
-        .eq("user_id", user.id).single().then(({ data }: { data: any }) => {
-          if (!data) return;
-          setAgencyId(data.agency_id);
-          const a = data.agencies as any;
+        .eq("user_id", user.id).single().then(({ data }) => {
+          const agencyUser = data as AgencyUserBrandingRow | null;
+          if (!agencyUser) return;
+          setAgencyId(agencyUser.agency_id);
+          const agency = getAgencyBranding(agencyUser.agencies);
           setForm({
-            display_name: a?.display_name ?? a?.name ?? "",
-            primary_color: a?.primary_color ?? "#9aea62",
-            support_email: a?.support_email ?? "",
+            display_name: agency?.display_name ?? agency?.name ?? "",
+            primary_color: agency?.primary_color ?? "#9aea62",
+            support_email: agency?.support_email ?? "",
           });
-          setLogoUrl(a?.logo_url ?? null);
+          setLogoUrl(agency?.logo_url ?? null);
         });
     });
   }, []);
@@ -121,7 +140,7 @@ export default function BrandingPage() {
             placeholder="Ex: Agência Digital Pro"
             className="w-full h-10 px-3 rounded-xl text-sm text-white outline-none"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
-          <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.5)" }}>Substitui "Liberty CRM" em todo o painel</p>
+          <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.5)" }}>Substitui &quot;Liberty CRM&quot; em todo o painel</p>
         </div>
 
         <div className="space-y-1.5">

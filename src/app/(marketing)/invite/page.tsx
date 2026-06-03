@@ -16,19 +16,40 @@ function InviteContent() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    if (!token) { setState("invalid"); return; }
-    async function validate() {
-      const res = await fetch(`/api/team/accept?token=${token}`);
-      const data = await res.json();
-      if (!data.valid) { setState("invalid"); return; }
-      setInvite(data);
+    let cancelled = false;
 
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      setIsLoggedIn(!!user);
-      setState("valid");
-    }
-    validate();
+    queueMicrotask(() => {
+      if (!token) {
+        if (!cancelled) {
+          setState("invalid");
+        }
+        return;
+      }
+
+      void (async () => {
+        const res = await fetch(`/api/team/accept?token=${token}`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (!data.valid) {
+          setState("invalid");
+          return;
+        }
+
+        setInvite(data);
+
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (cancelled) return;
+
+        setIsLoggedIn(!!user);
+        setState("valid");
+      })();
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   async function accept() {

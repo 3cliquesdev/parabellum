@@ -1,123 +1,206 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { LooseDatabase } from "@/types/database";
 
-export async function POST(request: NextRequest) {
+interface SendMessageBody {
+  conversa_id?: string;
+  tenant_id?: string;
+  conteudo?: string;
+}
+
+interface RelatedLeadRow {
+  whatsapp: string | null;
+}
+
+interface ConversationRow {
+  id: string;
+  leads: RelatedLeadRow | RelatedLeadRow[] | null;
+}
+
+interface WhatsAppConfigRow {
+  phone_number_id: string;
+  access_token: string;
+}
+
+interface MetaMediaUploadResponse {
+  id?: string;
+}
+
+type MediaMessageType = "image" | "audio" | "video" | "document";
+
+async function createAuthClient() {
   const cookieStore = await cookies();
-  const supabaseAuth = createServerClient<any>(
+
+  return createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
   );
-  const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
 
-  const supabase = createServerClient<any>(
+function createAdminClient() {
+  return createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: () => [], setAll: () => {} } }
   );
+}
 
-  // Detectar se é FormData (mídia) ou JSON (texto)
+function getLeadPhone(leads: ConversationRow["leads"]): string {
+  const lead = Array.isArray(leads) ? leads[0] : leads;
+  return lead?.whatsapp?.replace(/\D/g, "") ?? "";
+}
+
+function getMediaMessageType(mimeType: string): MediaMessageType {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("audio/")) return "audio";
+  if (mimeType.startsWith("video/")) return "video";
+  return "document";
+}
+
+export async function POST(request: NextRequest) {
+  const supabaseAuth = await createAuthClient();
+  const { data: { user } } = await supabaseAuth.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const supabase = createAdminClient();
   const contentType = request.headers.get("content-type") ?? "";
   const isFormData = contentType.includes("multipart/form-data");
 
-  let conversa_id: string, tenant_id: string, conteudo: string = "";
+  let conversaId = "";
+  let tenantId = "";
+  let conteudo = "";
   let file: File | null = null;
 
   if (isFormData) {
-    const fd = await request.formData();
-    conversa_id = fd.get("conversa_id") as string;
-    tenant_id = fd.get("tenant_id") as string;
-    file = fd.get("file") as File | null;
+    const formData = await request.formData();
+    conversaId = String(formData.get("conversa_id") ?? "");
+    tenantId = String(formData.get("tenant_id") ?? "");
+    file = formData.get("file") as File | null;
     conteudo = file?.name ?? "";
   } else {
-    const body = await request.json();
-    conversa_id = body.conversa_id;
-    tenant_id = body.tenant_id;
-    conteudo = body.conteudo;
+    const body = (await request.json().catch(() => ({}))) as SendMessageBody;
+    conversaId = body.conversa_id ?? "";
+    tenantId = body.tenant_id ?? "";
+    conteudo = body.conteudo ?? "";
   }
 
-  if (!conversa_id || !tenant_id) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  if (!conversaId || !tenantId) {
+    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  }
 
-  // Buscar conversa + lead + wa config
-  const { data: conversa } = await supabase.from("conversas").select("*, leads(whatsapp)").eq("id", conversa_id).single();
-  if (!conversa) return NextResponse.json({ error: "Conversa não encontrada" }, { status: 404 });
+  const { data: conversa } = await supabase
+    .from("conversas")
+    .select("*, leads(whatsapp)")
+    .eq("id", conversaId)
+    .single();
+  const conversation = conversa as unknown as ConversationRow | null;
+  if (!conversation) return NextResponse.json({ error: "Conversa nao encontrada" }, { status: 404 });
 
-  const { data: waConfig } = await supabase.from("whatsapp_configs")
-    .select("phone_number_id, access_token").eq("tenant_id", tenant_id).eq("active", true).single();
-  if (!waConfig) return NextResponse.json({ error: "WhatsApp não configurado" }, { status: 400 });
+  const { data: waConfig } = await supabase
+    .from("whatsapp_configs")
+    .select("phone_number_id, access_token")
+    .eq("tenant_id", tenantId)
+    .eq("active", true)
+    .single();
+  const config = waConfig as unknown as WhatsAppConfigRow | null;
+  if (!config) return NextResponse.json({ error: "WhatsApp nao configurado" }, { status: 400 });
 
-  const toNumber: string = conversa.leads?.whatsapp?.replace(/\D/g, "") ?? "";
-  if (!toNumber) return NextResponse.json({ error: "Lead sem número de WhatsApp" }, { status: 400 });
+  const toNumber = getLeadPhone(conversation.leads);
+  if (!toNumber) return NextResponse.json({ error: "Lead sem numero de WhatsApp" }, { status: 400 });
 
   let mediaUrl: string | null = null;
-  let mediaType: string | null = null;
+  let mediaType: MediaMessageType | null = null;
   let mediaNome: string | null = null;
   let mediaMime: string | null = null;
 
   if (file) {
-    // Upload arquivo para Meta → obter media_id → enviar
     const mimeType = file.type;
     const buffer = await file.arrayBuffer();
+    const fileName = `${tenantId}/${Date.now()}_${file.name}`;
 
-    // 1. Salvar no Supabase Storage
-    const fileName = `${tenant_id}/${Date.now()}_${file.name}`;
-    await supabase.storage.from("whatsapp-media").upload(fileName, buffer, { contentType: mimeType, upsert: true });
+    await supabase.storage.from("whatsapp-media").upload(fileName, buffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
     const { data: urlData } = supabase.storage.from("whatsapp-media").getPublicUrl(fileName);
     mediaUrl = urlData.publicUrl;
     mediaNome = file.name;
     mediaMime = mimeType;
 
-    // 2. Upload para Meta para obter media_id
     const metaFormData = new FormData();
     metaFormData.append("messaging_product", "whatsapp");
     metaFormData.append("file", new Blob([buffer], { type: mimeType }), file.name);
-    const uploadRes = await fetch(`https://graph.facebook.com/v20.0/${waConfig.phone_number_id}/media`, {
+
+    const uploadResponse = await fetch(`https://graph.facebook.com/v20.0/${config.phone_number_id}/media`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${waConfig.access_token}` },
+      headers: { Authorization: `Bearer ${config.access_token}` },
       body: metaFormData,
     });
-    if (!uploadRes.ok) return NextResponse.json({ error: "Falha ao fazer upload da mídia" }, { status: 500 });
-    const { id: mediaId } = await uploadRes.json();
+    if (!uploadResponse.ok) {
+      return NextResponse.json({ error: "Falha ao fazer upload da midia" }, { status: 500 });
+    }
 
-    // 3. Determinar tipo de mensagem
-    const typeMap: Record<string, string> = {
-      "image/": "image", "audio/": "audio", "video/": "video",
-    };
-    const msgType = Object.entries(typeMap).find(([k]) => mimeType.startsWith(k))?.[1] ?? "document";
-    mediaType = msgType;
+    const uploadData = (await uploadResponse.json()) as MetaMediaUploadResponse;
+    const mediaId = uploadData.id;
+    if (!mediaId) return NextResponse.json({ error: "Media id ausente" }, { status: 500 });
+
+    mediaType = getMediaMessageType(mimeType);
     conteudo = file.name;
 
-    // 4. Enviar via Meta
-    const body: any = { messaging_product: "whatsapp", to: toNumber, type: msgType };
-    body[msgType] = msgType === "document"
+    const payload: Record<string, unknown> = {
+      messaging_product: "whatsapp",
+      to: toNumber,
+      type: mediaType,
+    };
+    payload[mediaType] = mediaType === "document"
       ? { id: mediaId, filename: file.name }
       : { id: mediaId };
-    const res = await fetch(`https://graph.facebook.com/v20.0/${waConfig.phone_number_id}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${waConfig.access_token}` },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) return NextResponse.json({ error: "Falha ao enviar mídia" }, { status: 500 });
 
-  } else {
-    // Enviar texto
-    if (!conteudo) return NextResponse.json({ error: "Conteúdo vazio" }, { status: 400 });
-    const res = await fetch(`https://graph.facebook.com/v20.0/${waConfig.phone_number_id}/messages`, {
+    const response = await fetch(`https://graph.facebook.com/v20.0/${config.phone_number_id}/messages`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${waConfig.access_token}` },
-      body: JSON.stringify({ messaging_product: "whatsapp", to: toNumber, type: "text", text: { body: conteudo } }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.access_token}`,
+      },
+      body: JSON.stringify(payload),
     });
-    if (!res.ok) return NextResponse.json({ error: "Falha ao enviar mensagem" }, { status: 500 });
+    if (!response.ok) return NextResponse.json({ error: "Falha ao enviar midia" }, { status: 500 });
+  } else {
+    if (!conteudo) return NextResponse.json({ error: "Conteudo vazio" }, { status: 400 });
+
+    const response = await fetch(`https://graph.facebook.com/v20.0/${config.phone_number_id}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.access_token}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: toNumber,
+        type: "text",
+        text: { body: conteudo },
+      }),
+    });
+    if (!response.ok) return NextResponse.json({ error: "Falha ao enviar mensagem" }, { status: 500 });
   }
 
-  // Salvar no banco
   await supabase.from("mensagens").insert({
-    conversa_id, tenant_id, remetente: "humano", conteudo, enviada: true,
-    media_url: mediaUrl, media_type: mediaType, media_nome: mediaNome, media_mime: mediaMime,
+    conversa_id: conversaId,
+    tenant_id: tenantId,
+    remetente: "humano",
+    conteudo,
+    enviada: true,
+    media_url: mediaUrl,
+    media_type: mediaType,
+    media_nome: mediaNome,
+    media_mime: mediaMime,
   });
-  await supabase.from("conversas").update({ updated_at: new Date().toISOString() }).eq("id", conversa_id);
+  await supabase
+    .from("conversas")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", conversaId);
 
   return NextResponse.json({ status: "sent" });
 }

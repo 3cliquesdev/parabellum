@@ -69,13 +69,21 @@ export default function DashboardPage() {
       .select("*")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false });
-    setLeads((data as Lead[]) ?? []);
+    setLeads((data as unknown as Lead[]) ?? []);
     setLoading(false);
   }
 
   useEffect(() => {
-    if (!tenantLoading && tenantId) fetchData();
-    if (!tenantLoading && !tenantId) setLoading(false);
+    queueMicrotask(() => {
+      if (!tenantLoading && tenantId) {
+        void fetchData();
+        return;
+      }
+
+      if (!tenantLoading) {
+        setLoading(false);
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, tenantLoading]);
 

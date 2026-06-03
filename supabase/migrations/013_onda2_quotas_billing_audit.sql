@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS tenant_limits (
 );
 
 ALTER TABLE tenant_limits ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_limits_multi" ON tenant_limits;
 CREATE POLICY "tenant_limits_multi" ON tenant_limits
   FOR ALL TO authenticated
   USING (
@@ -82,6 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_agency ON agency_audit_logs(agency_id, crea
 CREATE INDEX IF NOT EXISTS idx_audit_user ON agency_audit_logs(user_id);
 
 ALTER TABLE agency_audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "audit_logs_agency" ON agency_audit_logs;
 CREATE POLICY "audit_logs_agency" ON agency_audit_logs
   FOR ALL TO authenticated
   USING (

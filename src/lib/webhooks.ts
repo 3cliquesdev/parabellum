@@ -1,21 +1,40 @@
 import { createServerClient } from "@supabase/ssr";
 import crypto from "crypto";
+import type { LooseDatabase } from "@/types/database";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-function adminClient() {
-  return createServerClient<any>(SUPABASE_URL, SERVICE_ROLE_KEY, { cookies: { getAll: () => [], setAll: () => {} } });
+interface WebhookConfigRow {
+  id: string;
+  url: string;
+  secret: string | null;
 }
 
 export type WebhookEvent =
-  | "lead.created" | "lead.status_changed" | "lead.won" | "lead.lost"
-  | "message.received" | "message.sent"
-  | "activity.created" | "conversation.started";
+  | "lead.created"
+  | "lead.status_changed"
+  | "lead.won"
+  | "lead.lost"
+  | "message.received"
+  | "message.sent"
+  | "activity.created"
+  | "conversation.started";
+
+function createAdminClient() {
+  return createServerClient<LooseDatabase>(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    cookies: { getAll: () => [], setAll: () => {} },
+  });
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+}
 
 export async function dispatchWebhook(tenantId: string, evento: WebhookEvent, data: Record<string, unknown>) {
   try {
-    const supabase = adminClient();
+    const supabase = createAdminClient();
     const { data: webhooks } = await supabase
       .from("webhook_configs")
       .select("id, url, secret")
@@ -23,16 +42,18 @@ export async function dispatchWebhook(tenantId: string, evento: WebhookEvent, da
       .eq("ativo", true)
       .contains("eventos", [evento]);
 
-    if (!webhooks?.length) return;
+    const webhookRows = (webhooks ?? []) as unknown as WebhookConfigRow[];
+    if (webhookRows.length === 0) return;
 
     const payload = { event: evento, tenant_id: tenantId, data, timestamp: new Date().toISOString() };
     const body = JSON.stringify(payload);
 
     await Promise.allSettled(
-      webhooks.map(async (wh: any) => {
-        const signature = crypto.createHmac("sha256", wh.secret ?? "").update(body).digest("hex");
+      webhookRows.map(async (webhook) => {
+        const signature = crypto.createHmac("sha256", webhook.secret ?? "").update(body).digest("hex");
+
         try {
-          const res = await fetch(wh.url, {
+          const response = await fetch(webhook.url, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -43,15 +64,29 @@ export async function dispatchWebhook(tenantId: string, evento: WebhookEvent, da
             body,
             signal: AbortSignal.timeout(8000),
           });
-          const sucesso = res.ok;
-          await supabase.from("webhook_logs").insert({ webhook_id: wh.id, tenant_id: tenantId, evento, payload, status_code: res.status, sucesso });
-          await supabase.from("webhook_configs").update({ ultimo_envio: new Date().toISOString(), ultimo_erro: sucesso ? null : `HTTP ${res.status}` }).eq("id", wh.id);
-        } catch (err: any) {
-          await supabase.from("webhook_configs").update({ ultimo_erro: err.message }).eq("id", wh.id);
+
+          const success = response.ok;
+          await supabase.from("webhook_logs").insert({
+            webhook_id: webhook.id,
+            tenant_id: tenantId,
+            evento,
+            payload,
+            status_code: response.status,
+            sucesso: success,
+          });
+          await supabase.from("webhook_configs").update({
+            ultimo_envio: new Date().toISOString(),
+            ultimo_erro: success ? null : `HTTP ${response.status}`,
+          }).eq("id", webhook.id);
+        } catch (error) {
+          await supabase
+            .from("webhook_configs")
+            .update({ ultimo_erro: getErrorMessage(error) })
+            .eq("id", webhook.id);
         }
       })
     );
-  } catch (err) {
-    console.error("dispatchWebhook error:", err);
+  } catch (error) {
+    console.error("dispatchWebhook error:", error);
   }
 }

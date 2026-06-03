@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, Bot, Trash2, Edit2, Zap, BookOpen, Users, Headphones } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Plus, Bot, Trash2, Edit2, Zap, Users, Headphones } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 
@@ -16,8 +16,6 @@ const MODELS = [
   { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", desc: "Rápido e eficiente (recomendado)" },
   { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro", desc: "Mais inteligente para casos complexos" },
 ];
-
-const INTENT_OPTIONS = ["comercial", "proposta", "qualificado", "suporte", "fechamento", "desistencia"];
 
 interface Agent {
   id: string; nome: string; role: string; modelo: string;
@@ -49,7 +47,7 @@ export default function AgentsPage() {
     border: "1px solid var(--border-subtle)",
   };
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
     const supabase = createClient();
@@ -57,12 +55,18 @@ export default function AgentsPage() {
       supabase.from("personas").select("*").eq("tenant_id", tenantId).order("created_at"),
       supabase.from("agent_routing_rules").select("*").eq("tenant_id", tenantId).order("priority"),
     ]);
-    setAgents((ag as Agent[]) ?? []);
-    setRules((rl as RoutingRule[]) ?? []);
+    setAgents((ag as unknown as Agent[]) ?? []);
+    setRules((rl as unknown as RoutingRule[]) ?? []);
     setLoading(false);
-  }
+  }, [tenantId]);
 
-  useEffect(() => { if (tenantId) fetchData(); }, [tenantId]);
+  useEffect(() => {
+    if (!tenantId) return;
+
+    queueMicrotask(() => {
+      void fetchData();
+    });
+  }, [fetchData, tenantId]);
 
   async function saveAgent() {
     if (!tenantId || !form.nome) return;
@@ -312,7 +316,7 @@ export default function AgentsPage() {
                       ))}
                       {rule.keywords.map(k => (
                         <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>"{k}"</span>
+                          style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>&quot;{k}&quot;</span>
                       ))}
                     </div>
                   </div>

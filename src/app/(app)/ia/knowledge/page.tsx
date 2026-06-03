@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, BookOpen, Search, CheckCircle, Circle, Zap, Trash2, Edit2, Globe, FileText, PenLine, Upload, X } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
@@ -8,6 +8,17 @@ import { createClient } from "@/lib/supabase/client";
 interface KBArticle {
   id: string; titulo: string; conteudo: string; categoria: string;
   tags: string[]; publicado: boolean; embedding: boolean; created_at: string;
+}
+
+interface KBArticleRecord extends Omit<KBArticle, "embedding"> {
+  embedding: unknown;
+}
+
+interface KBCandidate {
+  id: string;
+  pergunta: string;
+  resposta: string;
+  categoria: string;
 }
 
 const CATEGORIAS = ["Geral", "Serviços", "Preços", "FAQ", "Objeções", "Casos de Sucesso", "Suporte", "Processos"];
@@ -23,7 +34,7 @@ export default function KnowledgePage() {
   const [form, setForm] = useState({ titulo: "", conteudo: "", categoria: "Geral", tags: "" });
   const [saving, setSaving] = useState(false);
   const [embeddingId, setEmbeddingId] = useState<string | null>(null);
-  const [candidates, setCandidates] = useState<any[]>([]);
+  const [candidates, setCandidates] = useState<KBCandidate[]>([]);
   // Importação
   const [importMode, setImportMode] = useState<"url" | "file" | null>(null);
   const [importUrl, setImportUrl] = useState("");
@@ -33,24 +44,32 @@ export default function KnowledgePage() {
 
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
-  async function fetchArticles() {
+  const fetchArticles = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
     const supabase = createClient();
     const { data } = await supabase.from("knowledge_base").select("id, titulo, conteudo, categoria, tags, publicado, embedding, created_at")
       .eq("tenant_id", tenantId).order("created_at", { ascending: false });
-    setArticles((data ?? []).map((a: any) => ({ ...a, embedding: !!a.embedding })));
+    const records = (data ?? []) as unknown as KBArticleRecord[];
+    setArticles(records.map((article) => ({ ...article, embedding: Boolean(article.embedding) })));
     setLoading(false);
-  }
+  }, [tenantId]);
 
-  async function fetchCandidates() {
+  const fetchCandidates = useCallback(async () => {
     if (!tenantId) return;
     const supabase = createClient();
     const { data } = await supabase.from("knowledge_candidates").select("*").eq("tenant_id", tenantId).eq("status", "pendente").order("created_at", { ascending: false });
-    setCandidates(data ?? []);
-  }
+    setCandidates((data ?? []) as unknown as KBCandidate[]);
+  }, [tenantId]);
 
-  useEffect(() => { if (tenantId) { fetchArticles(); fetchCandidates(); } }, [tenantId]);
+  useEffect(() => {
+    if (!tenantId) return;
+
+    queueMicrotask(() => {
+      void fetchArticles();
+      void fetchCandidates();
+    });
+  }, [fetchArticles, fetchCandidates, tenantId]);
 
   async function saveArticle() {
     if (!tenantId || !form.titulo || !form.conteudo) return;
@@ -126,7 +145,7 @@ export default function KnowledgePage() {
     setImporting(false);
   }
 
-  async function approveCandidate(c: any) {
+  async function approveCandidate(c: KBCandidate) {
     const supabase = createClient();
     await supabase.from("knowledge_base").insert({ tenant_id: tenantId, titulo: c.pergunta, conteudo: c.resposta, categoria: c.categoria, publicado: false });
     await supabase.from("knowledge_candidates").update({ status: "aprovado" }).eq("id", c.id);

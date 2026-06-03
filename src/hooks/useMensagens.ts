@@ -18,7 +18,7 @@ export function useMensagens(conversaId: string | null) {
         .select("*")
         .eq("conversa_id", conversaId)
         .order("created_at", { ascending: true });
-      setMensagens((data as Mensagem[]) ?? []);
+      setMensagens((data as unknown as Mensagem[]) ?? []);
     } catch (e) {
       console.error("useMensagens:", e);
     } finally {
@@ -27,7 +27,9 @@ export function useMensagens(conversaId: string | null) {
   }, [conversaId]);
 
   useEffect(() => {
-    fetchMensagens();
+    queueMicrotask(() => {
+      void fetchMensagens();
+    });
 
     if (!conversaId) return;
     const supabase = createClient();

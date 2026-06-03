@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Clock, Users, Zap } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
+import { resolveConversationIdentity } from "@/lib/inbox/channels";
 
 function tempoNaFila(queuedAt: string) {
   const diff = Date.now() - new Date(queuedAt).getTime();
@@ -15,9 +16,34 @@ function tempoNaFila(queuedAt: string) {
 
 const DEPT_COLOR: Record<string, string> = { vendas: "#9aea62", suporte: "#60a5fa" };
 
+interface QueueLead {
+  nome?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
+  instagram?: string | null;
+}
+
+interface QueueConversation {
+  id: string;
+  canal?: "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "interno" | null;
+  lead_id?: string | null;
+  departamento_alvo?: string | null;
+  leads?: QueueLead | null;
+}
+
+interface QueueItem {
+  id: string;
+  conversa_id: string;
+  departamento?: string | null;
+  motivo?: string | null;
+  prioridade: number;
+  queued_at: string;
+  conversas?: QueueConversation | null;
+}
+
 export default function InboxQueuePage() {
   const { tenantId } = useTenant();
-  const [queue, setQueue] = useState<any[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [assuming, setAssuming] = useState<string | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
@@ -32,12 +58,12 @@ export default function InboxQueuePage() {
     async function load() {
       const { data } = await supabase
         .from("conversation_queue")
-        .select("*, conversas(id, lead_id, departamento_alvo, leads(nome, whatsapp))")
+        .select("*, conversas(id, lead_id, canal, departamento_alvo, leads(nome, whatsapp, email, instagram))")
         .eq("tenant_id", tenantId!)
         .is("assigned_at", null)
         .order("prioridade", { ascending: false })
         .order("queued_at", { ascending: true });
-      setQueue(data ?? []);
+      setQueue((data ?? []) as unknown as QueueItem[]);
       setLoading(false);
     }
     load();
@@ -50,7 +76,7 @@ export default function InboxQueuePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tenantId]);
 
-  async function assumir(item: any) {
+  async function assumir(item: QueueItem) {
     if (!myUserId || !tenantId) return;
     setAssuming(item.id);
     const supabase = createClient();
@@ -102,6 +128,14 @@ export default function InboxQueuePage() {
           {queue.map(item => {
             const lead = item.conversas?.leads;
             const dept = item.departamento ?? "vendas";
+            const identifier = resolveConversationIdentity(
+              item.conversas?.canal ?? "interno",
+              {
+                whatsapp: lead?.whatsapp ?? null,
+                email: lead?.email ?? null,
+                instagram: lead?.instagram ?? null,
+              },
+            );
             return (
               <div key={item.id} className="flex items-center gap-4 p-4 rounded-xl" style={cardStyle}>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
@@ -110,6 +144,7 @@ export default function InboxQueuePage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-white truncate">{lead?.nome ?? "Lead desconhecido"}</p>
+                  <p className="text-[11px] mt-0.5 truncate" style={{ color: "#939da4" }}>{identifier}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize"
                       style={{ color: DEPT_COLOR[dept], background: `${DEPT_COLOR[dept]}15` }}>{dept}</span>

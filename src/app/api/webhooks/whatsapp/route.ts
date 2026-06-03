@@ -4,6 +4,7 @@ import { GoogleAuth } from "google-auth-library";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { dispatchConversation } from "@/lib/dispatch";
 import { processFlowMessage } from "@/lib/flow-engine";
+import { ingestInboundMessage } from "@/lib/inbox/service";
 import { transcribeAudio } from "@/lib/speech";
 import { textToSpeech } from "@/lib/tts";
 
@@ -138,42 +139,45 @@ export async function POST(request: NextRequest) {
       }
 
       // Dedup
-      const { data: existing } = await supabase.from("mensagens").select("id").eq("wa_message_id", waMessageId).single();
-      if (existing) continue;
+      const ingested = await ingestInboundMessage({
+        supabase,
+        tenantId,
+        canal: "whatsapp",
+        identity: {
+          canal: "whatsapp",
+          value: fromNumber,
+        },
+        lead: {
+          name: `Lead ${fromNumber}`,
+        },
+        message: {
+          externalMessageId: waMessageId,
+          waMessageId,
+          text,
+          mediaUrl,
+          mediaType: mediaType as "image" | "audio" | "video" | "document" | "sticker" | "location" | null,
+          mediaName: mediaNome,
+          mediaMime,
+          mediaCaption,
+          latitude: lat,
+          longitude: lng,
+          metadata: {
+            canal: "whatsapp",
+            direction: "inbound",
+            message_type: msg.type,
+          },
+        },
+      });
+      if (ingested.duplicate || !ingested.lead || !ingested.conversation) continue;
 
       // Buscar/criar lead
-      const normalizedPhone = fromNumber.replace(/^55/, "").replace(/\D/g, "");
-      let { data: lead } = await supabase.from("leads").select("id, nome, status")
-        .eq("tenant_id", tenantId).ilike("whatsapp", `%${normalizedPhone}%`).single();
-      if (!lead) {
-        const { data: newLead } = await supabase.from("leads")
-          .insert({ tenant_id: tenantId, nome: `Lead ${fromNumber}`, whatsapp: fromNumber, status: "novo" })
-          .select("id, nome, status").single();
-        lead = newLead;
-      }
-      if (!lead) continue;
+      const lead = ingested.lead;
 
       // Buscar/criar conversa
-      let { data: conversa } = await supabase.from("conversas")
-        .select("id, ia_ativa, ai_mode").eq("tenant_id", tenantId).eq("lead_id", lead.id)
-        .eq("canal", "whatsapp").eq("status", "ativo").single();
-      if (!conversa) {
-        const { data: newC } = await supabase.from("conversas")
-          .insert({ tenant_id: tenantId, lead_id: lead.id, canal: "whatsapp", status: "ativo", ia_ativa: true, ai_mode: "autopilot" })
-          .select("id, ia_ativa, ai_mode").single();
-        conversa = newC;
-      }
+      const conversa = ingested.conversation;
       if (!conversa) continue;
 
       // Salvar mensagem do lead (com mídia se houver)
-      await supabase.from("mensagens").insert({
-        conversa_id: conversa.id, tenant_id: tenantId, remetente: "lead",
-        conteudo: text, wa_message_id: waMessageId, enviada: true,
-        media_url: mediaUrl, media_type: mediaType, media_nome: mediaNome,
-        media_mime: mediaMime, media_caption: mediaCaption,
-        latitude: lat, longitude: lng,
-      });
-      await supabase.from("conversas").update({ updated_at: new Date().toISOString() }).eq("id", conversa.id);
 
       // Dispatch webhook: mensagem recebida
       dispatchWebhook(tenantId, "message.received", {

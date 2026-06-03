@@ -20,7 +20,7 @@ export function useLeads(tenantId: string | null) {
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      setLeads((data as Lead[]) ?? []);
+      setLeads((data as unknown as Lead[]) ?? []);
     } catch (e) {
       console.error("useLeads error:", e);
     } finally {
@@ -29,7 +29,9 @@ export function useLeads(tenantId: string | null) {
   }, [tenantId]);
 
   useEffect(() => {
-    fetchLeads();
+    queueMicrotask(() => {
+      void fetchLeads();
+    });
   }, [fetchLeads]);
 
   return { leads, loading, refetch: fetchLeads };
@@ -51,7 +53,7 @@ export function useCreateLead() {
       .insert(data)
       .select()
       .single();
-    return { lead: lead as Lead | null, error };
+    return { lead: lead as unknown as Lead | null, error };
   }, []);
   return { createLead };
 }

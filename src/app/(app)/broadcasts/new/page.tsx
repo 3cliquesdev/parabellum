@@ -51,20 +51,52 @@ const FONTES = [
   },
 ];
 
+interface BroadcastTemplate {
+  id: string;
+  template_name: string;
+  category: string;
+  body_text: string;
+  status: string;
+  variables_count: number;
+}
+
+interface BroadcastPreview {
+  total: number;
+  com_whatsapp: number;
+  opted_out: number;
+  elegiveis: number;
+  fonte: string;
+  janela_gratuita: boolean;
+}
+
+interface BroadcastSegmentFilters {
+  fonte: string;
+  status: string[];
+  csv_phones?: string[];
+  csv_names?: string[];
+}
+
+interface BroadcastFormState {
+  nome: string;
+  template_id: string;
+  template_variables: Record<string, string>;
+  segmento_filtros: BroadcastSegmentFilters;
+}
+
 export default function NewBroadcastPage() {
   const { tenantId } = useTenant();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [preview, setPreview] = useState<any>(null);
+  const [templates, setTemplates] = useState<BroadcastTemplate[]>([]);
+  const [preview, setPreview] = useState<BroadcastPreview | null>(null);
   const [starting, setStarting] = useState(false);
   const [csvData, setCsvData] = useState<{ phones: string[]; names: string[] }>({ phones: [], names: [] });
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<BroadcastFormState>({
     nome: "",
     template_id: "",
-    template_variables: {} as Record<string, string>,
-    segmento_filtros: { fonte: "pipeline", status: [] as string[] } as Record<string, any>,
+    template_variables: {},
+    segmento_filtros: { fonte: "pipeline", status: [] },
   });
 
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
@@ -77,12 +109,13 @@ export default function NewBroadcastPage() {
   useEffect(() => {
     if (!tenantId) return;
     fetch(`/api/broadcast/templates?tenant_id=${tenantId}`)
-      .then(r => r.json()).then(d => setTemplates((d.templates ?? []).filter((t: any) => t.status === "approved")));
+      .then(r => r.json())
+      .then(d => setTemplates(((d.templates ?? []) as unknown as BroadcastTemplate[]).filter((template) => template.status === "approved")));
   }, [tenantId]);
 
   async function loadPreview() {
     if (!tenantId) return;
-    const filtros = { ...form.segmento_filtros };
+    const filtros: BroadcastSegmentFilters = { ...form.segmento_filtros };
     if (fonte === "csv") { filtros.csv_phones = csvData.phones; filtros.csv_names = csvData.names; }
     const r = await fetch(`/api/broadcast/campaigns/undefined/preview`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -112,7 +145,7 @@ export default function NewBroadcastPage() {
   async function createAndStart() {
     if (!tenantId) return;
     setStarting(true);
-    const filtros = { ...form.segmento_filtros };
+    const filtros: BroadcastSegmentFilters = { ...form.segmento_filtros };
     if (fonte === "csv") { filtros.csv_phones = csvData.phones; filtros.csv_names = csvData.names; }
 
     const r = await fetch("/api/broadcast/campaigns", {
@@ -398,7 +431,7 @@ export default function NewBroadcastPage() {
             <p className="text-xs font-bold mb-1" style={{ color: "#f87171" }}>Atenção</p>
             <ul className="text-xs space-y-1" style={{ color: "var(--text-secondary)" }}>
               {!isInbox24h && <li>• Template deve estar aprovado pela Meta</li>}
-              <li>• Leads que responderam "PARAR" são excluídos automaticamente</li>
+              <li>• Leads que responderam &quot;PARAR&quot; sao excluidos automaticamente</li>
               {isInbox24h && <li>• Válido apenas para quem conversou nas últimas 24h</li>}
             </ul>
           </div>

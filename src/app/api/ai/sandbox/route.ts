@@ -2,9 +2,77 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { GoogleAuth } from "google-auth-library";
+import type { LooseDatabase } from "@/types/database";
 
 const VERTEX_PROJECT = "adsliberty";
 const VERTEX_LOCATION = "us-central1";
+
+interface SandboxRequestBody {
+  tenant_id: string;
+  message: string;
+  history?: SandboxHistoryMessage[];
+  kb_enabled?: boolean;
+}
+
+interface SandboxHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface PersonaRow {
+  descricao?: string | null;
+  empresa?: string | null;
+  max_tokens?: number | null;
+  temperatura?: number | null;
+}
+
+interface TrainingExampleRow {
+  input_text: string;
+  output_text: string;
+  cenario?: string | null;
+}
+
+interface KnowledgeBaseArticle {
+  titulo?: string | null;
+  categoria?: string | null;
+  conteudo?: string | null;
+  similarity?: number | null;
+}
+
+interface VertexContentPart {
+  text: string;
+}
+
+interface VertexContent {
+  role: "user" | "model";
+  parts: VertexContentPart[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isHistoryMessage(value: unknown): value is SandboxHistoryMessage {
+  return (
+    isRecord(value) &&
+    (value.role === "user" || value.role === "assistant") &&
+    typeof value.content === "string"
+  );
+}
+
+function parseSandboxBody(value: unknown): SandboxRequestBody | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.tenant_id !== "string" || typeof value.message !== "string") return null;
+
+  const history = Array.isArray(value.history) ? value.history.filter(isHistoryMessage) : [];
+
+  return {
+    tenant_id: value.tenant_id,
+    message: value.message,
+    history,
+    kb_enabled: typeof value.kb_enabled === "boolean" ? value.kb_enabled : true,
+  };
+}
 
 async function getToken() {
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON!);
@@ -22,13 +90,21 @@ async function embed(text: string): Promise<number[]> {
     body: JSON.stringify({ instances: [{ content: text, task_type: "SEMANTIC_SIMILARITY" }] }),
   });
   if (!res.ok) return [];
-  const data = await res.json();
+
+  const data = (await res.json()) as {
+    predictions?: Array<{
+      embeddings?: {
+        values?: number[];
+      };
+    }>;
+  };
+
   return data.predictions?.[0]?.embeddings?.values ?? [];
 }
 
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
-  const supabase = createServerClient<any>(
+  const supabase = createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
@@ -36,92 +112,129 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: any;
-  try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
-  const { tenant_id, message, history = [], kb_enabled = true } = body;
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
-  if (!tenant_id || !message) return NextResponse.json({ error: "tenant_id e message são obrigatórios" }, { status: 400 });
+  const body = parseSandboxBody(rawBody);
+  if (!body) {
+    return NextResponse.json({ error: "tenant_id e message são obrigatórios" }, { status: 400 });
+  }
 
   try {
+    const admin = createServerClient<LooseDatabase>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { cookies: { getAll: () => [], setAll: () => {} } }
+    );
 
-  const admin = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
+    const { data: persona } = await admin
+      .from("personas")
+      .select("*")
+      .eq("tenant_id", body.tenant_id)
+      .limit(1)
+      .maybeSingle();
 
-  // Buscar persona (sem filtro ativo — campo pode não existir)
-  const { data: persona } = await admin.from("personas").select("*").eq("tenant_id", tenant_id).limit(1).maybeSingle() as { data: any; error: unknown };
+    const currentPersona = persona as unknown as PersonaRow | null;
 
-  // Buscar exemplos de treinamento
-  const { data: examples } = await admin.from("training_examples").select("input_text, output_text, cenario")
-    .eq("tenant_id", tenant_id).limit(10);
+    const { data: examples } = await admin
+      .from("training_examples")
+      .select("input_text, output_text, cenario")
+      .eq("tenant_id", body.tenant_id)
+      .limit(10);
 
-  // RAG: buscar KB
-  let kbArticles: any[] = [];
-  let kbContext = "";
-  if (kb_enabled) {
-    try {
-      const embedding = await embed(message);
-      if (embedding.length > 0) {
-        const { data: results } = await admin.rpc("buscar_conhecimento", {
-          p_tenant_id: tenant_id,
-          query_embedding: `[${embedding.join(",")}]`,
-          match_count: 3,
-          threshold: 0.55,
-        });
-        kbArticles = results ?? [];
-        if (kbArticles.length > 0) {
-          kbContext = `\n\nCONHECIMENTO DISPONÍVEL:\n${kbArticles.map((a: any) => `[${a.categoria}] ${a.titulo}: ${a.conteudo}`).join("\n\n")}\n\nUse as informações acima quando relevante.`;
+    let kbArticles: KnowledgeBaseArticle[] = [];
+    let kbContext = "";
+
+    if (body.kb_enabled) {
+      try {
+        const embedding = await embed(body.message);
+        if (embedding.length > 0) {
+          const { data: results } = await admin.rpc("buscar_conhecimento", {
+            p_tenant_id: body.tenant_id,
+            query_embedding: `[${embedding.join(",")}]`,
+            match_count: 3,
+            threshold: 0.55,
+          });
+
+          kbArticles = (results ?? []) as unknown as KnowledgeBaseArticle[];
+          if (kbArticles.length > 0) {
+            kbContext = `\n\nCONHECIMENTO DISPONÍVEL:\n${kbArticles
+              .map((article) => `[${article.categoria ?? "Geral"}] ${article.titulo ?? ""}: ${article.conteudo ?? ""}`)
+              .join("\n\n")}\n\nUse as informações acima quando relevante.`;
+          }
         }
+      } catch {
+        // Conhecimento é opcional.
       }
-    } catch { /* kb optional */ }
-  }
+    }
 
-  // Montar system prompt
-  const systemPrompt = `${persona?.descricao ?? "Você é um assistente de vendas profissional. Responda de forma breve em português."}${persona?.empresa ? ` Empresa: ${persona.empresa}.` : ""}${kbContext}`;
+    const systemPrompt = `${currentPersona?.descricao ?? "Você é um assistente de vendas profissional. Responda de forma breve em português."}${currentPersona?.empresa ? ` Empresa: ${currentPersona.empresa}.` : ""}${kbContext}`;
 
-  // Few-shot examples
-  const fewShot = (examples ?? []).slice(0, 5).map((e: any) => ([
-    { role: "user", parts: [{ text: e.input_text }] },
-    { role: "model", parts: [{ text: e.output_text }] },
-  ])).flat();
+    const fewShot = ((examples ?? []) as unknown as TrainingExampleRow[])
+      .slice(0, 5)
+      .flatMap((example) => ([
+        { role: "user", parts: [{ text: example.input_text }] },
+        { role: "model", parts: [{ text: example.output_text }] },
+      ] satisfies VertexContent[]));
 
-  // Histórico da conversa
-  const historyContents = history.map((m: any) => ({
-    role: m.role === "user" ? "user" : "model",
-    parts: [{ text: m.content }],
-  }));
+    const historyContents = body.history?.map((message) => ({
+      role: message.role === "user" ? "user" : "model",
+      parts: [{ text: message.content }],
+    } satisfies VertexContent)) ?? [];
 
-  const contents = [
-    { role: "user", parts: [{ text: systemPrompt }] },
-    { role: "model", parts: [{ text: "Entendido. Posso ajudar!" }] },
-    ...fewShot,
-    ...historyContents,
-    { role: "user", parts: [{ text: message }] },
-  ];
+    const contents: VertexContent[] = [
+      { role: "user", parts: [{ text: systemPrompt }] },
+      { role: "model", parts: [{ text: "Entendido. Posso ajudar!" }] },
+      ...fewShot,
+      ...historyContents,
+      { role: "user", parts: [{ text: body.message }] },
+    ];
 
-  // Chamar Gemini
-  const token = await getToken();
-  const url = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_LOCATION}/publishers/google/models/gemini-2.5-flash:generateContent`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: Math.max(persona?.max_tokens ?? 1000, 600), temperature: persona?.temperatura ?? 0.7 } }),
-  });
+    const token = await getToken();
+    const url = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_LOCATION}/publishers/google/models/gemini-2.5-flash:generateContent`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        contents,
+        generationConfig: {
+          maxOutputTokens: Math.max(currentPersona?.max_tokens ?? 1000, 600),
+          temperature: currentPersona?.temperatura ?? 0.7,
+        },
+      }),
+    });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error("Gemini error:", res.status, errText);
-    return NextResponse.json({ error: `Gemini error ${res.status}: ${errText.slice(0, 200)}` }, { status: 500 });
-  }
-  const data = await res.json();
-  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "Sem resposta.";
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Gemini error:", res.status, errText);
+      return NextResponse.json({ error: `Gemini error ${res.status}: ${errText.slice(0, 200)}` }, { status: 500 });
+    }
 
-  return NextResponse.json({ reply, kb_articles: kbArticles.map((a: any) => ({ titulo: a.titulo, categoria: a.categoria, similarity: Math.round(a.similarity * 100) })) });
+    const data = (await res.json()) as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{ text?: string }>;
+        };
+      }>;
+    };
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "Sem resposta.";
 
-  } catch (err: any) {
-    console.error("Sandbox error:", err);
-    return NextResponse.json({ error: err?.message ?? "Erro interno" }, { status: 500 });
+    return NextResponse.json({
+      reply,
+      kb_articles: kbArticles.map((article) => ({
+        titulo: article.titulo,
+        categoria: article.categoria,
+        similarity: Math.round((article.similarity ?? 0) * 100),
+      })),
+    });
+  } catch (error) {
+    console.error("Sandbox error:", error);
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : "Erro interno",
+    }, { status: 500 });
   }
 }

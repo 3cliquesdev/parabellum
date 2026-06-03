@@ -10,7 +10,7 @@ export type LeadStatus =
 export type AtividadeTipo = "ligacao" | "whatsapp" | "email" | "reuniao" | "outro";
 export type TenantRole = "owner" | "admin" | "member";
 export type ConversaStatus = "ativo" | "resolvido" | "pausado";
-export type ConversaCanal = "whatsapp" | "email" | "interno";
+export type ConversaCanal = "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "interno";
 export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "trialing";
 
 export interface Plan {
@@ -87,6 +87,18 @@ export interface Conversa {
   updated_at: string;
 }
 
+export interface LeadIdentity {
+  id: string;
+  tenant_id: string;
+  lead_id: string;
+  canal: Exclude<ConversaCanal, "interno">;
+  valor: string | null;
+  valor_normalizado: string | null;
+  external_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Mensagem {
   id: string;
   conversa_id: string;
@@ -94,6 +106,7 @@ export interface Mensagem {
   remetente: "lead" | "ia" | "humano";
   conteudo: string;
   wa_message_id: string | null;
+  external_message_id: string | null;
   enviada: boolean;
   created_at: string;
   // Mídia
@@ -104,6 +117,7 @@ export interface Mensagem {
   media_caption: string | null;
   latitude: number | null;
   longitude: number | null;
+  metadata: Record<string, unknown> | null;
 }
 
 export interface Subscription {
@@ -125,10 +139,39 @@ export type Database = {
       tenants: { Row: Tenant; Insert: Omit<Tenant, "id" | "created_at" | "updated_at">; Update: Partial<Tenant> };
       tenant_members: { Row: TenantMember; Insert: Omit<TenantMember, "id" | "created_at">; Update: Partial<TenantMember> };
       leads: { Row: Lead; Insert: Omit<Lead, "id" | "created_at" | "updated_at">; Update: Partial<Lead> };
+      lead_identities: { Row: LeadIdentity; Insert: Omit<LeadIdentity, "id" | "created_at" | "updated_at">; Update: Partial<LeadIdentity> };
       atividades: { Row: Atividade; Insert: Omit<Atividade, "id" | "created_at">; Update: Partial<Atividade> };
       conversas: { Row: Conversa; Insert: Omit<Conversa, "id" | "created_at" | "updated_at">; Update: Partial<Conversa> };
       mensagens: { Row: Mensagem; Insert: Omit<Mensagem, "id" | "created_at">; Update: Partial<Mensagem> };
       subscriptions: { Row: Subscription; Insert: Omit<Subscription, "id" | "created_at">; Update: Partial<Subscription> };
     };
+  };
+};
+
+export type LooseDatabase = {
+  public: {
+    Tables: Record<
+      string,
+      {
+        Row: Record<string, unknown>;
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+        Relationships: [];
+      }
+    >;
+    Views: Record<
+      string,
+      {
+        Row: Record<string, unknown>;
+        Relationships: [];
+      }
+    >;
+    Functions: Record<
+      string,
+      {
+        Args: Record<string, unknown>;
+        Returns: unknown;
+      }
+    >;
   };
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
@@ -19,9 +19,16 @@ const EXEMPLOS_PADRAO = [
   { cenario: "fechamento", input_text: "Gostei, vamos fechar!", output_text: "Que ótimo! Vou te enviar o contrato agora mesmo. Tem alguma dúvida antes de assinar? O próximo passo é [descreva o processo de início]." },
 ];
 
+interface TrainingExample {
+  id: string;
+  cenario: string;
+  input_text: string;
+  output_text: string;
+}
+
 export default function TrainingPage() {
   const { tenantId } = useTenant();
-  const [examples, setExamples] = useState<any[]>([]);
+  const [examples, setExamples] = useState<TrainingExample[]>([]);
   const [cenario, setCenario] = useState("normal");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ input_text: "", output_text: "", cenario: "normal" });
@@ -29,14 +36,20 @@ export default function TrainingPage() {
 
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
-  async function fetchExamples() {
+  const fetchExamples = useCallback(async () => {
     if (!tenantId) return;
     const supabase = createClient();
     const { data } = await supabase.from("training_examples").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false });
-    setExamples(data ?? []);
-  }
+    setExamples((data ?? []) as unknown as TrainingExample[]);
+  }, [tenantId]);
 
-  useEffect(() => { if (tenantId) fetchExamples(); }, [tenantId]);
+  useEffect(() => {
+    if (!tenantId) return;
+
+    queueMicrotask(() => {
+      void fetchExamples();
+    });
+  }, [fetchExamples, tenantId]);
 
   async function saveExample() {
     if (!tenantId || !form.input_text || !form.output_text) return;

@@ -1,26 +1,176 @@
 import { createServerClient } from "@supabase/ssr";
 import { GoogleAuth } from "google-auth-library";
 import { dispatchConversation } from "@/lib/dispatch";
+import type { LooseDatabase } from "@/types/database";
 
 const VERTEX_PROJECT = "adsliberty";
 const VERTEX_LOCATION = "us-central1";
 
+type FlowResult = "done" | "waiting" | null;
+type QueueDepartment = "vendas" | "suporte";
+type ConditionType = "is_not_empty" | "is_empty" | "equals" | "contains";
+
+interface FlowOption {
+  label: string;
+  value: string;
+}
+
+interface FlowEdge {
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+}
+
+interface StartNodeData {
+  label?: string;
+}
+
+interface MessageNodeData {
+  text?: string;
+}
+
+interface AskNodeData {
+  question?: string;
+  save_as?: string;
+}
+
+interface AskOptionsNodeData {
+  question?: string;
+  save_as?: string;
+  options?: FlowOption[];
+}
+
+interface AIResponseNodeData {
+  usar_kb?: boolean;
+  context_prompt?: string;
+  max_tentativas?: number;
+}
+
+interface ConditionNodeData {
+  field?: string;
+  condition_type?: ConditionType;
+  condition_value?: string;
+}
+
+interface TransferNodeData {
+  departamento?: string;
+  message?: string;
+}
+
+interface EndNodeData {
+  message?: string;
+}
+
+type FlowNode =
+  | { id: string; type: "start"; data: StartNodeData }
+  | { id: string; type: "message"; data: MessageNodeData }
+  | { id: string; type: "ask"; data: AskNodeData }
+  | { id: string; type: "ask_options"; data: AskOptionsNodeData }
+  | { id: string; type: "ai_response"; data: AIResponseNodeData }
+  | { id: string; type: "condition"; data: ConditionNodeData }
+  | { id: string; type: "transfer"; data: TransferNodeData }
+  | { id: string; type: "end"; data: EndNodeData };
+
+interface FlowDefinition {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+
+interface ChatFlowRecord {
+  id: string;
+  is_master?: boolean | null;
+  ativo?: boolean | null;
+  trigger_keywords?: string[] | null;
+  prioridade?: number | null;
+  flow_definition?: unknown;
+}
+
+interface FlowStateRecord {
+  id: string;
+  tenant_id: string;
+  conversa_id: string;
+  flow_id: string;
+  current_node_id: string;
+  status: string;
+  collected_data?: unknown;
+  tentativas_ia?: number | null;
+  completed_at?: string | null;
+  chat_flows?: ChatFlowRecord | null;
+}
+
+interface PersonaRecord {
+  descricao?: string | null;
+  max_tokens?: number | null;
+  temperatura?: number | null;
+}
+
+interface KnowledgeResultRow {
+  categoria?: string | null;
+  titulo?: string | null;
+  conteudo?: string | null;
+}
+
+interface LeadLike {
+  nome?: string | null;
+}
+
+interface FlowProcessParams {
+  tenantId: string;
+  conversaId: string;
+  leadId: string;
+  lead: LeadLike;
+  text: string;
+  accessToken: string;
+  phoneNumberId: string;
+  toNumber: string;
+}
+
 function adminClient() {
-  return createServerClient<any>(
+  return createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: () => [], setAll: () => {} } }
   );
 }
 
-// ─── Normalizar texto para matching ───
-function normalize(text: string): string {
-  return text.toLowerCase()
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^\w\s]/g, "").trim();
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
-// ─── Matching de keywords ───
+function getFlowDefinition(value: unknown): FlowDefinition {
+  if (!isRecord(value)) {
+    return { nodes: [], edges: [] };
+  }
+
+  return {
+    nodes: Array.isArray(value.nodes) ? (value.nodes as unknown as FlowNode[]) : [],
+    edges: Array.isArray(value.edges) ? (value.edges as unknown as FlowEdge[]) : [],
+  };
+}
+
+function getCollectedData(value: unknown): Record<string, string> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, fieldValue]) => [key, String(fieldValue ?? "")])
+  );
+}
+
+function normalizeDepartment(value: string | undefined): QueueDepartment {
+  return value === "suporte" ? "suporte" : "vendas";
+}
+
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, "")
+    .trim();
+}
+
 function matchesKeyword(message: string, keyword: string): boolean {
   const msgNorm = normalize(message);
   const kwNorm = normalize(keyword);
@@ -28,18 +178,18 @@ function matchesKeyword(message: string, keyword: string): boolean {
   return msgNorm.includes(kwNorm) || kwNorm.includes(msgNorm);
 }
 
-// ─── Encontrar próximo nó pela edge ───
-function nextNode(flowDef: any, currentNodeId: string, handleId: string = "default"): any | null {
-  const nodes: any[] = flowDef.nodes ?? [];
-  const edges: any[] = flowDef.edges ?? [];
-  const edge = edges.find(e => e.source === currentNodeId && (e.sourceHandle === handleId || (!e.sourceHandle && handleId === "default")));
+function nextNode(flowDef: FlowDefinition, currentNodeId: string, handleId: string = "default"): FlowNode | null {
+  const edge = flowDef.edges.find((currentEdge) =>
+    currentEdge.source === currentNodeId &&
+    (currentEdge.sourceHandle === handleId || (!currentEdge.sourceHandle && handleId === "default"))
+  );
+
   if (!edge) return null;
-  return nodes.find(n => n.id === edge.target) ?? null;
+  return flowDef.nodes.find((node) => node.id === edge.target) ?? null;
 }
 
-// ─── Detect intent from AI reply ───
 async function detectIntentFromReply(reply: string, userMessage: string): Promise<string> {
-  const text = (reply + " " + userMessage).toLowerCase();
+  const text = `${reply} ${userMessage}`.toLowerCase();
   if (/(não sei|não consigo|desculpe|não tenho essa informação|vou encaminhar)/.test(text)) return "nao_sei";
   if (/(humano|atendente|pessoa|falar com alguém|suporte humano)/.test(normalize(userMessage))) return "humano";
   if (/(problema|erro|quebrado|não funciona|bug|defeito)/.test(normalize(userMessage))) return "suporte";
@@ -47,8 +197,13 @@ async function detectIntentFromReply(reply: string, userMessage: string): Promis
   return "resolvido";
 }
 
-// ─── Chamar Gemini com contexto do flow ───
-async function callGeminiFlow(node: any, state: any, lead: any, tenantId: string, userMessage: string): Promise<{ reply: string; intent: string }> {
+async function callGeminiFlow(
+  node: Extract<FlowNode, { type: "ai_response" }>,
+  state: FlowStateRecord,
+  lead: LeadLike,
+  tenantId: string,
+  userMessage: string
+): Promise<{ reply: string; intent: string }> {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON!);
     const auth = new GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
@@ -56,11 +211,17 @@ async function callGeminiFlow(node: any, state: any, lead: any, tenantId: string
     const token = (await client.getAccessToken()).token!;
 
     const supabase = adminClient();
+    const { data: persona } = await supabase
+      .from("personas")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("ativo", true)
+      .order("created_at")
+      .limit(1)
+      .single();
 
-    // Buscar persona
-    const { data: persona } = await supabase.from("personas").select("*").eq("tenant_id", tenantId).eq("ativo", true).order("created_at").limit(1).single() as { data: any };
+    const currentPersona = persona as unknown as PersonaRecord | null;
 
-    // Buscar KB se habilitado
     let kbContext = "";
     if (node.data.usar_kb && process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
       try {
@@ -69,34 +230,42 @@ async function callGeminiFlow(node: any, state: any, lead: any, tenantId: string
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: userMessage }),
         });
+
         if (embedRes.ok) {
-          const { embedding } = await embedRes.json();
-          if (embedding?.length > 0) {
+          const { embedding } = (await embedRes.json()) as { embedding?: number[] };
+          if (embedding && embedding.length > 0) {
             const { data: kbResults } = await supabase.rpc("buscar_conhecimento", {
               p_tenant_id: tenantId,
               query_embedding: `[${embedding.join(",")}]`,
               match_count: 3,
               threshold: 0.55,
             });
-            if ((kbResults ?? []).length > 0) {
-              kbContext = `\n\nCONHECIMENTO DISPONÍVEL:\n${(kbResults as any[]).map((a: any) => `[${a.categoria}] ${a.titulo}: ${a.conteudo}`).join("\n\n")}`;
+
+            const articles = (kbResults ?? []) as unknown as KnowledgeResultRow[];
+            if (articles.length > 0) {
+              kbContext = `\n\nCONHECIMENTO DISPONÍVEL:\n${articles
+                .map((article) => `[${article.categoria ?? "Geral"}] ${article.titulo ?? ""}: ${article.conteudo ?? ""}`)
+                .join("\n\n")}`;
             }
           }
         }
-      } catch { /* kb optional */ }
+      } catch {
+        // Conhecimento é opcional.
+      }
     }
 
-    // Dados coletados no flow
-    const collectedStr = Object.keys(state.collected_data ?? {}).length > 0
-      ? `\n\nDADOS DO LEAD NO FLOW:\n${JSON.stringify(state.collected_data, null, 2)}`
+    const collectedData = getCollectedData(state.collected_data);
+    const collectedStr = Object.keys(collectedData).length > 0
+      ? `\n\nDADOS DO LEAD NO FLOW:\n${JSON.stringify(collectedData, null, 2)}`
       : "";
 
-    // Contexto do nó
-    const nodeContext = node.data.context_prompt ? `\n\nINSTRUÇÕES ESPECÍFICAS: ${node.data.context_prompt}` : "";
+    const nodeContext = node.data.context_prompt
+      ? `\n\nINSTRUÇÕES ESPECÍFICAS: ${node.data.context_prompt}`
+      : "";
     const maxTentativas = node.data.max_tentativas ?? 3;
     const tentativasRestantes = maxTentativas - (state.tentativas_ia ?? 0);
 
-    const systemPrompt = `${persona?.descricao ?? "Você é um assistente especializado."} Lead: ${lead?.nome ?? "Desconhecido"}.${kbContext}${collectedStr}${nodeContext}
+    const systemPrompt = `${currentPersona?.descricao ?? "Você é um assistente especializado."} Lead: ${lead?.nome ?? "Desconhecido"}.${kbContext}${collectedStr}${nodeContext}
 
 INSTRUÇÕES DO FLUXO:
 - Tente resolver o problema do lead.
@@ -116,146 +285,197 @@ INSTRUÇÕES DO FLUXO:
           { role: "model", parts: [{ text: "Entendido!" }] },
           { role: "user", parts: [{ text: userMessage }] },
         ],
-        generationConfig: { maxOutputTokens: Math.max(persona?.max_tokens ?? 1000, 600), temperature: persona?.temperatura ?? 0.7 },
+        generationConfig: {
+          maxOutputTokens: Math.max(currentPersona?.max_tokens ?? 1000, 600),
+          temperature: currentPersona?.temperatura ?? 0.7,
+        },
       }),
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{ text?: string }>;
+        };
+      }>;
+    };
     const reply = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const intent = await detectIntentFromReply(reply, userMessage);
 
-    // Se atingiu max_tentativas e não resolveu → forçar nao_sei
     if ((state.tentativas_ia ?? 0) + 1 >= maxTentativas && intent !== "resolvido") {
       return { reply, intent: "nao_sei" };
     }
 
     return { reply, intent };
-  } catch (err) {
-    console.error("Flow Gemini error:", err);
+  } catch (error) {
+    console.error("Flow Gemini error:", error);
     return { reply: "Desculpe, ocorreu um erro. Vou encaminhar para nossa equipe.", intent: "nao_sei" };
   }
 }
 
-// ─── Enviar mensagem ───
-async function sendFlowMessage(tenantId: string, conversaId: string, text: string, accessToken: string, phoneNumberId: string, toNumber: string) {
+async function sendFlowMessage(
+  tenantId: string,
+  conversaId: string,
+  text: string,
+  accessToken: string,
+  phoneNumberId: string,
+  toNumber: string
+) {
   const supabase = adminClient();
   await supabase.from("mensagens").insert({
-    conversa_id: conversaId, tenant_id: tenantId, remetente: "ia",
-    conteudo: text, enviada: false,
+    conversa_id: conversaId,
+    tenant_id: tenantId,
+    remetente: "ia",
+    conteudo: text,
+    enviada: false,
   });
+
   await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ messaging_product: "whatsapp", to: toNumber, type: "text", text: { body: text } }),
   });
-  await supabase.from("mensagens").update({ enviada: true }).eq("conversa_id", conversaId).eq("remetente", "ia").eq("enviada", false);
+
+  await supabase.from("mensagens").update({ enviada: true })
+    .eq("conversa_id", conversaId)
+    .eq("remetente", "ia")
+    .eq("enviada", false);
   await supabase.from("conversas").update({ updated_at: new Date().toISOString() }).eq("id", conversaId);
 }
 
-// ─── Interface principal do motor ───
-export async function processFlowMessage(params: {
-  tenantId: string;
-  conversaId: string;
-  leadId: string;
-  lead: any;
-  text: string;
-  accessToken: string;
-  phoneNumberId: string;
-  toNumber: string;
-}): Promise<"done" | "waiting" | null> {
+export async function processFlowMessage(params: FlowProcessParams): Promise<FlowResult> {
   const supabase = adminClient();
 
-  // 1. Verificar fluxo ativo
-  const { data: activeState } = await supabase.from("chat_flow_states")
-    .select("*, chat_flows(*)").eq("conversa_id", params.conversaId)
-    .in("status", ["ativo", "aguardando"]).order("started_at", { ascending: false }).limit(1).single() as { data: any };
+  const { data: activeState } = await supabase
+    .from("chat_flow_states")
+    .select("*, chat_flows(*)")
+    .eq("conversa_id", params.conversaId)
+    .in("status", ["ativo", "aguardando"])
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .single();
 
-  if (activeState) {
-    return await continueFlow(activeState, params);
+  const currentState = activeState as unknown as FlowStateRecord | null;
+  if (currentState) {
+    return continueFlow(currentState, params);
   }
 
-  // 2. Verificar se mensagem ativa algum fluxo
-  const { data: flows } = await supabase.from("chat_flows")
-    .select("*").eq("tenant_id", params.tenantId).eq("ativo", true)
+  const { data: flows } = await supabase
+    .from("chat_flows")
+    .select("*")
+    .eq("tenant_id", params.tenantId)
+    .eq("ativo", true)
     .order("prioridade", { ascending: false });
 
-  let masterFlow: any = null;
+  let masterFlow: ChatFlowRecord | null = null;
 
-  for (const flow of flows ?? []) {
-    if (flow.is_master) { masterFlow = flow; continue; } // Guarda master para fallback
-    const keywords: string[] = flow.trigger_keywords ?? [];
-    if (keywords.length > 0 && keywords.some(kw => matchesKeyword(params.text, kw))) {
-      return await startFlow(flow, params);
+  for (const flow of ((flows ?? []) as unknown as ChatFlowRecord[])) {
+    if (flow.is_master) {
+      masterFlow = flow;
+      continue;
+    }
+
+    const keywords = flow.trigger_keywords ?? [];
+    if (keywords.length > 0 && keywords.some((keyword) => matchesKeyword(params.text, keyword))) {
+      return startFlow(flow, params);
     }
   }
 
-  // 3. Nenhuma keyword bateu → usar Master Flow como fallback
   if (masterFlow) {
-    return await startFlow(masterFlow, params);
+    return startFlow(masterFlow, params);
   }
 
-  return null; // Nem master flow — usa IA padrão
+  return null;
 }
 
-// ─── Iniciar fluxo ───
-async function startFlow(flow: any, params: any): Promise<"done" | "waiting" | null> {
+async function startFlow(flow: ChatFlowRecord, params: FlowProcessParams): Promise<FlowResult> {
   const supabase = adminClient();
-  const flowDef = flow.flow_definition ?? { nodes: [], edges: [] };
-  const startNode = flowDef.nodes.find((n: any) => n.type === "start") ?? flowDef.nodes[0];
+  const flowDef = getFlowDefinition(flow.flow_definition);
+  const startNode = flowDef.nodes.find((node) => node.type === "start") ?? flowDef.nodes[0];
   if (!startNode) return null;
 
   const firstNode = nextNode(flowDef, startNode.id, "default");
   if (!firstNode) return null;
 
-  // Criar estado do fluxo
-  const { data: state } = await supabase.from("chat_flow_states").insert({
-    tenant_id: params.tenantId, conversa_id: params.conversaId,
-    flow_id: flow.id, current_node_id: firstNode.id,
-    status: "ativo", collected_data: {}, tentativas_ia: 0,
-  }).select().single() as { data: any };
+  const { data: state } = await supabase
+    .from("chat_flow_states")
+    .insert({
+      tenant_id: params.tenantId,
+      conversa_id: params.conversaId,
+      flow_id: flow.id,
+      current_node_id: firstNode.id,
+      status: "ativo",
+      collected_data: {},
+      tentativas_ia: 0,
+    })
+    .select()
+    .single();
 
-  return await executeNode(firstNode, { ...state, chat_flows: flow }, params, flowDef);
+  const currentState = state as unknown as FlowStateRecord | null;
+  if (!currentState) return null;
+
+  return executeNode(firstNode, { ...currentState, chat_flows: flow }, params, flowDef);
 }
 
-// ─── Continuar fluxo ───
-async function continueFlow(state: any, params: any): Promise<"done" | "waiting" | null> {
+async function continueFlow(state: FlowStateRecord, params: FlowProcessParams): Promise<FlowResult> {
   const supabase = adminClient();
-  const flowDef = state.chat_flows?.flow_definition ?? { nodes: [], edges: [] };
-  const currentNode = flowDef.nodes.find((n: any) => n.id === state.current_node_id);
+  const flowDef = getFlowDefinition(state.chat_flows?.flow_definition);
+  const currentNode = flowDef.nodes.find((node) => node.id === state.current_node_id) ?? null;
   if (!currentNode) return null;
 
-  // Se está aguardando input — processar resposta do lead
   if (state.status === "aguardando") {
     await supabase.from("chat_flow_states").update({ status: "ativo" }).eq("id", state.id);
-    return await handleNodeInput(currentNode, state, params, flowDef);
+    return handleNodeInput(currentNode, state, params, flowDef);
   }
 
-  return await executeNode(currentNode, state, params, flowDef);
+  return executeNode(currentNode, state, params, flowDef);
 }
 
-// ─── Executar nó ───
-async function executeNode(node: any, state: any, params: any, flowDef: any): Promise<"done" | "waiting" | null> {
+async function executeNode(
+  node: FlowNode,
+  state: FlowStateRecord,
+  params: FlowProcessParams,
+  flowDef: FlowDefinition
+): Promise<FlowResult> {
   const supabase = adminClient();
 
   switch (node.type) {
     case "message": {
-      await sendFlowMessage(params.tenantId, params.conversaId, node.data.text ?? "", params.accessToken, params.phoneNumberId, params.toNumber);
+      await sendFlowMessage(
+        params.tenantId,
+        params.conversaId,
+        node.data.text ?? "",
+        params.accessToken,
+        params.phoneNumberId,
+        params.toNumber
+      );
       const next = nextNode(flowDef, node.id, "default");
-      if (!next) { await completeFlow(state, "concluido"); return "done"; }
+      if (!next) {
+        await completeFlow(state, "concluido");
+        return "done";
+      }
       await supabase.from("chat_flow_states").update({ current_node_id: next.id }).eq("id", state.id);
-      return await executeNode(next, state, params, flowDef);
+      return executeNode(next, state, params, flowDef);
     }
 
     case "ask": {
-      await sendFlowMessage(params.tenantId, params.conversaId, node.data.question ?? "Como posso ajudar?", params.accessToken, params.phoneNumberId, params.toNumber);
+      await sendFlowMessage(
+        params.tenantId,
+        params.conversaId,
+        node.data.question ?? "Como posso ajudar?",
+        params.accessToken,
+        params.phoneNumberId,
+        params.toNumber
+      );
       await supabase.from("chat_flow_states").update({ status: "aguardando", current_node_id: node.id }).eq("id", state.id);
       return "waiting";
     }
 
     case "ask_options": {
-      const options: { label: string; value: string }[] = node.data.options ?? [];
-      const menuText = (node.data.question ?? "Escolha uma opção:") + "\n\n" +
-        options.map((o, i) => `*${i + 1}.* ${o.label}`).join("\n");
+      const options = node.data.options ?? [];
+      const menuText = `${node.data.question ?? "Escolha uma opção:"}\n\n${options
+        .map((option, index) => `*${index + 1}.* ${option.label}`)
+        .join("\n")}`;
       await sendFlowMessage(params.tenantId, params.conversaId, menuText, params.accessToken, params.phoneNumberId, params.toNumber);
       await supabase.from("chat_flow_states").update({ status: "aguardando", current_node_id: node.id }).eq("id", state.id);
       return "waiting";
@@ -265,37 +485,47 @@ async function executeNode(node: any, state: any, params: any, flowDef: any): Pr
       const { reply, intent } = await callGeminiFlow(node, state, params.lead, params.tenantId, params.text);
       const cleanReply = reply.replace(/^RESOLVIDO:\s*/i, "");
       await sendFlowMessage(params.tenantId, params.conversaId, cleanReply, params.accessToken, params.phoneNumberId, params.toNumber);
-      await supabase.from("chat_flow_states").update({ tentativas_ia: (state.tentativas_ia ?? 0) + 1 }).eq("id", state.id);
+
+      const tentativas = (state.tentativas_ia ?? 0) + 1;
+      await supabase.from("chat_flow_states").update({ tentativas_ia: tentativas }).eq("id", state.id);
 
       const next = nextNode(flowDef, node.id, intent) ?? nextNode(flowDef, node.id, "default");
-      if (!next) { await completeFlow(state, "concluido"); return "done"; }
+      if (!next) {
+        await completeFlow(state, "concluido");
+        return "done";
+      }
+
       await supabase.from("chat_flow_states").update({ current_node_id: next.id }).eq("id", state.id);
-      // Se intent = "nao_sei" / "humano" não espera input, executa próximo nó
-      return await executeNode(next, { ...state, tentativas_ia: (state.tentativas_ia ?? 0) + 1 }, params, flowDef);
+      return executeNode(next, { ...state, tentativas_ia: tentativas }, params, flowDef);
     }
 
     case "condition": {
-      const value = (state.collected_data ?? {})[node.data.field ?? ""] ?? "";
+      const collectedData = getCollectedData(state.collected_data);
+      const value = collectedData[node.data.field ?? ""] ?? "";
       const condType = node.data.condition_type ?? "is_not_empty";
-      let result = false;
-      if (condType === "is_not_empty") result = !!value && String(value).trim().length > 0;
-      else if (condType === "is_empty") result = !value || String(value).trim().length === 0;
-      else if (condType === "equals") result = String(value).toLowerCase() === String(node.data.condition_value ?? "").toLowerCase();
-      else if (condType === "contains") result = String(value).toLowerCase().includes(String(node.data.condition_value ?? "").toLowerCase());
 
-      const handle = result ? "true" : "false";
-      const next = nextNode(flowDef, node.id, handle);
-      if (!next) { await completeFlow(state, "concluido"); return "done"; }
+      let result = false;
+      if (condType === "is_not_empty") result = value.trim().length > 0;
+      else if (condType === "is_empty") result = value.trim().length === 0;
+      else if (condType === "equals") result = value.toLowerCase() === String(node.data.condition_value ?? "").toLowerCase();
+      else if (condType === "contains") result = value.toLowerCase().includes(String(node.data.condition_value ?? "").toLowerCase());
+
+      const next = nextNode(flowDef, node.id, result ? "true" : "false");
+      if (!next) {
+        await completeFlow(state, "concluido");
+        return "done";
+      }
+
       await supabase.from("chat_flow_states").update({ current_node_id: next.id }).eq("id", state.id);
-      return await executeNode(next, state, params, flowDef);
+      return executeNode(next, state, params, flowDef);
     }
 
     case "transfer": {
-      const dept = node.data.departamento ?? "vendas";
+      const dept = normalizeDepartment(node.data.departamento);
       if (node.data.message) {
         await sendFlowMessage(params.tenantId, params.conversaId, node.data.message, params.accessToken, params.phoneNumberId, params.toNumber);
       }
-      await dispatchConversation(params.tenantId, params.conversaId, dept as "vendas" | "suporte", "flow_transfer");
+      await dispatchConversation(params.tenantId, params.conversaId, dept, "flow_transfer");
       await completeFlow(state, "transferido");
       return "done";
     }
@@ -313,61 +543,74 @@ async function executeNode(node: any, state: any, params: any, flowDef: any): Pr
   }
 }
 
-// ─── Processar input do lead no nó de Ask ───
-async function handleNodeInput(node: any, state: any, params: any, flowDef: any): Promise<"done" | "waiting" | null> {
+async function handleNodeInput(
+  node: FlowNode,
+  state: FlowStateRecord,
+  params: FlowProcessParams,
+  flowDef: FlowDefinition
+): Promise<FlowResult> {
   const supabase = adminClient();
 
   if (node.type === "ask") {
     const saveAs = node.data.save_as ?? "resposta";
-    const newData = { ...(state.collected_data ?? {}), [saveAs]: params.text };
+    const newData = { ...getCollectedData(state.collected_data), [saveAs]: params.text };
     await supabase.from("chat_flow_states").update({ collected_data: newData }).eq("id", state.id);
+
     const next = nextNode(flowDef, node.id, "default");
-    if (!next) { await completeFlow(state, "concluido"); return "done"; }
+    if (!next) {
+      await completeFlow(state, "concluido");
+      return "done";
+    }
+
     await supabase.from("chat_flow_states").update({ current_node_id: next.id }).eq("id", state.id);
-    return await executeNode(next, { ...state, collected_data: newData }, params, flowDef);
+    return executeNode(next, { ...state, collected_data: newData }, params, flowDef);
   }
 
   if (node.type === "ask_options") {
-    const options: { label: string; value: string }[] = node.data.options ?? [];
+    const options = node.data.options ?? [];
     const userText = params.text.trim();
 
-    // Tentar match por número (1, 2, 3...) ou por texto da opção
     let matchedValue: string | null = null;
-    const numMatch = parseInt(userText);
-    if (!isNaN(numMatch) && numMatch >= 1 && numMatch <= options.length) {
-      matchedValue = options[numMatch - 1].value || String(numMatch);
+    const numMatch = parseInt(userText, 10);
+    if (!Number.isNaN(numMatch) && numMatch >= 1 && numMatch <= options.length) {
+      matchedValue = options[numMatch - 1]?.value ?? String(numMatch);
     } else {
-      const textMatch = options.find(o =>
-        normalize(o.label).includes(normalize(userText)) ||
-        normalize(userText).includes(normalize(o.label))
+      const textMatch = options.find((option) =>
+        normalize(option.label).includes(normalize(userText)) ||
+        normalize(userText).includes(normalize(option.label))
       );
       if (textMatch) matchedValue = textMatch.value;
     }
 
     if (!matchedValue) {
-      // Opção inválida — reenviar menu
-      const menuText = "Opção inválida. " + (node.data.question ?? "Escolha uma opção:") + "\n\n" +
-        options.map((o, i) => `*${i + 1}.* ${o.label}`).join("\n");
+      const menuText = `Opção inválida. ${node.data.question ?? "Escolha uma opção:"}\n\n${options
+        .map((option, index) => `*${index + 1}.* ${option.label}`)
+        .join("\n")}`;
       await sendFlowMessage(params.tenantId, params.conversaId, menuText, params.accessToken, params.phoneNumberId, params.toNumber);
       return "waiting";
     }
 
-    // Opção válida — seguir pela handle correspondente ao value
     const saveAs = node.data.save_as ?? "opcao";
-    const newData = { ...(state.collected_data ?? {}), [saveAs]: matchedValue };
+    const newData = { ...getCollectedData(state.collected_data), [saveAs]: matchedValue };
     await supabase.from("chat_flow_states").update({ collected_data: newData }).eq("id", state.id);
 
     const next = nextNode(flowDef, node.id, matchedValue) ?? nextNode(flowDef, node.id, "default");
-    if (!next) { await completeFlow(state, "concluido"); return "done"; }
+    if (!next) {
+      await completeFlow(state, "concluido");
+      return "done";
+    }
+
     await supabase.from("chat_flow_states").update({ current_node_id: next.id }).eq("id", state.id);
-    return await executeNode(next, { ...state, collected_data: newData }, params, flowDef);
+    return executeNode(next, { ...state, collected_data: newData }, params, flowDef);
   }
 
   return null;
 }
 
-// ─── Completar fluxo ───
-async function completeFlow(state: any, status: string) {
+async function completeFlow(state: FlowStateRecord, status: string) {
   const supabase = adminClient();
-  await supabase.from("chat_flow_states").update({ status, completed_at: new Date().toISOString() }).eq("id", state.id);
+  await supabase.from("chat_flow_states").update({
+    status,
+    completed_at: new Date().toISOString(),
+  }).eq("id", state.id);
 }

@@ -454,7 +454,14 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
       body: JSON.stringify({ tenant_id: tenantId, ...form }),
     });
     setSaving(false);
-    if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
+    if (r.ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      return;
+    }
+
+    const data = await r.json().catch(() => null);
+    alert(data?.error ?? "Erro ao salvar identidade");
   }
 
   const previewColor = form.cor_primaria || "#9aea62";

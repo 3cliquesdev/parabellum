@@ -2,39 +2,85 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import type { LooseDatabase } from "@/types/database";
 
-export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const auth = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-  const { data: { user } } = await auth.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+interface WebhookTestBody {
+  webhook_id?: string;
+}
 
-  const { webhook_id } = await request.json();
+interface WebhookConfigRow {
+  id: string;
+  tenant_id: string;
+  url: string;
+  secret: string | null;
+}
 
-  const admin = createServerClient<any>(
+interface WebhookTestPayload {
+  event: "test.ping";
+  tenant_id: string;
+  data: {
+    message: string;
+    timestamp: string;
+  };
+  timestamp: string;
+}
+
+function createAdminClient() {
+  return createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: () => [], setAll: () => {} } }
   );
+}
 
-  const { data: webhook } = await admin.from("webhook_configs").select("*").eq("id", webhook_id).single() as { data: any };
-  if (!webhook) return NextResponse.json({ error: "Webhook não encontrado" }, { status: 404 });
+async function createAuthClient() {
+  const cookieStore = await cookies();
 
-  const payload = {
+  return createServerClient<LooseDatabase>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  );
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await createAuthClient();
+  const { data: { user } } = await auth.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { webhook_id } = (await request.json().catch(() => ({}))) as WebhookTestBody;
+  if (!webhook_id) return NextResponse.json({ error: "webhook_id required" }, { status: 400 });
+
+  const admin = createAdminClient();
+  const { data: webhook } = await admin
+    .from("webhook_configs")
+    .select("*")
+    .eq("id", webhook_id)
+    .single();
+
+  const webhookData = webhook as unknown as WebhookConfigRow | null;
+  if (!webhookData) return NextResponse.json({ error: "Webhook nao encontrado" }, { status: 404 });
+
+  const timestamp = new Date().toISOString();
+  const payload: WebhookTestPayload = {
     event: "test.ping",
-    tenant_id: webhook.tenant_id,
-    data: { message: "Webhook do Liberty CRM funcionando!", timestamp: new Date().toISOString() },
-    timestamp: new Date().toISOString(),
+    tenant_id: webhookData.tenant_id,
+    data: { message: "Webhook do Liberty CRM funcionando!", timestamp },
+    timestamp,
   };
 
-  const signature = crypto.createHmac("sha256", webhook.secret ?? "").update(JSON.stringify(payload)).digest("hex");
+  const signature = crypto
+    .createHmac("sha256", webhookData.secret ?? "")
+    .update(JSON.stringify(payload))
+    .digest("hex");
 
   try {
-    const res = await fetch(webhook.url, {
+    const response = await fetch(webhookData.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -46,13 +92,34 @@ export async function POST(request: NextRequest) {
       signal: AbortSignal.timeout(10000),
     });
 
-    const sucesso = res.ok;
-    await admin.from("webhook_logs").insert({ webhook_id, tenant_id: webhook.tenant_id, evento: "test.ping", payload, status_code: res.status, sucesso });
-    await admin.from("webhook_configs").update({ ultimo_envio: new Date().toISOString(), ultimo_erro: sucesso ? null : `HTTP ${res.status}` }).eq("id", webhook_id);
+    const success = response.ok;
+    await admin.from("webhook_logs").insert({
+      webhook_id,
+      tenant_id: webhookData.tenant_id,
+      evento: "test.ping",
+      payload,
+      status_code: response.status,
+      sucesso: success,
+    });
+    await admin
+      .from("webhook_configs")
+      .update({
+        ultimo_envio: new Date().toISOString(),
+        ultimo_erro: success ? null : `HTTP ${response.status}`,
+      })
+      .eq("id", webhook_id);
 
-    return NextResponse.json({ sucesso, status: res.status, message: sucesso ? "Webhook enviado com sucesso!" : `Erro HTTP ${res.status}` });
-  } catch (err: any) {
-    await admin.from("webhook_configs").update({ ultimo_erro: err.message }).eq("id", webhook_id);
-    return NextResponse.json({ sucesso: false, message: err.message }, { status: 500 });
+    return NextResponse.json({
+      sucesso: success,
+      status: response.status,
+      message: success ? "Webhook enviado com sucesso!" : `Erro HTTP ${response.status}`,
+    });
+  } catch (error) {
+    await admin
+      .from("webhook_configs")
+      .update({ ultimo_erro: getErrorMessage(error) })
+      .eq("id", webhook_id);
+
+    return NextResponse.json({ sucesso: false, message: getErrorMessage(error) }, { status: 500 });
   }
 }

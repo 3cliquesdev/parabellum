@@ -14,15 +14,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [impersonation, setImpersonation] = useState<{ tenantName: string; agencyName: string } | null>(null);
 
   useEffect(() => {
-    const cookie = getCookie("impersonation_session");
-    if (cookie) {
+    queueMicrotask(() => {
+      const cookie = getCookie("impersonation_session");
+      if (!cookie) return;
+
       try {
         const data = JSON.parse(cookie);
         if (data.tenant_name && data.agency_name) {
           setImpersonation({ tenantName: data.tenant_name, agencyName: data.agency_name });
         }
-      } catch { /* cookie inválido */ }
-    }
+      } catch {
+        // Cookie invalido.
+      }
+    });
   }, []);
 
   return (

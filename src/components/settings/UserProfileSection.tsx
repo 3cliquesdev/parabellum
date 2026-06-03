@@ -117,7 +117,7 @@ export function UserProfileSection() {
         .from("user_profiles")
         .select("*")
         .eq("user_id", user.id)
-        .maybeSingle();
+        .maybeSingle() as { data: UserProfile | null; error: Error | null };
 
       if (cancelled) return;
 

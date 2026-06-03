@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED = ["/dashboard", "/pipeline", "/contacts", "/activities", "/inbox", "/settings", "/agency"];
 const AUTH_ROUTES = ["/login", "/signup"];
-const PLATFORM_DOMAINS = ["liberty-crm-six.vercel.app", "localhost", "libertycrm.com.br"];
+const PLATFORM_DOMAINS = ["localhost", "libertycrm.com.br"];
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -19,6 +19,7 @@ export async function proxy(request: NextRequest) {
   // ── Detecção de domínio customizado de agência ──
   const isPlatformDomain =
     !hostname ||
+    hostname.endsWith(".vercel.app") ||
     PLATFORM_DOMAINS.some(d => hostname === d || hostname.endsWith("." + d));
 
   if (!isPlatformDomain) {

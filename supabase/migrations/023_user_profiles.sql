@@ -88,7 +88,7 @@ VALUES (
   'user-avatars',
   'user-avatars',
   true,
-  2097152,
+  5242880,
   ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']::text[]
 )
 ON CONFLICT (id) DO UPDATE

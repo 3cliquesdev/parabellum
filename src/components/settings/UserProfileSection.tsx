@@ -219,8 +219,8 @@ export function UserProfileSection() {
       setError("Envie uma imagem valida para a foto.");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setError("A foto deve ter no maximo 2MB.");
+    if (file.size > 5 * 1024 * 1024) {
+      setError("A foto deve ter no maximo 5MB.");
       return;
     }
 

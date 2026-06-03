@@ -44,6 +44,25 @@ export interface TenantMember {
   created_at: string;
 }
 
+export interface UserProfile {
+  user_id: string;
+  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  cpf: string | null;
+  avatar_url: string | null;
+  address_zip: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_neighborhood: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_country: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Lead {
   id: string;
   tenant_id: string;
@@ -138,6 +157,7 @@ export type Database = {
       plans: { Row: Plan; Insert: Omit<Plan, "id" | "created_at">; Update: Partial<Plan> };
       tenants: { Row: Tenant; Insert: Omit<Tenant, "id" | "created_at" | "updated_at">; Update: Partial<Tenant> };
       tenant_members: { Row: TenantMember; Insert: Omit<TenantMember, "id" | "created_at">; Update: Partial<TenantMember> };
+      user_profiles: { Row: UserProfile; Insert: Omit<UserProfile, "created_at" | "updated_at">; Update: Partial<UserProfile> };
       leads: { Row: Lead; Insert: Omit<Lead, "id" | "created_at" | "updated_at">; Update: Partial<Lead> };
       lead_identities: { Row: LeadIdentity; Insert: Omit<LeadIdentity, "id" | "created_at" | "updated_at">; Update: Partial<LeadIdentity> };
       atividades: { Row: Atividade; Insert: Omit<Atividade, "id" | "created_at">; Update: Partial<Atividade> };

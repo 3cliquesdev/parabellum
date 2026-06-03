@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
+import { UserProfileSection } from "@/components/settings/UserProfileSection";
 import {
-  Puzzle, Users, Settings, CreditCard, Sparkles,
+  UserRound, Puzzle, Users, Settings, CreditCard, Sparkles,
   CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp,
   ExternalLink, Plus, Trash2, Copy, Check, Send, Activity,
 } from "lucide-react";
@@ -46,19 +47,20 @@ const CATEGORIES = [
 ];
 
 const NAV_ITEMS = [
+  { id: "perfil", icon: UserRound, label: "Perfil" },
   { id: "integracoes", icon: Puzzle, label: "Integrações" },
   { id: "equipe", icon: Users, label: "Equipe" },
   { id: "workspace", icon: Settings, label: "Workspace" },
   { id: "plano", icon: CreditCard, label: "Plano" },
 ];
 
-type NavSection = "integracoes" | "equipe" | "workspace" | "plano";
+type NavSection = "perfil" | "integracoes" | "equipe" | "workspace" | "plano";
 interface PhoneOption { id: string; display_phone_number: string; verified_name: string; }
 
 // ─── Main Page ───
 export default function SettingsPage() {
   const { tenant, tenantId, loading } = useTenant();
-  const [section, setSection] = useState<NavSection>("integracoes");
+  const [section, setSection] = useState<NavSection>("perfil");
   const [category, setCategory] = useState("todos");
   const [activeIntegration, setActiveIntegration] = useState<string | null>(null);
 
@@ -101,6 +103,13 @@ export default function SettingsPage() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
+
+        {/* ─── PERFIL ─── */}
+        {section === "perfil" && (
+          <div className="p-8">
+            <UserProfileSection />
+          </div>
+        )}
 
         {/* ─── INTEGRAÇÕES ─── */}
         {section === "integracoes" && (

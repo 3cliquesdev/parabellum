@@ -30,7 +30,7 @@ export default function IALayout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2 px-8 py-3 shrink-0"
           style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}>
           <Link href={backLink}
-            className="flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-white"
+            className="flex items-center gap-1.5 text-xs font-medium transition-colors"
             style={{ color: "var(--text-secondary)" }}>
             <ChevronLeft className="w-3.5 h-3.5" />
             {backLabel}
@@ -38,7 +38,7 @@ export default function IALayout({ children }: { children: React.ReactNode }) {
           {!isFlowsSubpage && (
             <>
               <span className="text-xs" style={{ color: "var(--text-faint)" }}>/</span>
-              <span className="text-xs font-medium text-white">{pageName}</span>
+              <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>{pageName}</span>
             </>
           )}
         </div>

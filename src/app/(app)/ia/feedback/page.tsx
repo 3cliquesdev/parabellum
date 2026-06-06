@@ -83,7 +83,7 @@ export default function FeedbackPage() {
             className="px-4 h-8 rounded-xl text-xs font-bold"
             style={filter === value
               ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
-              : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}
+              : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
           >
             {label}
           </button>
@@ -95,14 +95,14 @@ export default function FeedbackPage() {
           <div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum feedback ainda.</p>
           <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>O feedback aparece quando agentes avaliam respostas no Inbox.</p>
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((feedback) => (
-            <div key={feedback.id} className="flex items-start gap-4 p-4 rounded-xl" style={{ background: "var(--surface-gradient)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div key={feedback.id} className="flex items-start gap-4 p-4 rounded-xl" style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
               <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: feedback.tipo === "positivo" ? "rgba(154,234,98,0.1)" : "rgba(248,113,113,0.1)" }}>
                 {feedback.tipo === "positivo"
                   ? <ThumbsUp className="w-4 h-4" style={{ color: "var(--status-ganho)" }} />

@@ -46,63 +46,75 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col h-full" style={{
-      background: "linear-gradient(180deg, #0c0c0c 0%, #080808 100%)",
-      borderRight: "1px solid rgba(255,255,255,0.06)",
-    }}>
-
-      {/* Logo */}
-      <div className="px-5 h-16 flex items-center gap-3 shrink-0"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-        {branding.logo_url
-          ? <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto shrink-0" />
-          : <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: cor, boxShadow: `0 0 12px ${cor}40` }}>
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
-              </svg>
-            </div>
-        }
-        <span className="font-bold text-sm text-white tracking-tight truncate">{branding.display_name}</span>
+    <aside
+      className="crm-sidebar w-56 shrink-0 flex flex-col h-full"
+      style={{
+        background: "var(--sidebar-gradient)",
+        borderRight: "1px solid var(--sidebar-border)",
+      }}
+    >
+      <div
+        className="px-5 h-16 flex items-center gap-3 shrink-0"
+        style={{ borderBottom: "1px solid var(--sidebar-border)" }}
+      >
+        {branding.logo_url ? (
+          <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto shrink-0" />
+        ) : (
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: cor, boxShadow: `0 0 12px ${cor}40` }}
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
+            </svg>
+          </div>
+        )}
+        <span className="font-bold text-sm tracking-tight truncate" style={{ color: "var(--sidebar-foreground)" }}>
+          {branding.display_name}
+        </span>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {navItems.map(({ href, icon: Icon, label, separator }) => {
-          const active = href === "/ia"
-            ? pathname.startsWith("/ia")
-            : pathname.startsWith(href);
+          const active = href === "/ia" ? pathname.startsWith("/ia") : pathname.startsWith(href);
           const hovered = hoveredHref === href;
 
           return (
             <div key={href}>
               {separator && (
                 <div className="my-2 relative">
-                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }} />
+                  <div style={{ borderTop: "1px solid var(--sidebar-border)" }} />
                   {active && (
-                    <div className="absolute inset-x-0 -top-px h-px"
-                      style={{ background: `linear-gradient(90deg, transparent, ${cor}40, transparent)` }} />
+                    <div
+                      className="absolute inset-x-0 -top-px h-px"
+                      style={{ background: `linear-gradient(90deg, transparent, ${cor}40, transparent)` }}
+                    />
                   )}
                 </div>
               )}
-              <Link href={href}
+              <Link
+                href={href}
                 className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
                 style={{
-                  color: active ? cor : hovered ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.4)",
-                  background: active ? `${cor}12` : hovered ? "rgba(255,255,255,0.04)" : "transparent",
+                  color: active ? cor : hovered ? "var(--sidebar-foreground)" : "var(--text-secondary)",
+                  background: active ? `${cor}12` : hovered ? "var(--surface-soft)" : "transparent",
                   border: active ? `1px solid ${cor}20` : "1px solid transparent",
                   transform: hovered && !active ? "translateX(2px)" : "none",
                   transition: "all 0.15s ease",
                 }}
                 onMouseEnter={() => setHoveredHref(href)}
-                onMouseLeave={() => setHoveredHref(null)}>
-                {/* Active indicator bar */}
+                onMouseLeave={() => setHoveredHref(null)}
+              >
                 {active && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
-                    style={{ background: cor, boxShadow: `0 0 8px ${cor}80` }} />
+                  <div
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
+                    style={{ background: cor, boxShadow: `0 0 8px ${cor}80` }}
+                  />
                 )}
-                <Icon className="w-4 h-4 shrink-0"
-                  style={{ color: active ? cor : hovered ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)" }} />
+                <Icon
+                  className="w-4 h-4 shrink-0"
+                  style={{ color: active ? cor : hovered ? "var(--sidebar-foreground)" : "var(--text-faint)" }}
+                />
                 {label}
               </Link>
             </div>
@@ -110,14 +122,16 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom */}
-      <div className="px-3 pb-5 space-y-0.5" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+      <div className="px-3 pb-5 space-y-0.5" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
         <div className="pt-3">
           {isAgencyUser && (
-            <Link href="/agency" className="flex items-start gap-3 px-3 py-2.5 rounded-xl font-medium mb-1"
+            <Link
+              href="/agency"
+              className="flex items-start gap-3 px-3 py-2.5 rounded-xl font-medium mb-1"
               style={{ background: `${cor}10`, border: `1px solid ${cor}18`, transition: "all 0.15s ease" }}
               onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = `${cor}18`; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = `${cor}10`; }}>
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = `${cor}10`; }}
+            >
               <Building2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: cor }} />
               <div>
                 <p className="text-sm font-bold leading-tight" style={{ color: cor }}>Painel da Agência</p>
@@ -125,24 +139,47 @@ export function Sidebar() {
               </div>
             </Link>
           )}
-          {/* Theme toggle */}
+
           <div className="flex items-center justify-between px-3 py-2 mb-0.5">
-            <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.22)" }}>Aparência</span>
+            <span className="text-xs font-medium" style={{ color: "var(--text-faint)" }}>Aparência</span>
             <ThemeToggle />
           </div>
 
-          <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
-            style={{ color: "rgba(255,255,255,0.35)", border: "1px solid transparent", transition: "all 0.15s ease" }}
-            onMouseEnter={e => { const el = e.currentTarget as HTMLAnchorElement; el.style.color = "rgba(255,255,255,0.6)"; el.style.background = "rgba(255,255,255,0.04)"; }}
-            onMouseLeave={e => { const el = e.currentTarget as HTMLAnchorElement; el.style.color = "rgba(255,255,255,0.35)"; el.style.background = "transparent"; }}>
-            <Settings className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
+          <Link
+            href="/settings"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
+            style={{ color: "var(--text-secondary)", border: "1px solid transparent", transition: "all 0.15s ease" }}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLAnchorElement;
+              el.style.color = "var(--sidebar-foreground)";
+              el.style.background = "var(--surface-soft)";
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLAnchorElement;
+              el.style.color = "var(--text-secondary)";
+              el.style.background = "transparent";
+            }}
+          >
+            <Settings className="w-4 h-4 shrink-0" style={{ color: "var(--text-faint)" }} />
             Configurações
           </Link>
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
-            style={{ color: "rgba(255,255,255,0.22)", border: "1px solid transparent", transition: "all 0.15s ease" }}
-            onMouseEnter={e => { const el = e.currentTarget as HTMLButtonElement; el.style.color = "rgba(248,113,113,0.7)"; el.style.background = "rgba(248,113,113,0.05)"; }}
-            onMouseLeave={e => { const el = e.currentTarget as HTMLButtonElement; el.style.color = "rgba(255,255,255,0.22)"; el.style.background = "transparent"; }}>
-            <LogOut className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
+            style={{ color: "var(--text-faint)", border: "1px solid transparent", transition: "all 0.15s ease" }}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.color = "rgba(248,113,113,0.75)";
+              el.style.background = "rgba(248,113,113,0.08)";
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.color = "var(--text-faint)";
+              el.style.background = "transparent";
+            }}
+          >
+            <LogOut className="w-4 h-4 shrink-0" style={{ color: "var(--text-faint)" }} />
             Sair
           </button>
         </div>

@@ -107,7 +107,7 @@ export default function TrainingPage() {
             className="px-4 h-8 rounded-xl text-xs font-bold transition-all"
             style={cenario === c.id
               ? { background: `${c.cor}15`, color: c.cor, border: `1px solid ${c.cor}30` }
-              : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
             {c.label} ({examples.filter(e => e.cenario === c.id).length})
           </button>
         ))}
@@ -125,7 +125,7 @@ export default function TrainingPage() {
           <h2 className="text-sm font-bold text-white">Novo exemplo</h2>
           <select value={form.cenario} onChange={e => setForm(f => ({ ...f, cenario: e.target.value }))}
             className="w-full h-10 px-3 rounded-xl text-sm outline-none"
-            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
             {CENARIOS.map(c => <option key={c.id} value={c.id} style={{ background: "#111" }}>{c.label}</option>)}
           </select>
           <div className="space-y-1">
@@ -141,7 +141,7 @@ export default function TrainingPage() {
               style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Cancelar</button>
+            <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Cancelar</button>
             <button onClick={saveExample} disabled={saving} className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#9aea62", color: "#0a0a0a" }}>
               {saving ? "Salvando..." : "Salvar"}
             </button>
@@ -151,7 +151,7 @@ export default function TrainingPage() {
 
       {/* Examples list */}
       {filtered.length === 0 ? (
-        <div className="py-12 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="py-12 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum exemplo para este cenário.</p>
         </div>
       ) : (

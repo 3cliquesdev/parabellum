@@ -171,7 +171,7 @@ export default function ResponsesPage() {
               onChange={(event) => setForm((current) => ({ ...current, titulo: event.target.value }))}
               placeholder="Título"
               className="h-10 px-3 rounded-xl text-sm text-white outline-none"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
             />
             <input
               value={form.atalho}
@@ -185,7 +185,7 @@ export default function ResponsesPage() {
               onChange={(event) => setForm((current) => ({ ...current, categoria: event.target.value }))}
               placeholder="Categoria"
               className="h-10 px-3 rounded-xl text-sm text-white outline-none"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
             />
           </div>
           <textarea
@@ -194,13 +194,13 @@ export default function ResponsesPage() {
             rows={3}
             placeholder="Conteúdo da resposta..."
             className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
           />
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => setShowForm(false)}
               className="px-4 h-9 rounded-xl text-sm"
-              style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}
+              style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
             >
               Cancelar
             </button>
@@ -217,7 +217,7 @@ export default function ResponsesPage() {
       )}
 
       {responses.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhuma resposta rápida ainda.</p>
         </div>
       ) : (

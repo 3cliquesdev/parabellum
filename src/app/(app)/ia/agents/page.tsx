@@ -146,9 +146,9 @@ export default function AgentsPage() {
                   className="p-3 rounded-xl text-left transition-all"
                   style={form.role === r.id
                     ? { background: `${r.color}15`, border: `1px solid ${r.color}30` }
-                    : { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    : { background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
                   <Icon className="w-4 h-4 mb-2" style={{ color: form.role === r.id ? r.color : "#939da4" }} />
-                  <p className="text-xs font-bold" style={{ color: form.role === r.id ? r.color : "#fff" }}>{r.label}</p>
+                  <p className="text-xs font-bold" style={{ color: form.role === r.id ? r.color : "var(--text-primary)" }}>{r.label}</p>
                   <p className="text-[10px] mt-0.5" style={{ color: "var(--text-secondary)" }}>{r.desc}</p>
                 </button>
               );
@@ -167,7 +167,7 @@ export default function AgentsPage() {
               <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Modelo LLM</label>
               <select value={form.modelo} onChange={e => setForm(f => ({ ...f, modelo: e.target.value }))}
                 className="w-full h-10 px-3 rounded-xl text-sm outline-none"
-                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
                 {MODELS.map(m => <option key={m.id} value={m.id} style={{ background: "#111" }}>{m.label}</option>)}
               </select>
             </div>
@@ -195,7 +195,7 @@ export default function AgentsPage() {
               <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Tamanho da resposta</label>
               <select value={form.max_tokens} onChange={e => setForm(f => ({ ...f, max_tokens: parseInt(e.target.value) }))}
                 className="w-full h-10 px-3 rounded-xl text-sm outline-none"
-                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
                 <option value={150} style={{ background: "#111" }}>Curto</option>
                 <option value={300} style={{ background: "#111" }}>Médio</option>
                 <option value={600} style={{ background: "#111" }}>Longo</option>
@@ -205,7 +205,7 @@ export default function AgentsPage() {
 
           <div className="flex gap-3 justify-end">
             <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm"
-              style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Cancelar</button>
+              style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Cancelar</button>
             <button onClick={saveAgent} disabled={saving || !form.nome}
               className="px-6 h-9 rounded-xl text-sm font-bold"
               style={{ background: "#9aea62", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
@@ -217,7 +217,7 @@ export default function AgentsPage() {
 
       {/* Agents grid */}
       {agents.length === 0 && !showForm ? (
-        <div className="py-20 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="py-20 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <Bot className="w-12 h-12 mx-auto mb-4" style={{ color: "rgba(147,157,164,0.3)" }} />
           <p className="text-sm font-medium text-white mb-1">Nenhum agente ainda</p>
           <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Crie agentes especializados para diferentes funções</p>
@@ -262,7 +262,7 @@ export default function AgentsPage() {
 
                 {/* Routing intents */}
                 {agentRules.length > 0 && (
-                  <div className="mt-3 pt-3 flex flex-wrap gap-1.5" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div className="mt-3 pt-3 flex flex-wrap gap-1.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
                     {agentRules.flatMap(r => r.intents).slice(0, 4).map(intent => (
                       <span key={intent} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                         style={{ background: `${role.color}12`, color: role.color }}>
@@ -283,7 +283,7 @@ export default function AgentsPage() {
                     addRoutingRule(agent.id, defaultIntents[agent.role] ?? []);
                   }}
                     className="mt-3 w-full h-8 rounded-xl text-xs font-medium transition-all"
-                    style={{ background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
                     + Adicionar regra de roteamento
                   </button>
                 )}
@@ -296,11 +296,11 @@ export default function AgentsPage() {
       {/* Routing rules section */}
       {rules.length > 0 && (
         <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border-subtle)" }}>
-          <div className="px-6 py-4" style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="px-6 py-4" style={{ background: "var(--surface-soft)", borderBottom: "1px solid var(--border-subtle)" }}>
             <h2 className="text-sm font-bold text-white">Regras de roteamento automático</h2>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Quando o lead manda uma mensagem, qual agente responde</p>
           </div>
-          <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+          <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
             {rules.map(rule => {
               const agent = agents.find(a => a.id === rule.persona_id);
               const role = roleInfo(agent?.role ?? "custom");
@@ -316,7 +316,7 @@ export default function AgentsPage() {
                       ))}
                       {rule.keywords.map(k => (
                         <span key={k} className="text-[10px] px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>&quot;{k}&quot;</span>
+                          style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>&quot;{k}&quot;</span>
                       ))}
                     </div>
                   </div>
@@ -324,7 +324,7 @@ export default function AgentsPage() {
                     className="text-xs font-bold px-2.5 py-1 rounded-full"
                     style={rule.ativo
                       ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }
-                      : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>
+                      : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
                     {rule.ativo ? "Ativo" : "Inativo"}
                   </button>
                 </div>

@@ -100,11 +100,19 @@
   --primary-bg:      rgba(154,234,98,0.08);
   --primary-border:  rgba(154,234,98,0.2);
   --surface-gradient: linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%);
+  --surface-soft:    rgba(255,255,255,0.03);
+  --surface-hover:   rgba(255,255,255,0.05);
+  --surface-panel:   rgba(255,255,255,0.02);
+  --ghost-bg:        rgba(255,255,255,0.06);
+  --ghost-hover:     rgba(255,255,255,0.1);
+  --chip-bg:         rgba(255,255,255,0.05);
+  --chip-border:     rgba(255,255,255,0.08);
+  --sidebar-gradient: linear-gradient(180deg, #0c0c0c 0%, #080808 100%);
 }
 
 /* ── Light Theme ── */
 html.light {
-  --background: #F7F9FC;
+  --background: #F4F7FB;
   --foreground: #0F172A;
   --card: #FFFFFF;
   --card-foreground: #0F172A;
@@ -112,58 +120,101 @@ html.light {
   --popover-foreground: #0F172A;
   --primary: #16A34A;
   --primary-foreground: #FFFFFF;
-  --secondary: rgba(15,23,42,0.06);
+  --secondary: rgba(15,23,42,0.08);
   --secondary-foreground: #0F172A;
-  --muted: rgba(15,23,42,0.04);
-  --muted-foreground: #64748B;
-  --accent: rgba(34,197,94,0.1);
+  --muted: rgba(15,23,42,0.05);
+  --muted-foreground: #52637A;
+  --accent: rgba(34,197,94,0.14);
   --accent-foreground: #16A34A;
   --destructive: #DC2626;
-  --border: #E2E8F0;
-  --input: #F1F5F9;
-  --ring: rgba(34,197,94,0.4);
+  --border: #D6E0EA;
+  --input: #EEF4F9;
+  --ring: rgba(34,197,94,0.32);
 
-  --sidebar: #F1F5F9;
+  --sidebar: #F4F8FC;
   --sidebar-foreground: #0F172A;
   --sidebar-primary: #22C55E;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: rgba(15,23,42,0.05);
+  --sidebar-accent: rgba(15,23,42,0.06);
   --sidebar-accent-foreground: #0F172A;
-  --sidebar-border: #E2E8F0;
+  --sidebar-border: #D6E0EA;
   --sidebar-ring: rgba(34,197,94,0.4);
 
   --lime: #16A34A;
   --lime-dark: #15803D;
   --cream: #F8FAFC;
-  --muted-text: #64748B;
+  --muted-text: #66778F;
 
   /* Semantic tokens (light) */
-  --bg:              #F7F9FC;
-  --bg-subtle:       #EEF3F8;
+  --bg:              #F4F7FB;
+  --bg-subtle:       #EAF0F6;
   --surface:         #FFFFFF;
-  --surface-alt:     #F8FAFC;
+  --surface-alt:     #F7FAFD;
   --surface-solid:   #FFFFFF;
-  --border-subtle:   #E2E8F0;
-  --border-strong:   #CBD5E1;
+  --border-subtle:   #D6E0EA;
+  --border-strong:   #C1CFDD;
   --text-primary:    #0F172A;
-  --text-secondary:  #64748B;
-  --text-faint:      #94A3B8;
-  --status-novo:     #94A3B8;
+  --text-secondary:  #5C6E86;
+  --text-faint:      #8193A8;
+  --status-novo:     #7B8CA3;
   --status-contato:  #3B82F6;
   --status-qualificado: #8B5CF6;
   --status-ganho:    #16A34A;
   --status-perdido:  #DC2626;
-  --input-bg:        #F8FAFC;
-  --input-border:    #E2E8F0;
+  --input-bg:        #F7FAFD;
+  --input-border:    #CDD8E5;
   --scrim:           rgba(15,23,42,0.5);
 
-  --primary-bg:      rgba(22,163,74,0.08);
-  --primary-border:  rgba(22,163,74,0.25);
-  --surface-gradient: #FFFFFF;
+  --primary-bg:      rgba(22,163,74,0.12);
+  --primary-border:  rgba(22,163,74,0.3);
+  --surface-gradient: linear-gradient(180deg, #FFFFFF 0%, #F9FBFE 100%);
+  --surface-soft:    #F3F7FB;
+  --surface-hover:   #E9F0F7;
+  --surface-panel:   #F7FAFD;
+  --ghost-bg:        #EEF3F8;
+  --ghost-hover:     #E2EAF2;
+  --chip-bg:         #F1F5F9;
+  --chip-border:     #D3DDE8;
+  --sidebar-gradient: linear-gradient(180deg, #F7FAFD 0%, #EFF5FA 100%);
 }
 
 /* CRM app content: white text → foreground in light mode */
 html.light main.crm-main .text-white { color: var(--foreground); }
+html.light main.crm-main {
+  background:
+    radial-gradient(circle at top left, rgba(34, 197, 94, 0.04), transparent 28%),
+    linear-gradient(180deg, #f6f9fc 0%, #f2f6fb 100%);
+}
+html.light main.crm-main .text-\[var\(--text-secondary\)\] {
+  color: var(--text-secondary);
+}
+html.light main.crm-main input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+html.light main.crm-main textarea,
+html.light main.crm-main select {
+  color: var(--text-primary) !important;
+  background: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  box-shadow: inset 0 1px 1px rgba(148, 163, 184, 0.06);
+}
+html.light main.crm-main input::placeholder,
+html.light main.crm-main textarea::placeholder {
+  color: var(--text-faint) !important;
+}
+html.light main.crm-main .react-flow__controls,
+html.light main.crm-main .react-flow__minimap {
+  background: var(--surface) !important;
+  border-color: var(--border-strong) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+html.light main.crm-main .react-flow__controls button {
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  border-bottom-color: var(--border-subtle) !important;
+}
+html.light main.crm-main .react-flow__attribution {
+  background: rgba(255, 255, 255, 0.88) !important;
+  color: var(--text-secondary) !important;
+}
 
 @layer base {
   * {

@@ -126,7 +126,7 @@ export default function SettingsPage() {
                   className="px-4 h-8 rounded-full text-xs font-bold transition-all"
                   style={category === c.id
                     ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.25)" }
-                    : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
+                    : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
                   {c.label}
                   {c.id === "instalado" && (
                     <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px]"
@@ -177,7 +177,7 @@ export default function SettingsPage() {
                 { label: "Slug", value: tenant?.slug ?? "—" },
                 { label: "Criado em", value: tenant?.created_at ? new Date(tenant.created_at).toLocaleDateString("pt-BR") : "—" },
               ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                <div key={label} className="flex items-center justify-between py-3" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                   <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{label}</span>
                   <span className="text-sm font-medium text-white">{value}</span>
                 </div>
@@ -214,7 +214,7 @@ export default function SettingsPage() {
                       <span style={{ color: "var(--text-secondary)" }}>{label}</span>
                       <span style={{ color: "var(--text-secondary)" }}>{used} / {limit}</span>
                     </div>
-                    <div className="h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <div className="h-1.5 rounded-full" style={{ background: "var(--ghost-bg)" }}>
                       <div className="h-full rounded-full" style={{ width: `${Math.min((used / limit) * 100, 100)}%`, background: "#9aea62" }} />
                     </div>
                   </div>
@@ -254,7 +254,7 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
   const { id, name, desc, cor, status, icon } = integration;
   const installed = status === "installed";
   const soon = status === "soon";
-  const cardStyle = { background: "var(--surface-gradient)", border: `1px solid ${isActive ? cor + "40" : "rgba(255,255,255,0.07)"}` };
+  const cardStyle = { background: "var(--surface-gradient)", border: `1px solid ${isActive ? cor + "40" : "var(--border-subtle)"}` };
 
   return (
     <div className="rounded-2xl overflow-hidden transition-all duration-200" style={cardStyle}>
@@ -273,13 +273,13 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             {installed && <><CheckCircle className="w-3.5 h-3.5" style={{ color: "var(--status-ganho)" }} /><span className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Instalado</span></>}
-            {soon && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Em breve</span>}
+            {soon && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--chip-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Em breve</span>}
             {status === "available" && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>Disponível</span>}
           </div>
           {installed && (
             <button onClick={onManage}
               className="px-3 h-7 rounded-lg text-xs font-bold transition-all"
-              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "rgba(255,255,255,0.07)", color: "var(--text-secondary)" }}>
+              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
               {isActive ? "Fechar" : "Gerenciar"}
             </button>
           )}
@@ -295,7 +295,7 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
 
       {/* Expanded management panel */}
       {isActive && (installed || status === "available") && (
-        <div style={{ borderTop: `1px solid ${cor}25`, background: "rgba(0,0,0,0.3)" }}>
+        <div style={{ borderTop: `1px solid ${cor}25`, background: "var(--surface-panel)" }}>
           {id === "whatsapp" && <WhatsAppManagePanel tenantId={tenantId} />}
           {id === "gemini" && <GeminiManagePanel />}
           {id === "resend" && <ResendManagePanel />}
@@ -379,7 +379,7 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
           <div className="flex-1 h-10 rounded-xl flex items-center justify-center gap-2 text-xs" style={{ background: "rgba(24,119,242,0.1)", color: "#60a5fa" }}>
             <Loader2 className="w-4 h-4 animate-spin" /> Aguardando autorização...
           </div>
-          <button onClick={() => setWaStatus("idle")} className="px-3 h-10 rounded-xl text-xs" style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>Cancelar</button>
+          <button onClick={() => setWaStatus("idle")} className="px-3 h-10 rounded-xl text-xs" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Cancelar</button>
         </div>
       ) : (
         <button onClick={handleConnect} className="w-full h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all" style={{ background: "#1877f2", color: "#fff" }}>
@@ -513,21 +513,21 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
         <div className="space-y-1.5">
           <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(147,157,164,0.5)" }}>Preview do email</p>
           {/* Simula o fundo do cliente de email */}
-          <div className="rounded-xl p-3" style={{ background: "#060606", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="rounded-xl p-3" style={{ background: "var(--surface-panel)", border: "1px solid var(--border-subtle)" }}>
             {/* Card do email */}
             <div className="rounded-2xl overflow-hidden mx-auto" style={{ background: "#0f0f0f", border: "1px solid var(--border-subtle)", maxWidth: 480 }}>
               {/* Accent bar top */}
               <div style={{ height: 2, background: `linear-gradient(90deg,${previewColor} 0%,${previewColor}60 60%,transparent 100%)` }} />
 
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: previewColor }}>
                     <span className="text-[8px] font-black" style={{ color: "#0a0a0a" }}>▲</span>
                   </div>
                   <span className="text-xs font-bold text-white">{previewName}</span>
                 </div>
-                <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-subtle)", color: "rgba(147,157,164,0.5)" }}>
+                <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--ghost-bg)", border: "1px solid var(--chip-border)", color: "var(--text-faint)" }}>
                   Convite de equipe
                 </span>
               </div>
@@ -560,7 +560,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
                 </p>
 
                 {/* Feature bullets */}
-                <div className="rounded-lg p-3 space-y-1.5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div className="rounded-lg p-3 space-y-1.5" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
                   {["Acesso ao pipeline de vendas e leads", "Inbox de WhatsApp compartilhado", "Colaboração em tempo real"].map(f => (
                     <div key={f} className="flex items-start gap-2">
                       <div className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: previewColor }} />
@@ -580,7 +580,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
               </div>
 
               {/* Footer */}
-              <div className="px-5 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="px-5 py-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
                 <p className="text-[9px]" style={{ color: "rgba(147,157,164,0.28)", lineHeight: 1.5 }}>
                   Você recebeu este email porque alguem@email.com convidou você para {previewName}.
                 </p>
@@ -653,10 +653,10 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
             <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Voz</Label>
             <select value={form.voz_tts} onChange={e => setForm(f => ({ ...f, voz_tts: e.target.value }))}
               className="w-full h-9 px-3 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
-              <option value="pt-BR-feminina" style={{ background: "#111" }}>Feminina (Natural)</option>
-              <option value="pt-BR-masculina" style={{ background: "#111" }}>Masculina</option>
-              <option value="pt-BR-feminina-2" style={{ background: "#111" }}>Feminina 2</option>
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
+              <option value="pt-BR-feminina" style={{ background: "var(--surface-solid)" }}>Feminina (Natural)</option>
+              <option value="pt-BR-masculina" style={{ background: "var(--surface-solid)" }}>Masculina</option>
+              <option value="pt-BR-feminina-2" style={{ background: "var(--surface-solid)" }}>Feminina 2</option>
             </select>
           </div>
         )}
@@ -676,12 +676,12 @@ function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onCo
     setSaving(false); setSaved(true); onConnected(form.phone_number_id); setTimeout(() => setSaved(false), 3000);
   }
   return (
-    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium" style={{ background: "rgba(255,255,255,0.02)", color: "var(--text-secondary)" }}>
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-subtle)" }}>
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium" style={{ background: "var(--surface-soft)", color: "var(--text-secondary)" }}>
         Configurar manualmente (avançado) {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
       {open && (
-        <div className="px-4 py-3 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div className="px-4 py-3 space-y-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
           <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))} placeholder="Phone Number ID" className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} placeholder="Access Token" className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <div className="flex justify-end"><button onClick={save} disabled={saving || !form.phone_number_id || !form.access_token} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a" }}>{saving ? "..." : saved ? "Salvo!" : "Salvar"}</button></div>
@@ -731,12 +731,12 @@ function TeamSection({ tenantId }: { tenantId: string }) {
           </button>
         </div>
         {showInvite && (
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
             <div className="flex gap-2">
               <input value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="email@vendedor.com" type="email" className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
-              <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))} className="h-9 px-3 rounded-xl text-sm outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
-                <option value="member" style={{ background: "#111" }}>Membro</option>
-                <option value="admin" style={{ background: "#111" }}>Admin</option>
+              <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))} className="h-9 px-3 rounded-xl text-sm outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
+                <option value="member" style={{ background: "var(--surface-solid)" }}>Membro</option>
+                <option value="admin" style={{ background: "var(--surface-solid)" }}>Admin</option>
               </select>
               <button onClick={sendInvite} disabled={inviting || !inviteForm.email} className="px-4 h-9 rounded-xl text-xs font-bold" style={{ background: "#9aea62", color: "#0a0a0a", opacity: inviting ? 0.6 : 1 }}>
                 {inviting ? "..." : "Enviar"}
@@ -756,7 +756,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
         )}
         <div className="space-y-2">
           {members.map(m => (
-            <div key={m.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+            <div key={m.id} className="rounded-xl p-3" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
                   {(m.email ?? "?").charAt(0).toUpperCase()}
@@ -812,16 +812,16 @@ function MemberConfig({ member, tenantId }: { member: any; tenantId: string }) {
         disabled={saving}
         className="h-7 px-2 rounded-lg text-xs outline-none"
         style={{ background: `${DEPT_COLOR[dept]}10`, border: `1px solid ${DEPT_COLOR[dept]}30`, color: DEPT_COLOR[dept] }}>
-        <option value="vendas" style={{ background: "#111", color: "#fff" }}>Vendas</option>
-        <option value="suporte" style={{ background: "#111", color: "#fff" }}>Suporte</option>
-        <option value="todos" style={{ background: "#111", color: "#fff" }}>Todos</option>
+        <option value="vendas" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Vendas</option>
+        <option value="suporte" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Suporte</option>
+        <option value="todos" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Todos</option>
       </select>
       <button onClick={async () => { const novo = !disp; setDisp(novo); await save(undefined, novo); }}
         disabled={saving}
         className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-bold transition-all"
         style={disp
           ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
-          : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
+          : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
         <div className="w-1.5 h-1.5 rounded-full" style={{ background: disp ? "#9aea62" : "#939da4" }} />
         {disp ? "Disponível" : "Offline"}
       </button>
@@ -889,7 +889,7 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
       </div>
 
       {showForm && (
-        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
           <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome (ex: Notificar n8n)"
             className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="https://hooks.zapier.com/..."
@@ -902,14 +902,14 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
                   className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
                   style={form.eventos.includes(ev.id)
                     ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" }
-                    : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
+                    : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                   {ev.label}
                 </button>
               ))}
             </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowForm(false)} className="px-4 h-8 rounded-xl text-xs" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Cancelar</button>
+            <button onClick={() => setShowForm(false)} className="px-4 h-8 rounded-xl text-xs" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Cancelar</button>
             <button onClick={save} disabled={saving || !form.nome || !form.url || !form.eventos.length}
               className="px-5 h-8 rounded-xl text-xs font-bold" style={{ background: "#9aea62", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
               {saving ? "Salvando..." : "Salvar webhook"}
@@ -923,7 +923,7 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
       ) : (
         <div className="space-y-2">
           {webhooks.map(wh => (
-            <div key={wh.id} className="rounded-xl p-3 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-subtle)" }}>
+            <div key={wh.id} className="rounded-xl p-3 space-y-2" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-white">{wh.nome}</p>

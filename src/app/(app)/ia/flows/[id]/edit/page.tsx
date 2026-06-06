@@ -94,7 +94,22 @@ const NODE_LABELS: Record<FlowNodeType, string> = {
   end: "Finalizar",
 };
 
-const HANDLE_STYLE = { width: 10, height: 10, border: "2px solid #0a0a0a" };
+const HANDLE_STYLE = { width: 10, height: 10, border: "2px solid var(--surface-solid)" };
+const NODE_SURFACE_STYLE = {
+  background: "var(--surface-gradient)",
+  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
+};
+const PANEL_SURFACE_STYLE = {
+  background: "var(--bg-subtle)",
+  borderColor: "var(--border-subtle)",
+};
+const INPUT_SURFACE_STYLE = {
+  background: "var(--input-bg)",
+  border: "1px solid var(--input-border)",
+  color: "var(--text-primary)",
+};
+const LABEL_STYLE = { color: "var(--text-secondary)" };
+const HINT_STYLE = { color: "var(--text-faint)" };
 const AI_OUTPUT_HANDLES = ["resolvido", "nao_sei", "humano", "comercial", "suporte", "default"] as const;
 
 function BaseNodeShell({
@@ -114,7 +129,7 @@ function BaseNodeShell({
     <div
       className="rounded-xl px-4 py-3 min-w-[160px] max-w-[240px]"
       style={{
-        background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))",
+        ...NODE_SURFACE_STYLE,
         border: `2px solid ${color}50`,
       }}
     >
@@ -152,7 +167,7 @@ function AskNode({ data }: NodeProps<FlowNodeData>) {
   return (
     <BaseNodeShell color={color} title="Coletar Info">
       <p className="text-xs text-white truncate">{data.question || "Qual sua pergunta?"}</p>
-      {data.save_as && <p className="text-[9px] mt-0.5 font-mono" style={{ color: "#939da4" }}>→ {data.save_as}</p>}
+      {data.save_as && <p className="text-[9px] mt-0.5 font-mono" style={LABEL_STYLE}>→ {data.save_as}</p>}
     </BaseNodeShell>
   );
 }
@@ -163,7 +178,7 @@ function AIResponseNode({ data }: NodeProps<FlowNodeData>) {
     <div
       className="rounded-xl px-4 py-3 min-w-[180px] max-w-[240px]"
       style={{
-        background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))",
+        ...NODE_SURFACE_STYLE,
         border: `2px solid ${color}50`,
       }}
     >
@@ -174,14 +189,14 @@ function AIResponseNode({ data }: NodeProps<FlowNodeData>) {
       </div>
       <p className="text-xs text-white truncate">{data.context_prompt || "Gemini tenta resolver..."}</p>
       {data.max_tentativas && (
-        <p className="text-[9px] mt-0.5" style={{ color: "#939da4" }}>
+        <p className="text-[9px] mt-0.5" style={LABEL_STYLE}>
           Máx {data.max_tentativas} tentativa(s)
         </p>
       )}
       <div className="mt-2 space-y-1.5">
         {AI_OUTPUT_HANDLES.map((intent) => (
           <div key={intent} className="flex items-center justify-between">
-            <span className="text-[9px] font-mono" style={{ color: "#939da4" }}>{intent}</span>
+            <span className="text-[9px] font-mono" style={LABEL_STYLE}>{intent}</span>
             <Handle
               type="source"
               position={Position.Right}
@@ -201,7 +216,7 @@ function ConditionNode({ data }: NodeProps<FlowNodeData>) {
     <div
       className="rounded-xl px-4 py-3 min-w-[160px] max-w-[220px]"
       style={{
-        background: "linear-gradient(180deg,rgba(28,28,28,.95),rgba(18,18,18,1))",
+        ...NODE_SURFACE_STYLE,
         border: `2px solid ${color}50`,
       }}
     >
@@ -240,7 +255,7 @@ function TransferNode({ data }: NodeProps<FlowNodeData>) {
   return (
     <BaseNodeShell color={color} title="Transferir" source={false}>
       <p className="text-xs font-bold capitalize" style={{ color }}>{data.departamento || "vendas"}</p>
-      {data.message && <p className="text-[9px] mt-0.5 truncate" style={{ color: "#939da4" }}>{data.message}</p>}
+      {data.message && <p className="text-[9px] mt-0.5 truncate" style={LABEL_STYLE}>{data.message}</p>}
     </BaseNodeShell>
   );
 }
@@ -275,7 +290,7 @@ function AskOptionsNode({ data }: NodeProps<FlowNodeData>) {
       <div className="space-y-1.5">
         {options.map((option, index) => (
           <div key={option.value} className="flex items-center justify-between">
-            <span className="text-[9px]" style={{ color: "#939da4" }}>{index + 1}. {option.label}</span>
+            <span className="text-[9px]" style={LABEL_STYLE}>{index + 1}. {option.label}</span>
             <Handle
               type="source"
               id={option.value || String(index + 1)}
@@ -284,7 +299,7 @@ function AskOptionsNode({ data }: NodeProps<FlowNodeData>) {
             />
           </div>
         ))}
-        {options.length === 0 && <p className="text-[9px]" style={{ color: "#939da4" }}>Configure as opções →</p>}
+        {options.length === 0 && <p className="text-[9px]" style={LABEL_STYLE}>Configure as opções →</p>}
       </div>
     </div>
   );
@@ -423,15 +438,15 @@ export default function FlowEditPage() {
   const selectedNodeColor = selectedNodeType ? NODE_COLORS[selectedNodeType] : "#939da4";
 
   return (
-    <div className="flex flex-col h-full" style={{ fontFamily: "var(--font-sans)", background: "#000" }}>
+    <div className="flex flex-col h-full" style={{ fontFamily: "var(--font-sans)", background: "var(--bg)" }}>
       <div
         className="flex items-center gap-3 px-4 h-14 shrink-0"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "#0a0a0a" }}
+        style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface)" }}
       >
-        <Link href="/ia/flows" className="flex items-center gap-1.5 text-xs" style={{ color: "#939da4" }}>
+        <Link href="/ia/flows" className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-secondary)" }}>
           <ArrowLeft className="w-3.5 h-3.5" /> Fluxos
         </Link>
-        <div className="w-px h-4" style={{ background: "rgba(255,255,255,0.1)" }} />
+        <div className="w-px h-4" style={{ background: "var(--border-strong)" }} />
         <input
           value={nome}
           onChange={(event) => setNome(event.target.value)}
@@ -454,7 +469,7 @@ export default function FlowEditPage() {
       <div className="flex flex-1 overflow-hidden">
         <div
           className="w-52 shrink-0 flex flex-col py-4 px-3 gap-1 overflow-y-auto"
-          style={{ borderRight: "1px solid rgba(255,255,255,0.06)", background: "#060606" }}
+          style={{ borderRight: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}
         >
           <p className="section-label mb-2 px-1">Keywords de ativação</p>
           <input
@@ -462,7 +477,7 @@ export default function FlowEditPage() {
             onChange={(event) => setKeywords(event.target.value)}
             placeholder="oi, olá, problema..."
             className="w-full h-8 px-2.5 rounded-lg text-xs text-white outline-none mb-3"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+            style={INPUT_SURFACE_STYLE}
           />
 
           <p className="section-label mb-2 px-1">Adicionar nó</p>
@@ -472,7 +487,7 @@ export default function FlowEditPage() {
               onClick={() => addNode(nodeConfig.type)}
               className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left"
               onMouseEnter={(event) => {
-                event.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                event.currentTarget.style.background = "var(--surface-soft)";
               }}
               onMouseLeave={(event) => {
                 event.currentTarget.style.background = "transparent";
@@ -482,7 +497,7 @@ export default function FlowEditPage() {
               <div className="w-2 h-2 rounded-full shrink-0" style={{ background: NODE_COLORS[nodeConfig.type] }} />
               <div>
                 <p className="text-xs font-bold text-white">{nodeConfig.label}</p>
-                <p className="text-[10px]" style={{ color: "#939da4" }}>{nodeConfig.desc}</p>
+                <p className="text-[10px]" style={LABEL_STYLE}>{nodeConfig.desc}</p>
               </div>
             </button>
           ))}
@@ -500,12 +515,12 @@ export default function FlowEditPage() {
             onPaneClick={() => setSelectedNode(null)}
             fitView
             deleteKeyCode="Delete"
-            style={{ background: "#000" }}
+            style={{ background: "var(--bg)" }}
           >
-            <Background color="rgba(255,255,255,0.04)" gap={24} />
-            <Controls style={{ background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.1)" }} />
+            <Background color="var(--border-subtle)" gap={24} />
+            <Controls style={{ background: "var(--surface)", border: "1px solid var(--border-strong)" }} />
             <MiniMap
-              style={{ background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.1)" }}
+              style={{ background: "var(--surface)", border: "1px solid var(--border-strong)" }}
               nodeColor={(node) => NODE_COLORS[(node.type as FlowNodeType) ?? "start"] ?? "#939da4"}
             />
           </ReactFlow>
@@ -514,7 +529,7 @@ export default function FlowEditPage() {
         {selectedNode && (
           <div
             className="w-64 shrink-0 flex flex-col py-4 px-3 gap-3 overflow-y-auto"
-            style={{ borderLeft: "1px solid rgba(255,255,255,0.06)", background: "#060606" }}
+            style={{ borderLeft: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}
           >
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full" style={{ background: selectedNodeColor }} />
@@ -525,13 +540,13 @@ export default function FlowEditPage() {
 
             {selectedNodeType === "message" && (
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Texto</label>
+                <label className="text-[10px] font-bold" style={LABEL_STYLE}>Texto</label>
                 <textarea
                   value={selectedNode.data.text ?? ""}
                   onChange={(event) => updateSelectedNode("text", event.target.value)}
                   rows={4}
                   className="w-full p-2 rounded-lg text-xs text-white outline-none resize-none"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  style={INPUT_SURFACE_STYLE}
                 />
               </div>
             )}
@@ -539,27 +554,27 @@ export default function FlowEditPage() {
             {selectedNodeType === "ask_options" && (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Pergunta / título do menu</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Pergunta / título do menu</label>
                   <input
                     value={selectedNode.data.question ?? ""}
                     onChange={(event) => updateSelectedNode("question", event.target.value)}
                     placeholder="O que você precisa?"
                     className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={INPUT_SURFACE_STYLE}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Salvar resposta como</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Salvar resposta como</label>
                   <input
                     value={selectedNode.data.save_as ?? "opcao"}
                     onChange={(event) => updateSelectedNode("save_as", event.target.value)}
                     className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none font-mono"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={INPUT_SURFACE_STYLE}
                   />
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Opções</label>
+                    <label className="text-[10px] font-bold" style={LABEL_STYLE}>Opções</label>
                     <button
                       onClick={() => {
                         const currentOptions = selectedNode.data.options ?? [];
@@ -586,7 +601,7 @@ export default function FlowEditPage() {
                         }}
                         placeholder={`Opção ${index + 1}`}
                         className="flex-1 h-7 px-2 rounded-lg text-xs text-white outline-none"
-                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        style={INPUT_SURFACE_STYLE}
                       />
                       <button
                         onClick={() => {
@@ -600,7 +615,7 @@ export default function FlowEditPage() {
                       </button>
                     </div>
                   ))}
-                  <p className="text-[9px]" style={{ color: "rgba(147,157,164,0.4)" }}>
+                  <p className="text-[9px]" style={HINT_STYLE}>
                     Cada opção cria uma saída. Conecte cada saída ao próximo nó.
                   </p>
                 </div>
@@ -610,22 +625,22 @@ export default function FlowEditPage() {
             {selectedNodeType === "ask" && (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Pergunta</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Pergunta</label>
                   <input
                     value={selectedNode.data.question ?? ""}
                     onChange={(event) => updateSelectedNode("question", event.target.value)}
                     className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={INPUT_SURFACE_STYLE}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Salvar como</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Salvar como</label>
                   <input
                     value={selectedNode.data.save_as ?? ""}
                     onChange={(event) => updateSelectedNode("save_as", event.target.value)}
                     placeholder="nome, email, telefone..."
                     className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none font-mono"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={INPUT_SURFACE_STYLE}
                   />
                 </div>
               </>
@@ -634,18 +649,18 @@ export default function FlowEditPage() {
             {selectedNodeType === "ai_response" && (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Instruções</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Instruções</label>
                   <textarea
                     value={selectedNode.data.context_prompt ?? ""}
                     onChange={(event) => updateSelectedNode("context_prompt", event.target.value)}
                     rows={3}
                     placeholder="Ex: Foque em resolver problemas técnicos..."
                     className="w-full p-2 rounded-lg text-xs text-white outline-none resize-none"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={INPUT_SURFACE_STYLE}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Máx tentativas</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Máx tentativas</label>
                   <input
                     type="number"
                     min={1}
@@ -653,7 +668,7 @@ export default function FlowEditPage() {
                     value={selectedNode.data.max_tentativas ?? 2}
                     onChange={(event) => updateSelectedNode("max_tentativas", parseInt(event.target.value, 10))}
                     className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={INPUT_SURFACE_STYLE}
                   />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -662,7 +677,7 @@ export default function FlowEditPage() {
                     checked={selectedNode.data.usar_kb ?? true}
                     onChange={(event) => updateSelectedNode("usar_kb", event.target.checked)}
                   />
-                  <span className="text-xs" style={{ color: "#939da4" }}>Usar base de conhecimento</span>
+                  <span className="text-xs" style={LABEL_STYLE}>Usar base de conhecimento</span>
                 </label>
                 <div
                   className="rounded-lg p-2"
@@ -670,7 +685,7 @@ export default function FlowEditPage() {
                 >
                   <p className="text-[9px] font-bold mb-1" style={{ color: "#9aea62" }}>Conecte as saídas:</p>
                   {AI_OUTPUT_HANDLES.map((handle) => (
-                    <p key={handle} className="text-[9px] font-mono" style={{ color: "#939da4" }}>→ {handle}</p>
+                    <p key={handle} className="text-[9px] font-mono" style={LABEL_STYLE}>→ {handle}</p>
                   ))}
                 </div>
               </>
@@ -679,27 +694,27 @@ export default function FlowEditPage() {
             {selectedNodeType === "condition" && (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Campo a verificar</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Campo a verificar</label>
                   <input
                     value={selectedNode.data.field ?? ""}
                     onChange={(event) => updateSelectedNode("field", event.target.value)}
                     placeholder="nome, email, resposta..."
                     className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none font-mono"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={INPUT_SURFACE_STYLE}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Tipo</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Tipo</label>
                   <select
                     value={selectedNode.data.condition_type ?? "is_not_empty"}
                     onChange={(event) => updateSelectedNode("condition_type", event.target.value as ConditionType)}
                     className="w-full h-8 px-2 rounded-lg text-xs outline-none"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}
+                    style={INPUT_SURFACE_STYLE}
                   >
-                    <option value="is_not_empty" style={{ background: "#111" }}>Está preenchido</option>
-                    <option value="is_empty" style={{ background: "#111" }}>Está vazio</option>
-                    <option value="equals" style={{ background: "#111" }}>É igual a...</option>
-                    <option value="contains" style={{ background: "#111" }}>Contém...</option>
+                    <option value="is_not_empty" style={{ background: "var(--surface-solid)" }}>Está preenchido</option>
+                    <option value="is_empty" style={{ background: "var(--surface-solid)" }}>Está vazio</option>
+                    <option value="equals" style={{ background: "var(--surface-solid)" }}>É igual a...</option>
+                    <option value="contains" style={{ background: "var(--surface-solid)" }}>Contém...</option>
                   </select>
                 </div>
                 {["equals", "contains"].includes(selectedNode.data.condition_type ?? "") && (
@@ -708,7 +723,7 @@ export default function FlowEditPage() {
                     onChange={(event) => updateSelectedNode("condition_value", event.target.value)}
                     placeholder="valor para comparar"
                     className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={INPUT_SURFACE_STYLE}
                   />
                 )}
               </>
@@ -717,25 +732,25 @@ export default function FlowEditPage() {
             {selectedNodeType === "transfer" && (
               <>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Departamento</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Departamento</label>
                   <select
                     value={selectedNode.data.departamento ?? "vendas"}
                     onChange={(event) => updateSelectedNode("departamento", event.target.value as "vendas" | "suporte")}
                     className="w-full h-8 px-2 rounded-lg text-xs outline-none"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff" }}
+                    style={INPUT_SURFACE_STYLE}
                   >
-                    <option value="vendas" style={{ background: "#111" }}>Vendas</option>
-                    <option value="suporte" style={{ background: "#111" }}>Suporte</option>
+                    <option value="vendas" style={{ background: "var(--surface-solid)" }}>Vendas</option>
+                    <option value="suporte" style={{ background: "var(--surface-solid)" }}>Suporte</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Mensagem antes</label>
+                  <label className="text-[10px] font-bold" style={LABEL_STYLE}>Mensagem antes</label>
                   <input
                     value={selectedNode.data.message ?? ""}
                     onChange={(event) => updateSelectedNode("message", event.target.value)}
                     placeholder="Vou conectar com nossa equipe..."
                     className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    style={INPUT_SURFACE_STYLE}
                   />
                 </div>
               </>
@@ -743,18 +758,18 @@ export default function FlowEditPage() {
 
             {selectedNodeType === "end" && (
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold" style={{ color: "#939da4" }}>Mensagem final</label>
+                <label className="text-[10px] font-bold" style={LABEL_STYLE}>Mensagem final</label>
                 <input
                   value={selectedNode.data.message ?? ""}
                   onChange={(event) => updateSelectedNode("message", event.target.value)}
                   placeholder="Obrigado! Até logo."
                   className="w-full h-8 px-2 rounded-lg text-xs text-white outline-none"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  style={INPUT_SURFACE_STYLE}
                 />
               </div>
             )}
 
-            <p className="text-[9px] mt-2" style={{ color: "rgba(147,157,164,0.4)" }}>
+            <p className="text-[9px] mt-2" style={HINT_STYLE}>
               Delete para remover o nó selecionado
             </p>
           </div>

@@ -97,18 +97,18 @@ export default function SandboxPage() {
           <div className="flex items-center gap-3">
             <button onClick={() => setShowKbPanel(!showKbPanel)}
               className="flex items-center gap-2 px-3 h-8 rounded-xl text-xs font-bold"
-              style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
+              style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
               <BookOpen className="w-3.5 h-3.5" /> KB
             </button>
             <button onClick={() => setKbEnabled(!kbEnabled)}
               className="flex items-center gap-2 px-3 h-8 rounded-xl text-xs font-bold"
               style={kbEnabled ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
-                : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
+                : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
               KB {kbEnabled ? "Ativada" : "Desativada"}
             </button>
             <button onClick={() => setMessages([])}
               className="px-3 h-8 rounded-xl text-xs font-medium"
-              style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>
+              style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
               Limpar
             </button>
           </div>
@@ -157,7 +157,7 @@ export default function SandboxPage() {
                     </button>
                     <button onClick={() => saveAsTraining(msg)}
                       className="text-[10px] px-2 py-0.5 rounded-full transition-colors"
-                      style={{ color: "rgba(147,157,164,0.5)", background: "rgba(255,255,255,0.04)" }}>
+                      style={{ color: "var(--text-secondary)", background: "var(--ghost-bg)", border: "1px solid var(--chip-border)" }}>
                       Salvar como treino
                     </button>
                   </div>
@@ -185,10 +185,10 @@ export default function SandboxPage() {
             onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
             placeholder="Digite uma mensagem de teste..."
             className="flex-1 h-11 px-4 rounded-xl text-sm text-white outline-none"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <button onClick={sendMessage} disabled={!input.trim() || loading}
             className="w-11 h-11 rounded-xl flex items-center justify-center transition-all"
-            style={{ background: input.trim() && !loading ? "#9aea62" : "rgba(255,255,255,0.06)", color: input.trim() && !loading ? "#0a0a0a" : "#939da4" }}>
+            style={{ background: input.trim() && !loading ? "#9aea62" : "var(--ghost-bg)", color: input.trim() && !loading ? "#0a0a0a" : "var(--text-secondary)", border: input.trim() && !loading ? "1px solid transparent" : "1px solid var(--chip-border)" }}>
             <Send className="w-4 h-4" />
           </button>
         </div>

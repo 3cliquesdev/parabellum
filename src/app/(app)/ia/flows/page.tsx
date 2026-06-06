@@ -216,7 +216,7 @@ export default function FlowsPage() {
         <div className="flex gap-2">
           <button onClick={() => setShowTemplates(!showTemplates)}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-            style={showTemplates ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            style={showTemplates ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" } : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
             <LayoutTemplate className="w-4 h-4" /> Templates
           </button>
           <Link href="/ia/flows/new" className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
@@ -238,7 +238,7 @@ export default function FlowsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {FLOW_TEMPLATES.map(t => (
-              <div key={t.id} className="rounded-xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div key={t.id} className="rounded-xl p-4 space-y-2" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs font-bold text-white">{t.nome}</p>
@@ -248,7 +248,7 @@ export default function FlowsPage() {
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {t.keywords.slice(0, 4).map(k => (
-                    <span key={k} className="text-[9px] px-1.5 py-0.5 rounded-full font-mono" style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-secondary)" }}>"{k}"</span>
+                    <span key={k} className="text-[9px] px-1.5 py-0.5 rounded-full font-mono" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>"{k}"</span>
                   ))}
                 </div>
                 <button onClick={() => createFromTemplate(t)} disabled={creatingTemplate === t.id}
@@ -274,7 +274,7 @@ export default function FlowsPage() {
       {loading ? (
         <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
       ) : flows.length === 0 ? (
-        <div className="py-20 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="py-20 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <GitBranch className="w-12 h-12 mx-auto mb-4" style={{ color: "rgba(147,157,164,0.3)" }} />
           <p className="text-sm font-medium text-white mb-1">Nenhum fluxo ainda</p>
           <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>Crie fluxos para controlar como a IA responde</p>
@@ -302,7 +302,7 @@ export default function FlowsPage() {
                             <Crown className="w-2.5 h-2.5" /> Master
                           </span>
                         )}
-                        {!flow.ativo && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Inativo</span>}
+                        {!flow.ativo && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Inativo</span>}
                       </div>
                       {flow.descricao && <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>{flow.descricao}</p>}
                       {(flow.trigger_keywords ?? []).length > 0 && (
@@ -310,7 +310,7 @@ export default function FlowsPage() {
                           <Zap className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--text-secondary)" }} />
                           {(flow.trigger_keywords ?? []).slice(0, 5).map((kw: string) => (
                             <span key={kw} className="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
-                              style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>"{kw}"</span>
+                              style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>"{kw}"</span>
                           ))}
                           {(flow.trigger_keywords ?? []).length > 5 && (
                             <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>+{flow.trigger_keywords.length - 5}</span>

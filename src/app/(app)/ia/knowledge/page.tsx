@@ -203,9 +203,9 @@ export default function KnowledgePage() {
               className="flex flex-col items-start gap-1.5 p-3.5 rounded-xl text-left transition-all"
               style={(importMode === id || (id === "write" && showForm))
                 ? { background: "rgba(154,234,98,0.08)", border: "1px solid rgba(154,234,98,0.25)" }
-                : { background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-subtle)" }}>
+                : { background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
               <Icon className="w-4 h-4" style={{ color: (importMode === id || (id === "write" && showForm)) ? "#9aea62" : "#939da4" }} />
-              <span className="text-xs font-bold" style={{ color: (importMode === id || (id === "write" && showForm)) ? "#9aea62" : "rgba(255,255,255,0.8)" }}>{label}</span>
+              <span className="text-xs font-bold" style={{ color: (importMode === id || (id === "write" && showForm)) ? "#9aea62" : "var(--text-primary)" }}>{label}</span>
               <span className="text-[10px]" style={{ color: "rgba(147,157,164,0.5)" }}>{desc}</span>
             </button>
           ))}
@@ -233,7 +233,7 @@ export default function KnowledgePage() {
         {importMode === "file" && (
           <div className="space-y-2">
             <label className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
-              style={{ background: "rgba(255,255,255,0.03)", border: `1px dashed ${importFile ? "rgba(154,234,98,0.4)" : "rgba(255,255,255,0.1)"}` }}>
+              style={{ background: "var(--surface-soft)", border: `1px dashed ${importFile ? "rgba(154,234,98,0.4)" : "var(--border-strong)"}` }}>
               <Upload className="w-4 h-4 shrink-0" style={{ color: importFile ? "#9aea62" : "#939da4" }} />
               <div className="flex-1 min-w-0">
                 {importFile
@@ -267,7 +267,7 @@ export default function KnowledgePage() {
           <button key={v} onClick={() => setTab(v as typeof tab)}
             className="px-4 h-8 rounded-xl text-xs font-bold"
             style={tab === v ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
-              : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
             {l}
           </button>
         ))}
@@ -296,15 +296,15 @@ export default function KnowledgePage() {
           <div className="grid grid-cols-2 gap-3">
             <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
               className="h-10 px-3 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
-              {CATEGORIAS.map(c => <option key={c} value={c} style={{ background: "#111" }}>{c}</option>)}
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
+              {CATEGORIAS.map(c => <option key={c} value={c} style={{ background: "var(--surface-solid)" }}>{c}</option>)}
             </select>
             <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="Tags (separadas por vírgula)"
               className="h-10 px-3 rounded-xl text-sm text-white outline-none"
               style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => { setShowForm(false); setEditing(null); }} className="px-4 h-9 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Cancelar</button>
+            <button onClick={() => { setShowForm(false); setEditing(null); }} className="px-4 h-9 rounded-xl text-sm" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Cancelar</button>
             <button onClick={saveArticle} disabled={saving} className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#9aea62", color: "#0a0a0a" }}>
               {saving ? "Salvando..." : "Salvar"}
             </button>
@@ -316,7 +316,7 @@ export default function KnowledgePage() {
       {tab === "artigos" && (
         loading ? <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
         : filtered.length === 0 ? (
-          <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
             <BookOpen className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(147,157,164,0.3)" }} />
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum artigo ainda.</p>
             <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>Adicione artigos para a IA usar nas respostas.</p>
@@ -328,7 +328,7 @@ export default function KnowledgePage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-bold text-white truncate">{a.titulo}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>{a.categoria}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>{a.categoria}</span>
                   </div>
                   <p className="text-xs line-clamp-2" style={{ color: "var(--text-secondary)" }}>{a.conteudo}</p>
                 </div>
@@ -359,7 +359,7 @@ export default function KnowledgePage() {
       {/* Candidates */}
       {tab === "candidatos" && (
         candidates.length === 0 ? (
-          <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum candidato pendente.</p>
             <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>Quando leads fecham negócio, a IA extrai conhecimento automaticamente.</p>
           </div>

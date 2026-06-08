@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { LooseDatabase } from "@/types/database";
-import { loadConversationForOutbound, sendEmailConversationMessage, sendWhatsAppConversationMessage } from "@/lib/inbox/outbound";
+import {
+  loadConversationForOutbound,
+  sendEmailConversationMessage,
+  sendInstagramConversationMessage,
+  sendWhatsAppConversationMessage,
+} from "@/lib/inbox/outbound";
 
 interface SendMessageBody {
   conversa_id?: string;
@@ -103,6 +108,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       return NextResponse.json({ status: "sent", canal: "email" });
+    }
+    case "instagram": {
+      const result = await sendInstagramConversationMessage(admin, conversation, conteudo.trim());
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      return NextResponse.json({ status: "sent", canal: "instagram" });
     }
     default:
       return NextResponse.json({

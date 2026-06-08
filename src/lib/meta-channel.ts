@@ -140,4 +140,7 @@ export async function sendInstagramTextMessage(
   if (!res.ok) {
     throw new Error(`Instagram send error: ${await res.text()}`);
   }
+
+  const data = (await res.json()) as { message_id?: string; recipient_id?: string };
+  return data.message_id ?? null;
 }

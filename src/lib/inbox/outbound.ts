@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ConversaCanal, LooseDatabase } from "@/types/database";
 import { sendMail } from "@/lib/mailer";
+import { sendInstagramTextMessage } from "@/lib/meta-channel";
 
 type AdminClient = SupabaseClient<LooseDatabase>;
 
@@ -9,6 +10,7 @@ type LeadRef = {
   nome: string | null;
   whatsapp: string | null;
   email: string | null;
+  instagram: string | null;
 };
 
 type ConversationLookup = {
@@ -20,6 +22,11 @@ type ConversationLookup = {
 
 interface WhatsAppConfigRow {
   phone_number_id: string;
+  access_token: string;
+}
+
+interface InstagramConfigRow {
+  page_id: string;
   access_token: string;
 }
 
@@ -56,11 +63,29 @@ function escapeHtml(input: string) {
 export async function loadConversationForOutbound(supabase: AdminClient, conversationId: string) {
   const { data } = await supabase
     .from("conversas")
-    .select("id, tenant_id, canal, leads(id, nome, whatsapp, email)")
+    .select("id, tenant_id, canal, lead_id, leads(id, nome, whatsapp, email, instagram)")
     .eq("id", conversationId)
     .maybeSingle();
 
   return (data as unknown as ConversationLookup | null) ?? null;
+}
+
+async function resolveInstagramRecipientId(supabase: AdminClient, conversation: ConversationLookup) {
+  const lead = singleLead(conversation.leads);
+  if (!lead?.id) return null;
+
+  const { data } = await supabase
+    .from("lead_identities")
+    .select("external_id, valor")
+    .eq("tenant_id", conversation.tenant_id)
+    .eq("lead_id", lead.id)
+    .eq("canal", "instagram")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const identity = data as { external_id?: string | null; valor?: string | null } | null;
+  return identity?.external_id ?? null;
 }
 
 export async function sendWhatsAppConversationMessage(
@@ -242,6 +267,62 @@ export async function sendEmailConversationMessage(
       direction: "outbound",
       subject: finalSubject,
       to: lead.email,
+    },
+  });
+
+  await supabase
+    .from("conversas")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", conversation.id);
+
+  return { ok: true as const };
+}
+
+export async function sendInstagramConversationMessage(
+  supabase: AdminClient,
+  conversation: ConversationLookup,
+  text: string,
+) {
+  const recipientId = await resolveInstagramRecipientId(supabase, conversation);
+  if (!recipientId) {
+    return { ok: false as const, error: "Lead sem identificador de Instagram para resposta" };
+  }
+
+  const { data: igConfig } = await supabase
+    .from("instagram_configs")
+    .select("page_id, access_token")
+    .eq("tenant_id", conversation.tenant_id)
+    .eq("active", true)
+    .maybeSingle();
+
+  const config = igConfig as unknown as InstagramConfigRow | null;
+  if (!config) {
+    return { ok: false as const, error: "Instagram nao configurado" };
+  }
+
+  let outboundMessageId: string | null = null;
+  try {
+    outboundMessageId = await sendInstagramTextMessage(config.access_token, config.page_id, recipientId, text);
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Falha ao enviar mensagem no Instagram",
+    };
+  }
+
+  await supabase.from("mensagens").insert({
+    conversa_id: conversation.id,
+    tenant_id: conversation.tenant_id,
+    remetente: "humano",
+    conteudo: text,
+    wa_message_id: null,
+    external_message_id: outboundMessageId ? `instagram:${outboundMessageId}` : null,
+    enviada: true,
+    metadata: {
+      canal: "instagram",
+      direction: "outbound",
+      recipient_id: recipientId,
+      page_id: config.page_id,
     },
   });
 

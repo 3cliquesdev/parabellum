@@ -156,7 +156,9 @@ export async function POST(request: NextRequest) {
           },
         },
         sender: {
-          sendText: (replyText) => sendInstagramTextMessage(accessToken, pageId, event.senderId, replyText),
+          sendText: async (replyText) => {
+            await sendInstagramTextMessage(accessToken, pageId, event.senderId, replyText);
+          },
         },
       });
     }

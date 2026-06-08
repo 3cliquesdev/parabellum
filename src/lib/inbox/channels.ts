@@ -34,7 +34,7 @@ export const CHANNEL_META: Record<ConversaCanal, {
     label: "Instagram",
     accent: "#E1306C",
     emptyLabel: "Sem @",
-    supportsOutbound: false,
+    supportsOutbound: true,
     supportsAttachments: false,
   },
   telegram: {

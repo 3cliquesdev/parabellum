@@ -23,7 +23,7 @@ const META_APP_ID = "2016623082257479";
 const INTEGRATIONS = [
   // Mensageiros
   { id: "whatsapp", name: "WhatsApp Business", desc: "Receba e envie mensagens com seus leads direto no CRM", categoria: "mensageiros", cor: "#25D366", status: "installed", icon: <WhatsAppIcon /> },
-  { id: "instagram", name: "Instagram", desc: "Gerencie DMs do Instagram no mesmo inbox do CRM", categoria: "mensageiros", cor: "#E1306C", status: "soon", icon: <InstagramIcon /> },
+  { id: "instagram", name: "Instagram", desc: "Gerencie DMs do Instagram no mesmo inbox do CRM", categoria: "mensageiros", cor: "#E1306C", status: "available", icon: <InstagramIcon /> },
   { id: "facebook", name: "Facebook Messenger", desc: "Atenda leads que chegam pelo Facebook Messenger", categoria: "mensageiros", cor: "#0084FF", status: "soon", icon: <FacebookIcon /> },
   { id: "telegram", name: "Telegram", desc: "Conecte um bot do Telegram ao seu pipeline", categoria: "mensageiros", cor: "#229ED9", status: "soon", icon: <TelegramIcon /> },
   // IA
@@ -254,9 +254,22 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
   integration: typeof INTEGRATIONS[number]; isActive: boolean; onManage: () => void; tenantId: string | null;
 }) {
   const { id, name, desc, cor, status, icon } = integration;
-  const installed = status === "installed";
-  const soon = status === "soon";
+  const [resolvedStatus, setResolvedStatus] = useState(status);
+  const installed = resolvedStatus === "installed";
+  const soon = resolvedStatus === "soon";
   const cardStyle = { background: "var(--surface-gradient)", border: `1px solid ${isActive ? cor + "40" : "var(--border-subtle)"}` };
+
+  useEffect(() => {
+    if (id !== "instagram" || !tenantId) {
+      setResolvedStatus(status);
+      return;
+    }
+
+    fetch(`/api/instagram/status?tenant_id=${tenantId}`)
+      .then((response) => response.json())
+      .then((data) => setResolvedStatus(data.connected ? "installed" : "available"))
+      .catch(() => setResolvedStatus("available"));
+  }, [id, status, tenantId]);
 
   return (
     <div className="rounded-2xl overflow-hidden transition-all duration-200" style={cardStyle}>
@@ -276,7 +289,7 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
           <div className="flex items-center gap-1.5">
             {installed && <><CheckCircle className="w-3.5 h-3.5" style={{ color: "var(--status-ganho)" }} /><span className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Instalado</span></>}
             {soon && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--chip-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Em breve</span>}
-            {status === "available" && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>Disponível</span>}
+            {resolvedStatus === "available" && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>Disponível</span>}
           </div>
           {installed && (
             <button onClick={onManage}
@@ -285,7 +298,7 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
               {isActive ? "Fechar" : "Gerenciar"}
             </button>
           )}
-          {status === "available" && (
+          {resolvedStatus === "available" && (
             <button onClick={onManage}
               className="px-3 h-7 rounded-lg text-xs font-bold transition-all"
               style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>
@@ -296,9 +309,10 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
       </div>
 
       {/* Expanded management panel */}
-      {isActive && (installed || status === "available") && (
+      {isActive && (installed || resolvedStatus === "available") && (
         <div style={{ borderTop: `1px solid ${cor}25`, background: "var(--surface-panel)" }}>
           {id === "whatsapp" && <WhatsAppManagePanel tenantId={tenantId} />}
+          {id === "instagram" && <InstagramManagePanel tenantId={tenantId} onStatusChange={setResolvedStatus} />}
           {id === "gemini" && <GeminiManagePanel />}
           {id === "resend" && <ResendManagePanel />}
           {id === "webhooks" && <WebhooksManagePanel tenantId={tenantId} />}
@@ -390,6 +404,172 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
         </button>
       )}
       <ManualWAForm tenantId={tenantId} onConnected={(p) => { setWaStatus("connected"); setWaPhone(p); }} />
+    </div>
+  );
+}
+
+function InstagramManagePanel({
+  tenantId,
+  onStatusChange,
+}: {
+  tenantId: string | null;
+  onStatusChange: (status: "installed" | "available" | "soon") => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [username, setUsername] = useState("");
+  const [pageId, setPageId] = useState("");
+  const [instagramBusinessAccountId, setInstagramBusinessAccountId] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [verifyToken, setVerifyToken] = useState("");
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    setLoading(true);
+    fetch(`/api/instagram/status?tenant_id=${tenantId}`)
+      .then((response) => response.json())
+      .then((data) => {
+        setConnected(Boolean(data.connected));
+        setUsername(data.username ?? "");
+        setPageId(data.page_id ?? "");
+        setInstagramBusinessAccountId(data.instagram_business_account_id ?? "");
+        setVerifyToken(data.verify_token ?? "");
+        setWebhookUrl(data.webhook_url ?? "");
+        onStatusChange(data.connected ? "installed" : "available");
+      })
+      .finally(() => setLoading(false));
+  }, [tenantId, onStatusChange]);
+
+  async function saveConfig() {
+    if (!tenantId || !pageId || !instagramBusinessAccountId || !accessToken) return;
+    setSaving(true);
+    const response = await fetch("/api/instagram/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        page_id: pageId,
+        instagram_business_account_id: instagramBusinessAccountId,
+        access_token: accessToken,
+      }),
+    });
+    const data = await response.json();
+    setSaving(false);
+
+    if (!response.ok) {
+      alert(data.error ?? "Erro ao conectar Instagram");
+      return;
+    }
+
+    setConnected(true);
+    setUsername(data.config?.username ?? username);
+    setVerifyToken(data.config?.verify_token ?? verifyToken);
+    onStatusChange("installed");
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  }
+
+  async function disconnect() {
+    if (!tenantId || !confirm("Desconectar Instagram?")) return;
+    await fetch("/api/instagram/config", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId }),
+    });
+    setConnected(false);
+    onStatusChange("available");
+  }
+
+  return (
+    <div className="p-5 space-y-4">
+      <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-white">Instagram DM</p>
+            <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              Configure sua Page + conta comercial do Instagram para receber DMs no inbox e responder com IA pelo mesmo pipeline do WhatsApp.
+            </p>
+          </div>
+          <span className="text-xs px-2 py-1 rounded-full font-bold" style={connected
+            ? { background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
+            : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
+            {connected ? "Conectado" : "Manual"}
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando status...
+          </div>
+        ) : (
+          <>
+            {connected && (
+              <div className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+                <p className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Canal operacional no inbox</p>
+                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  {username ? `@${username}` : "Conta conectada"} · Page ID {pageId || "—"}
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Page ID</Label>
+                <Input value={pageId} onChange={(e) => setPageId(e.target.value)} placeholder="123456789012345" className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Instagram Business Account ID</Label>
+                <Input value={instagramBusinessAccountId} onChange={(e) => setInstagramBusinessAccountId(e.target.value)} placeholder="1784..." className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Access Token da Meta</Label>
+              <Input type="password" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} placeholder="EAAG..." className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Webhook URL</Label>
+                <div className="flex gap-2">
+                  <Input value={webhookUrl} readOnly className="h-9 rounded-xl text-xs text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+                  <button onClick={() => navigator.clipboard.writeText(webhookUrl)} className="px-3 h-9 rounded-xl text-xs font-bold" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Verify Token</Label>
+                <div className="flex gap-2">
+                  <Input value={verifyToken} readOnly className="h-9 rounded-xl text-xs text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+                  <button onClick={() => navigator.clipboard.writeText(verifyToken)} className="px-3 h-9 rounded-xl text-xs font-bold" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                v1 inbound-first: recebe DM, abre conversa no inbox, roda IA/flows e faz handoff humano. O envio manual por humano fica para a próxima etapa.
+              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                {connected && (
+                  <button onClick={disconnect} className="px-3 h-8 rounded-xl text-xs font-bold" style={{ background: "rgba(248,113,113,0.08)", color: "#f87171" }}>
+                    Desconectar
+                  </button>
+                )}
+                <button onClick={saveConfig} disabled={saving || !pageId || !instagramBusinessAccountId || !accessToken} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "rgba(154,234,98,0.14)" : "#9aea62", color: saved ? "var(--status-ganho)" : "#0a0a0a", opacity: saving ? 0.7 : 1 }}>
+                  {saving ? "Salvando..." : saved ? "Salvo!" : connected ? "Atualizar" : "Conectar"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

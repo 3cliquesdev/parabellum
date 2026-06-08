@@ -114,15 +114,15 @@ interface LeadLike {
   nome?: string | null;
 }
 
+export type FlowMessageSender = (text: string) => Promise<void>;
+
 interface FlowProcessParams {
   tenantId: string;
   conversaId: string;
   leadId: string;
   lead: LeadLike;
   text: string;
-  accessToken: string;
-  phoneNumberId: string;
-  toNumber: string;
+  sendText: FlowMessageSender;
 }
 
 function adminClient() {
@@ -317,9 +317,7 @@ async function sendFlowMessage(
   tenantId: string,
   conversaId: string,
   text: string,
-  accessToken: string,
-  phoneNumberId: string,
-  toNumber: string
+  sendText: FlowMessageSender
 ) {
   const supabase = adminClient();
   await supabase.from("mensagens").insert({
@@ -330,11 +328,7 @@ async function sendFlowMessage(
     enviada: false,
   });
 
-  await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({ messaging_product: "whatsapp", to: toNumber, type: "text", text: { body: text } }),
-  });
+  await sendText(text);
 
   await supabase.from("mensagens").update({ enviada: true })
     .eq("conversa_id", conversaId)
@@ -445,9 +439,7 @@ async function executeNode(
         params.tenantId,
         params.conversaId,
         node.data.text ?? "",
-        params.accessToken,
-        params.phoneNumberId,
-        params.toNumber
+        params.sendText
       );
       const next = nextNode(flowDef, node.id, "default");
       if (!next) {
@@ -463,9 +455,7 @@ async function executeNode(
         params.tenantId,
         params.conversaId,
         node.data.question ?? "Como posso ajudar?",
-        params.accessToken,
-        params.phoneNumberId,
-        params.toNumber
+        params.sendText
       );
       await supabase.from("chat_flow_states").update({ status: "aguardando", current_node_id: node.id }).eq("id", state.id);
       return "waiting";
@@ -476,7 +466,7 @@ async function executeNode(
       const menuText = `${node.data.question ?? "Escolha uma opção:"}\n\n${options
         .map((option, index) => `*${index + 1}.* ${option.label}`)
         .join("\n")}`;
-      await sendFlowMessage(params.tenantId, params.conversaId, menuText, params.accessToken, params.phoneNumberId, params.toNumber);
+      await sendFlowMessage(params.tenantId, params.conversaId, menuText, params.sendText);
       await supabase.from("chat_flow_states").update({ status: "aguardando", current_node_id: node.id }).eq("id", state.id);
       return "waiting";
     }
@@ -484,7 +474,7 @@ async function executeNode(
     case "ai_response": {
       const { reply, intent } = await callGeminiFlow(node, state, params.lead, params.tenantId, params.text);
       const cleanReply = reply.replace(/^RESOLVIDO:\s*/i, "");
-      await sendFlowMessage(params.tenantId, params.conversaId, cleanReply, params.accessToken, params.phoneNumberId, params.toNumber);
+      await sendFlowMessage(params.tenantId, params.conversaId, cleanReply, params.sendText);
 
       const tentativas = (state.tentativas_ia ?? 0) + 1;
       await supabase.from("chat_flow_states").update({ tentativas_ia: tentativas }).eq("id", state.id);
@@ -523,7 +513,7 @@ async function executeNode(
     case "transfer": {
       const dept = normalizeDepartment(node.data.departamento);
       if (node.data.message) {
-        await sendFlowMessage(params.tenantId, params.conversaId, node.data.message, params.accessToken, params.phoneNumberId, params.toNumber);
+        await sendFlowMessage(params.tenantId, params.conversaId, node.data.message, params.sendText);
       }
       await dispatchConversation(params.tenantId, params.conversaId, dept, "flow_transfer");
       await completeFlow(state, "transferido");
@@ -532,7 +522,7 @@ async function executeNode(
 
     case "end": {
       if (node.data.message) {
-        await sendFlowMessage(params.tenantId, params.conversaId, node.data.message, params.accessToken, params.phoneNumberId, params.toNumber);
+        await sendFlowMessage(params.tenantId, params.conversaId, node.data.message, params.sendText);
       }
       await completeFlow(state, "concluido");
       return "done";
@@ -586,7 +576,7 @@ async function handleNodeInput(
       const menuText = `Opção inválida. ${node.data.question ?? "Escolha uma opção:"}\n\n${options
         .map((option, index) => `*${index + 1}.* ${option.label}`)
         .join("\n")}`;
-      await sendFlowMessage(params.tenantId, params.conversaId, menuText, params.accessToken, params.phoneNumberId, params.toNumber);
+      await sendFlowMessage(params.tenantId, params.conversaId, menuText, params.sendText);
       return "waiting";
     }
 

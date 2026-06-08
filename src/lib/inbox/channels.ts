@@ -123,6 +123,14 @@ export function resolveConversationIdentity(
     return formatIdentityLabel(canal, channelIdentity.valor);
   }
 
+  if (channelIdentity?.external_id) {
+    const suffix = channelIdentity.external_id.slice(-6);
+    if (canal === "instagram") return `Instagram #${suffix}`;
+    if (canal === "telegram") return `Telegram #${suffix}`;
+    if (canal === "facebook_messenger") return `Messenger #${suffix}`;
+    return channelIdentity.external_id;
+  }
+
   if (lead && canal !== "interno") {
     const directValue = getLeadDirectIdentity(lead, canal);
     if (directValue) return formatIdentityLabel(canal, directValue);

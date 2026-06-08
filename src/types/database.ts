@@ -65,6 +65,18 @@ export interface UserProfile {
   updated_at: string;
 }
 
+export interface InstagramConfig {
+  tenant_id: string;
+  page_id: string;
+  instagram_business_account_id: string;
+  access_token: string;
+  verify_token: string;
+  username: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Lead {
   id: string;
   tenant_id: string;
@@ -160,6 +172,7 @@ export type Database = {
       tenants: { Row: Tenant; Insert: Omit<Tenant, "id" | "created_at" | "updated_at">; Update: Partial<Tenant> };
       tenant_members: { Row: TenantMember; Insert: Omit<TenantMember, "id" | "created_at">; Update: Partial<TenantMember> };
       user_profiles: { Row: UserProfile; Insert: Omit<UserProfile, "created_at" | "updated_at">; Update: Partial<UserProfile> };
+      instagram_configs: { Row: InstagramConfig; Insert: Omit<InstagramConfig, "created_at" | "updated_at">; Update: Partial<InstagramConfig> };
       leads: { Row: Lead; Insert: Omit<Lead, "id" | "created_at" | "updated_at">; Update: Partial<Lead> };
       lead_identities: { Row: LeadIdentity; Insert: Omit<LeadIdentity, "id" | "created_at" | "updated_at">; Update: Partial<LeadIdentity> };
       atividades: { Row: Atividade; Insert: Omit<Atividade, "id" | "created_at">; Update: Partial<Atividade> };

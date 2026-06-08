@@ -12,6 +12,7 @@ export type TenantRole = "owner" | "admin" | "member";
 export type ConversaStatus = "ativo" | "resolvido" | "pausado";
 export type ConversaCanal = "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "interno";
 export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "trialing";
+export type EmailTheme = "dark" | "light";
 
 export interface Plan {
   id: string;
@@ -31,6 +32,7 @@ export interface Tenant {
   nome_fantasia: string | null;
   logo_url: string | null;
   cor_primaria: string | null;
+  email_theme: EmailTheme;
   white_label: boolean;
   created_at: string;
   updated_at: string;

@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import type { LooseDatabase } from "@/types/database";
+import type { EmailTheme, LooseDatabase } from "@/types/database";
 
 interface BrandingBody {
   tenant_id?: string;
   nome_fantasia?: string;
   cor_primaria?: string;
   logo_url?: string;
+  email_theme?: EmailTheme;
 }
 
 interface TenantBrandingRow {
   nome_fantasia: string | null;
   cor_primaria: string | null;
   logo_url: string | null;
+  email_theme: EmailTheme;
   white_label: boolean | null;
 }
 
@@ -95,7 +97,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await createAdminClient()
       .from("tenants")
-      .select("nome_fantasia, cor_primaria, logo_url, white_label")
+      .select("nome_fantasia, cor_primaria, logo_url, email_theme, white_label")
       .eq("id", tenantId)
       .single();
 
@@ -127,6 +129,7 @@ export async function PATCH(request: NextRequest) {
         nome_fantasia: body.nome_fantasia || null,
         cor_primaria: body.cor_primaria || "#9aea62",
         logo_url: body.logo_url || null,
+        email_theme: body.email_theme === "light" ? "light" : "dark",
       })
       .eq("id", body.tenant_id);
 

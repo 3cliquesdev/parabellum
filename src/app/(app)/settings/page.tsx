@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 import { UserProfileSection } from "@/components/settings/UserProfileSection";
+import { getInviteEmailFeatures, getInviteEmailPalette } from "@/lib/email/invite-template";
 import {
   UserRound, Puzzle, Users, Settings, CreditCard, Sparkles,
   CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { EmailTheme } from "@/types/database";
 
 declare global { interface Window { FB: any; fbAsyncInit: () => void; } }
 
@@ -91,9 +93,9 @@ export default function SettingsPage() {
           {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
             <button key={id} onClick={() => setSection(id as NavSection)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
-              style={section === id ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.15)" }
+              style={section === id ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
                 : { color: "var(--text-secondary)", border: "1px solid transparent" }}>
-              <Icon className="w-4 h-4 shrink-0" style={{ color: section === id ? "#9aea62" : "var(--text-faint)" }} />
+              <Icon className="w-4 h-4 shrink-0" style={{ color: section === id ? "var(--status-ganho)" : "var(--text-faint)" }} />
               {label}
             </button>
           ))}
@@ -125,12 +127,12 @@ export default function SettingsPage() {
                 <button key={c.id} onClick={() => setCategory(c.id)}
                   className="px-4 h-8 rounded-full text-xs font-bold transition-all"
                   style={category === c.id
-                    ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.25)" }
+                    ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
                     : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
                   {c.label}
                   {c.id === "instalado" && (
                     <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px]"
-                      style={{ background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)" }}>
+                      style={{ background: "var(--active-soft-bg)", color: "var(--status-ganho)" }}>
                       {INTEGRATIONS.filter(i => i.status === "installed").length}
                     </span>
                   )}
@@ -227,7 +229,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Link para plano da agência */}
-            <div className="rounded-2xl p-5 flex items-center justify-between" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.1)" }}>
+            <div className="rounded-2xl p-5 flex items-center justify-between" style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)" }}>
               <div>
                 <p className="text-sm font-bold text-white">Você é revendedor?</p>
                 <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
@@ -236,7 +238,7 @@ export default function SettingsPage() {
               </div>
               <Link href="/agency/billing"
                 className="flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-bold shrink-0 ml-4"
-                style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}>
+                style={{ background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>
                 Painel da Agência →
               </Link>
             </div>
@@ -274,7 +276,7 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
           <div className="flex items-center gap-1.5">
             {installed && <><CheckCircle className="w-3.5 h-3.5" style={{ color: "var(--status-ganho)" }} /><span className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Instalado</span></>}
             {soon && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--chip-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Em breve</span>}
-            {status === "available" && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>Disponível</span>}
+            {status === "available" && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>Disponível</span>}
           </div>
           {installed && (
             <button onClick={onManage}
@@ -286,7 +288,7 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
           {status === "available" && (
             <button onClick={onManage}
               className="px-3 h-7 rounded-lg text-xs font-bold transition-all"
-              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
+              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>
               {isActive ? "Fechar" : "+ Instalar"}
             </button>
           )}
@@ -436,7 +438,12 @@ function GmailIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fi
 
 // ─── Identidade Config ───
 function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
-  const [form, setForm] = useState({ nome_fantasia: "", cor_primaria: "#9aea62", logo_url: "" });
+  const [form, setForm] = useState({
+    nome_fantasia: "",
+    cor_primaria: "#9aea62",
+    logo_url: "",
+    email_theme: "dark" as EmailTheme,
+  });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
@@ -450,6 +457,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
           nome_fantasia: d.branding.nome_fantasia ?? "",
           cor_primaria: d.branding.cor_primaria ?? "#9aea62",
           logo_url: d.branding.logo_url ?? "",
+          email_theme: d.branding.email_theme === "light" ? "light" : "dark",
         });
       });
   }, [tenantId]);
@@ -475,6 +483,10 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
 
   const previewColor = form.cor_primaria || "#9aea62";
   const previewName = form.nome_fantasia || "Sua Empresa";
+  const previewPalette = getInviteEmailPalette(form.email_theme, previewColor);
+  const previewFeatures = getInviteEmailFeatures("member");
+  const previewClientBg = form.email_theme === "light" ? "#EEF4F8" : "var(--surface-panel)";
+  const previewClientBorder = form.email_theme === "light" ? "#D7E1EB" : "var(--border-subtle)";
 
   return (
     <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
@@ -509,25 +521,47 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
           </div>
         </div>
 
+        <div className="space-y-1.5">
+          <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Tema do email</Label>
+          <div className="flex gap-2">
+            {(["dark", "light"] as EmailTheme[]).map(theme => {
+              const active = form.email_theme === theme;
+              return (
+                <button
+                  key={theme}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, email_theme: theme }))}
+                  className="px-4 h-9 rounded-xl text-xs font-bold transition-all"
+                  style={active
+                    ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
+                    : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
+                >
+                  {theme === "dark" ? "Escuro" : "Claro"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Preview fiel ao email real */}
         <div className="space-y-1.5">
           <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(147,157,164,0.5)" }}>Preview do email</p>
           {/* Simula o fundo do cliente de email */}
-          <div className="rounded-xl p-3" style={{ background: "var(--surface-panel)", border: "1px solid var(--border-subtle)" }}>
+          <div className="rounded-xl p-3" style={{ background: previewClientBg, border: `1px solid ${previewClientBorder}` }}>
             {/* Card do email */}
-            <div className="rounded-2xl overflow-hidden mx-auto" style={{ background: "#0f0f0f", border: "1px solid var(--border-subtle)", maxWidth: 480 }}>
+            <div className="rounded-2xl overflow-hidden mx-auto" style={{ background: previewPalette.cardBg, border: `1px solid ${previewPalette.cardBorder}`, boxShadow: previewPalette.shadow, maxWidth: 480 }}>
               {/* Accent bar top */}
               <div style={{ height: 2, background: `linear-gradient(90deg,${previewColor} 0%,${previewColor}60 60%,transparent 100%)` }} />
 
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+              <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${previewPalette.divider}` }}>
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: previewColor }}>
                     <span className="text-[8px] font-black" style={{ color: "#0a0a0a" }}>▲</span>
                   </div>
-                  <span className="text-xs font-bold text-white">{previewName}</span>
+                  <span className="text-xs font-bold" style={{ color: previewPalette.brandWordmark }}>{previewName}</span>
                 </div>
-                <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--ghost-bg)", border: "1px solid var(--chip-border)", color: "var(--text-faint)" }}>
+                <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: previewPalette.pillBg, border: `1px solid ${previewPalette.pillBorder}`, color: previewPalette.pillText }}>
                   Convite de equipe
                 </span>
               </div>
@@ -540,51 +574,51 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
                     <span className="text-[9px] font-bold" style={{ color: previewColor }}>AL</span>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold text-white leading-tight">alguem@email.com</p>
-                    <p className="text-[9px]" style={{ color: "rgba(147,157,164,0.55)" }}>convidou você para colaborar</p>
+                    <p className="text-[10px] font-semibold leading-tight" style={{ color: previewPalette.bodyText }}>alguem@email.com</p>
+                    <p className="text-[9px]" style={{ color: previewPalette.faintText }}>convidou voce para colaborar</p>
                   </div>
                 </div>
 
                 {/* Headline */}
                 <div>
-                  <p className="font-extrabold text-white leading-tight" style={{ fontSize: 17, letterSpacing: "-0.03em" }}>
+                  <p className="font-extrabold leading-tight" style={{ color: previewPalette.heading, fontSize: 17, letterSpacing: "-0.03em" }}>
                     Você foi convidado<br />para <span style={{ color: previewColor }}>{previewName}</span>
                   </p>
                 </div>
 
                 {/* Sub com badge */}
-                <p className="text-[10px] leading-relaxed" style={{ color: "rgba(147,157,164,0.7)" }}>
+                <p className="text-[10px] leading-relaxed" style={{ color: previewPalette.mutedText }}>
                   Você foi adicionado como{" "}
                   <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${previewColor}18`, border: `1px solid ${previewColor}30`, color: previewColor }}>Membro</span>
                   {" "}neste workspace.
                 </p>
 
                 {/* Feature bullets */}
-                <div className="rounded-lg p-3 space-y-1.5" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
-                  {["Acesso ao pipeline de vendas e leads", "Inbox de WhatsApp compartilhado", "Colaboração em tempo real"].map(f => (
-                    <div key={f} className="flex items-start gap-2">
+                <div className="rounded-lg p-3 space-y-1.5" style={{ background: previewPalette.featureBg, border: `1px solid ${previewPalette.featureBorder}` }}>
+                  {previewFeatures.map(feature => (
+                    <div key={feature} className="flex items-start gap-2">
                       <div className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ background: previewColor }} />
-                      <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.55)" }}>{f}</span>
+                      <span className="text-[9px]" style={{ color: previewPalette.bodyText }}>{feature}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* CTA */}
                 <div className="w-full py-2.5 rounded-xl text-center" style={{ background: previewColor }}>
-                  <span className="text-[11px] font-extrabold" style={{ color: "#050505" }}>Aceitar convite e entrar →</span>
+                  <span className="text-[11px] font-extrabold" style={{ color: previewPalette.ctaText }}>Aceitar convite e entrar →</span>
                 </div>
 
-                <p className="text-[9px] text-center" style={{ color: "rgba(147,157,164,0.3)" }}>
+                <p className="text-[9px] text-center" style={{ color: previewPalette.faintText }}>
                   Expira em 7 dias · Seguro e criptografado
                 </p>
               </div>
 
               {/* Footer */}
-              <div className="px-5 py-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-                <p className="text-[9px]" style={{ color: "rgba(147,157,164,0.28)", lineHeight: 1.5 }}>
-                  Você recebeu este email porque alguem@email.com convidou você para {previewName}.
+              <div className="px-5 py-3" style={{ borderTop: `1px solid ${previewPalette.divider}` }}>
+                <p className="text-[9px]" style={{ color: previewPalette.footerText, lineHeight: 1.5 }}>
+                  Você recebeu este email porque alguem@email.com enviou um convite para {previewName}.
                 </p>
-                <p className="text-[9px] mt-1" style={{ color: "rgba(147,157,164,0.2)" }}>
+                <p className="text-[9px] mt-1" style={{ color: previewPalette.poweredByText }}>
                   Enviado via Liberty CRM · O CRM de agências digitais
                 </p>
               </div>

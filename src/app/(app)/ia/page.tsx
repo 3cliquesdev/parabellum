@@ -131,6 +131,9 @@ export default function StudioIAPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {TOOLS.map(({ href, icon: Icon, label, desc, color, statKey, statLabel }, idx) => {
           const statValue = statKey ? (stats as any)[statKey] : null;
+          const accentColor = color === "#9aea62" ? "var(--status-ganho)" : color;
+          const accentBg = color === "#9aea62" ? "var(--primary-bg)" : `${color}12`;
+          const accentBorder = color === "#9aea62" ? "var(--primary-border)" : `${color}20`;
           return (
             <motion.div key={href}
               initial={{ opacity: 0, y: 20 }}
@@ -157,8 +160,8 @@ export default function StudioIAPage() {
 
               <div className="flex items-start justify-between">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ background: `${color}12`, border: `1px solid ${color}20` }}>
-                  <Icon className="w-5 h-5" style={{ color }} />
+                  style={{ background: accentBg, border: `1px solid ${accentBorder}` }}>
+                  <Icon className="w-5 h-5" style={{ color: accentColor }} />
                 </div>
                 <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
                   style={{ color: "var(--text-secondary)" }} />
@@ -171,7 +174,7 @@ export default function StudioIAPage() {
 
               <div className="flex items-center justify-between">
                 {statValue !== null ? (
-                  <span className="text-xs font-bold" style={{ color }}>
+                  <span className="text-xs font-bold" style={{ color: accentColor }}>
                     {statValue} {statLabel}
                   </span>
                 ) : (
@@ -186,7 +189,7 @@ export default function StudioIAPage() {
 
       {/* Quick status */}
       {(stats.agents === 0 || stats.articles === 0) && (
-        <div className="rounded-2xl p-6" style={{ background: "var(--primary-bg)", border: "1px solid var(--primary-border)" }}>
+        <div className="rounded-2xl p-6" style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)" }}>
           <h3 className="text-sm font-bold text-white mb-3">Comece por aqui</h3>
           <div className="space-y-2">
             {stats.agents === 0 && (

@@ -159,14 +159,14 @@ html.light {
   --status-novo:     #7B8CA3;
   --status-contato:  #3B82F6;
   --status-qualificado: #8B5CF6;
-  --status-ganho:    #16A34A;
+  --status-ganho:    #15803D;
   --status-perdido:  #DC2626;
   --input-bg:        #F7FAFD;
   --input-border:    #CDD8E5;
   --scrim:           rgba(15,23,42,0.5);
 
-  --primary-bg:      rgba(22,163,74,0.12);
-  --primary-border:  rgba(22,163,74,0.3);
+  --primary-bg:      rgba(21,128,61,0.18);
+  --primary-border:  rgba(21,128,61,0.34);
   --surface-gradient: linear-gradient(180deg, #FFFFFF 0%, #F9FBFE 100%);
   --surface-soft:    #F3F7FB;
   --surface-hover:   #E9F0F7;
@@ -176,6 +176,8 @@ html.light {
   --chip-bg:         #F1F5F9;
   --chip-border:     #D3DDE8;
   --sidebar-gradient: linear-gradient(180deg, #F7FAFD 0%, #EFF5FA 100%);
+  --active-soft-bg:  rgba(21,128,61,0.12);
+  --active-soft-border: rgba(21,128,61,0.22);
 }
 
 /* CRM app content: white text → foreground in light mode */

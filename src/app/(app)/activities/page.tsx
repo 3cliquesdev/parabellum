@@ -90,7 +90,7 @@ export default function ActivitiesPage() {
           <button key={v} onClick={() => setFilter(v as typeof filter)}
             className="px-4 h-8 rounded-xl text-xs font-bold transition-all"
             style={filter === v
-              ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
+              ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)", boxShadow: "0 6px 18px rgba(21,128,61,0.08)" }
               : { background: "var(--input-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
             {l}
           </button>

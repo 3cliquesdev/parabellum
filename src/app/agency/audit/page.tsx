@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { Activity, LogIn, Building2, Globe, Palette, Download } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  agencyCardStyle,
+  agencyGhostButtonStyle,
+  agencyOutlineButtonStyle,
+  agencyPageStyle,
+  agencyPanelStyle,
+} from "@/app/agency/theme";
 
 interface AgencyMembershipRow {
   agency_id: string;
@@ -24,7 +31,7 @@ const ACTION_CONFIG: Record<string, { label: string; color: string; icon: Lucide
   login_as: { label: "Suporte - entrou como cliente", color: "#facc15", icon: LogIn },
   "tenant.created": { label: "Cliente criado", color: "#9aea62", icon: Building2 },
   "branding.updated": { label: "Branding atualizado", color: "#60a5fa", icon: Palette },
-  "domain.added": { label: "Dominio adicionado", color: "#a78bfa", icon: Globe },
+  "domain.added": { label: "Domínio adicionado", color: "#a78bfa", icon: Globe },
   "team.invited": { label: "Membro convidado", color: "#f97316", icon: Activity },
 };
 
@@ -33,10 +40,9 @@ export default function AuditPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("todos");
 
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
-
   useEffect(() => {
     const supabase = createClient();
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
 
@@ -93,14 +99,15 @@ export default function AuditPage() {
   }
 
   return (
-    <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-8 space-y-6" style={agencyPageStyle}>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Auditoria</h1>
-          <p className="text-sm mt-1" style={{ color: "#939da4" }}>Historico de todas as acoes da agencia</p>
+          <h1 className="text-2xl font-extrabold tracking-[-0.03em]" style={{ color: "var(--text-primary)" }}>Auditoria</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Histórico de todas as ações da agência</p>
         </div>
-        <button onClick={exportCSV} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold" style={{ background: "rgba(255,255,255,0.05)", color: "#939da4", border: "1px solid rgba(255,255,255,0.08)" }}>
-          <Download className="w-4 h-4" /> Exportar CSV
+        <button onClick={exportCSV} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold" style={agencyGhostButtonStyle}>
+          <Download className="w-4 h-4" />
+          Exportar CSV
         </button>
       </div>
 
@@ -110,9 +117,11 @@ export default function AuditPage() {
             key={currentFilter.id}
             onClick={() => setFilter(currentFilter.id)}
             className="px-4 h-8 rounded-xl text-xs font-bold transition-all"
-            style={filter === currentFilter.id
-              ? { background: "rgba(154,234,98,0.1)", color: "#9aea62", border: "1px solid rgba(154,234,98,0.2)" }
-              : { background: "rgba(255,255,255,0.04)", color: "#939da4", border: "1px solid rgba(255,255,255,0.06)" }}
+            style={
+              filter === currentFilter.id
+                ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
+                : agencyGhostButtonStyle
+            }
           >
             {currentFilter.label}
           </button>
@@ -121,45 +130,39 @@ export default function AuditPage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" />
+          <div className="w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid var(--border-subtle)", borderTopColor: "var(--text-secondary)" }} />
         </div>
       ) : filteredLogs.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-          <Activity className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(147,157,164,0.3)" }} />
-          <p className="text-sm" style={{ color: "#939da4" }}>Nenhum evento registrado ainda.</p>
+        <div className="py-16 text-center rounded-2xl" style={agencyPanelStyle}>
+          <Activity className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--text-faint)" }} />
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum evento registrado ainda.</p>
         </div>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-2">
           {filteredLogs.map((log, index) => {
             const config = ACTION_CONFIG[log.action] ?? { label: log.action, color: "#939da4", icon: Activity };
             const Icon = config.icon;
 
             return (
-              <div
-                key={log.id ?? `${log.action}-${index}`}
-                className="flex items-start gap-4 px-5 py-4 rounded-xl transition-all"
-                style={cardStyle}
-                onMouseEnter={(event) => (event.currentTarget.style.background = "rgba(255,255,255,0.03)")}
-                onMouseLeave={(event) => (event.currentTarget.style.background = "")}
-              >
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${config.color}12` }}>
+              <div key={log.id ?? `${log.action}-${index}`} className="flex items-start gap-4 px-5 py-4 rounded-xl transition-all" style={agencyCardStyle}>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={agencyOutlineButtonStyle(config.color)}>
                   <Icon className="w-3.5 h-3.5" style={{ color: config.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white">{config.label}</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{config.label}</p>
                   {log.details && Object.keys(log.details).length > 0 && (
-                    <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
                       {log.details.tenant_name && `Cliente: ${log.details.tenant_name}`}
                       {log.details.reason && ` · Motivo: ${log.details.reason}`}
                     </p>
                   )}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs" style={{ color: "rgba(147,157,164,0.5)" }}>
+                  <p className="text-xs" style={{ color: "var(--text-faint)" }}>
                     {new Date(log.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                   </p>
                   {log.ip_address && (
-                    <p className="text-[10px] mt-0.5 font-mono" style={{ color: "rgba(147,157,164,0.3)" }}>{log.ip_address}</p>
+                    <p className="text-[10px] mt-0.5 font-mono" style={{ color: "var(--text-faint)" }}>{log.ip_address}</p>
                   )}
                 </div>
               </div>

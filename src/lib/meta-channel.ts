@@ -1,10 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { textToSpeech } from "@/lib/tts";
 
+export function sanitizeMetaAccessToken(accessToken: string) {
+  return accessToken.trim().replace(/^['"]+|['"]+$/g, "").replace(/\s+/g, "");
+}
+
+function describeMetaError(rawError: string, channel: "WhatsApp" | "Instagram") {
+  if (rawError.includes('"code":190') || rawError.includes("Invalid OAuth access token")) {
+    return `${channel} token invalido ou mal formatado. Refaça a conexão e salve novamente o access token da Meta.`;
+  }
+
+  return `${channel} send error: ${rawError}`;
+}
+
 export async function sendWhatsAppTextMessage(accessToken: string, phoneNumberId: string, to: string, text: string) {
+  const sanitizedToken = sanitizeMetaAccessToken(accessToken);
   const res = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${sanitizedToken}` },
     body: JSON.stringify({
       messaging_product: "whatsapp",
       to,
@@ -14,11 +27,12 @@ export async function sendWhatsAppTextMessage(accessToken: string, phoneNumberId
   });
 
   if (!res.ok) {
-    throw new Error(`WhatsApp send error: ${await res.text()}`);
+    throw new Error(describeMetaError(await res.text(), "WhatsApp"));
   }
 }
 
 export async function sendWhatsAppAudioMessage(accessToken: string, phoneNumberId: string, to: string, audioBuffer: Buffer) {
+  const sanitizedToken = sanitizeMetaAccessToken(accessToken);
   const form = new FormData();
   const blob = new Blob([audioBuffer.buffer as ArrayBuffer], { type: "audio/mpeg" });
 
@@ -28,12 +42,12 @@ export async function sendWhatsAppAudioMessage(accessToken: string, phoneNumberI
 
   const uploadRes = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/media`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { Authorization: `Bearer ${sanitizedToken}` },
     body: form,
   });
 
   if (!uploadRes.ok) {
-    throw new Error(`WhatsApp audio upload error: ${await uploadRes.text()}`);
+    throw new Error(describeMetaError(await uploadRes.text(), "WhatsApp"));
   }
 
   const uploadData = (await uploadRes.json()) as { id?: string };
@@ -43,7 +57,7 @@ export async function sendWhatsAppAudioMessage(accessToken: string, phoneNumberI
 
   const res = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${sanitizedToken}` },
     body: JSON.stringify({
       messaging_product: "whatsapp",
       to,
@@ -53,7 +67,7 @@ export async function sendWhatsAppAudioMessage(accessToken: string, phoneNumberI
   });
 
   if (!res.ok) {
-    throw new Error(`WhatsApp send audio error: ${await res.text()}`);
+    throw new Error(describeMetaError(await res.text(), "WhatsApp"));
   }
 }
 
@@ -84,8 +98,9 @@ export async function fetchAndStoreWhatsAppMedia(
   tenantId: string,
   supabase: SupabaseClient<any>,
 ): Promise<string> {
+  const sanitizedToken = sanitizeMetaAccessToken(accessToken);
   const metaRes = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { Authorization: `Bearer ${sanitizedToken}` },
   });
   if (!metaRes.ok) throw new Error(`Meta media info failed: ${metaRes.status}`);
 
@@ -94,7 +109,7 @@ export async function fetchAndStoreWhatsAppMedia(
     throw new Error("Meta media info missing url or mime_type");
   }
 
-  const fileRes = await fetch(metaData.url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const fileRes = await fetch(metaData.url, { headers: { Authorization: `Bearer ${sanitizedToken}` } });
   if (!fileRes.ok) throw new Error(`Media download failed: ${fileRes.status}`);
 
   const buffer = await fileRes.arrayBuffer();
@@ -127,9 +142,10 @@ export async function sendInstagramTextMessage(
   recipientId: string,
   text: string,
 ) {
+  const sanitizedToken = sanitizeMetaAccessToken(accessToken);
   const res = await fetch(`https://graph.facebook.com/v20.0/${pageId}/messages`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${sanitizedToken}` },
     body: JSON.stringify({
       recipient: { id: recipientId },
       messaging_type: "RESPONSE",
@@ -138,7 +154,7 @@ export async function sendInstagramTextMessage(
   });
 
   if (!res.ok) {
-    throw new Error(`Instagram send error: ${await res.text()}`);
+    throw new Error(describeMetaError(await res.text(), "Instagram"));
   }
 
   const data = (await res.json()) as { message_id?: string; recipient_id?: string };

@@ -20,8 +20,43 @@ type InstagramInboundEvent = {
   metadata: Record<string, unknown>;
 };
 
+type InstagramSenderProfile = {
+  username: string | null;
+  name: string | null;
+  profilePicUrl: string | null;
+};
+
 function getVerifyToken() {
   return process.env.INSTAGRAM_VERIFY_TOKEN ?? process.env.WHATSAPP_VERIFY_TOKEN ?? "liberty-instagram";
+}
+
+async function fetchInstagramSenderProfile(accessToken: string, senderId: string): Promise<InstagramSenderProfile | null> {
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v20.0/${senderId}?fields=username,name,profile_pic&access_token=${accessToken}`,
+      { cache: "no-store" },
+    );
+
+    if (!response.ok) {
+      console.warn("Instagram sender profile fetch failed:", response.status, await response.text());
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      username?: string | null;
+      name?: string | null;
+      profile_pic?: string | null;
+    };
+
+    return {
+      username: data.username?.trim() || null,
+      name: data.name?.trim() || null,
+      profilePicUrl: data.profile_pic?.trim() || null,
+    };
+  } catch (error) {
+    console.warn("Instagram sender profile fetch error:", error);
+    return null;
+  }
 }
 
 function extractEvents(body: any): InstagramInboundEvent[] {
@@ -129,6 +164,12 @@ export async function POST(request: NextRequest) {
       const tenantId = String(config.tenant_id);
       const accessToken = String(config.access_token);
       const pageId = String(config.page_id ?? event.pageId);
+      const senderProfile = await fetchInstagramSenderProfile(accessToken, event.senderId);
+      const username = senderProfile?.username?.replace(/^@/, "") ?? null;
+      const leadName =
+        senderProfile?.name?.trim() ||
+        senderProfile?.username?.trim() ||
+        `Instagram ${event.senderId.slice(-6)}`;
 
       await handleInboundAutomation({
         supabase,
@@ -136,11 +177,11 @@ export async function POST(request: NextRequest) {
         canal: "instagram",
         identity: {
           canal: "instagram",
-          value: null,
+          value: username,
           externalId: event.senderId,
         },
         lead: {
-          name: `Instagram ${event.senderId.slice(-6)}`,
+          name: leadName,
         },
         message: {
           externalMessageId: event.messageId,
@@ -152,6 +193,9 @@ export async function POST(request: NextRequest) {
             direction: "inbound",
             page_id: pageId,
             sender_id: event.senderId,
+            sender_username: senderProfile?.username ?? null,
+            sender_name: senderProfile?.name ?? null,
+            sender_profile_pic: senderProfile?.profilePicUrl ?? null,
             ...event.metadata,
           },
         },

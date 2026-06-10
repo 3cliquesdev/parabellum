@@ -216,6 +216,40 @@ async function syncLeadDirectField(
   return (data as unknown as LeadRow | null) ?? lead;
 }
 
+function shouldReplaceLeadName(currentName: string | null | undefined, nextName: string | null | undefined) {
+  const current = currentName?.trim() ?? "";
+  const next = nextName?.trim() ?? "";
+
+  if (!next) return false;
+  if (!current) return true;
+  if (current === next) return false;
+
+  return (
+    /^Instagram\s+\d{4,}$/i.test(current) ||
+    /^Lead\s+\d+$/i.test(current) ||
+    /^Lead\s+(whatsapp|instagram|email)$/i.test(current) ||
+    current === "Desconhecido"
+  );
+}
+
+async function syncLeadName(
+  supabase: AdminClient,
+  lead: LeadRow,
+  nextName: string | null | undefined,
+) {
+  const trimmedName = nextName?.trim() ?? "";
+  if (!shouldReplaceLeadName(lead.nome, trimmedName)) return lead;
+
+  const { data } = await supabase
+    .from("leads")
+    .update({ nome: trimmedName })
+    .eq("id", lead.id)
+    .select("id, tenant_id, nome, whatsapp, email, instagram, status")
+    .single();
+
+  return (data as unknown as LeadRow | null) ?? lead;
+}
+
 async function upsertLeadIdentity(
   supabase: AdminClient,
   tenantId: string,
@@ -322,6 +356,7 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
 
   let lead = await resolveLead(supabase, tenantId, identity, leadInput);
   lead = await syncLeadDirectField(supabase, lead, identity);
+  lead = await syncLeadName(supabase, lead, leadInput?.name);
 
   const identities = [identity, ...(leadInput?.identities ?? [])];
   for (const item of identities) {

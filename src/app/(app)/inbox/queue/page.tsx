@@ -5,6 +5,14 @@ import { Clock, Users, Zap } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 import { resolveConversationIdentity } from "@/lib/inbox/channels";
+import {
+  inboxBadgeStyle,
+  inboxGhostButtonStyle,
+  inboxPageStyle,
+  inboxPanelStyle,
+  inboxPrimaryButtonStyle,
+  inboxSubtlePanelStyle,
+} from "../theme";
 
 function tempoNaFila(queuedAt: string) {
   const diff = Date.now() - new Date(queuedAt).getTime();
@@ -14,7 +22,10 @@ function tempoNaFila(queuedAt: string) {
   return `${Math.floor(min / 60)}h ${min % 60}m`;
 }
 
-const DEPT_COLOR: Record<string, string> = { vendas: "#9aea62", suporte: "#60a5fa" };
+const DEPT_COLOR: Record<string, string> = {
+  vendas: "#16a34a",
+  suporte: "#3b82f6",
+};
 
 interface QueueLead {
   nome?: string | null;
@@ -48,10 +59,9 @@ export default function InboxQueuePage() {
   const [assuming, setAssuming] = useState<string | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
 
-  const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
-
   useEffect(() => {
     if (!tenantId) return;
+    const activeTenantId = tenantId;
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => setMyUserId(user?.id ?? null));
 
@@ -59,21 +69,29 @@ export default function InboxQueuePage() {
       const { data } = await supabase
         .from("conversation_queue")
         .select("*, conversas(id, lead_id, canal, departamento_alvo, leads(nome, whatsapp, email, instagram))")
-        .eq("tenant_id", tenantId!)
+        .eq("tenant_id", activeTenantId)
         .is("assigned_at", null)
         .order("prioridade", { ascending: false })
         .order("queued_at", { ascending: true });
+
       setQueue((data ?? []) as unknown as QueueItem[]);
       setLoading(false);
     }
-    load();
 
-    // Realtime
-    const channel = supabase.channel("queue-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversation_queue", filter: `tenant_id=eq.${tenantId}` },
-        () => load())
+    void load();
+
+    const channel = supabase
+      .channel("queue-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversation_queue", filter: `tenant_id=eq.${activeTenantId}` },
+        () => load(),
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [tenantId]);
 
   async function assumir(item: QueueItem) {
@@ -81,87 +99,203 @@ export default function InboxQueuePage() {
     setAssuming(item.id);
     const supabase = createClient();
 
-    // Atribuir a mim mesmo
-    await supabase.from("conversas").update({
-      assigned_to: myUserId,
-      dispatch_status: "atribuido",
-      assigned_at: new Date().toISOString(),
-    }).eq("id", item.conversa_id);
+    await supabase
+      .from("conversas")
+      .update({
+        assigned_to: myUserId,
+        dispatch_status: "atribuido",
+        assigned_at: new Date().toISOString(),
+      })
+      .eq("id", item.conversa_id);
 
     await supabase.from("conversation_queue").update({ assigned_at: new Date().toISOString() }).eq("id", item.id);
-    await supabase.from("tenant_members").update({ ultima_atribuicao: new Date().toISOString() }).eq("tenant_id", tenantId).eq("user_id", myUserId);
+    await supabase
+      .from("tenant_members")
+      .update({ ultima_atribuicao: new Date().toISOString() })
+      .eq("tenant_id", tenantId)
+      .eq("user_id", myUserId);
 
-    setQueue(q => q.filter(x => x.id !== item.id));
+    setQueue((prev) => prev.filter((queueItem) => queueItem.id !== item.id));
     setAssuming(null);
   }
 
-  const vendas = queue.filter(i => i.departamento === "vendas");
-  const suporte = queue.filter(i => i.departamento === "suporte");
+  const vendas = queue.filter((item) => item.departamento === "vendas");
+  const suporte = queue.filter((item) => item.departamento === "suporte");
 
   return (
-    <div className="p-6 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
-      <div className="flex items-start justify-between">
+    <div className="p-6 space-y-6" style={inboxPageStyle}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-lg font-extrabold text-white tracking-[-0.02em]">Fila de espera</h2>
-          <p className="text-xs mt-0.5" style={{ color: "#939da4" }}>Conversas aguardando atendente disponível</p>
+          <h1 className="text-2xl font-extrabold tracking-[-0.03em]" style={{ color: "var(--text-primary)" }}>
+            Fila de atendimento
+          </h1>
+          <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
+            Conversas aguardando um atendente disponível antes de sair do piloto automático.
+          </p>
         </div>
-        <div className="flex gap-2">
-          {[{ label: "Vendas", count: vendas.length, color: "#9aea62" }, { label: "Suporte", count: suporte.length, color: "#60a5fa" }].map(d => (
-            <div key={d.label} className="px-3 py-1.5 rounded-xl text-xs font-bold"
-              style={{ background: `${d.color}10`, color: d.color, border: `1px solid ${d.color}20` }}>
-              {d.count} {d.label}
+
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: "Vendas", count: vendas.length, color: DEPT_COLOR.vendas },
+            { label: "Suporte", count: suporte.length, color: DEPT_COLOR.suporte },
+          ].map((dept) => (
+            <div key={dept.label} className="px-3.5 py-2 rounded-2xl text-xs font-bold" style={inboxBadgeStyle(dept.color)}>
+              {dept.count} {dept.label}
             </div>
           ))}
         </div>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-[24px] p-5" style={inboxPanelStyle}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                Em espera
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                Conversas sem atribuição
+              </p>
+            </div>
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+              <Users className="w-5 h-5" style={{ color: "var(--status-ganho)" }} />
+            </div>
+          </div>
+          <p className="text-3xl font-extrabold tracking-[-0.03em] mt-5" style={{ color: "var(--text-primary)" }}>
+            {queue.length}
+          </p>
+        </div>
+
+        <div className="rounded-[24px] p-5" style={inboxPanelStyle}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                Alta prioridade
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                Itens com prioridade elevada
+              </p>
+            </div>
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(220,38,38,0.12)", border: "1px solid rgba(220,38,38,0.18)" }}>
+              <Zap className="w-5 h-5" style={{ color: "var(--status-perdido)" }} />
+            </div>
+          </div>
+          <p className="text-3xl font-extrabold tracking-[-0.03em] mt-5" style={{ color: "var(--text-primary)" }}>
+            {queue.filter((item) => item.prioridade > 0).length}
+          </p>
+        </div>
+
+        <div className="rounded-[24px] p-5" style={inboxPanelStyle}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                Próximo SLA
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                Tempo de espera do item mais antigo
+              </p>
+            </div>
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+              <Clock className="w-5 h-5" style={{ color: "var(--text-secondary)" }} />
+            </div>
+          </div>
+          <p className="text-3xl font-extrabold tracking-[-0.03em] mt-5" style={{ color: "var(--text-primary)" }}>
+            {queue[0] ? tempoNaFila(queue[0].queued_at) : "-"}
+          </p>
+        </div>
+      </div>
+
       {loading ? (
-        <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-16">
+          <div className="w-6 h-6 rounded-full animate-spin" style={{ border: "2px solid var(--border-subtle)", borderTopColor: "var(--status-ganho)" }} />
+        </div>
       ) : queue.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-          <Users className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(147,157,164,0.3)" }} />
-          <p className="text-sm font-medium text-white">Fila vazia</p>
-          <p className="text-xs mt-1" style={{ color: "#939da4" }}>Todos os leads estão sendo atendidos</p>
+        <div className="rounded-[28px] py-16 text-center" style={inboxPanelStyle}>
+          <div className="w-16 h-16 rounded-3xl mx-auto mb-4 flex items-center justify-center" style={inboxSubtlePanelStyle}>
+            <Users className="w-7 h-7" style={{ color: "var(--text-faint)" }} />
+          </div>
+          <p className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+            Fila vazia
+          </p>
+          <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
+            Todos os leads estão sendo atendidos agora.
+          </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {queue.map(item => {
+        <div className="space-y-3">
+          {queue.map((item) => {
             const lead = item.conversas?.leads;
             const dept = item.departamento ?? "vendas";
-            const identifier = resolveConversationIdentity(
-              item.conversas?.canal ?? "interno",
-              {
-                whatsapp: lead?.whatsapp ?? null,
-                email: lead?.email ?? null,
-                instagram: lead?.instagram ?? null,
-              },
-            );
+            const deptColor = DEPT_COLOR[dept] ?? DEPT_COLOR.vendas;
+            const identifier = resolveConversationIdentity(item.conversas?.canal ?? "interno", {
+              whatsapp: lead?.whatsapp ?? null,
+              email: lead?.email ?? null,
+              instagram: lead?.instagram ?? null,
+            });
+
             return (
-              <div key={item.id} className="flex items-center gap-4 p-4 rounded-xl" style={cardStyle}>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-                  style={{ background: `${DEPT_COLOR[dept]}15`, color: DEPT_COLOR[dept] }}>
-                  {(lead?.nome ?? "?").charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white truncate">{lead?.nome ?? "Lead desconhecido"}</p>
-                  <p className="text-[11px] mt-0.5 truncate" style={{ color: "#939da4" }}>{identifier}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize"
-                      style={{ color: DEPT_COLOR[dept], background: `${DEPT_COLOR[dept]}15` }}>{dept}</span>
-                    {item.motivo && <span className="text-[10px]" style={{ color: "#939da4" }}>{item.motivo.replace("_", " ")}</span>}
-                    {item.prioridade > 0 && <span className="text-[10px] font-bold" style={{ color: "#f87171" }}>Alta prioridade</span>}
+              <div key={item.id} className="rounded-[24px] p-4 md:p-5" style={inboxPanelStyle}>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: `${deptColor}18`, color: deptColor }}>
+                      {(lead?.nome ?? "?").charAt(0).toUpperCase()}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-base font-bold truncate" style={{ color: "var(--text-primary)" }}>
+                          {lead?.nome ?? "Lead desconhecido"}
+                        </p>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize" style={inboxBadgeStyle(deptColor)}>
+                          {dept}
+                        </span>
+                        {item.prioridade > 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle("#dc2626")}>
+                            Alta prioridade
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-sm mt-1 truncate" style={{ color: "var(--text-secondary)" }}>
+                        {identifier}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-3 mt-2">
+                        <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-faint)" }}>
+                          <Clock className="w-3.5 h-3.5" />
+                          {tempoNaFila(item.queued_at)}
+                        </div>
+                        {item.motivo && (
+                          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                            {item.motivo.replaceAll("_", " ")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      disabled
+                      className="px-3.5 h-10 rounded-2xl text-xs font-bold"
+                      style={inboxGhostButtonStyle}
+                    >
+                      Em análise
+                    </button>
+                    <button
+                      onClick={() => assumir(item)}
+                      disabled={assuming === item.id}
+                      className="flex items-center gap-1.5 px-4 h-10 rounded-2xl text-xs font-bold transition-all"
+                      style={{
+                        ...inboxPrimaryButtonStyle,
+                        opacity: assuming === item.id ? 0.65 : 1,
+                      }}
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      {assuming === item.id ? "Assumindo..." : "Assumir"}
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs shrink-0" style={{ color: "rgba(147,157,164,0.5)" }}>
-                  <Clock className="w-3 h-3" />
-                  {tempoNaFila(item.queued_at)}
-                </div>
-                <button onClick={() => assumir(item)} disabled={assuming === item.id}
-                  className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold shrink-0 transition-all"
-                  style={{ background: "#9aea62", color: "#0a0a0a", opacity: assuming === item.id ? 0.6 : 1 }}>
-                  <Zap className="w-3 h-3" />
-                  {assuming === item.id ? "..." : "Assumir"}
-                </button>
               </div>
             );
           })}

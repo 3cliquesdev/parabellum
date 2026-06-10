@@ -108,6 +108,19 @@
   --chip-bg:         rgba(255,255,255,0.05);
   --chip-border:     rgba(255,255,255,0.08);
   --sidebar-gradient: linear-gradient(180deg, #0c0c0c 0%, #080808 100%);
+  --chat-canvas:     #090d09;
+  --chat-pattern:    rgba(154,234,98,0.03);
+  --chat-glow:       rgba(154,234,98,0.07);
+  --chat-glow-soft:  rgba(96,165,250,0.05);
+  --chat-inbound-bg: #171717;
+  --chat-inbound-border: rgba(255,255,255,0.08);
+  --chat-inbound-text: #F8FAFC;
+  --chat-outbound-bg: #133623;
+  --chat-outbound-border: rgba(154,234,98,0.2);
+  --chat-outbound-text: #ECFDF3;
+  --chat-ai-bg:      rgba(154,234,98,0.14);
+  --chat-ai-border:  rgba(154,234,98,0.2);
+  --chat-ai-text:    #B8F77A;
 }
 
 /* ── Light Theme ── */
@@ -178,6 +191,19 @@ html.light {
   --sidebar-gradient: linear-gradient(180deg, #F7FAFD 0%, #EFF5FA 100%);
   --active-soft-bg:  rgba(21,128,61,0.12);
   --active-soft-border: rgba(21,128,61,0.22);
+  --chat-canvas:     #F7F4ED;
+  --chat-pattern:    rgba(21,128,61,0.03);
+  --chat-glow:       rgba(21,128,61,0.05);
+  --chat-glow-soft:  rgba(59,130,246,0.04);
+  --chat-inbound-bg: #FFFFFF;
+  --chat-inbound-border: #D6E0EA;
+  --chat-inbound-text: #0F172A;
+  --chat-outbound-bg: #DCF6E8;
+  --chat-outbound-border: rgba(21,128,61,0.14);
+  --chat-outbound-text: #14532D;
+  --chat-ai-bg:      rgba(22,163,74,0.12);
+  --chat-ai-border:  rgba(21,128,61,0.16);
+  --chat-ai-text:    #166534;
 }
 
 /* CRM app content: white text → foreground in light mode */

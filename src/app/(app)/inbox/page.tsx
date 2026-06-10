@@ -1,19 +1,29 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, MessageSquare, Paperclip, FileText, MapPin, Clock } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bot, Clock, FileText, MapPin, MessageSquare, Paperclip, Send, User } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
 import { useMensagens } from "@/hooks/useMensagens";
 import { createClient } from "@/lib/supabase/client";
 import type { Mensagem } from "@/types/database";
+import {
+  inboxBadgeStyle,
+  inboxBubbleStyle,
+  inboxCanvasStyle,
+  inboxComposerStyle,
+  inboxConversationItemStyle,
+  inboxGhostButtonStyle,
+  inboxPageStyle,
+  inboxPanelStyle,
+} from "./theme";
 
 const DISPATCH_BADGE: Record<string, { label: string; color: string }> = {
-  ia:       { label: "IA",       color: "var(--status-ganho)" },
-  atribuido:{ label: "Atribuído", color: "#60a5fa" },
-  fila:     { label: "Na fila",  color: "#facc15" },
-  resolvido:{ label: "Resolvido", color: "var(--text-secondary)" },
+  ia: { label: "IA", color: "var(--status-ganho)" },
+  atribuido: { label: "Atribuído", color: "#60a5fa" },
+  fila: { label: "Na fila", color: "#facc15" },
+  resolvido: { label: "Resolvido", color: "var(--text-secondary)" },
 };
 
 function timeLabel(dateStr: string) {
@@ -21,59 +31,101 @@ function timeLabel(dateStr: string) {
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function MediaContent({ msg, isLead, isIA }: { msg: Mensagem; isLead: boolean; isIA: boolean }) {
-  const textColor = isLead ? "#f9f6ec" : isIA ? "#9aea62" : "#0a0a0a";
+function conversationTimeLabel(dateStr: string) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+
+  if (sameDay) {
+    return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+function MediaContent({ msg, tone }: { msg: Mensagem; tone: "lead" | "humano" | "ia" }) {
   const pad = "px-4 py-2.5";
+  const textColor =
+    tone === "lead"
+      ? "var(--chat-inbound-text)"
+      : tone === "ia"
+        ? "var(--chat-ai-text)"
+        : "var(--chat-outbound-text)";
 
   if (msg.media_type === "image" || msg.media_type === "sticker") {
     return (
       <div>
-        <img src={msg.media_url!} alt="imagem" className="max-w-full rounded-xl block"
-          style={{ maxWidth: 280, maxHeight: 300, objectFit: "cover" }} />
+        <img
+          src={msg.media_url ?? ""}
+          alt="imagem"
+          className="max-w-full rounded-xl block"
+          style={{ maxWidth: 280, maxHeight: 300, objectFit: "cover" }}
+        />
         {msg.media_caption && (
-          <p className={`${pad} text-sm`} style={{ color: textColor }}>{msg.media_caption}</p>
+          <p className={`${pad} text-sm`} style={{ color: textColor }}>
+            {msg.media_caption}
+          </p>
         )}
       </div>
     );
   }
+
   if (msg.media_type === "audio") {
     return (
       <div className={pad}>
-        <audio controls src={msg.media_url!} className="w-full" style={{ maxWidth: 260, height: 36 }} />
+        <audio controls src={msg.media_url ?? ""} className="w-full" style={{ maxWidth: 260, height: 36 }} />
       </div>
     );
   }
+
   if (msg.media_type === "video") {
     return (
       <div>
-        <video controls src={msg.media_url!} className="max-w-full rounded-xl block"
-          style={{ maxWidth: 280, maxHeight: 200 }} />
+        <video controls src={msg.media_url ?? ""} className="max-w-full rounded-xl block" style={{ maxWidth: 280, maxHeight: 200 }} />
         {msg.media_caption && (
-          <p className={`${pad} text-sm`} style={{ color: textColor }}>{msg.media_caption}</p>
+          <p className={`${pad} text-sm`} style={{ color: textColor }}>
+            {msg.media_caption}
+          </p>
         )}
       </div>
     );
   }
+
   if (msg.media_type === "document") {
     return (
-      <a href={msg.media_url!} target="_blank" rel="noopener noreferrer"
-        className={`${pad} flex items-center gap-2.5 no-underline`} style={{ color: textColor }}>
+      <a
+        href={msg.media_url ?? ""}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`${pad} flex items-center gap-2.5 no-underline`}
+        style={{ color: textColor }}
+      >
         <FileText className="w-5 h-5 shrink-0" />
         <span className="text-sm font-medium truncate">{msg.media_nome || "Documento"}</span>
       </a>
     );
   }
+
   if (msg.media_type === "location" && msg.latitude && msg.longitude) {
     return (
-      <a href={`https://maps.google.com/?q=${msg.latitude},${msg.longitude}`}
-        target="_blank" rel="noopener noreferrer"
-        className={`${pad} flex items-center gap-2 no-underline`} style={{ color: textColor }}>
+      <a
+        href={`https://maps.google.com/?q=${msg.latitude},${msg.longitude}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`${pad} flex items-center gap-2 no-underline`}
+        style={{ color: textColor }}
+      >
         <MapPin className="w-4 h-4 shrink-0" />
         <span className="text-sm">Ver localização</span>
       </a>
     );
   }
-  return <p className={`${pad} text-sm`} style={{ color: textColor }}>{msg.conteudo}</p>;
+
+  return (
+    <p className={`${pad} text-sm leading-6`} style={{ color: textColor }}>
+      {msg.conteudo}
+    </p>
+  );
 }
 
 export default function InboxPage() {
@@ -86,6 +138,7 @@ export default function InboxPage() {
   const [filtro, setFiltro] = useState<"minhas" | "todas">("minhas");
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<string>("member");
+  const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,24 +146,26 @@ export default function InboxPage() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       setMyUserId(user.id);
+
       if (tenantId) {
-        const { data: tm } = await supabase
+        const { data: memberData } = await supabase
           .from("tenant_members")
           .select("role")
           .eq("tenant_id", tenantId)
           .eq("user_id", user.id)
-          .single() as { data: { role?: string | null } | null };
+          .single();
+        const tm = memberData as { role?: string | null } | null;
         setMyRole(tm?.role ?? "member");
       }
     });
   }, [tenantId]);
 
-  // Filtrar conversas por agente
-  const conversasFiltradas = filtro === "minhas" && myUserId
-    ? conversas.filter(c => c.assigned_to === myUserId || !c.assigned_to)
-    : conversas;
+  const conversasFiltradas =
+    filtro === "minhas" && myUserId
+      ? conversas.filter((conversa) => conversa.assigned_to === myUserId || !conversa.assigned_to)
+      : conversas;
 
-  const selected = conversas.find(c => c.id === selectedId);
+  const selected = conversas.find((conversa) => conversa.id === selectedId);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -118,9 +173,11 @@ export default function InboxPage() {
 
   async function handleSend() {
     if (!text.trim() || !selectedId || !tenantId || !selected?.supports_outbound) return;
+
     setSending(true);
     const msg = text.trim();
     setText("");
+
     try {
       const res = await fetch("/api/inbox/send", {
         method: "POST",
@@ -131,6 +188,7 @@ export default function InboxPage() {
           tenant_id: tenantId,
         }),
       });
+
       if (!res.ok) {
         const err = await res.json();
         alert(err.error ?? "Erro ao enviar mensagem");
@@ -146,167 +204,239 @@ export default function InboxPage() {
     await supabase.from("conversas").update({ ia_ativa: !conversa.ia_ativa }).eq("id", conversa.id);
   }
 
-  if (tenantLoading) return (
-    <div className="flex items-center justify-center h-full">
-      <div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" />
-    </div>
-  );
+  if (tenantLoading) {
+    return (
+      <div className="flex items-center justify-center h-full" style={inboxPageStyle}>
+        <div className="w-6 h-6 rounded-full animate-spin" style={{ border: "2px solid var(--border-subtle)", borderTopColor: "var(--status-ganho)" }} />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-full overflow-hidden" style={{ fontFamily: "var(--font-sans)" }}>
-
-      {/* Lista de conversas */}
-      <aside className="w-72 shrink-0 flex flex-col overflow-hidden"
-        style={{ borderRight: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}>
-        <div className="px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+    <div className="flex h-full min-h-0 gap-4 p-4 overflow-hidden" style={inboxPageStyle}>
+      <aside className="w-[340px] xl:w-[360px] shrink-0 rounded-[28px] overflow-hidden flex flex-col min-h-0" style={inboxPanelStyle}>
+        <div className="px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-white">Inbox</h2>
-            <Link href="/inbox/queue" className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full"
-              style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>
-              <Clock className="w-3 h-3" /> Fila
+            <div>
+              <h2 className="text-lg font-extrabold tracking-[-0.02em]" style={{ color: "var(--text-primary)" }}>
+                Inbox
+              </h2>
+              <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                Conversas do WhatsApp, Instagram e canais conectados
+              </p>
+            </div>
+            <Link href="/inbox/queue" className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-full" style={inboxBadgeStyle("#d4a91d")}>
+              <Clock className="w-3 h-3" />
+              Fila
             </Link>
           </div>
-          {/* Filter tabs */}
-          <div className="flex gap-1">
+
+          <div className="flex gap-2">
             {[
               { id: "minhas", label: "Minhas" },
               ...((myRole === "owner" || myRole === "admin") ? [{ id: "todas", label: "Todas" }] : []),
-            ].map(f => (
-              <button key={f.id} onClick={() => setFiltro(f.id as typeof filtro)}
-                className="px-3 h-6 rounded-full text-[10px] font-bold transition-all"
-                style={filtro === f.id
-                  ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.25)" }
-                  : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                {f.label}
-              </button>
-            ))}
+            ].map((item) => {
+              const isActive = filtro === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setFiltro(item.id as typeof filtro)}
+                  className="px-3.5 h-8 rounded-full text-xs font-bold transition-all"
+                  style={
+                    isActive
+                      ? {
+                          background: "var(--active-soft-bg)",
+                          color: "var(--status-ganho)",
+                          border: "1px solid var(--active-soft-border)",
+                        }
+                      : {
+                          background: "var(--ghost-bg)",
+                          color: "var(--text-secondary)",
+                          border: "1px solid var(--chip-border)",
+                        }
+                  }
+                >
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {conversasLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-4 h-4 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" />
+            <div className="flex items-center justify-center py-14">
+              <div className="w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid var(--border-subtle)", borderTopColor: "var(--status-ganho)" }} />
             </div>
           ) : conversasFiltradas.length === 0 ? (
-            <div className="px-4 py-12 text-center">
-              <MessageSquare className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(147,157,164,0.3)" }} />
-              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                {filtro === "minhas" ? "Nenhuma conversa atribuída a você." : "Nenhuma conversa ainda."}
+            <div className="px-6 py-14 text-center">
+              <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+                <MessageSquare className="w-6 h-6" style={{ color: "var(--text-faint)" }} />
+              </div>
+              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                Nenhuma conversa por aqui
+              </p>
+              <p className="text-xs mt-1 leading-5" style={{ color: "var(--text-secondary)" }}>
+                {filtro === "minhas" ? "Nenhuma conversa atribuída a você no momento." : "As novas conversas vão aparecer aqui assim que entrarem."}
               </p>
             </div>
           ) : (
-            conversasFiltradas.map(c => {
-              const dispatch = c.dispatch_status ?? "ia";
+            conversasFiltradas.map((conversa) => {
+              const dispatch = conversa.dispatch_status ?? "ia";
               const badge = DISPATCH_BADGE[dispatch] ?? DISPATCH_BADGE.ia;
+              const active = selectedId === conversa.id;
+              const hovered = hoveredConversationId === conversa.id;
+
               return (
-              <button key={c.id} onClick={() => setSelectedId(c.id)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
-                style={{
-                  background: selectedId === c.id ? "rgba(154,234,98,0.06)" : "transparent",
-                  borderBottom: "1px solid rgba(255,255,255,0.04)",
-                  borderLeft: selectedId === c.id ? "2px solid #9aea62" : "2px solid transparent",
-                }}>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-                  style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
-                  {c.lead_nome.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-white truncate">{c.lead_nome}</p>
-                    <div className="flex items-center gap-1 shrink-0 ml-2">
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                        style={{ color: c.canal_color, background: `${c.canal_color}15` }}>{c.canal_label}</span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                        style={{ color: badge.color, background: `${badge.color}15` }}>{badge.label}</span>
-                      {c.ia_ativa
-                        ? <Bot className="w-3 h-3" style={{ color: "var(--status-ganho)" }} />
-                        : <User className="w-3 h-3" style={{ color: "var(--text-secondary)" }} />}
+                <button
+                  key={conversa.id}
+                  onClick={() => setSelectedId(conversa.id)}
+                  onMouseEnter={() => setHoveredConversationId(conversa.id)}
+                  onMouseLeave={() => setHoveredConversationId(null)}
+                  className="w-full px-4 py-3.5 text-left"
+                  style={{
+                    ...inboxConversationItemStyle(active),
+                    background: active ? "var(--active-soft-bg)" : hovered ? "var(--surface-hover)" : "transparent",
+                    transform: hovered && !active ? "translateX(2px)" : "none",
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+                      style={{ background: "var(--primary-bg)", color: "var(--status-ganho)" }}
+                    >
+                      {conversa.lead_nome.charAt(0).toUpperCase()}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[15px] font-bold truncate" style={{ color: "var(--text-primary)" }}>
+                            {conversa.lead_nome}
+                          </p>
+                          <p className="text-xs truncate mt-1" style={{ color: "var(--text-secondary)" }}>
+                            {conversa.lead_identifier}
+                          </p>
+                        </div>
+
+                        <div className="shrink-0 text-[11px] font-medium" style={{ color: active ? "var(--status-ganho)" : "var(--text-faint)" }}>
+                          {conversationTimeLabel(conversa.updated_at)}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(conversa.canal_color)}>
+                          {conversa.canal_label}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(badge.color)}>
+                          {badge.label}
+                        </span>
+                        {conversa.ia_ativa ? (
+                          <Bot className="w-3.5 h-3.5" style={{ color: "var(--status-ganho)" }} />
+                        ) : (
+                          <User className="w-3.5 h-3.5" style={{ color: "var(--text-faint)" }} />
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                    {c.lead_identifier}
-                  </p>
-                </div>
-              </button>
-            );
-          }))
-          }
+                </button>
+              );
+            })
+          )}
         </div>
       </aside>
 
-      {/* Chat */}
       {!selected ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <MessageSquare className="w-12 h-12" style={{ color: "rgba(147,157,164,0.2)" }} />
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Selecione uma conversa</p>
+        <div className="flex-1 rounded-[28px] flex flex-col items-center justify-center px-8 text-center min-h-0" style={{ ...inboxPanelStyle, ...inboxCanvasStyle }}>
+          <div className="w-16 h-16 rounded-3xl flex items-center justify-center mb-5" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
+            <MessageSquare className="w-7 h-7" style={{ color: "var(--status-ganho)" }} />
+          </div>
+          <h3 className="text-xl font-extrabold tracking-[-0.02em]" style={{ color: "var(--text-primary)" }}>
+            Selecione uma conversa
+          </h3>
+          <p className="text-sm mt-2 max-w-md leading-6" style={{ color: "var(--text-secondary)" }}>
+            O chat vai abrir aqui com o histórico, status da IA e composer pronto para responder no mesmo fluxo do canal.
+          </p>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="px-6 py-4 flex items-center justify-between shrink-0"
-            style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-subtle)" }}>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
-                style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
+        <section className="flex-1 min-w-0 rounded-[28px] overflow-hidden flex flex-col min-h-0" style={inboxPanelStyle}>
+          <div className="px-6 py-4 flex items-center justify-between gap-4 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "var(--primary-bg)", color: "var(--status-ganho)" }}>
                 {selected.lead_nome.charAt(0).toUpperCase()}
               </div>
-              <div>
-                <p className="text-sm font-bold text-white">{selected.lead_nome}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ color: selected.canal_color, background: `${selected.canal_color}15` }}>{selected.canal_label}</span>
-                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{selected.lead_identifier}</p>
+              <div className="min-w-0">
+                <p className="text-lg font-extrabold truncate tracking-[-0.02em]" style={{ color: "var(--text-primary)" }}>
+                  {selected.lead_nome}
+                </p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(selected.canal_color)}>
+                    {selected.canal_label}
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                    {selected.lead_identifier}
+                  </span>
                 </div>
               </div>
             </div>
-            <button onClick={() => toggleIA(selected)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-              style={selected.ia_ativa
-                ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
-                : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid rgba(255,255,255,0.06)" }}>
+
+            <button
+              onClick={() => toggleIA(selected)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0"
+              style={
+                selected.ia_ativa
+                  ? {
+                      background: "var(--active-soft-bg)",
+                      color: "var(--status-ganho)",
+                      border: "1px solid var(--active-soft-border)",
+                    }
+                  : inboxGhostButtonStyle
+              }
+            >
               <Bot className="w-3.5 h-3.5" />
-              IA {selected.ia_ativa ? "ativa" : "desativada"}
+              IA {selected.ia_ativa ? "ativada" : "desativada"}
             </button>
           </div>
 
-          {/* Mensagens */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          <div className="flex-1 overflow-y-auto px-5 py-5 md:px-6 md:py-6 space-y-3" style={inboxCanvasStyle}>
             {msgsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="w-4 h-4 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" />
+              <div className="flex items-center justify-center py-12">
+                <div className="w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid var(--border-subtle)", borderTopColor: "var(--status-ganho)" }} />
               </div>
             ) : mensagens.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhuma mensagem ainda.</p>
+              <div className="text-center py-14">
+                <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
+                  <MessageSquare className="w-6 h-6" style={{ color: "var(--text-faint)" }} />
+                </div>
+                <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                  Nenhuma mensagem ainda
+                </p>
+                <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                  Assim que a conversa receber mensagens, o histórico vai aparecer aqui.
+                </p>
               </div>
             ) : (
               mensagens.map((msg: Mensagem) => {
                 const isLead = msg.remetente === "lead";
-                const isIA = msg.remetente === "ia";
+                const tone: "lead" | "humano" | "ia" = isLead ? "lead" : msg.remetente === "ia" ? "ia" : "humano";
+
                 return (
                   <div key={msg.id} className={`flex ${isLead ? "justify-start" : "justify-end"}`}>
-                    <div className="max-w-[70%]">
-                      {isIA && (
-                        <div className="flex items-center gap-1 mb-1 justify-end">
+                    <div className="max-w-[82%] md:max-w-[74%]">
+                      {tone === "ia" && (
+                        <div className="flex items-center gap-1.5 mb-1 justify-end">
                           <Bot className="w-3 h-3" style={{ color: "var(--status-ganho)" }} />
-                          <span className="text-[10px] font-bold" style={{ color: "var(--status-ganho)" }}>IA</span>
+                          <span className="text-[10px] font-bold" style={{ color: "var(--status-ganho)" }}>
+                            IA
+                          </span>
                         </div>
                       )}
-                      <div className="rounded-2xl overflow-hidden text-sm"
-                        style={isLead ? {
-                          background: "rgba(255,255,255,0.06)",
-                          color: "#f9f6ec",
-                          borderRadius: "4px 18px 18px 18px",
-                        } : {
-                          background: isIA ? "rgba(154,234,98,0.12)" : "#9aea62",
-                          color: isIA ? "#9aea62" : "#0a0a0a",
-                          borderRadius: "18px 4px 18px 18px",
-                        }}>
-                        <MediaContent msg={msg} isLead={isLead} isIA={isIA} />
+
+                      <div className="rounded-2xl overflow-hidden text-sm" style={inboxBubbleStyle(tone)}>
+                        <MediaContent msg={msg} tone={tone} />
                       </div>
-                      <p className={`text-[10px] mt-1 ${isLead ? "text-left" : "text-right"}`}
-                        style={{ color: "rgba(147,157,164,0.4)" }}>
+
+                      <p className={`text-[10px] mt-1 ${isLead ? "text-left" : "text-right"}`} style={{ color: "var(--text-faint)" }}>
                         {timeLabel(msg.created_at)}
                         {!isLead && (msg.enviada ? " · Enviado" : " · Pendente")}
                       </p>
@@ -318,64 +448,89 @@ export default function InboxPage() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
-          <div className="px-6 py-4 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <div className="flex items-center gap-2">
-              {/* Botão de anexo */}
-              <label className="w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0"
+          <div className="px-4 py-4 shrink-0" style={{ borderTop: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
+            <div className="rounded-[24px] p-2 flex items-center gap-2" style={inboxComposerStyle}>
+              <label
+                className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all shrink-0"
                 style={{
-                  background: "rgba(255,255,255,0.05)",
+                  background: "var(--ghost-bg)",
                   color: "var(--text-secondary)",
+                  border: "1px solid var(--chip-border)",
                   cursor: selected.supports_attachments ? "pointer" : "not-allowed",
                   opacity: selected.supports_attachments ? 1 : 0.45,
-                }}>
+                }}
+              >
                 <Paperclip className="w-4 h-4" />
-                <input type="file" className="hidden"
+                <input
+                  type="file"
+                  className="hidden"
                   disabled={!selected.supports_attachments || sending}
                   accept="image/*,audio/*,video/*,application/pdf,.doc,.docx"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0];
                     if (!file || !selectedId || !tenantId || !selected.supports_attachments) return;
+
                     setSending(true);
-                    const fd = new FormData();
-                    fd.append("file", file);
-                    fd.append("conversa_id", selectedId);
-                    fd.append("tenant_id", tenantId);
-                    const res = await fetch("/api/inbox/send", { method: "POST", body: fd });
-                    if (!res.ok) { const e = await res.json(); alert(e.error ?? "Erro ao enviar arquivo"); }
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    formData.append("conversa_id", selectedId);
+                    formData.append("tenant_id", tenantId);
+                    const res = await fetch("/api/inbox/send", { method: "POST", body: formData });
+                    if (!res.ok) {
+                      const err = await res.json();
+                      alert(err.error ?? "Erro ao enviar arquivo");
+                    }
                     setSending(false);
-                    e.target.value = "";
-                  }} />
+                    event.target.value = "";
+                  }}
+                />
               </label>
+
               <input
                 value={text}
-                onChange={e => setText(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && !event.shiftKey && handleSend()}
                 disabled={!selected.supports_outbound || sending}
-                placeholder={!selected.supports_outbound
-                  ? `Entrada via ${selected.canal_label}. Resposta ativa em breve.`
-                  : selected.canal === "email"
-                    ? "Escreva o corpo do email..."
-                    : "Digite uma mensagem..."}
-                className="flex-1 h-10 px-4 rounded-xl text-sm text-white outline-none"
-                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+                placeholder={
+                  !selected.supports_outbound
+                    ? `Entrada via ${selected.canal_label}. Resposta manual ativa em breve.`
+                    : selected.canal === "email"
+                      ? "Escreva o corpo do email..."
+                      : "Digite uma mensagem..."
+                }
+                className="flex-1 h-11 px-3 text-sm outline-none rounded-2xl"
+                style={{ background: "transparent", border: "none", color: "var(--text-primary)" }}
               />
+
               <button
                 onClick={handleSend}
                 disabled={!selected.supports_outbound || !text.trim() || sending}
-                className="w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0"
-                style={{
-                  background: text.trim() && !sending && selected.supports_outbound ? "#9aea62" : "rgba(255,255,255,0.06)",
-                  color: text.trim() && !sending && selected.supports_outbound ? "#0a0a0a" : "#939da4",
-                }}>
+                className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all shrink-0"
+                style={
+                  text.trim() && !sending && selected.supports_outbound
+                    ? {
+                        background: "var(--status-ganho)",
+                        color: "#0a0a0a",
+                        boxShadow: "0 10px 18px rgba(21,128,61,0.22)",
+                      }
+                    : {
+                        background: "var(--ghost-bg)",
+                        color: "var(--text-faint)",
+                        border: "1px solid var(--chip-border)",
+                      }
+                }
+              >
                 <Send className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-[10px] mt-2 text-center" style={{ color: "rgba(147,157,164,0.3)" }}>
-              Enter para enviar · Clipe para anexar imagem, áudio, vídeo ou documento
+
+            <p className="text-[10px] mt-2.5 text-center" style={{ color: "var(--text-faint)" }}>
+              {selected.supports_outbound
+                ? "Enter para enviar · Clipe para anexar imagem, áudio, vídeo ou documento"
+                : "Canal em modo inbound-first nesta fase. O histórico segue funcionando normalmente."}
             </p>
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

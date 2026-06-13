@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { handleInboundAutomation } from "@/lib/omnichannel/inbound-automation";
 import { sendInstagramTextMessage } from "@/lib/meta-channel";
+import {
+  buildInstagramLeadName,
+  fetchInstagramSenderProfile,
+  normalizeInstagramUsername,
+} from "@/lib/instagram-profiles";
 
 function adminClient() {
   return createServerClient<any>(
@@ -20,43 +25,8 @@ type InstagramInboundEvent = {
   metadata: Record<string, unknown>;
 };
 
-type InstagramSenderProfile = {
-  username: string | null;
-  name: string | null;
-  profilePicUrl: string | null;
-};
-
 function getVerifyToken() {
   return process.env.INSTAGRAM_VERIFY_TOKEN ?? process.env.WHATSAPP_VERIFY_TOKEN ?? "liberty-instagram";
-}
-
-async function fetchInstagramSenderProfile(accessToken: string, senderId: string): Promise<InstagramSenderProfile | null> {
-  try {
-    const response = await fetch(
-      `https://graph.facebook.com/v20.0/${senderId}?fields=username,name,profile_pic&access_token=${accessToken}`,
-      { cache: "no-store" },
-    );
-
-    if (!response.ok) {
-      console.warn("Instagram sender profile fetch failed:", response.status, await response.text());
-      return null;
-    }
-
-    const data = (await response.json()) as {
-      username?: string | null;
-      name?: string | null;
-      profile_pic?: string | null;
-    };
-
-    return {
-      username: data.username?.trim() || null,
-      name: data.name?.trim() || null,
-      profilePicUrl: data.profile_pic?.trim() || null,
-    };
-  } catch (error) {
-    console.warn("Instagram sender profile fetch error:", error);
-    return null;
-  }
 }
 
 function extractEvents(body: any): InstagramInboundEvent[] {
@@ -165,11 +135,8 @@ export async function POST(request: NextRequest) {
       const accessToken = String(config.access_token);
       const pageId = String(config.page_id ?? event.pageId);
       const senderProfile = await fetchInstagramSenderProfile(accessToken, event.senderId);
-      const username = senderProfile?.username?.replace(/^@/, "") ?? null;
-      const leadName =
-        senderProfile?.name?.trim() ||
-        senderProfile?.username?.trim() ||
-        `Instagram ${event.senderId.slice(-6)}`;
+      const username = normalizeInstagramUsername(senderProfile?.username);
+      const leadName = buildInstagramLeadName(event.senderId, senderProfile);
 
       await handleInboundAutomation({
         supabase,

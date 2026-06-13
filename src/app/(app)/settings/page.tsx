@@ -417,6 +417,7 @@ function InstagramManagePanel({
 }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshingNames, setRefreshingNames] = useState(false);
   const [connected, setConnected] = useState(false);
   const [username, setUsername] = useState("");
   const [pageId, setPageId] = useState("");
@@ -483,6 +484,34 @@ function InstagramManagePanel({
     onStatusChange("available");
   }
 
+  async function refreshNames() {
+    if (!tenantId) return;
+    setRefreshingNames(true);
+
+    const response = await fetch("/api/instagram/backfill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId }),
+    });
+    const data = await response.json().catch(() => null);
+    setRefreshingNames(false);
+
+    if (!response.ok) {
+      alert(data?.error ?? "Erro ao atualizar nomes do Instagram");
+      return;
+    }
+
+    alert(
+      `Backfill concluido.\n` +
+      `Leads verificados: ${data.scanned ?? 0}\n` +
+      `Leads atualizados: ${data.updated ?? 0}\n` +
+      `Nomes corrigidos: ${data.renamed ?? 0}\n` +
+      `Usuarios sincronizados: ${data.usernames_synced ?? 0}\n` +
+      `Sem external_id: ${data.skipped_without_external_id ?? 0}\n` +
+      `Ainda sem nome real pela Meta: ${data.unresolved ?? 0}`,
+    );
+  }
+
   return (
     <div className="p-5 space-y-4">
       <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
@@ -530,6 +559,30 @@ function InstagramManagePanel({
               <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Access Token da Meta</Label>
               <Input type="password" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} placeholder="EAAG..." className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
             </div>
+
+            {connected && (
+              <div className="rounded-xl p-3 flex items-center justify-between gap-3" style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)" }}>
+                <div>
+                  <p className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Corrigir nomes antigos do inbox</p>
+                  <p className="text-[11px] mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    Atualiza conversas antigas que ainda ficaram como "Instagram 123456" usando os dados reais disponiveis na Meta.
+                  </p>
+                </div>
+                <button
+                  onClick={refreshNames}
+                  disabled={refreshingNames}
+                  className="px-3 h-8 rounded-xl text-xs font-bold shrink-0"
+                  style={{
+                    background: refreshingNames ? "var(--ghost-bg)" : "var(--primary-bg)",
+                    color: refreshingNames ? "var(--text-secondary)" : "var(--status-ganho)",
+                    border: "1px solid var(--primary-border)",
+                    opacity: refreshingNames ? 0.8 : 1,
+                  }}
+                >
+                  {refreshingNames ? "Atualizando..." : "Atualizar nomes"}
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1.5">

@@ -107,7 +107,7 @@ export function Sidebar() {
 
               <Link
                 href={href}
-                className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
+                className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
                 style={{
                   color: active ? "var(--status-ganho)" : hovered ? "var(--sidebar-foreground)" : "var(--text-secondary)",
                   background: active ? "var(--primary-bg)" : hovered ? "var(--surface-soft)" : "transparent",
@@ -140,7 +140,7 @@ export function Sidebar() {
           {isAgencyUser && (
             <Link
               href="/agency"
-              className="flex items-start gap-3 px-3 py-2.5 rounded-xl font-medium mb-1"
+              className="flex items-start gap-3 px-3 py-2.5 rounded-lg font-medium mb-1"
               style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)", transition: "all 0.15s ease" }}
               onMouseEnter={(event) => { (event.currentTarget as HTMLAnchorElement).style.background = "var(--primary-bg)"; }}
               onMouseLeave={(event) => { (event.currentTarget as HTMLAnchorElement).style.background = "var(--active-soft-bg)"; }}
@@ -160,7 +160,7 @@ export function Sidebar() {
 
           <Link
             href="/settings"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
             style={{ color: "var(--text-secondary)", border: "1px solid transparent", transition: "all 0.15s ease" }}
             onMouseEnter={(event) => {
               const el = event.currentTarget as HTMLAnchorElement;
@@ -179,7 +179,7 @@ export function Sidebar() {
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
             style={{ color: "var(--text-faint)", border: "1px solid transparent", transition: "all 0.15s ease" }}
             onMouseEnter={(event) => {
               const el = event.currentTarget as HTMLButtonElement;

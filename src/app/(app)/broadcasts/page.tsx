@@ -11,7 +11,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   agendado:  { label: "Agendado",  color: "#facc15", icon: Clock },
   enviando:  { label: "Enviando",  color: "#60a5fa", icon: Play },
   pausado:   { label: "Pausado",   color: "#fb923c", icon: Pause },
-  concluido: { label: "Concluído", color: "#9aea62", icon: CheckCircle },
+  concluido: { label: "Concluído", color: "#10B981", icon: CheckCircle },
   cancelado: { label: "Cancelado", color: "#f87171", icon: XCircle },
   falhou:    { label: "Falhou",    color: "#f87171", icon: AlertTriangle },
 };
@@ -38,21 +38,21 @@ export default function BroadcastsPage() {
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
   return (
-    <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Broadcast</h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Disparo em massa para seus leads via WhatsApp</p>
+          <h1 className="text-lg font-semibold text-white tracking-tight">Broadcast</h1>
+          <p className="text-[13px] mt-0.5" style={{ color: "var(--text-secondary)" }}>Disparo em massa para seus leads via WhatsApp</p>
         </div>
         <div className="flex gap-2">
           <Link href="/broadcasts/templates"
-            className="px-4 h-9 rounded-xl text-sm font-medium flex items-center"
+            className="px-4 h-9 rounded-lg text-sm font-medium flex items-center"
             style={{ background: "var(--input-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
             Templates
           </Link>
           <Link href="/broadcasts/new"
-            className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-            style={{ background: "var(--status-ganho)", color: "#0a0a0a" }}>
+            className="flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold"
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
             <Plus className="w-4 h-4" /> Nova campanha
           </Link>
         </div>
@@ -61,12 +61,12 @@ export default function BroadcastsPage() {
       {loading ? (
         <div className="flex justify-center py-16"><div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
       ) : campaigns.length === 0 ? (
-        <div className="py-20 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)" }}>
+        <div className="py-20 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)" }}>
           <Megaphone className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--text-faint)" }} />
           <p className="text-sm font-medium text-white mb-1">Nenhuma campanha ainda</p>
           <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>Crie sua primeira campanha de broadcast</p>
-          <Link href="/broadcasts/new" className="px-5 h-9 rounded-xl text-sm font-bold inline-flex items-center gap-2"
-            style={{ background: "var(--status-ganho)", color: "#0a0a0a" }}>
+          <Link href="/broadcasts/new" className="px-5 h-9 rounded-lg text-sm font-semibold inline-flex items-center gap-2"
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
             <Plus className="w-4 h-4" /> Criar campanha
           </Link>
         </div>
@@ -78,7 +78,7 @@ export default function BroadcastsPage() {
             const pct = c.total_destinatarios > 0 ? Math.round((c.total_enviados / c.total_destinatarios) * 100) : 0;
             return (
               <Link key={c.id} href={`/broadcasts/${c.id}`}
-                className="block rounded-2xl p-5 transition-all"
+                className="block rounded-xl p-5 transition-all"
                 style={cardStyle}
                 onMouseEnter={e => (e.currentTarget.style.border = "1px solid var(--border-strong)")}
                 onMouseLeave={e => (e.currentTarget.style.border = "1px solid var(--border-subtle)")}>
@@ -110,7 +110,7 @@ export default function BroadcastsPage() {
                 {c.status === "concluido" && (
                   <div className="grid grid-cols-4 gap-3">
                     {[
-                      { label: "Enviados", v: c.total_enviados, color: "#9aea62" },
+                      { label: "Enviados", v: c.total_enviados, color: "#10B981" },
                       { label: "Entregues", v: c.total_entregues, color: "#60a5fa" },
                       { label: "Lidos", v: c.total_lidos, color: "#a78bfa" },
                       { label: "Opt-outs", v: c.total_optouts, color: "#f87171" },

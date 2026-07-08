@@ -9,7 +9,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-serif: var(--font-serif);
-  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,31 +49,31 @@
   --card-foreground: #ffffff;
   --popover: #111111;
   --popover-foreground: #ffffff;
-  --primary: #9aea62;
+  --primary: #10B981;
   --primary-foreground: #0a0a0a;
   --secondary: rgba(255, 255, 255, 0.06);
   --secondary-foreground: #f9f6ec;
   --muted: rgba(255, 255, 255, 0.04);
   --muted-foreground: #939da4;
-  --accent: rgba(154, 234, 98, 0.1);
-  --accent-foreground: #9aea62;
+  --accent: rgba(16, 185, 129, 0.1);
+  --accent-foreground: #10B981;
   --destructive: #ff4444;
   --border: rgba(255, 255, 255, 0.07);
   --input: rgba(255, 255, 255, 0.08);
-  --ring: rgba(154, 234, 98, 0.4);
-  --radius: 1rem;
+  --ring: rgba(16, 185, 129, 0.4);
+  --radius: 0.625rem;
 
   --sidebar: #0d0d0d;
   --sidebar-foreground: #f9f6ec;
-  --sidebar-primary: #9aea62;
+  --sidebar-primary: #10B981;
   --sidebar-primary-foreground: #0a0a0a;
   --sidebar-accent: rgba(255, 255, 255, 0.05);
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.06);
-  --sidebar-ring: rgba(154, 234, 98, 0.4);
+  --sidebar-ring: rgba(16, 185, 129, 0.4);
 
-  --lime: #9aea62;
-  --lime-dark: #78c96c;
+  --lime: #10B981;
+  --lime-dark: #059669;
   --cream: #f9f6ec;
   --muted-text: #939da4;
 
@@ -90,15 +91,15 @@
   --status-novo:     rgba(255,255,255,0.2);
   --status-contato:  #60a5fa;
   --status-qualificado: #a78bfa;
-  --status-ganho:    #9aea62;
+  --status-ganho:    #10B981;
   --status-perdido:  #f87171;
   --input-bg:        rgba(255,255,255,0.04);
   --input-border:    rgba(255,255,255,0.08);
   --scrim:           rgba(0,0,0,0.6);
 
   /* Primary accent backgrounds/borders */
-  --primary-bg:      rgba(154,234,98,0.08);
-  --primary-border:  rgba(154,234,98,0.2);
+  --primary-bg:      rgba(16,185,129,0.08);
+  --primary-border:  rgba(16,185,129,0.2);
   --surface-gradient: linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%);
   --surface-soft:    rgba(255,255,255,0.03);
   --surface-hover:   rgba(255,255,255,0.05);
@@ -109,18 +110,18 @@
   --chip-border:     rgba(255,255,255,0.08);
   --sidebar-gradient: linear-gradient(180deg, #0c0c0c 0%, #080808 100%);
   --chat-canvas:     #090d09;
-  --chat-pattern:    rgba(154,234,98,0.03);
-  --chat-glow:       rgba(154,234,98,0.07);
+  --chat-pattern:    rgba(16,185,129,0.03);
+  --chat-glow:       rgba(16,185,129,0.07);
   --chat-glow-soft:  rgba(96,165,250,0.05);
   --chat-inbound-bg: #171717;
   --chat-inbound-border: rgba(255,255,255,0.08);
   --chat-inbound-text: #F8FAFC;
   --chat-outbound-bg: #133623;
-  --chat-outbound-border: rgba(154,234,98,0.2);
+  --chat-outbound-border: rgba(16,185,129,0.2);
   --chat-outbound-text: #ECFDF3;
-  --chat-ai-bg:      rgba(154,234,98,0.14);
-  --chat-ai-border:  rgba(154,234,98,0.2);
-  --chat-ai-text:    #B8F77A;
+  --chat-ai-bg:      rgba(16,185,129,0.14);
+  --chat-ai-border:  rgba(16,185,129,0.2);
+  --chat-ai-text:    #6EE7B7;
 }
 
 /* ── Light Theme ── */
@@ -250,6 +251,7 @@ html.light main.crm-main .react-flow__attribution {
   }
 
   html {
+    font-size: 15px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-family: var(--font-sans), system-ui, sans-serif;
@@ -281,7 +283,7 @@ html.light main.crm-main .react-flow__attribution {
   }
 
   .btn-lime {
-    background: linear-gradient(135deg, #9aea62 8%, #9aea62 100%);
+    background: linear-gradient(135deg, #10B981 8%, #10B981 100%);
     color: #0a0a0a;
     border-radius: 500px;
     font-weight: 700;

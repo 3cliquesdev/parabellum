@@ -16,7 +16,7 @@ const TIPO_LABEL: Record<AtividadeTipo, string> = {
   ligacao: "Ligação", whatsapp: "WhatsApp", email: "E-mail", reuniao: "Reunião", outro: "Outro",
 };
 const TIPO_COLOR: Record<AtividadeTipo, string> = {
-  ligacao: "#60a5fa", whatsapp: "#9aea62", email: "#a78bfa", reuniao: "#fb923c", outro: "#939da4",
+  ligacao: "#60a5fa", whatsapp: "#10B981", email: "#a78bfa", reuniao: "#fb923c", outro: "#939da4",
 };
 
 export default function ActivitiesPage() {
@@ -74,11 +74,11 @@ export default function ActivitiesPage() {
   );
 
   return (
-    <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Atividades</h1>
-          <p className="text-sm mt-1 font-medium" style={{ color: "var(--text-secondary)" }}>
+          <h1 className="text-lg font-semibold text-white tracking-tight">Atividades</h1>
+          <p className="text-[13px] mt-0.5 font-medium" style={{ color: "var(--text-secondary)" }}>
             {atividades.filter(a => !a.concluida).length} pendentes · {atividades.filter(a => a.concluida).length} concluídas
           </p>
         </div>
@@ -88,7 +88,7 @@ export default function ActivitiesPage() {
       <div className="flex gap-2">
         {[["all","Todas"], ["pending","Pendentes"], ["done","Concluídas"]].map(([v, l]) => (
           <button key={v} onClick={() => setFilter(v as typeof filter)}
-            className="px-4 h-8 rounded-xl text-xs font-bold transition-all"
+            className="px-3.5 h-8 rounded-lg text-xs font-semibold transition-all"
             style={filter === v
               ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)", boxShadow: "0 6px 18px rgba(21,128,61,0.08)" }
               : { background: "var(--input-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
@@ -100,7 +100,7 @@ export default function ActivitiesPage() {
       {/* List */}
       <div className="space-y-2">
         {filtered.length === 0 ? (
-          <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)" }}>
+          <div className="py-16 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)" }}>
             <MessageSquare className="w-8 h-8 mx-auto mb-3" style={{ color: "var(--text-faint)" }} />
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhuma atividade aqui.</p>
           </div>

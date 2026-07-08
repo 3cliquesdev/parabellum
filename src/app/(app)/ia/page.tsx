@@ -22,7 +22,7 @@ const TOOLS = [
     icon: Bot,
     label: "Agentes",
     desc: "Crie agentes especializados com personalidades e funções diferentes",
-    color: "#9aea62",
+    color: "#10B981",
     statKey: "agents",
     statLabel: "agente(s) ativo(s)",
   },
@@ -111,17 +111,17 @@ export default function StudioIAPage() {
   }, [tenantId]);
 
   return (
-    <div className="p-8 space-y-8" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
 
       {/* Header */}
-      <div className="flex items-start gap-4">
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
           style={{ background: "var(--primary-bg)", border: "1px solid var(--primary-border)" }}>
-          <Sparkles className="w-6 h-6" style={{ color: "var(--status-ganho)" }} />
+          <Sparkles className="w-4 h-4" style={{ color: "var(--status-ganho)" }} />
         </div>
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Studio IA</h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
+          <h1 className="text-lg font-semibold text-white tracking-tight">Studio IA</h1>
+          <p className="text-[13px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
             Configure, treine e gerencie toda a inteligência artificial do seu CRM
           </p>
         </div>
@@ -131,16 +131,16 @@ export default function StudioIAPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {TOOLS.map(({ href, icon: Icon, label, desc, color, statKey, statLabel }, idx) => {
           const statValue = statKey ? (stats as any)[statKey] : null;
-          const accentColor = color === "#9aea62" ? "var(--status-ganho)" : color;
-          const accentBg = color === "#9aea62" ? "var(--primary-bg)" : `${color}12`;
-          const accentBorder = color === "#9aea62" ? "var(--primary-border)" : `${color}20`;
+          const accentColor = color === "#10B981" ? "var(--status-ganho)" : color;
+          const accentBg = color === "#10B981" ? "var(--primary-bg)" : `${color}12`;
+          const accentBorder = color === "#10B981" ? "var(--primary-border)" : `${color}20`;
           return (
             <motion.div key={href}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: idx * 0.06, ease: [0.16, 1, 0.3, 1] }}>
             <Link href={href}
-              className="group rounded-2xl p-6 flex flex-col gap-4 transition-all duration-200 h-full block"
+              className="group rounded-xl p-5 flex flex-col gap-3 transition-all duration-200 h-full block"
               style={{
                 background: "var(--surface-gradient)",
                 border: "1px solid var(--border-subtle)",
@@ -159,9 +159,9 @@ export default function StudioIAPage() {
               }}>
 
               <div className="flex items-start justify-between">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center"
                   style={{ background: accentBg, border: `1px solid ${accentBorder}` }}>
-                  <Icon className="w-5 h-5" style={{ color: accentColor }} />
+                  <Icon className="w-4 h-4" style={{ color: accentColor }} />
                 </div>
                 <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
                   style={{ color: "var(--text-secondary)" }} />
@@ -189,7 +189,7 @@ export default function StudioIAPage() {
 
       {/* Quick status */}
       {(stats.agents === 0 || stats.articles === 0) && (
-        <div className="rounded-2xl p-6" style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)" }}>
+        <div className="rounded-xl p-5" style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)" }}>
           <h3 className="text-sm font-bold text-white mb-3">Comece por aqui</h3>
           <div className="space-y-2">
             {stats.agents === 0 && (

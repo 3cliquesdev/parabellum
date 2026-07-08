@@ -29,7 +29,7 @@ function timeAgo(dateStr: string) {
 
 function SkeletonCard() {
   return (
-    <div className="rounded-2xl p-6 animate-pulse" style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
+    <div className="rounded-xl p-5 animate-pulse" style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
       <div className="h-3 w-20 rounded mb-4" style={{ background: "var(--border-subtle)" }} />
       <div className="h-8 w-28 rounded mb-2" style={{ background: "var(--input-border)" }} />
       <div className="h-2 w-16 rounded" style={{ background: "var(--input-bg)" }} />
@@ -41,13 +41,13 @@ function LeadEmptyState() {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
       className="flex flex-col items-center justify-center py-14 text-center">
-      <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+      <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
         style={{ background: "var(--accent)", boxShadow: "0 0 32px var(--accent)" }}>
-        <Kanban size={24} style={{ color: "var(--status-ganho)" }} />
+        <Kanban size={22} style={{ color: "var(--status-ganho)" }} />
       </div>
-      <p className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>Nenhum lead ainda</p>
+      <p className="text-sm font-semibold mb-1" style={{ color: "var(--text-primary)" }}>Nenhum lead ainda</p>
       <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>Adicione seu primeiro lead para começar</p>
-      <Link href="/pipeline" className="inline-flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl"
+      <Link href="/pipeline" className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg"
         style={{ background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>
         Ir para o pipeline <ArrowRight size={12} />
       </Link>
@@ -98,7 +98,7 @@ export default function DashboardPage() {
 
   if (tenantLoading || loading) {
     return (
-      <div className="p-8 space-y-8" style={{ fontFamily: "var(--font-sans)" }}>
+      <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
         <div className="flex items-start justify-between">
           <div>
             <div className="h-7 w-32 rounded-xl animate-pulse" style={{ background: "var(--border-subtle)" }} />
@@ -115,17 +115,17 @@ export default function DashboardPage() {
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
   return (
-    <div className="p-8 space-y-8" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
         className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Visão Geral</h1>
-          <p className="text-sm mt-1 font-medium capitalize" style={{ color: "var(--text-secondary)" }}>{monthLabel}</p>
+          <h1 className="text-lg font-semibold text-white tracking-tight">Visão Geral</h1>
+          <p className="text-[13px] mt-0.5 font-medium capitalize" style={{ color: "var(--text-secondary)" }}>{monthLabel}</p>
         </div>
         <button onClick={fetchData}
-          className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:rotate-180"
+          className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:rotate-180"
           style={{ background: "var(--input-bg)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", transition: "all 0.3s ease" }}>
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -153,7 +153,7 @@ export default function DashboardPage() {
 
         {/* Leads recentes */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}
-          className="lg:col-span-2 rounded-2xl p-6" style={cardStyle}>
+          className="lg:col-span-2 rounded-xl p-5" style={cardStyle}>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-bold text-white">Leads recentes</h2>
             <Link href="/pipeline" className="text-xs font-bold flex items-center gap-1" style={{ color: "var(--status-ganho)" }}>
@@ -198,7 +198,7 @@ export default function DashboardPage() {
 
         {/* Pipeline por etapa */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.4 }}
-          className="rounded-2xl p-6" style={cardStyle}>
+          className="rounded-xl p-5" style={cardStyle}>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-bold text-white">Pipeline</h2>
             <Link href="/pipeline" className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Detalhes</Link>

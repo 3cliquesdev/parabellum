@@ -126,10 +126,10 @@ export default function ResponsesPage() {
   const categorias = [...new Set(responses.map((response) => response.categoria))];
 
   return (
-    <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Respostas Rápidas</h1>
+          <h1 className="text-lg font-semibold text-white tracking-[-0.03em]">Respostas Rápidas</h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
             {responses.length} templates · Digite &quot;!&quot; no inbox para usar
           </p>
@@ -140,9 +140,9 @@ export default function ResponsesPage() {
               onClick={addDefaults}
               className="px-4 h-9 rounded-xl text-sm font-bold"
               style={{
-                background: "rgba(154,234,98,0.1)",
+                background: "rgba(16,185,129,0.1)",
                 color: "var(--status-ganho)",
-                border: "1px solid rgba(154,234,98,0.2)",
+                border: "1px solid rgba(16,185,129,0.2)",
               }}
             >
               Adicionar padrões
@@ -155,7 +155,7 @@ export default function ResponsesPage() {
               setForm({ titulo: "", atalho: "", conteudo: "", categoria: "Geral" });
             }}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-            style={{ background: "#9aea62", color: "#0a0a0a" }}
+            style={{ background: "#10B981", color: "#0a0a0a" }}
           >
             <Plus className="w-4 h-4" /> Nova resposta
           </button>
@@ -163,7 +163,7 @@ export default function ResponsesPage() {
       </div>
 
       {showForm && (
-        <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+        <div className="rounded-xl p-6 space-y-4" style={cardStyle}>
           <h2 className="text-sm font-bold text-white">{editing ? "Editar resposta" : "Nova resposta rápida"}</h2>
           <div className="grid grid-cols-3 gap-3">
             <input
@@ -178,7 +178,7 @@ export default function ResponsesPage() {
               onChange={(event) => setForm((current) => ({ ...current, atalho: event.target.value }))}
               placeholder="!atalho"
               className="h-10 px-3 rounded-xl text-sm text-white outline-none font-mono"
-              style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.12)" }}
+              style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.12)" }}
             />
             <input
               value={form.categoria}
@@ -208,7 +208,7 @@ export default function ResponsesPage() {
               onClick={saveResponse}
               disabled={saving}
               className="px-5 h-9 rounded-xl text-sm font-bold"
-              style={{ background: "#9aea62", color: "#0a0a0a" }}
+              style={{ background: "#10B981", color: "#0a0a0a" }}
             >
               {saving ? "Salvando..." : "Salvar"}
             </button>
@@ -217,7 +217,7 @@ export default function ResponsesPage() {
       )}
 
       {responses.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
+        <div className="py-16 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhuma resposta rápida ainda.</p>
         </div>
       ) : (
@@ -236,7 +236,7 @@ export default function ResponsesPage() {
                           {response.atalho && (
                             <span
                               className="text-xs px-1.5 py-0.5 rounded font-mono font-bold"
-                              style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}
+                              style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)" }}
                             >
                               {response.atalho}
                             </span>
@@ -244,7 +244,7 @@ export default function ResponsesPage() {
                         </div>
                         <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => copyText(response.id, response.conteudo)}>
-                            <Copy className="w-3.5 h-3.5" style={{ color: copied === response.id ? "#9aea62" : "#939da4" }} />
+                            <Copy className="w-3.5 h-3.5" style={{ color: copied === response.id ? "#10B981" : "#939da4" }} />
                           </button>
                           <button
                             onClick={() => {

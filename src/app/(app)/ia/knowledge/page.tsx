@@ -163,11 +163,11 @@ export default function KnowledgePage() {
   const published = articles.filter(a => a.publicado).length;
 
   return (
-    <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Base de Conhecimento</h1>
+          <h1 className="text-lg font-semibold text-white tracking-tight">Base de Conhecimento</h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
             {articles.length} artigos · {published} publicados · {withEmbedding} com embedding
           </p>
@@ -176,21 +176,21 @@ export default function KnowledgePage() {
           {articles.some(a => !a.embedding) && (
             <button onClick={generateAllEmbeddings} disabled={embeddingId === "all"}
               className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold transition-all"
-              style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}>
+              style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }}>
               <Zap className="w-4 h-4" />
               {embeddingId === "all" ? "Gerando..." : "Gerar todos embeddings"}
             </button>
           )}
           <button onClick={() => { setShowForm(true); setEditing(null); setForm({ titulo: "", conteudo: "", categoria: "Geral", tags: "" }); }}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-            style={{ background: "#9aea62", color: "#0a0a0a" }}>
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
             <Plus className="w-4 h-4" /> Novo artigo
           </button>
         </div>
       </div>
 
       {/* Card de Importação */}
-      <div className="rounded-2xl p-5" style={cardStyle}>
+      <div className="rounded-xl p-5" style={cardStyle}>
         <p className="text-xs font-bold text-white mb-3">Importar conhecimento</p>
         <div className="grid grid-cols-3 gap-2 mb-4">
           {([
@@ -202,10 +202,10 @@ export default function KnowledgePage() {
               onClick={() => { if (id === "write") { setShowForm(true); setEditing(null); setForm({ titulo: "", conteudo: "", categoria: "Geral", tags: "" }); setImportMode(null); } else setImportMode(importMode === id ? null : id); }}
               className="flex flex-col items-start gap-1.5 p-3.5 rounded-xl text-left transition-all"
               style={(importMode === id || (id === "write" && showForm))
-                ? { background: "rgba(154,234,98,0.08)", border: "1px solid rgba(154,234,98,0.25)" }
+                ? { background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)" }
                 : { background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
-              <Icon className="w-4 h-4" style={{ color: (importMode === id || (id === "write" && showForm)) ? "#9aea62" : "#939da4" }} />
-              <span className="text-xs font-bold" style={{ color: (importMode === id || (id === "write" && showForm)) ? "#9aea62" : "var(--text-primary)" }}>{label}</span>
+              <Icon className="w-4 h-4" style={{ color: (importMode === id || (id === "write" && showForm)) ? "#10B981" : "#939da4" }} />
+              <span className="text-xs font-bold" style={{ color: (importMode === id || (id === "write" && showForm)) ? "#10B981" : "var(--text-primary)" }}>{label}</span>
               <span className="text-[10px]" style={{ color: "rgba(147,157,164,0.5)" }}>{desc}</span>
             </button>
           ))}
@@ -221,7 +221,7 @@ export default function KnowledgePage() {
                 style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
               <button onClick={importFromUrl} disabled={importing || !importUrl}
                 className="px-4 h-9 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                style={{ background: importing ? "rgba(154,234,98,0.1)" : "#9aea62", color: importing ? "#9aea62" : "#0a0a0a", opacity: !importUrl ? 0.5 : 1 }}>
+                style={{ background: importing ? "rgba(16,185,129,0.1)" : "#10B981", color: importing ? "#10B981" : "#0a0a0a", opacity: !importUrl ? 0.5 : 1 }}>
                 {importing ? <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Importando...</> : <><Globe className="w-3 h-3" /> Importar</>}
               </button>
             </div>
@@ -233,8 +233,8 @@ export default function KnowledgePage() {
         {importMode === "file" && (
           <div className="space-y-2">
             <label className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
-              style={{ background: "var(--surface-soft)", border: `1px dashed ${importFile ? "rgba(154,234,98,0.4)" : "var(--border-strong)"}` }}>
-              <Upload className="w-4 h-4 shrink-0" style={{ color: importFile ? "#9aea62" : "#939da4" }} />
+              style={{ background: "var(--surface-soft)", border: `1px dashed ${importFile ? "rgba(16,185,129,0.4)" : "var(--border-strong)"}` }}>
+              <Upload className="w-4 h-4 shrink-0" style={{ color: importFile ? "#10B981" : "#939da4" }} />
               <div className="flex-1 min-w-0">
                 {importFile
                   ? <p className="text-xs font-bold truncate" style={{ color: "var(--status-ganho)" }}>{importFile.name}</p>
@@ -245,7 +245,7 @@ export default function KnowledgePage() {
             </label>
             <button onClick={importFromFile} disabled={importing || !importFile}
               className="w-full h-9 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
-              style={{ background: importing ? "rgba(154,234,98,0.1)" : "#9aea62", color: importing ? "#9aea62" : "#0a0a0a", opacity: !importFile ? 0.5 : 1 }}>
+              style={{ background: importing ? "rgba(16,185,129,0.1)" : "#10B981", color: importing ? "#10B981" : "#0a0a0a", opacity: !importFile ? 0.5 : 1 }}>
               {importing ? <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Processando documento...</> : <><FileText className="w-3 h-3" /> Processar e indexar</>}
             </button>
           </div>
@@ -254,9 +254,9 @@ export default function KnowledgePage() {
         {/* Resultado */}
         {importResult && (
           <div className="mt-2 px-3 py-2 rounded-lg flex items-center gap-2"
-            style={{ background: importResult.ok ? "rgba(154,234,98,0.06)" : "rgba(248,113,113,0.06)", border: `1px solid ${importResult.ok ? "rgba(154,234,98,0.2)" : "rgba(248,113,113,0.2)"}` }}>
-            <span className="text-xs font-bold" style={{ color: importResult.ok ? "#9aea62" : "#f87171" }}>{importResult.ok ? "✓" : "✗"}</span>
-            <span className="text-xs" style={{ color: importResult.ok ? "#9aea62" : "#f87171" }}>{importResult.msg}</span>
+            style={{ background: importResult.ok ? "rgba(16,185,129,0.06)" : "rgba(248,113,113,0.06)", border: `1px solid ${importResult.ok ? "rgba(16,185,129,0.2)" : "rgba(248,113,113,0.2)"}` }}>
+            <span className="text-xs font-bold" style={{ color: importResult.ok ? "#10B981" : "#f87171" }}>{importResult.ok ? "✓" : "✗"}</span>
+            <span className="text-xs" style={{ color: importResult.ok ? "#10B981" : "#f87171" }}>{importResult.msg}</span>
           </div>
         )}
       </div>
@@ -266,7 +266,7 @@ export default function KnowledgePage() {
         {[["artigos", "Artigos"], ["candidatos", `Candidatos (${candidates.length})`]].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v as typeof tab)}
             className="px-4 h-8 rounded-xl text-xs font-bold"
-            style={tab === v ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
+            style={tab === v ? { background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }
               : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
             {l}
           </button>
@@ -285,7 +285,7 @@ export default function KnowledgePage() {
 
       {/* Form */}
       {showForm && (
-        <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+        <div className="rounded-xl p-6 space-y-4" style={cardStyle}>
           <h2 className="text-sm font-bold text-white">{editing ? "Editar artigo" : "Novo artigo"}</h2>
           <input value={form.titulo} onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))} placeholder="Título do artigo"
             className="w-full h-10 px-3 rounded-xl text-sm text-white outline-none"
@@ -305,7 +305,7 @@ export default function KnowledgePage() {
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => { setShowForm(false); setEditing(null); }} className="px-4 h-9 rounded-xl text-sm" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Cancelar</button>
-            <button onClick={saveArticle} disabled={saving} className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#9aea62", color: "#0a0a0a" }}>
+            <button onClick={saveArticle} disabled={saving} className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
               {saving ? "Salvando..." : "Salvar"}
             </button>
           </div>
@@ -316,7 +316,7 @@ export default function KnowledgePage() {
       {tab === "artigos" && (
         loading ? <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
         : filtered.length === 0 ? (
-          <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
+          <div className="py-16 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
             <BookOpen className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(147,157,164,0.3)" }} />
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum artigo ainda.</p>
             <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>Adicione artigos para a IA usar nas respostas.</p>
@@ -334,7 +334,7 @@ export default function KnowledgePage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {a.embedding
-                    ? <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>✓ Embedding</span>
+                    ? <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)" }}>✓ Embedding</span>
                     : <button onClick={() => generateEmbedding(a)} disabled={embeddingId === a.id}
                         className="text-[10px] px-2 py-1 rounded-full font-bold transition-all"
                         style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>
@@ -359,7 +359,7 @@ export default function KnowledgePage() {
       {/* Candidates */}
       {tab === "candidatos" && (
         candidates.length === 0 ? (
-          <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
+          <div className="py-16 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum candidato pendente.</p>
             <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>Quando leads fecham negócio, a IA extrai conhecimento automaticamente.</p>
           </div>
@@ -372,7 +372,7 @@ export default function KnowledgePage() {
                 <p className="text-xs font-bold mb-1" style={{ color: "var(--text-secondary)" }}>Resposta sugerida</p>
                 <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>{c.resposta}</p>
                 <div className="flex gap-2">
-                  <button onClick={() => approveCandidate(c)} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: "#9aea62", color: "#0a0a0a" }}>Aprovar</button>
+                  <button onClick={() => approveCandidate(c)} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>Aprovar</button>
                   <button onClick={() => rejectCandidate(c.id)} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: "rgba(248,113,113,0.1)", color: "#f87171" }}>Rejeitar</button>
                 </div>
               </div>

@@ -6,7 +6,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 
 const CENARIOS = [
-  { id: "normal", label: "Normal", cor: "#9aea62", desc: "Conversa padrão de vendas" },
+  { id: "normal", label: "Normal", cor: "#10B981", desc: "Conversa padrão de vendas" },
   { id: "objecao_preco", label: "Objeção de Preço", cor: "#facc15", desc: "Lead acha caro" },
   { id: "cliente_irritado", label: "Cliente Irritado", cor: "#f87171", desc: "Lead insatisfeito" },
   { id: "fechamento", label: "Fechamento", cor: "#60a5fa", desc: "Lead pronto para fechar" },
@@ -79,22 +79,22 @@ export default function TrainingPage() {
   const cenarioInfo = CENARIOS.find(c => c.id === cenario);
 
   return (
-    <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Exemplos de Treinamento</h1>
+          <h1 className="text-lg font-semibold text-white tracking-[-0.03em]">Exemplos de Treinamento</h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Ensine a IA como responder em cada situação</p>
         </div>
         <div className="flex gap-2">
           {examples.length === 0 && (
             <button onClick={addDefault} className="px-4 h-9 rounded-xl text-sm font-bold"
-              style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}>
+              style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }}>
               Adicionar exemplos padrão
             </button>
           )}
           <button onClick={() => { setShowForm(true); setForm({ input_text: "", output_text: "", cenario }); }}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-            style={{ background: "#9aea62", color: "#0a0a0a" }}>
+            style={{ background: "#10B981", color: "#0a0a0a" }}>
             <Plus className="w-4 h-4" /> Novo exemplo
           </button>
         </div>
@@ -121,7 +121,7 @@ export default function TrainingPage() {
 
       {/* Form */}
       {showForm && (
-        <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+        <div className="rounded-xl p-6 space-y-4" style={cardStyle}>
           <h2 className="text-sm font-bold text-white">Novo exemplo</h2>
           <select value={form.cenario} onChange={e => setForm(f => ({ ...f, cenario: e.target.value }))}
             className="w-full h-10 px-3 rounded-xl text-sm outline-none"
@@ -142,7 +142,7 @@ export default function TrainingPage() {
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Cancelar</button>
-            <button onClick={saveExample} disabled={saving} className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#9aea62", color: "#0a0a0a" }}>
+            <button onClick={saveExample} disabled={saving} className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#10B981", color: "#0a0a0a" }}>
               {saving ? "Salvando..." : "Salvar"}
             </button>
           </div>
@@ -151,7 +151,7 @@ export default function TrainingPage() {
 
       {/* Examples list */}
       {filtered.length === 0 ? (
-        <div className="py-12 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
+        <div className="py-12 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum exemplo para este cenário.</p>
         </div>
       ) : (

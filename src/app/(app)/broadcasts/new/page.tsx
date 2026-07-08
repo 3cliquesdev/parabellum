@@ -22,7 +22,7 @@ const FONTES = [
     label: "Inbox ativo (24h)",
     desc: "Leads que mandaram mensagem hoje. Dentro da janela de 24h — sem template, texto livre, gratuito.",
     badge: "Grátis · Sem template",
-    cor: "#9aea62",
+    cor: "#10B981",
     destaque: true,
   },
   {
@@ -172,7 +172,7 @@ export default function NewBroadcastPage() {
         <ArrowLeft className="w-3.5 h-3.5" /> Voltar
       </Link>
       <div>
-        <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Nova campanha</h1>
+        <h1 className="text-lg font-semibold text-white tracking-[-0.03em]">Nova campanha</h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Disparo em massa via WhatsApp</p>
       </div>
 
@@ -182,7 +182,7 @@ export default function NewBroadcastPage() {
           <div key={s} className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
-                style={i < step ? { background: "#9aea62", color: "#0a0a0a" } : i === step ? { background: "rgba(154,234,98,0.2)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" } : { background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>
+                style={i < step ? { background: "#10B981", color: "#0a0a0a" } : i === step ? { background: "rgba(16,185,129,0.2)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.3)" } : { background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>
                 {i < step ? <Check className="w-3 h-3" /> : i + 1}
               </div>
               <span className="text-xs font-medium hidden sm:block" style={{ color: i === step ? "#fff" : "#939da4" }}>{s}</span>
@@ -222,7 +222,7 @@ export default function NewBroadcastPage() {
                       <div className="flex items-center gap-2 mb-0.5">
                         <p className="text-sm font-bold text-white">{f.label}</p>
                         {f.destaque && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)" }}>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.15)", color: "var(--status-ganho)" }}>
                             Recomendado
                           </span>
                         )}
@@ -250,7 +250,7 @@ export default function NewBroadcastPage() {
               ) : templates.map(t => (
                 <button key={t.id} onClick={() => setForm(f => ({ ...f, template_id: t.id }))}
                   className="w-full p-4 rounded-xl text-left"
-                  style={form.template_id === t.id ? { ...cardStyle, border: "1px solid rgba(154,234,98,0.3)", background: "rgba(154,234,98,0.04)" } : cardStyle}>
+                  style={form.template_id === t.id ? { ...cardStyle, border: "1px solid rgba(16,185,129,0.3)", background: "rgba(16,185,129,0.04)" } : cardStyle}>
                   <div className="flex justify-between mb-1"><p className="text-sm font-bold text-white font-mono">{t.template_name}</p><span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: "#60a5fa", background: "rgba(96,165,250,0.1)" }}>{t.category}</span></div>
                   <p className="text-xs line-clamp-2" style={{ color: "var(--text-secondary)" }}>{t.body_text}</p>
                 </button>
@@ -259,7 +259,7 @@ export default function NewBroadcastPage() {
           )}
 
           {isInbox24h && (
-            <div className="rounded-xl p-4" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+            <div className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
               <p className="text-xs font-bold mb-1" style={{ color: "var(--status-ganho)" }}>Janela de 24 horas ativa</p>
               <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Dentro da janela de atendimento da Meta, você pode enviar qualquer texto sem template aprovado e sem custo por mensagem.</p>
             </div>
@@ -267,7 +267,7 @@ export default function NewBroadcastPage() {
 
           <button onClick={() => setStep(1)} disabled={!canNext0}
             className="w-full h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-            style={{ background: "#9aea62", color: "#0a0a0a", opacity: !canNext0 ? 0.4 : 1 }}>
+            style={{ background: "#10B981", color: "#0a0a0a", opacity: !canNext0 ? 0.4 : 1 }}>
             Próximo <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -288,7 +288,7 @@ export default function NewBroadcastPage() {
                       setForm(f => ({ ...f, segmento_filtros: { ...f.segmento_filtros, status: sel ? curr.filter((x: string) => x !== s) : [...curr, s] } }));
                     }}
                       className="px-3 h-7 rounded-full text-xs font-medium transition-all capitalize"
-                      style={sel ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" }
+                      style={sel ? { background: "rgba(16,185,129,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.3)" }
                         : { background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                       {s.replace("_", " ")}
                     </button>
@@ -316,11 +316,11 @@ export default function NewBroadcastPage() {
             <div className="space-y-3">
               <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Faça upload do arquivo CSV ou Excel:</p>
               <div className="rounded-xl p-6 text-center border-dashed cursor-pointer transition-all"
-                style={{ border: csvData.phones.length > 0 ? "2px dashed rgba(154,234,98,0.4)" : "2px dashed rgba(255,255,255,0.1)" }}
+                style={{ border: csvData.phones.length > 0 ? "2px dashed rgba(16,185,129,0.4)" : "2px dashed rgba(255,255,255,0.1)" }}
                 onClick={() => fileRef.current?.click()}>
                 {csvData.phones.length > 0 ? (
                   <>
-                    <p className="text-2xl font-extrabold" style={{ color: "var(--status-ganho)" }}>{csvData.phones.length}</p>
+                    <p className="text-lg font-semibold" style={{ color: "var(--status-ganho)" }}>{csvData.phones.length}</p>
                     <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>números importados</p>
                     <button className="text-xs mt-2 font-medium" style={{ color: "var(--text-secondary)" }} onClick={e => { e.stopPropagation(); setCsvData({ phones: [], names: [] }); }}>Trocar arquivo</button>
                   </>
@@ -352,12 +352,12 @@ export default function NewBroadcastPage() {
           </button>
 
           {preview && (
-            <div className="rounded-xl p-4 grid grid-cols-3 gap-3" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.12)" }}>
+            <div className="rounded-xl p-4 grid grid-cols-3 gap-3" style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.12)" }}>
               <div><p className="text-xs" style={{ color: "var(--text-secondary)" }}>Com WhatsApp</p><p className="text-xl font-bold text-white">{preview.com_whatsapp}</p></div>
               <div><p className="text-xs" style={{ color: "var(--text-secondary)" }}>Opt-outs</p><p className="text-xl font-bold" style={{ color: "#f87171" }}>{preview.opted_out}</p></div>
-              <div><p className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Elegíveis</p><p className="text-2xl font-extrabold" style={{ color: "var(--status-ganho)" }}>{preview.elegiveis}</p></div>
+              <div><p className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Elegíveis</p><p className="text-lg font-semibold" style={{ color: "var(--status-ganho)" }}>{preview.elegiveis}</p></div>
               {preview.janela_gratuita && (
-                <div className="col-span-3 pt-2" style={{ borderTop: "1px solid rgba(154,234,98,0.1)" }}>
+                <div className="col-span-3 pt-2" style={{ borderTop: "1px solid rgba(16,185,129,0.1)" }}>
                   <p className="text-[10px] font-bold" style={{ color: "var(--status-ganho)" }}>Dentro da janela de 24h — envio gratuito, sem template necessário</p>
                 </div>
               )}
@@ -368,7 +368,7 @@ export default function NewBroadcastPage() {
             <button onClick={() => setStep(0)} className="flex-1 h-10 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Voltar</button>
             <button onClick={() => setStep(2)} disabled={!canNext1}
               className="flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-              style={{ background: "#9aea62", color: "#0a0a0a", opacity: !canNext1 ? 0.4 : 1 }}>
+              style={{ background: "#10B981", color: "#0a0a0a", opacity: !canNext1 ? 0.4 : 1 }}>
               Próximo <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -402,7 +402,7 @@ export default function NewBroadcastPage() {
           ))}
           <div className="flex gap-2">
             <button onClick={() => setStep(1)} className="flex-1 h-10 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Voltar</button>
-            <button onClick={() => setStep(3)} className="flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2" style={{ background: "#9aea62", color: "#0a0a0a" }}>
+            <button onClick={() => setStep(3)} className="flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2" style={{ background: "#10B981", color: "#0a0a0a" }}>
               Próximo <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -412,7 +412,7 @@ export default function NewBroadcastPage() {
       {/* ── PASSO 3: Revisar e disparar ── */}
       {step === 3 && (
         <div className="space-y-4">
-          <div className="rounded-2xl p-5 space-y-3" style={cardStyle}>
+          <div className="rounded-xl p-5 space-y-3" style={cardStyle}>
             <p className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>Resumo da campanha</p>
             {[
               { label: "Nome", value: form.nome },
@@ -440,7 +440,7 @@ export default function NewBroadcastPage() {
             <button onClick={() => setStep(2)} className="flex-1 h-10 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)" }}>Voltar</button>
             <button onClick={createAndStart} disabled={starting}
               className="flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-              style={{ background: "#9aea62", color: "#0a0a0a", opacity: starting ? 0.6 : 1 }}>
+              style={{ background: "#10B981", color: "#0a0a0a", opacity: starting ? 0.6 : 1 }}>
               {starting ? "Disparando..." : <><Users className="w-4 h-4" /> Disparar agora</>}
             </button>
           </div>

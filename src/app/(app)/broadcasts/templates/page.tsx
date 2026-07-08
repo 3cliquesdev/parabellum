@@ -7,7 +7,7 @@ import { useTenant } from "@/hooks/useTenant";
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
   pending:  { label: "Aguardando aprovação", color: "#facc15" },
-  approved: { label: "Aprovado", color: "#9aea62" },
+  approved: { label: "Aprovado", color: "#10B981" },
   rejected: { label: "Rejeitado", color: "#f87171" },
   disabled: { label: "Desativado", color: "#939da4" },
 };
@@ -51,7 +51,7 @@ export default function BroadcastTemplatesPage() {
   }
 
   return (
-    <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="flex items-center gap-3 mb-2">
         <Link href="/broadcasts" className="flex items-center gap-1.5 text-xs" style={{ color: "#939da4" }}>
           <ArrowLeft className="w-3.5 h-3.5" /> Voltar
@@ -59,11 +59,11 @@ export default function BroadcastTemplatesPage() {
       </div>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Templates</h1>
+          <h1 className="text-lg font-semibold text-white tracking-[-0.03em]">Templates</h1>
           <p className="text-sm mt-1" style={{ color: "#939da4" }}>Templates aprovados pela Meta para envio em massa</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-          style={{ background: "#9aea62", color: "#0a0a0a" }}>
+          style={{ background: "#10B981", color: "#0a0a0a" }}>
           <Plus className="w-4 h-4" /> Novo template
         </button>
       </div>
@@ -78,7 +78,7 @@ export default function BroadcastTemplatesPage() {
 
       {/* Form */}
       {showForm && (
-        <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+        <div className="rounded-xl p-6 space-y-4" style={cardStyle}>
           <h2 className="text-sm font-bold text-white">Cadastrar template</h2>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -119,7 +119,7 @@ export default function BroadcastTemplatesPage() {
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Cancelar</button>
             <button onClick={save} disabled={saving || !form.template_name || !form.body_text}
-              className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#9aea62", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
+              className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#10B981", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
               {saving ? "Salvando..." : "Cadastrar template"}
             </button>
           </div>
@@ -129,7 +129,7 @@ export default function BroadcastTemplatesPage() {
       {/* List */}
       {loading ? <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
         : templates.length === 0 ? (
-          <div className="py-12 text-center rounded-2xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="py-12 text-center rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="text-sm" style={{ color: "#939da4" }}>Nenhum template cadastrado.</p>
             <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>Crie templates no Meta e depois cadastre aqui.</p>
           </div>
@@ -138,7 +138,7 @@ export default function BroadcastTemplatesPage() {
             {templates.map(t => {
               const st = STATUS_BADGE[t.status] ?? STATUS_BADGE.pending;
               return (
-                <div key={t.id} className="rounded-2xl p-5" style={cardStyle}>
+                <div key={t.id} className="rounded-xl p-5" style={cardStyle}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"

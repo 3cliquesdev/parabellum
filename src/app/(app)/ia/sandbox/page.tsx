@@ -77,7 +77,7 @@ export default function SandboxPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Sandbox — Testar IA</h1>
+            <h1 className="text-lg font-semibold text-white tracking-[-0.03em]">Sandbox — Testar IA</h1>
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               {[
                 { n: "1", label: "Configure Persona + KB" },
@@ -87,7 +87,7 @@ export default function SandboxPage() {
               ].map(({ n, label }) => (
                 <div key={n} className="flex items-center gap-1.5">
                   <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black shrink-0"
-                    style={{ background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)" }}>{n}</span>
+                    style={{ background: "rgba(16,185,129,0.15)", color: "var(--status-ganho)" }}>{n}</span>
                   <span className="text-xs" style={{ color: "rgba(147,157,164,0.6)" }}>{label}</span>
                   {n !== "4" && <span className="text-[10px]" style={{ color: "rgba(147,157,164,0.2)" }}>›</span>}
                 </div>
@@ -102,7 +102,7 @@ export default function SandboxPage() {
             </button>
             <button onClick={() => setKbEnabled(!kbEnabled)}
               className="flex items-center gap-2 px-3 h-8 rounded-xl text-xs font-bold"
-              style={kbEnabled ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
+              style={kbEnabled ? { background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }
                 : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
               KB {kbEnabled ? "Ativada" : "Desativada"}
             </button>
@@ -118,7 +118,7 @@ export default function SandboxPage() {
         <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-              <Bot className="w-12 h-12" style={{ color: "rgba(154,234,98,0.3)" }} />
+              <Bot className="w-12 h-12" style={{ color: "rgba(16,185,129,0.3)" }} />
               <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Envie uma mensagem para testar a IA</p>
               <p className="text-xs max-w-sm" style={{ color: "rgba(147,157,164,0.5)" }}>
                 As respostas usam a persona, KB e exemplos de treinamento configurados
@@ -139,16 +139,16 @@ export default function SandboxPage() {
                     )}
                   </div>
                 )}
-                <div className="px-4 py-2.5 rounded-2xl text-sm"
+                <div className="px-4 py-2.5 rounded-xl text-sm"
                   style={msg.role === "user"
-                    ? { background: "#9aea62", color: "#0a0a0a", borderRadius: "18px 4px 18px 18px" }
+                    ? { background: "#10B981", color: "#0a0a0a", borderRadius: "18px 4px 18px 18px" }
                     : { ...cardStyle, borderRadius: "4px 18px 18px 18px" }}>
                   <p style={{ color: msg.role === "user" ? "#0a0a0a" : "#f9f6ec" }}>{msg.content}</p>
                 </div>
                 {msg.role === "assistant" && (
                   <div className="flex items-center gap-2 mt-1.5 justify-end">
                     <button onClick={() => saveFeedback(msg.id, "positivo")}
-                      style={{ color: msg.feedback === "positivo" ? "#9aea62" : "rgba(147,157,164,0.4)" }}>
+                      style={{ color: msg.feedback === "positivo" ? "#10B981" : "rgba(147,157,164,0.4)" }}>
                       <ThumbsUp className="w-3.5 h-3.5" />
                     </button>
                     <button onClick={() => saveFeedback(msg.id, "negativo")}
@@ -167,10 +167,10 @@ export default function SandboxPage() {
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="px-4 py-3 rounded-2xl" style={{ ...cardStyle, borderRadius: "4px 18px 18px 18px" }}>
+              <div className="px-4 py-3 rounded-xl" style={{ ...cardStyle, borderRadius: "4px 18px 18px 18px" }}>
                 <div className="flex gap-1">
                   {[0,1,2].map(i => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "#9aea62", animationDelay: `${i * 0.15}s` }} />
+                    <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "#10B981", animationDelay: `${i * 0.15}s` }} />
                   ))}
                 </div>
               </div>
@@ -188,7 +188,7 @@ export default function SandboxPage() {
             style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <button onClick={sendMessage} disabled={!input.trim() || loading}
             className="w-11 h-11 rounded-xl flex items-center justify-center transition-all"
-            style={{ background: input.trim() && !loading ? "#9aea62" : "var(--ghost-bg)", color: input.trim() && !loading ? "#0a0a0a" : "var(--text-secondary)", border: input.trim() && !loading ? "1px solid transparent" : "1px solid var(--chip-border)" }}>
+            style={{ background: input.trim() && !loading ? "#10B981" : "var(--ghost-bg)", color: input.trim() && !loading ? "#0a0a0a" : "var(--text-secondary)", border: input.trim() && !loading ? "1px solid transparent" : "1px solid var(--chip-border)" }}>
             <Send className="w-4 h-4" />
           </button>
         </div>

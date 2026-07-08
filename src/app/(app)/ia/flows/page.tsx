@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Plus, GitBranch, Zap, Edit2, Trash2, ToggleLeft, ToggleRight, Crown, LayoutTemplate, X } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 
-const DEPT_COLOR: Record<string, string> = { vendas: "#9aea62", suporte: "#60a5fa", todos: "#a78bfa" };
+const DEPT_COLOR: Record<string, string> = { vendas: "#10B981", suporte: "#60a5fa", todos: "#a78bfa" };
 
 export default function FlowsPage() {
   const { tenantId } = useTenant();
@@ -21,7 +21,7 @@ export default function FlowsPage() {
       desc: "Recepciona o lead, coleta nome e interesse, qualifica e transfere para vendas",
       keywords: ["oi", "olá", "bom dia", "boa tarde", "boa noite", "hello"],
       departamento: "todos",
-      cor: "#9aea62",
+      cor: "#10B981",
       flow_definition: {
         nodes: [
           { id: "start", type: "start", position: { x: 50, y: 200 }, data: { label: "Início" } },
@@ -205,10 +205,10 @@ export default function FlowsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Chat Flows</h1>
+          <h1 className="text-lg font-semibold text-white tracking-[-0.03em]">Chat Flows</h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
             Defina como a IA se comporta — ela tenta resolver antes de transferir
           </p>
@@ -216,11 +216,11 @@ export default function FlowsPage() {
         <div className="flex gap-2">
           <button onClick={() => setShowTemplates(!showTemplates)}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-            style={showTemplates ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" } : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
+            style={showTemplates ? { background: "rgba(16,185,129,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.3)" } : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
             <LayoutTemplate className="w-4 h-4" /> Templates
           </button>
           <Link href="/ia/flows/new" className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-            style={{ background: "#9aea62", color: "#0a0a0a" }}>
+            style={{ background: "#10B981", color: "#0a0a0a" }}>
             <Plus className="w-4 h-4" /> Novo fluxo
           </Link>
         </div>
@@ -228,7 +228,7 @@ export default function FlowsPage() {
 
       {/* Templates Panel */}
       {showTemplates && (
-        <div className="rounded-2xl p-5 space-y-3" style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
+        <div className="rounded-xl p-5 space-y-3" style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
           <div className="flex items-center justify-between mb-1">
             <div>
               <p className="text-sm font-bold text-white">Templates prontos</p>
@@ -263,7 +263,7 @@ export default function FlowsPage() {
       )}
 
       {/* Explicação */}
-      <div className="rounded-xl p-4" style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.12)" }}>
+      <div className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.12)" }}>
         <p className="text-xs font-bold mb-1" style={{ color: "var(--status-ganho)" }}>Como funciona</p>
         <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
           Quando um lead manda uma mensagem, o sistema verifica se alguma keyword ativa um fluxo.
@@ -274,7 +274,7 @@ export default function FlowsPage() {
       {loading ? (
         <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" /></div>
       ) : flows.length === 0 ? (
-        <div className="py-20 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
+        <div className="py-20 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <GitBranch className="w-12 h-12 mx-auto mb-4" style={{ color: "rgba(147,157,164,0.3)" }} />
           <p className="text-sm font-medium text-white mb-1">Nenhum fluxo ainda</p>
           <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>Crie fluxos para controlar como a IA responde</p>
@@ -284,7 +284,7 @@ export default function FlowsPage() {
           {flows.map(flow => {
             const deptColor = DEPT_COLOR[flow.departamento] ?? "#939da4";
             return (
-              <div key={flow.id} className="rounded-2xl p-5" style={cardStyle}>
+              <div key={flow.id} className="rounded-xl p-5" style={cardStyle}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"

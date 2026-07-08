@@ -77,7 +77,7 @@ const NODE_COLORS: Record<FlowNodeType, string> = {
   message: "#60a5fa",
   ask: "#a78bfa",
   ask_options: "#f59e0b",
-  ai_response: "#9aea62",
+  ai_response: "#10B981",
   condition: "#facc15",
   transfer: "#fb923c",
   end: "#f87171",
@@ -228,12 +228,12 @@ function ConditionNode({ data }: NodeProps<FlowNodeData>) {
       <p className="text-xs text-white truncate">{data.field ? `Se "${data.field}"` : "Configure condição"}</p>
       <div className="mt-2 flex justify-end flex-col items-end gap-2">
         <div className="flex items-center gap-1">
-          <span className="text-[9px]" style={{ color: "#9aea62" }}>sim</span>
+          <span className="text-[9px]" style={{ color: "#10B981" }}>sim</span>
           <Handle
             type="source"
             id="true"
             position={Position.Right}
-            style={{ ...HANDLE_STYLE, background: "#9aea62", position: "relative", top: "auto", transform: "none", right: -8 }}
+            style={{ ...HANDLE_STYLE, background: "#10B981", position: "relative", top: "auto", transform: "none", right: -8 }}
           />
         </div>
         <div className="flex items-center gap-1">
@@ -334,8 +334,8 @@ function decorateEdge(edge: Connection | FlowCanvasEdge): FlowCanvasEdge {
     id: "id" in edge ? edge.id : fallbackId,
     source: edge.source ?? "",
     target: edge.target ?? "",
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#9aea62" },
-    style: { stroke: "#9aea62", strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#10B981" },
+    style: { stroke: "#10B981", strokeWidth: 1.5 },
   };
 }
 
@@ -460,7 +460,7 @@ export default function FlowEditPage() {
           onClick={save}
           disabled={saving}
           className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold shrink-0"
-          style={{ background: saving ? "rgba(154,234,98,0.1)" : "#9aea62", color: saving ? "#9aea62" : "#0a0a0a" }}
+          style={{ background: saving ? "rgba(16,185,129,0.1)" : "#10B981", color: saving ? "#10B981" : "#0a0a0a" }}
         >
           <Save className="w-3.5 h-3.5" /> {saving ? "Salvando..." : "Salvar"}
         </button>
@@ -585,7 +585,7 @@ export default function FlowEditPage() {
                         ]);
                       }}
                       className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: "rgba(154,234,98,0.1)", color: "#9aea62" }}
+                      style={{ background: "rgba(16,185,129,0.1)", color: "#10B981" }}
                     >
                       + Opção
                     </button>
@@ -681,9 +681,9 @@ export default function FlowEditPage() {
                 </label>
                 <div
                   className="rounded-lg p-2"
-                  style={{ background: "rgba(154,234,98,0.04)", border: "1px solid rgba(154,234,98,0.1)" }}
+                  style={{ background: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.1)" }}
                 >
-                  <p className="text-[9px] font-bold mb-1" style={{ color: "#9aea62" }}>Conecte as saídas:</p>
+                  <p className="text-[9px] font-bold mb-1" style={{ color: "#10B981" }}>Conecte as saídas:</p>
                   {AI_OUTPUT_HANDLES.map((handle) => (
                     <p key={handle} className="text-[9px] font-mono" style={LABEL_STYLE}>→ {handle}</p>
                   ))}

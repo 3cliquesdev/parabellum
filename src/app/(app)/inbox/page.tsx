@@ -270,7 +270,7 @@ export default function InboxPage() {
             </div>
           ) : conversasFiltradas.length === 0 ? (
             <div className="px-6 py-14 text-center">
-              <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+              <div className="w-14 h-14 rounded-xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
                 <MessageSquare className="w-6 h-6" style={{ color: "var(--text-faint)" }} />
               </div>
               <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -405,7 +405,7 @@ export default function InboxPage() {
               </div>
             ) : mensagens.length === 0 ? (
               <div className="text-center py-14">
-                <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
+                <div className="w-14 h-14 rounded-xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
                   <MessageSquare className="w-6 h-6" style={{ color: "var(--text-faint)" }} />
                 </div>
                 <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -432,7 +432,7 @@ export default function InboxPage() {
                         </div>
                       )}
 
-                      <div className="rounded-2xl overflow-hidden text-sm" style={inboxBubbleStyle(tone)}>
+                      <div className="rounded-xl overflow-hidden text-sm" style={inboxBubbleStyle(tone)}>
                         <MediaContent msg={msg} tone={tone} />
                       </div>
 
@@ -451,7 +451,7 @@ export default function InboxPage() {
           <div className="px-4 py-4 shrink-0" style={{ borderTop: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
             <div className="rounded-[24px] p-2 flex items-center gap-2" style={inboxComposerStyle}>
               <label
-                className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all shrink-0"
+                className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
                 style={{
                   background: "var(--ghost-bg)",
                   color: "var(--text-secondary)",
@@ -498,14 +498,14 @@ export default function InboxPage() {
                       ? "Escreva o corpo do email..."
                       : "Digite uma mensagem..."
                 }
-                className="flex-1 h-11 px-3 text-sm outline-none rounded-2xl"
+                className="flex-1 h-11 px-3 text-sm outline-none rounded-xl"
                 style={{ background: "transparent", border: "none", color: "var(--text-primary)" }}
               />
 
               <button
                 onClick={handleSend}
                 disabled={!selected.supports_outbound || !text.trim() || sending}
-                className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all shrink-0"
+                className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
                 style={
                   text.trim() && !sending && selected.supports_outbound
                     ? {

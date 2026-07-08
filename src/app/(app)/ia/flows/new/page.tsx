@@ -13,7 +13,7 @@ const TEMPLATES = [
     desc: "Recebe o lead, oferece opcoes e qualifica o interesse",
     keywords: ["oi", "ola", "bom dia", "boa tarde", "boa noite", "hello"],
     departamento: "todos",
-    cor: "#9aea62",
+    cor: "#10B981",
   },
   {
     id: "suporte",
@@ -88,7 +88,7 @@ export default function NewFlowPage() {
       </Link>
 
       <div>
-        <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Novo fluxo</h1>
+        <h1 className="text-lg font-semibold text-white tracking-[-0.03em]">Novo fluxo</h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
           Escolha um template para comecar
         </p>
@@ -99,7 +99,7 @@ export default function NewFlowPage() {
           <button
             key={template.id}
             onClick={() => setSelected(template.id)}
-            className="p-5 rounded-2xl text-left transition-all"
+            className="p-5 rounded-xl text-left transition-all"
             style={
               selected === template.id
                 ? {
@@ -148,7 +148,7 @@ export default function NewFlowPage() {
         disabled={!selected || creating}
         className="w-full h-11 rounded-xl text-sm font-bold transition-all"
         style={{
-          background: selected ? "#9aea62" : "var(--ghost-bg)",
+          background: selected ? "#10B981" : "var(--ghost-bg)",
           color: selected ? "#0a0a0a" : "var(--text-secondary)",
           border: selected ? "1px solid transparent" : "1px solid var(--chip-border)",
           opacity: creating ? 0.6 : 1,

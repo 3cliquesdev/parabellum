@@ -55,9 +55,9 @@ export default function FeedbackPage() {
   const rate = total > 0 ? Math.round((pos / total) * 100) : 0;
 
   return (
-    <div className="p-8 space-y-6" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
       <div>
-        <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Feedback da IA</h1>
+        <h1 className="text-lg font-semibold text-white tracking-[-0.03em]">Feedback da IA</h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Avaliacoes das respostas automaticas</p>
       </div>
 
@@ -67,9 +67,9 @@ export default function FeedbackPage() {
           { label: "Positivos", value: pos, color: "var(--status-ganho)", icon: ThumbsUp },
           { label: "Negativos", value: neg, color: "#f87171", icon: ThumbsDown },
         ].map(({ label, value, color, icon: Icon }) => (
-          <div key={label} className="rounded-2xl p-5" style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
+          <div key={label} className="rounded-xl p-5" style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
             {Icon && <Icon className="w-4 h-4 mb-3" style={{ color }} />}
-            <p className="text-2xl font-extrabold" style={{ color }}>{value}</p>
+            <p className="text-lg font-semibold" style={{ color }}>{value}</p>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{label}</p>
           </div>
         ))}
@@ -82,7 +82,7 @@ export default function FeedbackPage() {
             onClick={() => setFilter(value as typeof filter)}
             className="px-4 h-8 rounded-xl text-xs font-bold"
             style={filter === value
-              ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
+              ? { background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }
               : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
           >
             {label}
@@ -95,7 +95,7 @@ export default function FeedbackPage() {
           <div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
+        <div className="py-16 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum feedback ainda.</p>
           <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>O feedback aparece quando agentes avaliam respostas no Inbox.</p>
         </div>
@@ -103,7 +103,7 @@ export default function FeedbackPage() {
         <div className="space-y-2">
           {filtered.map((feedback) => (
             <div key={feedback.id} className="flex items-start gap-4 p-4 rounded-xl" style={{ background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" }}>
-              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: feedback.tipo === "positivo" ? "rgba(154,234,98,0.1)" : "rgba(248,113,113,0.1)" }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: feedback.tipo === "positivo" ? "rgba(16,185,129,0.1)" : "rgba(248,113,113,0.1)" }}>
                 {feedback.tipo === "positivo"
                   ? <ThumbsUp className="w-4 h-4" style={{ color: "var(--status-ganho)" }} />
                   : <ThumbsDown className="w-4 h-4" style={{ color: "#f87171" }} />}

@@ -126,7 +126,7 @@ export default function InboxQueuePage() {
     <div className="p-6 space-y-6" style={inboxPageStyle}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-[-0.03em]" style={{ color: "var(--text-primary)" }}>
+          <h1 className="text-lg font-semibold tracking-[-0.03em]" style={{ color: "var(--text-primary)" }}>
             Fila de atendimento
           </h1>
           <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
@@ -139,7 +139,7 @@ export default function InboxQueuePage() {
             { label: "Vendas", count: vendas.length, color: DEPT_COLOR.vendas },
             { label: "Suporte", count: suporte.length, color: DEPT_COLOR.suporte },
           ].map((dept) => (
-            <div key={dept.label} className="px-3.5 py-2 rounded-2xl text-xs font-bold" style={inboxBadgeStyle(dept.color)}>
+            <div key={dept.label} className="px-3.5 py-2 rounded-xl text-xs font-bold" style={inboxBadgeStyle(dept.color)}>
               {dept.count} {dept.label}
             </div>
           ))}
@@ -157,7 +157,7 @@ export default function InboxQueuePage() {
                 Conversas sem atribuição
               </p>
             </div>
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
               <Users className="w-5 h-5" style={{ color: "var(--status-ganho)" }} />
             </div>
           </div>
@@ -176,7 +176,7 @@ export default function InboxQueuePage() {
                 Itens com prioridade elevada
               </p>
             </div>
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(220,38,38,0.12)", border: "1px solid rgba(220,38,38,0.18)" }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "rgba(220,38,38,0.12)", border: "1px solid rgba(220,38,38,0.18)" }}>
               <Zap className="w-5 h-5" style={{ color: "var(--status-perdido)" }} />
             </div>
           </div>
@@ -195,7 +195,7 @@ export default function InboxQueuePage() {
                 Tempo de espera do item mais antigo
               </p>
             </div>
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
               <Clock className="w-5 h-5" style={{ color: "var(--text-secondary)" }} />
             </div>
           </div>
@@ -277,7 +277,7 @@ export default function InboxQueuePage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       disabled
-                      className="px-3.5 h-10 rounded-2xl text-xs font-bold"
+                      className="px-3.5 h-10 rounded-xl text-xs font-bold"
                       style={inboxGhostButtonStyle}
                     >
                       Em análise
@@ -285,7 +285,7 @@ export default function InboxQueuePage() {
                     <button
                       onClick={() => assumir(item)}
                       disabled={assuming === item.id}
-                      className="flex items-center gap-1.5 px-4 h-10 rounded-2xl text-xs font-bold transition-all"
+                      className="flex items-center gap-1.5 px-4 h-10 rounded-xl text-xs font-bold transition-all"
                       style={{
                         ...inboxPrimaryButtonStyle,
                         opacity: assuming === item.id ? 0.65 : 1,

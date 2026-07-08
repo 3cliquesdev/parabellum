@@ -5,6 +5,7 @@ import {
   fetchAndStoreWhatsAppMedia,
   sendWhatsAppAudioMessage,
   sendWhatsAppTextMessage,
+  verifyMetaSignature,
 } from "@/lib/meta-channel";
 import { handleInboundAutomation } from "@/lib/omnichannel/inbound-automation";
 
@@ -30,7 +31,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const rawBody = await request.text();
+    if (!verifyMetaSignature(rawBody, request.headers.get("x-hub-signature-256"))) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    const body = JSON.parse(rawBody);
     const value = body?.entry?.[0]?.changes?.[0]?.value;
     if (!value || body?.entry?.[0]?.changes?.[0]?.field !== "messages") {
       return NextResponse.json({ status: "ok" });

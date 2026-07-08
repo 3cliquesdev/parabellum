@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import type { LooseDatabase } from "@/types/database";
+import { assertTenantMember, type AdminClient } from "@/lib/auth/guard";
 
 interface TenantMemberRow {
   id?: string;
@@ -18,60 +16,47 @@ interface TeamMemberBody {
   disponivel?: boolean;
 }
 
-async function getAdminAndUser() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const admin = createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-
-  return { user, admin };
+/** Confirma que o membro-alvo realmente pertence ao tenant informado. */
+async function loadTargetMember(
+  admin: AdminClient,
+  memberId: string,
+  tenantId: string,
+): Promise<Pick<TenantMemberRow, "role" | "user_id"> | null> {
+  const { data } = await admin
+    .from("tenant_members")
+    .select("role, user_id, tenant_id")
+    .eq("id", memberId)
+    .maybeSingle();
+  const row = data as unknown as (TenantMemberRow | null);
+  if (!row || row.tenant_id !== tenantId) return null;
+  return { role: row.role, user_id: row.user_id };
 }
 
 export async function PATCH(request: NextRequest) {
-  const { user, admin } = await getAdminAndUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = (await request.json()) as TeamMemberBody;
   const { member_id, role, tenant_id, departamento, disponivel } = body;
   if (!member_id || !tenant_id) {
     return NextResponse.json({ error: "member_id e tenant_id sao obrigatorios" }, { status: 400 });
   }
 
+  const auth = await assertTenantMember(tenant_id);
+  if (!auth.ok) return auth.response;
+  const { admin, role: callerRole } = auth;
+
+  const target = await loadTargetMember(admin, member_id, tenant_id);
+  if (!target) {
+    return NextResponse.json({ error: "Membro nao encontrado neste tenant" }, { status: 404 });
+  }
+
   const updates: Record<string, unknown> = {};
 
   if (role !== undefined) {
-    const { data: myRole } = await admin
-      .from("tenant_members")
-      .select("role")
-      .eq("tenant_id", tenant_id)
-      .eq("user_id", user.id)
-      .single();
-
-    const currentMemberRole = myRole as unknown as Pick<TenantMemberRow, "role"> | null;
-    if (currentMemberRole?.role !== "owner") {
+    if (callerRole !== "owner") {
       return NextResponse.json({ error: "Apenas o owner pode alterar roles" }, { status: 403 });
     }
-
-    const { data: target } = await admin
-      .from("tenant_members")
-      .select("role")
-      .eq("id", member_id)
-      .single();
-
-    const targetMember = target as unknown as Pick<TenantMemberRow, "role"> | null;
-    if (targetMember?.role === "owner") {
+    if (target.role === "owner") {
       return NextResponse.json({ error: "Não é possível alterar o role do owner" }, { status: 400 });
     }
-
     updates.role = role;
   }
 
@@ -80,21 +65,12 @@ export async function PATCH(request: NextRequest) {
   if (disponivel !== undefined) {
     updates.disponivel = disponivel;
 
-    if (disponivel === true) {
-      const { data: member } = await admin
-        .from("tenant_members")
-        .select("user_id")
-        .eq("id", member_id)
-        .single();
-
-      const currentMember = member as unknown as Pick<TenantMemberRow, "user_id"> | null;
-      if (currentMember?.user_id) {
-        fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-six.vercel.app"}/api/team/process-queue`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-internal-key": process.env.SUPABASE_SERVICE_ROLE_KEY! },
-          body: JSON.stringify({ tenant_id, agent_id: currentMember.user_id }),
-        }).catch(() => {});
-      }
+    if (disponivel === true && target.user_id) {
+      fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-six.vercel.app"}/api/team/process-queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-internal-key": process.env.SUPABASE_SERVICE_ROLE_KEY! },
+        body: JSON.stringify({ tenant_id, agent_id: target.user_id }),
+      }).catch(() => {});
     }
   }
 
@@ -106,35 +82,25 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { user, admin } = await getAdminAndUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = (await request.json()) as Pick<TeamMemberBody, "member_id" | "tenant_id">;
   const { member_id, tenant_id } = body;
   if (!member_id || !tenant_id) {
     return NextResponse.json({ error: "member_id e tenant_id sao obrigatorios" }, { status: 400 });
   }
 
-  const { data: myRole } = await admin
-    .from("tenant_members")
-    .select("role")
-    .eq("tenant_id", tenant_id)
-    .eq("user_id", user.id)
-    .single();
+  const auth = await assertTenantMember(tenant_id);
+  if (!auth.ok) return auth.response;
+  const { admin, role: callerRole } = auth;
 
-  const currentMemberRole = myRole as unknown as Pick<TenantMemberRow, "role"> | null;
-  if (!currentMemberRole || !["owner", "admin"].includes(currentMemberRole.role ?? "")) {
+  if (!["owner", "admin"].includes(callerRole)) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
-  const { data: target } = await admin
-    .from("tenant_members")
-    .select("role")
-    .eq("id", member_id)
-    .single();
-
-  const targetMember = target as unknown as Pick<TenantMemberRow, "role"> | null;
-  if (targetMember?.role === "owner") {
+  const target = await loadTargetMember(admin, member_id, tenant_id);
+  if (!target) {
+    return NextResponse.json({ error: "Membro nao encontrado neste tenant" }, { status: 404 });
+  }
+  if (target.role === "owner") {
     return NextResponse.json({ error: "Não é possível remover o owner" }, { status: 400 });
   }
 

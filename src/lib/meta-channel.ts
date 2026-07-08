@@ -1,8 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createHmac, timingSafeEqual } from "crypto";
 import { textToSpeech } from "@/lib/tts";
 
 export function sanitizeMetaAccessToken(accessToken: string) {
   return accessToken.trim().replace(/^['"]+|['"]+$/g, "").replace(/\s+/g, "");
+}
+
+/**
+ * Valida a assinatura X-Hub-Signature-256 que a Meta envia nos webhooks.
+ * O HMAC-SHA256 e calculado sobre o corpo BRUTO da requisicao usando o
+ * META_APP_SECRET como chave. Retorna false se o secret nao estiver
+ * configurado ou a assinatura nao bater (comparacao timing-safe).
+ */
+export function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appSecret) {
+    console.error("META_APP_SECRET nao configurado — rejeitando webhook por seguranca.");
+    return false;
+  }
+  if (!signatureHeader) return false;
+
+  const expected = "sha256=" + createHmac("sha256", appSecret).update(rawBody, "utf8").digest("hex");
+  const expectedBuf = Buffer.from(expected);
+  const receivedBuf = Buffer.from(signatureHeader);
+  if (expectedBuf.length !== receivedBuf.length) return false;
+  return timingSafeEqual(expectedBuf, receivedBuf);
 }
 
 function describeMetaError(rawError: string, channel: "WhatsApp" | "Instagram") {

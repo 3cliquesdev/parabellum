@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import type { LooseDatabase } from "@/types/database";
+import { assertTenantMember } from "@/lib/auth/guard";
 
 interface PreviewFilters {
   fonte?: string;
@@ -43,26 +41,14 @@ function getRelatedLeadPhone(leads: ConversationRow["leads"]): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const auth = createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-
-  const { data: { user } } = await auth.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const admin = createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-
   const body = (await request.json().catch(() => ({}))) as PreviewBody;
   if (!body.tenant_id) {
     return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
   }
+
+  const auth = await assertTenantMember(body.tenant_id);
+  if (!auth.ok) return auth.response;
+  const admin = auth.admin;
 
   const filters = body.segmento_filtros ?? {};
   const source = filters.fonte ?? "todos";

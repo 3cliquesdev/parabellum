@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { handleInboundAutomation } from "@/lib/omnichannel/inbound-automation";
-import { sendInstagramTextMessage } from "@/lib/meta-channel";
+import { sendInstagramTextMessage, verifyMetaSignature } from "@/lib/meta-channel";
 import {
   buildInstagramLeadName,
   fetchInstagramSenderProfile,
@@ -111,7 +111,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const rawBody = await request.text();
+    if (!verifyMetaSignature(rawBody, request.headers.get("x-hub-signature-256"))) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+    const body = JSON.parse(rawBody);
     const events = extractEvents(body);
     if (events.length === 0) {
       return NextResponse.json({ status: "ok" });

@@ -1,25 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { assertTenantMember } from "@/lib/auth/guard";
 
 export async function GET(request: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ connected: false });
-
   const tenantId = request.nextUrl.searchParams.get("tenant_id");
   if (!tenantId) return NextResponse.json({ connected: false });
 
-  const admin = createServerClient<any>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
+  const auth = await assertTenantMember(tenantId);
+  if (!auth.ok) return NextResponse.json({ connected: false });
+  const admin = auth.admin;
 
   const { data } = await admin
     .from("whatsapp_configs")

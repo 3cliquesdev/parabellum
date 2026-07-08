@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { LooseDatabase } from "@/types/database";
+import { assertAgencyMember } from "@/lib/auth/guard";
 
 interface AgencyUserRow {
   agency_id: string;
@@ -81,6 +82,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tenantId = searchParams.get("tenant_id");
   if (!tenantId) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
+
+  const auth = await assertAgencyMember({ tenantId });
+  if (!auth.ok) return auth.response;
 
   const { data } = await createAdminClient()
     .from("tenant_billing")

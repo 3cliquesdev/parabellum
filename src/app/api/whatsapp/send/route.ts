@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import type { LooseDatabase } from "@/types/database";
+import { assertTenantMember } from "@/lib/auth/guard";
 
 interface SendMessageBody {
   conversa_id?: string;
@@ -15,6 +13,7 @@ interface RelatedLeadRow {
 
 interface ConversationRow {
   id: string;
+  tenant_id: string;
   leads: RelatedLeadRow | RelatedLeadRow[] | null;
 }
 
@@ -29,24 +28,6 @@ interface MetaMediaUploadResponse {
 
 type MediaMessageType = "image" | "audio" | "video" | "document";
 
-async function createAuthClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
-
-function createAdminClient() {
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-}
-
 function getLeadPhone(leads: ConversationRow["leads"]): string {
   const lead = Array.isArray(leads) ? leads[0] : leads;
   return lead?.whatsapp?.replace(/\D/g, "") ?? "";
@@ -60,11 +41,6 @@ function getMediaMessageType(mimeType: string): MediaMessageType {
 }
 
 export async function POST(request: NextRequest) {
-  const supabaseAuth = await createAuthClient();
-  const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const supabase = createAdminClient();
   const contentType = request.headers.get("content-type") ?? "";
   const isFormData = contentType.includes("multipart/form-data");
 
@@ -90,13 +66,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
+  const auth = await assertTenantMember(tenantId);
+  if (!auth.ok) return auth.response;
+  const supabase = auth.admin;
+
   const { data: conversa } = await supabase
     .from("conversas")
     .select("*, leads(whatsapp)")
     .eq("id", conversaId)
     .single();
   const conversation = conversa as unknown as ConversationRow | null;
-  if (!conversation) return NextResponse.json({ error: "Conversa nao encontrada" }, { status: 404 });
+  if (!conversation || conversation.tenant_id !== tenantId) {
+    return NextResponse.json({ error: "Conversa nao encontrada" }, { status: 404 });
+  }
 
   const { data: waConfig } = await supabase
     .from("whatsapp_configs")

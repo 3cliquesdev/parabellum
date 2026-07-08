@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import type { LooseDatabase } from "@/types/database";
+import { assertTenantMember, createAdminClient } from "@/lib/auth/guard";
 
 interface CampaignTemplate {
   status?: string | null;
@@ -59,22 +57,8 @@ function getLeadValue(lead: LeadRecipient, fieldName: string): string {
 
 export async function POST(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id: campaignId } = await context.params;
-  const cookieStore = await cookies();
-  const auth = createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-  const { data: { user } } = await auth.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const admin = createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-
-  const { data: campaign } = await admin
+  const { data: campaign } = await createAdminClient()
     .from("broadcast_campaigns")
     .select("*, meta_templates(*)")
     .eq("id", campaignId)
@@ -82,6 +66,12 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
 
   const currentCampaign = campaign as unknown as BroadcastCampaign | null;
   if (!currentCampaign) return NextResponse.json({ error: "Campanha não encontrada" }, { status: 404 });
+
+  // Só membros do tenant dono da campanha podem dispará-la.
+  const authCheck = await assertTenantMember(currentCampaign.tenant_id);
+  if (!authCheck.ok) return authCheck.response;
+  const admin = authCheck.admin;
+
   if (currentCampaign.status !== "rascunho" && currentCampaign.status !== "agendado") {
     return NextResponse.json({ error: "Campanha não pode ser iniciada neste status" }, { status: 400 });
   }

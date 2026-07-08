@@ -37,8 +37,8 @@ const inputStyle: React.CSSProperties = {
   background: "var(--input-bg)",
   border: "1px solid var(--input-border)",
   color: "var(--text-primary)",
-  height: "40px",
-  borderRadius: "12px",
+  height: "36px",
+  borderRadius: "10px",
   padding: "0 12px",
   fontSize: "14px",
   width: "100%",
@@ -76,11 +76,11 @@ export function AddLeadModal({ tenantId, onClose, onCreated }: AddLeadModalProps
     <>
       <div className="fixed inset-0 z-40" style={{ background: "var(--scrim)", backdropFilter: "blur(4px)" }} onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-2xl p-6"
+        <div className="w-full max-w-md rounded-xl p-5"
           style={{ background: "var(--bg-subtle)", border: "1px solid var(--border-subtle)", boxShadow: "0 24px 80px rgba(0,0,0,0.4)" }}>
 
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Novo lead</h2>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Novo lead</h2>
             <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ background: "var(--input-bg)", color: "var(--text-secondary)" }}>
               <X className="w-4 h-4" />
@@ -122,10 +122,10 @@ export function AddLeadModal({ tenantId, onClose, onCreated }: AddLeadModalProps
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose} className="flex-1 h-10 rounded-xl text-sm font-medium"
+              <button type="button" onClick={onClose} className="flex-1 h-9 rounded-lg text-sm font-medium"
                 style={{ background: "var(--input-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
-              <button type="submit" disabled={loading} className="flex-1 h-10 rounded-xl text-sm font-bold"
-                style={{ background: "var(--status-ganho)", color: "#0a0a0a", opacity: loading ? 0.6 : 1 }}>
+              <button type="submit" disabled={loading} className="flex-1 h-9 rounded-lg text-sm font-semibold"
+                style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: loading ? 0.6 : 1 }}>
                 {loading ? "Criando..." : "Criar lead"}
               </button>
             </div>

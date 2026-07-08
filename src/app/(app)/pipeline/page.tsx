@@ -38,20 +38,20 @@ export default function PipelinePage() {
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Pipeline</h1>
-          <p className="text-sm mt-0.5 font-medium" style={{ color: "#939da4" }}>
+          <h1 className="text-lg font-semibold text-white tracking-tight">Pipeline</h1>
+          <p className="text-[13px] mt-0.5 font-medium" style={{ color: "var(--text-secondary)" }}>
             {leads.length} leads · R$ {totalValue.toLocaleString("pt-BR")} no funil
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={refetch}
-            className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "#939da4" }}>
+            className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
+            style={{ background: "var(--input-bg)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}>
             <RefreshCw className="w-4 h-4" />
           </button>
           <button onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold transition-opacity hover:opacity-90"
-            style={{ background: "#9aea62", color: "#0a0a0a" }}>
+            className="flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90"
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
             <Plus className="w-4 h-4" />
             Novo lead
           </button>
@@ -72,8 +72,8 @@ export default function PipelinePage() {
           <div className="flex flex-col items-center justify-center h-64 gap-4">
             <p className="text-white/40 text-sm">Nenhum lead ainda.</p>
             <button onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-              style={{ background: "#9aea62", color: "#0a0a0a" }}>
+              className="flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold"
+              style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
               <Plus className="w-4 h-4" />
               Criar primeiro lead
             </button>

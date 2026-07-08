@@ -16,7 +16,7 @@ const COLUMNS: { id: LeadStatus; label: string; color: string }[] = [
   { id: "qualificado", label: "Qualificado", color: "#a78bfa" },
   { id: "proposta", label: "Proposta", color: "#fb923c" },
   { id: "negociacao", label: "Negociação", color: "#facc15" },
-  { id: "ganho", label: "Ganho", color: "#9aea62" },
+  { id: "ganho", label: "Ganho", color: "#10B981" },
   { id: "perdido", label: "Perdido", color: "#f87171" },
 ];
 
@@ -27,7 +27,7 @@ function DroppableColumn({ col, children, isOver }: { col: typeof COLUMNS[0]; ch
       style={{
         minHeight: "120px",
         background: isOver ? `${col.color}08` : "transparent",
-        borderRadius: "0 0 16px 16px",
+        borderRadius: "0 0 12px 12px",
       }}>
       {children}
     </div>
@@ -92,7 +92,7 @@ export function KanbanBoard({ leads, onStatusChange, onLeadUpdated, tenantId }: 
             const isOver = overId ? getColumnId(overId) === col.id : false;
 
             return (
-              <div key={col.id} className="flex flex-col shrink-0 w-64 rounded-2xl transition-all"
+              <div key={col.id} className="flex flex-col shrink-0 w-64 rounded-xl transition-all"
                 style={{
                   background: isOver ? "var(--input-bg)" : "var(--surface)",
                   border: isOver ? `1px solid ${col.color}30` : "1px solid var(--border-subtle)",

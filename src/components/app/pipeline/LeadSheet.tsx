@@ -117,10 +117,10 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
         }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5"
+        <div className="flex items-center justify-between px-5 py-5"
           style={{ borderBottom: "1px solid var(--border-subtle)" }}>
           <div>
-            <h2 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{lead.nome}</h2>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{lead.nome}</h2>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{lead.servico_interesse ?? "Sem serviço"}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
@@ -130,14 +130,14 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
         </div>
 
         {/* Quick actions */}
-        <div className="flex gap-2 px-6 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+        <div className="flex gap-2 px-5 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
           {[
             { icon: Phone, label: "Ligar", action: () => {} },
             { icon: MessageSquare, label: "WhatsApp", action: openWA },
             { icon: Mail, label: "E-mail", action: () => {} },
           ].map(({ icon: Icon, label, action }) => (
             <button key={label} onClick={action}
-              className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-medium transition-colors"
+              className="flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg text-xs font-medium transition-colors"
               style={{ background: "var(--input-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
               <Icon className="w-4 h-4" />
               {label}
@@ -146,13 +146,13 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
         </div>
 
         {/* Form */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
 
           {/* Status */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Status</Label>
             <select value={form.status} onChange={(e) => set("status", e.target.value)}
-              className="w-full h-10 rounded-xl text-sm px-3 outline-none"
+              className="w-full h-9 rounded-lg text-sm px-3 outline-none"
               style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
               {STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value} style={{ background: "#111" }}>{o.label}</option>
@@ -172,7 +172,7 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
               <Label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>{label}</Label>
               <Input type={type} value={(form as Record<string, string>)[key]}
                 onChange={(e) => set(key, e.target.value)}
-                className="h-10 rounded-xl text-sm"
+                className="h-9 rounded-lg text-sm"
                 style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }} />
             </div>
           ))}
@@ -180,7 +180,7 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
           <div className="space-y-1.5">
             <Label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Observações</Label>
             <textarea value={form.observacoes} onChange={(e) => set("observacoes", e.target.value)}
-              rows={4} className="w-full rounded-xl text-sm p-3 resize-none outline-none"
+              rows={4} className="w-full rounded-lg text-sm p-3 resize-none outline-none"
               style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }} />
           </div>
 
@@ -201,12 +201,12 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
                 {/* Botão registrar */}
                 {!showAddAtiv ? (
                   <button onClick={() => setShowAddAtiv(true)}
-                    className="w-full flex items-center gap-2 py-2 px-3 rounded-xl text-xs font-medium transition-colors"
+                    className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-colors"
                     style={{ background: "var(--primary-bg)", border: "1px solid var(--primary-border)", color: "var(--status-ganho)" }}>
                     <Plus className="w-3.5 h-3.5" /> Registrar atividade
                   </button>
                 ) : (
-                  <div className="rounded-xl p-3 space-y-2.5" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}>
+                  <div className="rounded-lg p-3 space-y-2.5" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}>
                     <select value={newAtiv.tipo} onChange={e => setNewAtiv(a => ({ ...a, tipo: e.target.value }))}
                       className="w-full h-8 rounded-lg text-xs px-2 outline-none"
                       style={{ background: "var(--border-subtle)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
@@ -223,7 +223,7 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
                     <div className="flex gap-2">
                       <button onClick={saveAtividade} disabled={savingAtiv || !newAtiv.titulo.trim()}
                         className="flex-1 h-7 rounded-lg text-xs font-bold transition-opacity"
-                        style={{ background: "var(--status-ganho)", color: "#0a0a0a", opacity: savingAtiv ? 0.6 : 1 }}>
+                        style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: savingAtiv ? 0.6 : 1 }}>
                         {savingAtiv ? "Salvando..." : "Salvar"}
                       </button>
                       <button onClick={() => setShowAddAtiv(false)}
@@ -276,10 +276,10 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+        <div className="px-5 py-4" style={{ borderTop: "1px solid var(--border-subtle)" }}>
           <button onClick={handleSave} disabled={saving}
-            className="w-full h-10 rounded-xl text-sm font-bold transition-opacity flex items-center justify-center"
-            style={{ background: "var(--status-ganho)", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
+            className="w-full h-9 rounded-lg text-sm font-bold transition-opacity flex items-center justify-center"
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: saving ? 0.6 : 1 }}>
             {saving ? "Salvando..." : "Salvar alterações"}
           </button>
         </div>

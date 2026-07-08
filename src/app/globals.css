@@ -132,14 +132,14 @@ html.light {
   --card-foreground: #0F172A;
   --popover: #FFFFFF;
   --popover-foreground: #0F172A;
-  --primary: #16A34A;
+  --primary: #15803D;
   --primary-foreground: #FFFFFF;
   --secondary: rgba(15,23,42,0.08);
   --secondary-foreground: #0F172A;
   --muted: rgba(15,23,42,0.05);
   --muted-foreground: #52637A;
-  --accent: rgba(34,197,94,0.14);
-  --accent-foreground: #16A34A;
+  --accent: rgba(21,128,61,0.20);
+  --accent-foreground: #15803D;
   --destructive: #DC2626;
   --border: #D6E0EA;
   --input: #EEF4F9;
@@ -147,7 +147,7 @@ html.light {
 
   --sidebar: #F4F8FC;
   --sidebar-foreground: #0F172A;
-  --sidebar-primary: #22C55E;
+  --sidebar-primary: #16A34A;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: rgba(15,23,42,0.06);
   --sidebar-accent-foreground: #0F172A;
@@ -179,8 +179,8 @@ html.light {
   --input-border:    #CDD8E5;
   --scrim:           rgba(15,23,42,0.5);
 
-  --primary-bg:      rgba(21,128,61,0.18);
-  --primary-border:  rgba(21,128,61,0.34);
+  --primary-bg:      rgba(21,128,61,0.12);
+  --primary-border:  rgba(21,128,61,0.45);
   --surface-gradient: linear-gradient(180deg, #FFFFFF 0%, #F9FBFE 100%);
   --surface-soft:    #F3F7FB;
   --surface-hover:   #E9F0F7;
@@ -190,8 +190,8 @@ html.light {
   --chip-bg:         #F1F5F9;
   --chip-border:     #D3DDE8;
   --sidebar-gradient: linear-gradient(180deg, #F7FAFD 0%, #EFF5FA 100%);
-  --active-soft-bg:  rgba(21,128,61,0.12);
-  --active-soft-border: rgba(21,128,61,0.22);
+  --active-soft-bg:  rgba(21,128,61,0.14);
+  --active-soft-border: rgba(21,128,61,0.38);
   --chat-canvas:     #F7F4ED;
   --chat-pattern:    rgba(21,128,61,0.03);
   --chat-glow:       rgba(21,128,61,0.05);

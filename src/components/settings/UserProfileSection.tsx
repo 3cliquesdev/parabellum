@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/app/PageHeader";
 import type { UserProfile } from "@/types/database";
 
 type UserProfileForm = Omit<UserProfile, "created_at" | "updated_at">;
@@ -310,43 +311,41 @@ export function UserProfileSection() {
   }
 
   return (
-    <div className="space-y-7 max-w-6xl">
-      <div>
-        <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Meu perfil</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-          Complete seus dados para agilizar cadastros, contratos e futuras vendas com preenchimento automatico.
-        </p>
-      </div>
+    <div className="space-y-5 max-w-6xl">
+      <PageHeader
+        title="Meu perfil"
+        subtitle="Complete seus dados para agilizar cadastros, contratos e futuras vendas com preenchimento automatico."
+      />
 
       {error && (
         <div
-          className="rounded-2xl px-4 py-3 text-sm"
+          className="rounded-lg px-4 py-3 text-sm"
           style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.18)", color: "#fca5a5" }}
         >
           {error}
         </div>
       )}
 
-      <div className="grid gap-7 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <div className="space-y-6">
-          <div className="rounded-3xl p-7 space-y-6" style={cardStyle}>
+      <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="space-y-5">
+          <div className="rounded-xl p-5 space-y-5" style={cardStyle}>
             <div className="flex items-center gap-3">
               <div
-                className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)" }}
+                className="flex h-9 w-9 items-center justify-center rounded-lg"
+                style={{ background: "var(--primary-bg)", color: "var(--status-ganho)" }}
               >
-                <UserRound className="h-5 w-5" />
+                <UserRound className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-base font-bold text-white">Foto e identidade</p>
+                <p className="text-sm font-semibold text-white">Foto e identidade</p>
                 <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                   Essa foto pode ser usada em areas de conta e relacionamento.
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-5">
-              <Avatar size="lg" className="h-32 w-32">
+            <div className="flex flex-col items-center gap-4">
+              <Avatar size="lg" className="h-24 w-24">
                 {profile.avatar_url ? <AvatarImage src={profile.avatar_url} alt="Foto do usuario" /> : null}
                 <AvatarFallback className="bg-white/5 text-2xl font-bold text-white">
                   {initials.slice(0, 2).toUpperCase()}
@@ -357,8 +356,8 @@ export function UserProfileSection() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingAvatar}
-                  className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-base font-bold transition-opacity"
-                  style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}
+                  className="flex h-9 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-opacity"
+                  style={{ background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}
                 >
                   {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                   {profile.avatar_url ? "Trocar foto" : "Enviar foto"}
@@ -368,7 +367,7 @@ export function UserProfileSection() {
                   <button
                     onClick={handleRemoveAvatar}
                     disabled={uploadingAvatar}
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-base font-medium transition-opacity"
+                    className="flex h-9 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-opacity"
                     style={{ background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
                   >
                     <X className="h-4 w-4" />
@@ -390,28 +389,28 @@ export function UserProfileSection() {
               />
             </div>
 
-            <div className="rounded-3xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-              <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white">
+            <div className="rounded-lg p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white">
                 <Mail className="h-3.5 w-3.5" style={{ color: "var(--text-faint)" }} />
                 Email de acesso
               </div>
-              <p className="text-base text-white">{userEmail || "Nao identificado"}</p>
+              <p className="text-sm text-white">{userEmail || "Nao identificado"}</p>
               <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
                 O email continua sendo gerenciado pela autenticacao do sistema.
               </p>
             </div>
           </div>
 
-          <div className="rounded-3xl p-7 space-y-5" style={cardStyle}>
+          <div className="rounded-xl p-5 space-y-5" style={cardStyle}>
             <div className="flex items-center gap-3">
               <div
-                className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)" }}
+                className="flex h-9 w-9 items-center justify-center rounded-lg"
+                style={{ background: "var(--primary-bg)", color: "var(--status-ganho)" }}
               >
-                <Lock className="h-5 w-5" />
+                <Lock className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-base font-bold text-white">Seguranca</p>
+                <p className="text-sm font-semibold text-white">Seguranca</p>
                 <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                   Atualize sua senha sempre que precisar.
                 </p>
@@ -420,7 +419,7 @@ export function UserProfileSection() {
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="new-password" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="new-password" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Nova senha
                 </Label>
                 <Input
@@ -428,13 +427,13 @@ export function UserProfileSection() {
                   type="password"
                   value={passwordForm.newPassword}
                   onChange={event => setPasswordForm(current => ({ ...current, newPassword: event.target.value }))}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="Minimo de 6 caracteres"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="confirm-password" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="confirm-password" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Confirmar nova senha
                 </Label>
                 <Input
@@ -442,7 +441,7 @@ export function UserProfileSection() {
                   type="password"
                   value={passwordForm.confirmPassword}
                   onChange={event => setPasswordForm(current => ({ ...current, confirmPassword: event.target.value }))}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="Repita a nova senha"
                 />
               </div>
@@ -451,8 +450,8 @@ export function UserProfileSection() {
             <button
               onClick={handlePasswordChange}
               disabled={savingPassword}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-base font-bold transition-opacity"
-              style={{ background: passwordSaved ? "rgba(154,234,98,0.12)" : "#9aea62", color: passwordSaved ? "#9aea62" : "#0a0a0a" }}
+              className="flex h-9 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-opacity"
+              style={{ background: passwordSaved ? "var(--primary-bg)" : "var(--primary)", color: passwordSaved ? "var(--status-ganho)" : "var(--primary-foreground)" }}
             >
               {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : passwordSaved ? <CheckCircle2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               {savingPassword ? "Atualizando..." : passwordSaved ? "Senha atualizada" : "Trocar senha"}
@@ -460,183 +459,183 @@ export function UserProfileSection() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="rounded-3xl p-7 space-y-6" style={cardStyle}>
+        <div className="space-y-5">
+          <div className="rounded-xl p-5 space-y-5" style={cardStyle}>
             <div className="flex items-center gap-3">
               <div
-                className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)" }}
+                className="flex h-9 w-9 items-center justify-center rounded-lg"
+                style={{ background: "var(--primary-bg)", color: "var(--status-ganho)" }}
               >
-                <UserRound className="h-5 w-5" />
+                <UserRound className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-base font-bold text-white">Dados pessoais</p>
+                <p className="text-sm font-semibold text-white">Dados pessoais</p>
                 <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                   Nome e CPF para documentos, vendas e automacoes futuras.
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="first-name" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="first-name" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Nome
                 </Label>
                 <Input
                   id="first-name"
                   value={toFormValue(profile.first_name)}
                   onChange={event => updateField("first_name", event.target.value || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="Seu nome"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="last-name" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="last-name" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Sobrenome
                 </Label>
                 <Input
                   id="last-name"
                   value={toFormValue(profile.last_name)}
                   onChange={event => updateField("last_name", event.target.value || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="Seu sobrenome"
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <Label htmlFor="cpf" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="cpf" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   CPF
                 </Label>
                 <Input
                   id="cpf"
                   value={toFormValue(profile.cpf)}
                   onChange={event => updateField("cpf", formatCpf(event.target.value) || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="000.000.000-00"
                 />
               </div>
             </div>
           </div>
 
-          <div className="rounded-3xl p-7 space-y-6" style={cardStyle}>
+          <div className="rounded-xl p-5 space-y-5" style={cardStyle}>
             <div className="flex items-center gap-3">
               <div
-                className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{ background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)" }}
+                className="flex h-9 w-9 items-center justify-center rounded-lg"
+                style={{ background: "var(--primary-bg)", color: "var(--status-ganho)" }}
               >
-                <MapPinHouse className="h-5 w-5" />
+                <MapPinHouse className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-base font-bold text-white">Endereco</p>
+                <p className="text-sm font-semibold text-white">Endereco</p>
                 <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                   Esses dados ficam prontos para preencher vendas, contratos e faturamento.
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-6">
+            <div className="grid gap-4 md:grid-cols-6">
               <div className="space-y-1.5 md:col-span-2">
-                <Label htmlFor="zip" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="zip" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   CEP
                 </Label>
                 <Input
                   id="zip"
                   value={toFormValue(profile.address_zip)}
                   onChange={event => updateField("address_zip", formatZip(event.target.value) || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="00000-000"
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-4">
-                <Label htmlFor="street" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="street" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Rua
                 </Label>
                 <Input
                   id="street"
                   value={toFormValue(profile.address_street)}
                   onChange={event => updateField("address_street", event.target.value || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="Rua, avenida ou alameda"
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <Label htmlFor="number" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="number" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Numero
                 </Label>
                 <Input
                   id="number"
                   value={toFormValue(profile.address_number)}
                   onChange={event => updateField("address_number", event.target.value || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="123"
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-4">
-                <Label htmlFor="complement" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="complement" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Complemento
                 </Label>
                 <Input
                   id="complement"
                   value={toFormValue(profile.address_complement)}
                   onChange={event => updateField("address_complement", event.target.value || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="Apto, bloco, sala..."
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-3">
-                <Label htmlFor="neighborhood" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="neighborhood" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Bairro
                 </Label>
                 <Input
                   id="neighborhood"
                   value={toFormValue(profile.address_neighborhood)}
                   onChange={event => updateField("address_neighborhood", event.target.value || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="Seu bairro"
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-3">
-                <Label htmlFor="city" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="city" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Cidade
                 </Label>
                 <Input
                   id="city"
                   value={toFormValue(profile.address_city)}
                   onChange={event => updateField("address_city", event.target.value || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="Sua cidade"
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <Label htmlFor="state" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="state" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Estado
                 </Label>
                 <Input
                   id="state"
                   value={toFormValue(profile.address_state)}
                   onChange={event => updateField("address_state", event.target.value.toUpperCase() || null)}
-                  className="h-12 rounded-2xl border-white/10 bg-white/5 text-white text-base"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="SP"
                   maxLength={2}
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-4">
-                <Label htmlFor="country" className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>
+                <Label htmlFor="country" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   Pais
                 </Label>
                 <Input
                   id="country"
                   value={toFormValue(profile.address_country)}
                   onChange={event => updateField("address_country", event.target.value || null)}
-                  className="h-11 rounded-xl border-white/10 bg-white/5 text-white"
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="Brasil"
                 />
               </div>
@@ -646,8 +645,8 @@ export function UserProfileSection() {
               <button
                 onClick={handleSaveProfile}
                 disabled={savingProfile}
-              className="flex h-12 items-center gap-2 rounded-2xl px-6 text-base font-bold transition-opacity"
-              style={{ background: profileSaved ? "rgba(154,234,98,0.12)" : "#9aea62", color: profileSaved ? "#9aea62" : "#0a0a0a" }}
+              className="flex h-9 items-center gap-2 rounded-lg px-5 text-sm font-semibold transition-opacity"
+              style={{ background: profileSaved ? "var(--primary-bg)" : "var(--primary)", color: profileSaved ? "var(--status-ganho)" : "var(--primary-foreground)" }}
             >
                 {savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : profileSaved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                 {savingProfile ? "Salvando..." : profileSaved ? "Perfil salvo" : "Salvar perfil"}

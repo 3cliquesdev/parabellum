@@ -32,7 +32,7 @@ const INTEGRATIONS = [
   // Automações
   { id: "zapier", name: "Zapier", desc: "Conecte o Liberty CRM com mais de 5.000 aplicativos", categoria: "automacoes", cor: "#FF4A00", status: "soon", icon: <ZapierIcon /> },
   { id: "make", name: "Make", desc: "Crie automações visuais entre o CRM e outros sistemas", categoria: "automacoes", cor: "#6D00CC", status: "soon", icon: <MakeIcon /> },
-  { id: "webhooks", name: "Webhooks", desc: "Envie eventos do CRM para qualquer URL externa em tempo real", categoria: "automacoes", cor: "#9aea62", status: "available", icon: <WebhookIcon /> },
+  { id: "webhooks", name: "Webhooks", desc: "Envie eventos do CRM para qualquer URL externa em tempo real", categoria: "automacoes", cor: "#10B981", status: "available", icon: <WebhookIcon /> },
   // Email
   { id: "resend", name: "Resend", desc: "E-mails transacionais e de convite com alta entregabilidade", categoria: "email", cor: "#000000", status: "installed", icon: <ResendIcon /> },
   { id: "sendgrid", name: "SendGrid", desc: "Plataforma de e-mail marketing em escala", categoria: "email", cor: "#1A82E2", status: "soon", icon: <SendGridIcon /> },
@@ -108,16 +108,16 @@ export default function SettingsPage() {
 
         {/* ─── PERFIL ─── */}
         {section === "perfil" && (
-          <div className="p-8">
+          <div className="p-6">
             <UserProfileSection />
           </div>
         )}
 
         {/* ─── INTEGRAÇÕES ─── */}
         {section === "integracoes" && (
-          <div className="p-8 space-y-6">
+          <div className="p-6 space-y-5">
             <div>
-              <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Integrações</h1>
+              <h1 className="text-lg font-semibold text-white tracking-tight">Integrações</h1>
               <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Conecte o Liberty CRM com suas ferramentas favoritas</p>
             </div>
 
@@ -157,9 +157,9 @@ export default function SettingsPage() {
 
         {/* ─── EQUIPE ─── */}
         {section === "equipe" && tenantId && (
-          <div className="p-8">
+          <div className="p-6">
             <div className="mb-6">
-              <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Equipe</h1>
+              <h1 className="text-lg font-semibold text-white tracking-tight">Equipe</h1>
               <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Gerencie os membros do seu workspace</p>
             </div>
             <TeamSection tenantId={tenantId} />
@@ -168,12 +168,12 @@ export default function SettingsPage() {
 
         {/* ─── WORKSPACE ─── */}
         {section === "workspace" && (
-          <div className="p-8 space-y-6 max-w-2xl">
+          <div className="p-6 space-y-5 max-w-2xl">
             <div>
-              <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Workspace</h1>
+              <h1 className="text-lg font-semibold text-white tracking-tight">Workspace</h1>
               <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Informações da sua empresa</p>
             </div>
-            <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+            <div className="rounded-xl p-5 space-y-4" style={cardStyle}>
               {[
                 { label: "Nome da empresa", value: tenant?.name ?? "—" },
                 { label: "Slug", value: tenant?.slug ?? "—" },
@@ -192,12 +192,12 @@ export default function SettingsPage() {
 
         {/* ─── PLANO ─── */}
         {section === "plano" && (
-          <div className="p-8 space-y-6 max-w-2xl">
+          <div className="p-6 space-y-5 max-w-2xl">
             <div>
-              <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Plano & Faturamento</h1>
+              <h1 className="text-lg font-semibold text-white tracking-tight">Plano & Faturamento</h1>
               <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Gerencie sua assinatura</p>
             </div>
-            <div className="rounded-2xl p-6" style={cardStyle}>
+            <div className="rounded-xl p-5" style={cardStyle}>
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <p className="text-lg font-extrabold text-white">Starter — Trial</p>
@@ -217,19 +217,19 @@ export default function SettingsPage() {
                       <span style={{ color: "var(--text-secondary)" }}>{used} / {limit}</span>
                     </div>
                     <div className="h-1.5 rounded-full" style={{ background: "var(--ghost-bg)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${Math.min((used / limit) * 100, 100)}%`, background: "#9aea62" }} />
+                      <div className="h-full rounded-full" style={{ width: `${Math.min((used / limit) * 100, 100)}%`, background: "#10B981" }} />
                     </div>
                   </div>
                 ))}
               </div>
               <button className="w-full mt-6 h-10 rounded-xl text-sm font-bold transition-all hover:opacity-90"
-                style={{ background: "#9aea62", color: "#0a0a0a" }}>
+                style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
                 Fazer upgrade do plano
               </button>
             </div>
 
             {/* Link para plano da agência */}
-            <div className="rounded-2xl p-5 flex items-center justify-between" style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)" }}>
+            <div className="rounded-xl p-5 flex items-center justify-between" style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)" }}>
               <div>
                 <p className="text-sm font-bold text-white">Você é revendedor?</p>
                 <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
@@ -272,7 +272,7 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
   }, [id, status, tenantId]);
 
   return (
-    <div className="rounded-2xl overflow-hidden transition-all duration-200" style={cardStyle}>
+    <div className="rounded-xl overflow-hidden transition-all duration-200" style={cardStyle}>
       <div className="p-5">
         <div className="flex items-start gap-4 mb-4">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
@@ -294,14 +294,14 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
           {installed && (
             <button onClick={onManage}
               className="px-3 h-7 rounded-lg text-xs font-bold transition-all"
-              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
+              style={isActive ? { background: "var(--primary)", color: "var(--primary-foreground)" } : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
               {isActive ? "Fechar" : "Gerenciar"}
             </button>
           )}
           {resolvedStatus === "available" && (
             <button onClick={onManage}
               className="px-3 h-7 rounded-lg text-xs font-bold transition-all"
-              style={isActive ? { background: "#9aea62", color: "#0a0a0a" } : { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>
+              style={isActive ? { background: "var(--primary)", color: "var(--primary-foreground)" } : { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>
               {isActive ? "Fechar" : "+ Instalar"}
             </button>
           )}
@@ -386,7 +386,7 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
           {phoneOptions.map(p => (
             <button key={p.id} onClick={() => selectPhone(p)} className="w-full flex items-center justify-between p-3 rounded-xl text-left" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}>
               <div><p className="text-sm font-semibold text-white">{p.verified_name}</p><p className="text-xs" style={{ color: "var(--text-secondary)" }}>{p.display_phone_number}</p></div>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>Selecionar</span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)" }}>Selecionar</span>
             </button>
           ))}
         </div>
@@ -523,7 +523,7 @@ function InstagramManagePanel({
             </p>
           </div>
           <span className="text-xs px-2 py-1 rounded-full font-bold" style={connected
-            ? { background: "rgba(154,234,98,0.12)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
+            ? { background: "rgba(16,185,129,0.12)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }
             : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
             {connected ? "Conectado" : "Manual"}
           </span>
@@ -536,7 +536,7 @@ function InstagramManagePanel({
         ) : (
           <>
             {connected && (
-              <div className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+              <div className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
                 <p className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Canal operacional no inbox</p>
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
                   {username ? `@${username}` : "Conta conectada"} · Page ID {pageId || "—"}
@@ -615,7 +615,7 @@ function InstagramManagePanel({
                     Desconectar
                   </button>
                 )}
-                <button onClick={saveConfig} disabled={saving || !pageId || !instagramBusinessAccountId || !accessToken} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "rgba(154,234,98,0.14)" : "#9aea62", color: saved ? "var(--status-ganho)" : "#0a0a0a", opacity: saving ? 0.7 : 1 }}>
+                <button onClick={saveConfig} disabled={saving || !pageId || !instagramBusinessAccountId || !accessToken} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "var(--primary-bg)" : "var(--primary)", color: saved ? "var(--status-ganho)" : "var(--primary-foreground)", opacity: saving ? 0.7 : 1 }}>
                   {saving ? "Salvando..." : saved ? "Salvo!" : connected ? "Atualizar" : "Conectar"}
                 </button>
               </div>
@@ -644,7 +644,7 @@ function GeminiManagePanel() {
 function ResendManagePanel() {
   return (
     <div className="p-5">
-      <div className="flex items-center gap-2 p-3 rounded-xl" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+      <div className="flex items-center gap-2 p-3 rounded-xl" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
         <CheckCircle className="w-4 h-4" style={{ color: "var(--status-ganho)" }} />
         <div>
           <p className="text-xs font-bold text-white">Resend configurado</p>
@@ -664,7 +664,7 @@ function GeminiIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" f
 function OpenAIIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#10a37f"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.677l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.843-3.371 2.019-1.168a.076.076 0 0 1 .071 0l4.83 2.786a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.4-.674zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>; }
 function ZapierIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#FF4A00"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.25 13.5h-3.75v3.75a1.5 1.5 0 01-3 0V13.5H6.75a1.5 1.5 0 010-3h3.75V6.75a1.5 1.5 0 013 0v3.75h3.75a1.5 1.5 0 010 3z"/></svg>; }
 function MakeIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#6D00CC"><circle cx="12" cy="12" r="10"/><text x="12" y="16" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">M</text></svg>; }
-function WebhookIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9aea62" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/></svg>; }
+function WebhookIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/></svg>; }
 function ResendIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><text x="3" y="18" fontSize="14" fontWeight="900" fill="white">R</text></svg>; }
 function SendGridIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#1A82E2"><path d="M0 0h8v8H0zm8 8h8v8H8zm8-8h8v8h-8zM0 16h8v8H0zm16 0h8v8h-8z"/></svg>; }
 function GmailIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="#EA4335"><path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg>; }
@@ -673,7 +673,7 @@ function GmailIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fi
 function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
   const [form, setForm] = useState({
     nome_fantasia: "",
-    cor_primaria: "#9aea62",
+    cor_primaria: "#10B981",
     logo_url: "",
     email_theme: "dark" as EmailTheme,
   });
@@ -688,7 +688,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
       .then(d => {
         if (d.branding) setForm({
           nome_fantasia: d.branding.nome_fantasia ?? "",
-          cor_primaria: d.branding.cor_primaria ?? "#9aea62",
+          cor_primaria: d.branding.cor_primaria ?? "#10B981",
           logo_url: d.branding.logo_url ?? "",
           email_theme: d.branding.email_theme === "light" ? "light" : "dark",
         });
@@ -714,7 +714,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
     alert(data?.error ?? "Erro ao salvar identidade");
   }
 
-  const previewColor = form.cor_primaria || "#9aea62";
+  const previewColor = form.cor_primaria || "#10B981";
   const previewName = form.nome_fantasia || "Sua Empresa";
   const previewPalette = getInviteEmailPalette(form.email_theme, previewColor);
   const previewFeatures = getInviteEmailFeatures("member");
@@ -722,7 +722,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
   const previewClientBorder = form.email_theme === "light" ? "#D7E1EB" : "var(--border-subtle)";
 
   return (
-    <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
+    <div className="rounded-xl p-5 space-y-5" style={cardStyle}>
       <div>
         <h2 className="text-sm font-bold text-white">Identidade nos Emails</h2>
         <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
@@ -746,7 +746,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
               className="w-9 h-9 rounded-xl border-0 cursor-pointer p-0.5"
               style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
             <Input value={form.cor_primaria} onChange={e => setForm(f => ({ ...f, cor_primaria: e.target.value }))}
-              placeholder="#9aea62" maxLength={7}
+              placeholder="#10B981" maxLength={7}
               className="h-9 rounded-xl text-sm font-mono text-white w-32" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
             <span className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: `${previewColor}20`, color: previewColor }}>
               Botão do email
@@ -782,7 +782,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
           {/* Simula o fundo do cliente de email */}
           <div className="rounded-xl p-3" style={{ background: previewClientBg, border: `1px solid ${previewClientBorder}` }}>
             {/* Card do email */}
-            <div className="rounded-2xl overflow-hidden mx-auto" style={{ background: previewPalette.cardBg, border: `1px solid ${previewPalette.cardBorder}`, boxShadow: previewPalette.shadow, maxWidth: 480 }}>
+            <div className="rounded-xl overflow-hidden mx-auto" style={{ background: previewPalette.cardBg, border: `1px solid ${previewPalette.cardBorder}`, boxShadow: previewPalette.shadow, maxWidth: 480 }}>
               {/* Accent bar top */}
               <div style={{ height: 2, background: `linear-gradient(90deg,${previewColor} 0%,${previewColor}60 60%,transparent 100%)` }} />
 
@@ -866,7 +866,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
       <div className="flex justify-end">
         <button onClick={save} disabled={saving}
           className="px-5 h-8 rounded-xl text-xs font-bold"
-          style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a" }}>
+          style={{ background: saved ? "var(--primary-bg)" : "var(--primary)", color: saved ? "var(--status-ganho)" : "var(--primary-foreground)" }}>
           {saving ? "Salvando..." : saved ? "Salvo!" : "Salvar identidade"}
         </button>
       </div>
@@ -893,7 +893,7 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
     setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 3000);
   }
   return (
-    <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+    <div className="rounded-xl p-5 space-y-4" style={cardStyle}>
       <h2 className="text-sm font-bold text-white">Personalidade da IA</h2>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5"><Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Nome</Label><Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} /></div>
@@ -902,7 +902,7 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
       <div className="space-y-1.5"><Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Instruções</Label><textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} rows={3} className="w-full p-3 rounded-xl text-sm text-white outline-none resize-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} /></div>
 
       {/* TTS */}
-      <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(154,234,98,0.03)", border: "1px solid rgba(154,234,98,0.1)" }}>
+      <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(16,185,129,0.03)", border: "1px solid rgba(16,185,129,0.1)" }}>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-white">Responder com áudio</p>
@@ -910,7 +910,7 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
           </div>
           <button onClick={() => setForm(f => ({ ...f, responder_com_audio: !f.responder_com_audio }))}
             className="relative w-10 h-5 rounded-full transition-colors shrink-0"
-            style={{ background: form.responder_com_audio ? "#9aea62" : "rgba(255,255,255,0.1)" }}>
+            style={{ background: form.responder_com_audio ? "#10B981" : "rgba(255,255,255,0.1)" }}>
             <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform"
               style={{ transform: form.responder_com_audio ? "translateX(22px)" : "translateX(2px)" }} />
           </button>
@@ -929,7 +929,7 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
         )}
       </div>
 
-      <div className="flex justify-end"><button onClick={save} disabled={saving} className="px-5 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a" }}>{saving ? "Salvando..." : saved ? "Salvo!" : "Salvar"}</button></div>
+      <div className="flex justify-end"><button onClick={save} disabled={saving} className="px-5 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "var(--primary-bg)" : "var(--primary)", color: saved ? "var(--status-ganho)" : "var(--primary-foreground)" }}>{saving ? "Salvando..." : saved ? "Salvo!" : "Salvar"}</button></div>
     </div>
   );
 }
@@ -951,7 +951,7 @@ function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onCo
         <div className="px-4 py-3 space-y-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
           <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))} placeholder="Phone Number ID" className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
           <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} placeholder="Access Token" className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
-          <div className="flex justify-end"><button onClick={save} disabled={saving || !form.phone_number_id || !form.access_token} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "rgba(154,234,98,0.1)" : "#9aea62", color: saved ? "#9aea62" : "#0a0a0a" }}>{saving ? "..." : saved ? "Salvo!" : "Salvar"}</button></div>
+          <div className="flex justify-end"><button onClick={save} disabled={saving || !form.phone_number_id || !form.access_token} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "var(--primary-bg)" : "var(--primary)", color: saved ? "var(--status-ganho)" : "var(--primary-foreground)" }}>{saving ? "..." : saved ? "Salvo!" : "Salvar"}</button></div>
         </div>
       )}
     </div>
@@ -965,7 +965,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
   const [inviting, setInviting] = useState(false); const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
-  const ROLE_COLOR: Record<string, string> = { owner: "#9aea62", admin: "#60a5fa", member: "#939da4" };
+  const ROLE_COLOR: Record<string, string> = { owner: "#10B981", admin: "#60a5fa", member: "#939da4" };
   const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Membro" };
 
   useEffect(() => {
@@ -990,10 +990,10 @@ function TeamSection({ tenantId }: { tenantId: string }) {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+      <div className="rounded-xl p-5 space-y-4" style={cardStyle}>
         <div className="flex items-center justify-between">
           <div><p className="text-sm font-bold text-white">Membros</p><p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{members.length} membro(s)</p></div>
-          <button onClick={() => setShowInvite(!showInvite)} className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }}>
+          <button onClick={() => setShowInvite(!showInvite)} className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-bold" style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }}>
             <Plus className="w-3.5 h-3.5" /> Convidar
           </button>
         </div>
@@ -1005,12 +1005,12 @@ function TeamSection({ tenantId }: { tenantId: string }) {
                 <option value="member" style={{ background: "var(--surface-solid)" }}>Membro</option>
                 <option value="admin" style={{ background: "var(--surface-solid)" }}>Admin</option>
               </select>
-              <button onClick={sendInvite} disabled={inviting || !inviteForm.email} className="px-4 h-9 rounded-xl text-xs font-bold" style={{ background: "#9aea62", color: "#0a0a0a", opacity: inviting ? 0.6 : 1 }}>
+              <button onClick={sendInvite} disabled={inviting || !inviteForm.email} className="px-4 h-9 rounded-lg text-xs font-semibold" style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: inviting ? 0.6 : 1 }}>
                 {inviting ? "..." : "Enviar"}
               </button>
             </div>
             {inviteLink && (
-              <div className="rounded-lg p-3 space-y-2" style={{ background: "rgba(154,234,98,0.06)", border: "1px solid rgba(154,234,98,0.15)" }}>
+              <div className="rounded-lg p-3 space-y-2" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
                 <p className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Link de convite gerado!</p>
                 <p className="text-xs font-mono break-all" style={{ color: "var(--text-secondary)" }}>{inviteLink}</p>
                 <button onClick={() => { navigator.clipboard.writeText(inviteLink); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
@@ -1025,7 +1025,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
           {members.map(m => (
             <div key={m.id} className="rounded-xl p-3" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)" }}>
                   {(m.email ?? "?").charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0"><p className="text-sm font-medium text-white truncate">{m.email ?? m.user_id}</p></div>
@@ -1071,7 +1071,7 @@ function MemberConfig({ member, tenantId }: { member: any; tenantId: string }) {
     setSaving(false);
   }
 
-  const DEPT_COLOR: Record<string, string> = { vendas: "#9aea62", suporte: "#60a5fa", todos: "#a78bfa" };
+  const DEPT_COLOR: Record<string, string> = { vendas: "#10B981", suporte: "#60a5fa", todos: "#a78bfa" };
 
   return (
     <div className="flex items-center gap-2">
@@ -1087,9 +1087,9 @@ function MemberConfig({ member, tenantId }: { member: any; tenantId: string }) {
         disabled={saving}
         className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-bold transition-all"
         style={disp
-          ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.2)" }
+          ? { background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }
           : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
-        <div className="w-1.5 h-1.5 rounded-full" style={{ background: disp ? "#9aea62" : "#939da4" }} />
+        <div className="w-1.5 h-1.5 rounded-full" style={{ background: disp ? "#10B981" : "#939da4" }} />
         {disp ? "Disponível" : "Offline"}
       </button>
     </div>
@@ -1150,7 +1150,7 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
     <div className="p-5 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold text-white">Seus webhooks</p>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-bold" style={{ background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }}>
+        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-bold" style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)" }}>
           <Plus className="w-3 h-3" /> Novo webhook
         </button>
       </div>
@@ -1168,7 +1168,7 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
                 <button key={ev.id} onClick={() => toggleEvento(ev.id)}
                   className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
                   style={form.eventos.includes(ev.id)
-                    ? { background: "rgba(154,234,98,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(154,234,98,0.3)" }
+                    ? { background: "rgba(16,185,129,0.15)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.3)" }
                     : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
                   {ev.label}
                 </button>
@@ -1178,7 +1178,7 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowForm(false)} className="px-4 h-8 rounded-xl text-xs" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Cancelar</button>
             <button onClick={save} disabled={saving || !form.nome || !form.url || !form.eventos.length}
-              className="px-5 h-8 rounded-xl text-xs font-bold" style={{ background: "#9aea62", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
+              className="px-5 h-8 rounded-xl text-xs font-bold" style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: saving ? 0.6 : 1 }}>
               {saving ? "Salvando..." : "Salvar webhook"}
             </button>
           </div>
@@ -1210,14 +1210,14 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {(wh.eventos ?? []).map((ev: string) => (
-                  <span key={ev} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(154,234,98,0.08)", color: "var(--status-ganho)" }}>
+                  <span key={ev} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.08)", color: "var(--status-ganho)" }}>
                     {WEBHOOK_EVENTS.find(e => e.id === ev)?.label ?? ev}
                   </span>
                 ))}
               </div>
               {testResult[wh.id] && (
                 <div className="flex items-center gap-1.5 text-[10px] font-medium"
-                  style={{ color: testResult[wh.id].sucesso ? "#9aea62" : "#f87171" }}>
+                  style={{ color: testResult[wh.id].sucesso ? "#10B981" : "#f87171" }}>
                   {testResult[wh.id].sucesso ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
                   {testResult[wh.id].message}
                 </div>

@@ -117,24 +117,24 @@ export default function AgentsPage() {
   );
 
   return (
-    <div className="p-8 space-y-8" style={{ fontFamily: "var(--font-sans)" }}>
+    <div className="p-6 space-y-5" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-[-0.03em]">Agentes de IA</h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
+          <h1 className="text-lg font-semibold text-white tracking-tight">Agentes de IA</h1>
+          <p className="text-[13px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
             Crie agentes especializados com personalidades e funções diferentes
           </p>
         </div>
         <button onClick={() => { setShowForm(true); setEditing(null); }}
           className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-          style={{ background: "#9aea62", color: "#0a0a0a" }}>
+          style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
           <Plus className="w-4 h-4" /> Novo agente
         </button>
       </div>
 
       {/* Form */}
       {showForm && (
-        <div className="rounded-2xl p-6 space-y-5" style={cardStyle}>
+        <div className="rounded-xl p-6 space-y-5" style={cardStyle}>
           <h2 className="text-sm font-bold text-white">{editing ? "Editar agente" : "Novo agente"}</h2>
 
           {/* Role selection */}
@@ -189,7 +189,7 @@ export default function AgentsPage() {
               </div>
               <input type="range" min="0.1" max="1.0" step="0.1" value={form.temperatura}
                 onChange={e => setForm(f => ({ ...f, temperatura: parseFloat(e.target.value) }))}
-                className="w-full accent-[#9aea62]" />
+                className="w-full accent-[#10B981]" />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Tamanho da resposta</label>
@@ -208,7 +208,7 @@ export default function AgentsPage() {
               style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>Cancelar</button>
             <button onClick={saveAgent} disabled={saving || !form.nome}
               className="px-6 h-9 rounded-xl text-sm font-bold"
-              style={{ background: "#9aea62", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
+              style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: saving ? 0.6 : 1 }}>
               {saving ? "Salvando..." : "Salvar agente"}
             </button>
           </div>
@@ -217,7 +217,7 @@ export default function AgentsPage() {
 
       {/* Agents grid */}
       {agents.length === 0 && !showForm ? (
-        <div className="py-20 text-center rounded-2xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
+        <div className="py-20 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}>
           <Bot className="w-12 h-12 mx-auto mb-4" style={{ color: "rgba(147,157,164,0.3)" }} />
           <p className="text-sm font-medium text-white mb-1">Nenhum agente ainda</p>
           <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Crie agentes especializados para diferentes funções</p>
@@ -229,7 +229,7 @@ export default function AgentsPage() {
             const Icon = role.icon;
             const agentRules = rules.filter(r => r.persona_id === agent.id);
             return (
-              <div key={agent.id} className="rounded-2xl p-5" style={cardStyle}>
+              <div key={agent.id} className="rounded-xl p-5" style={cardStyle}>
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -295,7 +295,7 @@ export default function AgentsPage() {
 
       {/* Routing rules section */}
       {rules.length > 0 && (
-        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border-subtle)" }}>
+        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-subtle)" }}>
           <div className="px-6 py-4" style={{ background: "var(--surface-soft)", borderBottom: "1px solid var(--border-subtle)" }}>
             <h2 className="text-sm font-bold text-white">Regras de roteamento automático</h2>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Quando o lead manda uma mensagem, qual agente responde</p>
@@ -323,7 +323,7 @@ export default function AgentsPage() {
                   <button onClick={() => toggleRule(rule.id, rule.ativo)}
                     className="text-xs font-bold px-2.5 py-1 rounded-full"
                     style={rule.ativo
-                      ? { background: "rgba(154,234,98,0.1)", color: "var(--status-ganho)" }
+                      ? { background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)" }
                       : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>
                     {rule.ativo ? "Ativo" : "Inativo"}
                   </button>

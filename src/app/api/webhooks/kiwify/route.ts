@@ -86,6 +86,16 @@ export async function POST(request: NextRequest) {
 
   const admin = adminClient();
 
+  // Mesma normalizacao usada em lead_identities/sync_lead_identity_columns: so
+  // digitos, sem o 55 do Brasil na frente. Usado pra vinculacao silenciosa
+  // telefone <-> cliente Kiwify (ver resolveLead em lib/inbox/service.ts).
+  const rawPhone = customer?.mobile ?? customer?.phone_number ?? null;
+  let buyerPhoneNormalized: string | null = null;
+  if (rawPhone) {
+    const digits = rawPhone.replace(/\D/g, "");
+    buyerPhoneNormalized = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits || null;
+  }
+
   let leadId: string | null = null;
   if (customer?.email || customer?.mobile || customer?.phone_number) {
     const result = await ingestInboundMessage({
@@ -112,6 +122,7 @@ export async function POST(request: NextRequest) {
     status,
     tipo_produto: tipoProduto,
     origem: "kiwify",
+    buyer_phone_normalized: buyerPhoneNormalized,
     external_id: body.order_id ?? null,
     raw_payload: body,
     paid_at: status === "pago" ? new Date().toISOString() : null,

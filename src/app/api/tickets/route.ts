@@ -9,6 +9,7 @@ interface CreateTicketBody {
   titulo?: string;
   descricao?: string;
   categoria_id?: string | null;
+  categoria_nome?: string | null;
   lead_id?: string | null;
   conversa_id?: string | null;
   prioridade?: "baixa" | "media" | "alta" | "urgente";
@@ -17,6 +18,8 @@ interface CreateTicketBody {
   created_by?: string | null;
   tag_ids?: string[];
 }
+
+const VERIFICACAO_RECENTE_MS = 2 * 60 * 60 * 1000; // 2h
 
 const SLA_HOURS: Record<string, number> = { urgente: 4, alta: 8, media: 24, baixa: 48 };
 
@@ -68,6 +71,43 @@ export async function POST(request: NextRequest) {
   const auth = await resolveInternalOrTenantAuth(request, tenant_id);
   if (!auth.ok) return auth.response;
 
+  let categoriaId = body.categoria_id ?? null;
+  if (!categoriaId && body.categoria_nome) {
+    const { data: categoria } = await auth.admin
+      .from("ticket_categories")
+      .select("id, requer_verificacao")
+      .eq("tenant_id", tenant_id)
+      .eq("nome", body.categoria_nome)
+      .maybeSingle();
+    categoriaId = (categoria as { id?: string } | null)?.id ?? null;
+  }
+
+  if (categoriaId) {
+    const { data: categoria } = await auth.admin
+      .from("ticket_categories")
+      .select("requer_verificacao")
+      .eq("id", categoriaId)
+      .maybeSingle();
+    const requerVerificacao = (categoria as { requer_verificacao?: boolean } | null)?.requer_verificacao ?? false;
+
+    if (requerVerificacao && isInternalRequest(request)) {
+      if (!isUuid(body.conversa_id)) {
+        return NextResponse.json({ error: "conversa_id (UUID valido) e obrigatorio pra essa categoria de ticket" }, { status: 400 });
+      }
+      const { data: conversa } = await auth.admin
+        .from("conversas")
+        .select("financeiro_verificado_em")
+        .eq("id", body.conversa_id)
+        .eq("tenant_id", tenant_id)
+        .maybeSingle();
+      const verificadoEm = (conversa as { financeiro_verificado_em?: string | null } | null)?.financeiro_verificado_em;
+      const recente = verificadoEm && Date.now() - new Date(verificadoEm).getTime() < VERIFICACAO_RECENTE_MS;
+      if (!recente) {
+        return NextResponse.json({ error: "Verificação de identidade (OTP) necessária antes de abrir esse tipo de ticket" }, { status: 403 });
+      }
+    }
+  }
+
   const prioridade = body.prioridade ?? "media";
   const { data, error } = await auth.admin
     .from("tickets")
@@ -75,7 +115,7 @@ export async function POST(request: NextRequest) {
       tenant_id,
       titulo,
       descricao: body.descricao ?? null,
-      categoria_id: body.categoria_id ?? null,
+      categoria_id: categoriaId,
       lead_id: body.lead_id ?? null,
       conversa_id: body.conversa_id ?? null,
       prioridade,

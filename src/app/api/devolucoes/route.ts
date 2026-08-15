@@ -7,6 +7,7 @@ import { isUuid } from "@/lib/security/validate";
 interface CreateDevolucaoBody {
   tenant_id?: string;
   lead_id?: string | null;
+  conversa_id?: string | null;
   external_order_id?: string | null;
   tracking_code_original?: string | null;
   tracking_code_return?: string | null;
@@ -62,12 +63,49 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const devolucao = data as unknown as { id: string; external_order_id: string | null; motivo: string | null; descricao: string | null };
 
-  if (isInternalRequest(request) && data) {
-    const devolucao = data as unknown as { id: string };
+  const { data: categoria } = await auth.admin
+    .from("ticket_categories")
+    .select("id")
+    .eq("tenant_id", tenant_id)
+    .eq("nome", "Devolução - Produto Físico")
+    .maybeSingle();
+  const categoriaId = (categoria as { id?: string } | null)?.id ?? null;
+
+  const ticketDescricao = [
+    `O que o cliente quer: devolução do pedido${devolucao.external_order_id ? ` ${devolucao.external_order_id}` : ""}`,
+    `O que já foi verificado/tentado: devolução registrada pelo agente de IA com os dados informados pelo cliente`,
+    `Por que precisa de humano: conferir o produto/pedido e decidir aprovação, reembolso e devolução de saldo se aplicável`,
+    `Dados relevantes: motivo=${devolucao.motivo ?? "não informado"}; detalhes=${devolucao.descricao ?? "-"}`,
+  ].join("\n");
+
+  const { data: ticket, error: ticketError } = await auth.admin
+    .from("tickets")
+    .insert({
+      tenant_id,
+      titulo: `Devolução de produto físico${devolucao.external_order_id ? ` — pedido ${devolucao.external_order_id}` : ""}`,
+      descricao: ticketDescricao,
+      categoria_id: categoriaId,
+      lead_id: body.lead_id ?? null,
+      conversa_id: body.conversa_id ?? null,
+      prioridade: "media",
+      canal_origem: "ia",
+      due_date: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (!ticketError && ticket) {
+    const ticketRow = ticket as unknown as { id: string };
+    await auth.admin.from("devolucoes").update({ ticket_id: ticketRow.id }).eq("id", devolucao.id);
+  }
+
+  if (isInternalRequest(request)) {
     await logAiDecision(auth.admin, {
       tenantId: tenant_id,
       leadId: body.lead_id,
+      conversaId: body.conversa_id,
       acao: "criar_devolucao",
       detalhes: { devolucao_id: devolucao.id, external_order_id: body.external_order_id, motivo: body.motivo },
     });

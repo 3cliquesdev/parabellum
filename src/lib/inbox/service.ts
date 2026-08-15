@@ -154,6 +154,32 @@ async function loadLeadByIdentity(
   return null;
 }
 
+// Vinculacao silenciosa telefone <-> cliente Kiwify: fecha o buraco que a
+// propria Parabellum documentou (so 1 de 4.581 devolucoes tinha contato
+// vinculado, porque a busca por telefone nunca existiu la). So roda pra
+// identidade de whatsapp; nunca aparece pro cliente, e o unico efeito e
+// reaproveitar o lead certo em vez de criar um duplicado sem historico.
+async function findLeadByKiwifyPhone(supabase: AdminClient, tenantId: string, identity: InboxIdentityInput) {
+  if (identity.canal !== "whatsapp") return null;
+  const normalizedValue = normalizeChannelIdentity("whatsapp", identity.value);
+  if (!normalizedValue) return null;
+
+  const { data } = await supabase
+    .from("vendas")
+    .select("lead_id")
+    .eq("tenant_id", tenantId)
+    .eq("buyer_phone_normalized", normalizedValue)
+    .eq("status", "pago")
+    .not("lead_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const match = data as { lead_id: string } | null;
+  if (!match?.lead_id) return null;
+  return loadLeadById(supabase, tenantId, match.lead_id);
+}
+
 async function resolveLead(
   supabase: AdminClient,
   tenantId: string,
@@ -169,6 +195,11 @@ async function resolveLead(
   for (const identity of identities) {
     const matchedLead = await loadLeadByIdentity(supabase, tenantId, identity);
     if (matchedLead) return matchedLead;
+  }
+
+  for (const identity of identities) {
+    const kiwifyMatch = await findLeadByKiwifyPhone(supabase, tenantId, identity);
+    if (kiwifyMatch) return kiwifyMatch;
   }
 
   const initialLead: Record<string, string | null> = {

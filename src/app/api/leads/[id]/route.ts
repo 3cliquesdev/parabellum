@@ -11,6 +11,7 @@ interface LeadRow {
   status: string;
   observacoes: string | null;
   valor_estimado: number | null;
+  eh_cliente: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data, error } = await auth.admin
     .from("leads")
-    .select("id, tenant_id, nome, whatsapp, email, status, observacoes, valor_estimado, created_at, updated_at")
+    .select("id, tenant_id, nome, whatsapp, email, status, observacoes, valor_estimado, eh_cliente, created_at, updated_at")
     .eq("id", id)
     .single();
 
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       status: lead.status,
       observacoes: lead.observacoes,
       valor_estimado: lead.valor_estimado,
+      eh_cliente: lead.eh_cliente,
       cliente_desde: lead.created_at,
     },
     _grounding: { source: "leads", ref_id: lead.id, fetched_at: new Date().toISOString() },

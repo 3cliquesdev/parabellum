@@ -45,16 +45,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const rows = (data ?? []) as unknown as VendaRow[];
+  const kiwifyMemberAreaUrl = process.env.KIWIFY_MEMBER_AREA_URL ?? "https://reembolso.kiwify.com.br/login";
+  const REEMBOLSO_JANELA_DIAS = 7;
+
   return NextResponse.json({
     found: rows.length > 0,
-    compras: rows.map((r) => ({
-      produto: r.produto_nome,
-      valor: Number(r.valor),
-      status: r.status,
-      categoria: labelOrigem(r.origem, r.tipo_produto),
-      comprado_em: r.created_at,
-      pago_em: r.paid_at,
-    })),
+    compras: rows.map((r) => {
+      const dataBase = r.paid_at ?? r.created_at;
+      const diasDesdePagamento = Math.floor((Date.now() - new Date(dataBase).getTime()) / (24 * 60 * 60 * 1000));
+      const digital = r.origem === "kiwify" && (r.tipo_produto === "curso" || r.tipo_produto === "assinatura");
+      const reembolsavelDiretamente = digital && r.status === "pago" && diasDesdePagamento <= REEMBOLSO_JANELA_DIAS;
+
+      return {
+        produto: r.produto_nome,
+        valor: Number(r.valor),
+        status: r.status,
+        categoria: labelOrigem(r.origem, r.tipo_produto),
+        comprado_em: r.created_at,
+        pago_em: r.paid_at,
+        dias_desde_pagamento: diasDesdePagamento,
+        reembolsavel_diretamente: reembolsavelDiretamente,
+        link_reembolso_kiwify: digital ? kiwifyMemberAreaUrl : null,
+      };
+    }),
     _grounding: { source: "vendas", fetched_at: new Date().toISOString() },
   });
 }

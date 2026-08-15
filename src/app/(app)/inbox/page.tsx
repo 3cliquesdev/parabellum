@@ -206,6 +206,34 @@ export default function InboxPage() {
     await supabase.from("conversas").update({ ia_ativa: !conversa.ia_ativa }).eq("id", conversa.id);
   }
 
+  const [tags, setTags] = useState<{ id: string; nome: string; cor: string }[]>([]);
+  const [showResolverMenu, setShowResolverMenu] = useState(false);
+  const [tagEscolhida, setTagEscolhida] = useState("");
+  const [resolvendo, setResolvendo] = useState(false);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/tags?tenant_id=${tenantId}`).then((r) => r.json()).then((d) => setTags(d.tags ?? []));
+  }, [tenantId]);
+
+  async function marcarComoResolvido(conversa: ConversaWithLead) {
+    if (!tagEscolhida || !tenantId) return;
+    setResolvendo(true);
+    const r = await fetch(`/api/conversas/${conversa.id}/resolver`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, tag_nome: tagEscolhida, resolvido_por: "humano" }),
+    });
+    setResolvendo(false);
+    if (!r.ok) {
+      const err = await r.json();
+      alert(err.error ?? "Erro ao encerrar conversa");
+      return;
+    }
+    setShowResolverMenu(false);
+    setTagEscolhida("");
+  }
+
   if (tenantLoading) {
     return (
       <div className="flex items-center justify-center h-full" style={inboxPageStyle}>
@@ -382,22 +410,66 @@ export default function InboxPage() {
               </div>
             </div>
 
-            <button
-              onClick={() => toggleIA(selected)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all shrink-0"
-              style={
-                selected.ia_ativa
-                  ? {
-                      background: "var(--active-soft-bg)",
-                      color: "var(--status-ganho)",
-                      border: "1px solid var(--active-soft-border)",
-                    }
-                  : inboxGhostButtonStyle
-              }
-            >
-              <Bot className="w-3.5 h-3.5" />
-              IA {selected.ia_ativa ? "ativada" : "desativada"}
-            </button>
+            <div className="flex items-center gap-2 shrink-0 relative">
+              <button
+                onClick={() => toggleIA(selected)}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                style={
+                  selected.ia_ativa
+                    ? {
+                        background: "var(--active-soft-bg)",
+                        color: "var(--status-ganho)",
+                        border: "1px solid var(--active-soft-border)",
+                      }
+                    : inboxGhostButtonStyle
+                }
+              >
+                <Bot className="w-3.5 h-3.5" />
+                IA {selected.ia_ativa ? "ativada" : "desativada"}
+              </button>
+
+              {selected.status === "resolvido" ? (
+                <span className="px-3 py-2 rounded-xl text-xs font-bold" style={inboxBadgeStyle("#939da4")}>
+                  Resolvido
+                </span>
+              ) : (
+                <button
+                  onClick={() => setShowResolverMenu((v) => !v)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={inboxGhostButtonStyle}
+                >
+                  Marcar como resolvido
+                </button>
+              )}
+
+              {showResolverMenu && (
+                <div className="absolute right-0 top-full mt-2 z-20 w-72 rounded-xl p-3 space-y-2" style={{ background: "var(--surface-solid)", border: "1px solid var(--border-subtle)" }}>
+                  <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>Escolha o motivo (obrigatório)</p>
+                  <select
+                    value={tagEscolhida}
+                    onChange={(e) => setTagEscolhida(e.target.value)}
+                    className="w-full h-9 px-2 rounded-lg text-xs outline-none"
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+                  >
+                    <option value="">Selecione uma tag...</option>
+                    {tags.map((t) => (
+                      <option key={t.id} value={t.nome} style={{ background: "var(--surface-solid)" }}>{t.nome}</option>
+                    ))}
+                  </select>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setShowResolverMenu(false)} className="px-3 h-8 rounded-lg text-xs" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
+                    <button
+                      onClick={() => marcarComoResolvido(selected)}
+                      disabled={!tagEscolhida || resolvendo}
+                      className="px-3 h-8 rounded-lg text-xs font-bold"
+                      style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: !tagEscolhida || resolvendo ? 0.6 : 1 }}
+                    >
+                      {resolvendo ? "Encerrando..." : "Confirmar"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 py-5 md:px-6 md:py-6 space-y-3" style={inboxCanvasStyle}>

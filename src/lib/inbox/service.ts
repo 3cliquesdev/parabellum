@@ -22,6 +22,7 @@ type ConversationRow = {
   status: string;
   ia_ativa: boolean;
   ai_mode: "autopilot" | "copilot" | "disabled";
+  aguardando_csat?: boolean;
 };
 
 type IdentityRow = {
@@ -342,11 +343,13 @@ async function findOrCreateConversation(
 ) {
   const { data: existingConversation } = await supabase
     .from("conversas")
-    .select("id, tenant_id, lead_id, canal, status, ia_ativa, ai_mode")
+    .select("id, tenant_id, lead_id, canal, status, ia_ativa, ai_mode, aguardando_csat")
     .eq("tenant_id", tenantId)
     .eq("lead_id", leadId)
     .eq("canal", canal)
-    .eq("status", "ativo")
+    .or("status.eq.ativo,aguardando_csat.eq.true")
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (existingConversation) {
@@ -366,7 +369,7 @@ async function findOrCreateConversation(
       // responda em duplicidade com o agente do n8n.
       ai_mode: "disabled",
     })
-    .select("id, tenant_id, lead_id, canal, status, ia_ativa, ai_mode")
+    .select("id, tenant_id, lead_id, canal, status, ia_ativa, ai_mode, aguardando_csat")
     .single();
 
   return data as ConversationRow;

@@ -4,6 +4,7 @@ import { consumeApiRateLimit } from "@/lib/security/rate-limit";
 import { ingestInboundMessage } from "@/lib/inbox/service";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { maskPII } from "@/lib/security/pii-mask";
+import { checkAndHandleCsatReply } from "@/lib/inbox/csat";
 
 interface WebchatMessageBody {
   tenant_id?: string;
@@ -34,7 +35,15 @@ export async function POST(request: NextRequest) {
   });
 
   if (!result.duplicate && result.lead && result.conversation) {
-    await dispatchWebhook(tenant_id, "message.received", {
+    const csatHandled = await checkAndHandleCsatReply(admin, {
+      id: result.conversation.id,
+      tenant_id,
+      lead_id: result.lead.id,
+      canal: "webchat",
+      aguardando_csat: (result.conversation as { aguardando_csat?: boolean }).aguardando_csat,
+    }, mensagem);
+
+    if (!csatHandled) await dispatchWebhook(tenant_id, "message.received", {
       lead_id: result.lead.id,
       lead_nome: (result.lead as { nome?: string | null }).nome ?? null,
       conversa_id: result.conversation.id,

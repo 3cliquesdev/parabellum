@@ -4,6 +4,7 @@ import { dispatchConversation } from "@/lib/dispatch";
 import { processFlowMessage } from "@/lib/flow-engine";
 import { ingestInboundMessage, type InboxIdentityInput, type InboxLeadInput, type InboxMessageInput } from "@/lib/inbox/service";
 import { dispatchWebhook } from "@/lib/webhooks";
+import { checkAndHandleCsatReply } from "@/lib/inbox/csat";
 import { maskPII } from "@/lib/security/pii-mask";
 import { textToSpeech } from "@/lib/tts";
 import type { AtividadeTipo, LooseDatabase } from "@/types/database";
@@ -43,6 +44,7 @@ type ConversationLike = {
   id: string;
   ia_ativa: boolean;
   ai_mode: "autopilot" | "copilot" | "disabled";
+  aguardando_csat?: boolean;
 };
 
 type TenantLimitsRow = {
@@ -514,6 +516,15 @@ export async function handleInboundAutomation(params: InboundAutomationParams) {
   const lead = ingested.lead as LeadLike;
   const conversation = ingested.conversation as ConversationLike;
   const text = message.text?.trim() ?? "";
+
+  const csatHandled = await checkAndHandleCsatReply(supabase, {
+    id: conversation.id,
+    tenant_id: tenantId,
+    lead_id: lead.id,
+    canal,
+    aguardando_csat: conversation.aguardando_csat,
+  }, text);
+  if (csatHandled) return ingested;
 
   await dispatchWebhook(tenantId, "message.received", {
     lead_id: lead.id,

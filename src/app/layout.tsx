@@ -19,7 +19,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "3Cliques CRM — Vendas com inteligência",
+  title: "Parabellum — Vendas com inteligência",
   description: "CRM moderno e inteligente para agências e times de vendas. Pipeline, leads, atividades e IA em um só lugar.",
 };
 

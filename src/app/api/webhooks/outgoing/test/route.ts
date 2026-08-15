@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   const payload: WebhookTestPayload = {
     event: "test.ping",
     tenant_id: webhookData.tenant_id,
-    data: { message: "Webhook do 3Cliques CRM funcionando!", timestamp },
+    data: { message: "Webhook do Parabellum funcionando!", timestamp },
     timestamp,
   };
 

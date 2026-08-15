@@ -84,7 +84,7 @@ function WebchatTestInner() {
     <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif" }}>
       <div style={{ width: 380, height: 560, background: "#151515", borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <p style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>Chat de teste — 3Cliques</p>
+          <p style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>Chat de teste — Parabellum</p>
           <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>
             {conversaId ? `Conversa ${conversaId.slice(0, 8)}` : "Envie uma mensagem para começar"}
           </p>

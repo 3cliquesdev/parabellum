@@ -14,7 +14,7 @@ export async function sendMail(opts: MailOptions): Promise<{ ok: boolean; error?
   if (!process.env.RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY nao configurada" };
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const fromName = opts.fromName ?? "3Cliques CRM";
+    const fromName = opts.fromName ?? "Parabellum";
     const fromEmail = opts.from ?? "noreply@mail.3cliques.net";
     const { error } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,

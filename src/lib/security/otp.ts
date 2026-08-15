@@ -30,7 +30,7 @@ export async function sendOtpEmail(
 
   const sent = await sendMail({
     to: params.email,
-    subject: "Código de verificação — 3Cliques",
+    subject: "Código de verificação — Parabellum",
     html: `<p>Seu código de verificação é:</p><h2 style="letter-spacing:4px">${code}</h2><p>Válido por ${OTP_TTL_MINUTES} minutos. Se você não pediu isso, ignore este e-mail.</p>`,
   });
   if (!sent.ok) return { ok: false, error: sent.error ?? "Falha ao enviar e-mail" };

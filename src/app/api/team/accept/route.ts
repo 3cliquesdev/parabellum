@@ -40,8 +40,8 @@ async function createAuthClient() {
 }
 
 function getTenantName(tenants: InviteTokenRow["tenants"]): string {
-  if (Array.isArray(tenants)) return tenants[0]?.name ?? "3Cliques CRM";
-  return tenants?.name ?? "3Cliques CRM";
+  if (Array.isArray(tenants)) return tenants[0]?.name ?? "Parabellum";
+  return tenants?.name ?? "Parabellum";
 }
 
 export async function POST(request: NextRequest) {

@@ -84,7 +84,7 @@ const INTEGRATIONS = [
   { id: "gemini", name: "Gemini (Vertex AI)", desc: "IA da Google para respostas automáticas e análise de leads", categoria: "ia", cor: "#4285F4", status: "installed", icon: <GeminiIcon /> },
   { id: "openai", name: "OpenAI", desc: "GPT-4 para respostas mais criativas e contextuais", categoria: "ia", cor: "#10a37f", status: "soon", icon: <OpenAIIcon /> },
   // Automações
-  { id: "zapier", name: "Zapier", desc: "Conecte o 3Cliques CRM com mais de 5.000 aplicativos", categoria: "automacoes", cor: "#FF4A00", status: "soon", icon: <ZapierIcon /> },
+  { id: "zapier", name: "Zapier", desc: "Conecte o Parabellum com mais de 5.000 aplicativos", categoria: "automacoes", cor: "#FF4A00", status: "soon", icon: <ZapierIcon /> },
   { id: "make", name: "Make", desc: "Crie automações visuais entre o CRM e outros sistemas", categoria: "automacoes", cor: "#6D00CC", status: "soon", icon: <MakeIcon /> },
   { id: "webhooks", name: "Webhooks", desc: "Envie eventos do CRM para qualquer URL externa em tempo real", categoria: "automacoes", cor: "#10B981", status: "available", icon: <WebhookIcon /> },
   // Email
@@ -172,7 +172,7 @@ export default function SettingsPage() {
           <div className="p-6 space-y-5">
             <div>
               <h1 className="text-lg font-semibold text-white tracking-tight">Integrações</h1>
-              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Conecte o 3Cliques CRM com suas ferramentas favoritas</p>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Conecte o Parabellum com suas ferramentas favoritas</p>
             </div>
 
             {/* Category filter */}
@@ -774,7 +774,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
           <Input value={form.nome_fantasia} onChange={e => setForm(f => ({ ...f, nome_fantasia: e.target.value }))}
             placeholder="Ex: Agência Exemplo"
             className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
-          <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.6)" }}>Aparece no remetente: <span style={{ color: previewColor }}>{previewName} | 3Cliques CRM</span></p>
+          <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.6)" }}>Aparece no remetente: <span style={{ color: previewColor }}>{previewName} | Parabellum</span></p>
         </div>
 
         <div className="space-y-1.5">
@@ -890,7 +890,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
                   Você recebeu este email porque alguem@email.com enviou um convite para {previewName}.
                 </p>
                 <p className="text-[9px] mt-1" style={{ color: previewPalette.poweredByText }}>
-                  Enviado via 3Cliques CRM · O CRM de agências digitais
+                  Enviado via Parabellum · O CRM de agências digitais
                 </p>
               </div>
 

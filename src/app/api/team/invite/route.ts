@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
   }
 
   const inviteUrl = `${SITE_URL}/invite?token=${inviteData.token}`;
-  const tenantName = tenantData?.nome_fantasia ?? tenantData?.name ?? "3Cliques CRM";
+  const tenantName = tenantData?.nome_fantasia ?? tenantData?.name ?? "Parabellum";
   const branding: InviteEmailBranding = {
     nome: tenantName,
     logoUrl: tenantData?.logo_url ?? undefined,

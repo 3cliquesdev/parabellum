@@ -124,7 +124,7 @@ export default function BroadcastTemplatesPage() {
           <div className="space-y-1.5">
             <label className="text-xs font-medium" style={{ color: "#939da4" }}>Footer (opcional)</label>
             <input value={form.footer_text} onChange={e => setForm(f => ({ ...f, footer_text: e.target.value }))}
-              placeholder="3Cliques CRM" className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none"
+              placeholder="Parabellum" className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
           </div>
           <div className="flex gap-2 justify-end">

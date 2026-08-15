@@ -239,7 +239,7 @@ export async function sendEmailConversationMessage(
     .maybeSingle();
 
   const tenantInfo = tenant as { nome_fantasia?: string | null; name?: string | null } | null;
-  const senderName = tenantInfo?.nome_fantasia ?? tenantInfo?.name ?? "3Cliques CRM";
+  const senderName = tenantInfo?.nome_fantasia ?? tenantInfo?.name ?? "Parabellum";
   const safeText = escapeHtml(text).replace(/\n/g, "<br />");
   const finalSubject = subject?.trim() || `Nova mensagem de ${senderName}`;
 

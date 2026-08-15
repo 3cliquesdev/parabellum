@@ -12,10 +12,10 @@ export interface Branding {
 }
 
 const DEFAULT: Branding = {
-  display_name: "3Cliques CRM",
+  display_name: "Parabellum",
   primary_color: "#9aea62",
   secondary_color: "#000000",
-  logo_url: null,
+  logo_url: "/logo-icon.png",
   favicon_url: null,
   support_email: "suporte@3cliques.net",
   terms_url: null,

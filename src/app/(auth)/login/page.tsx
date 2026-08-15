@@ -244,7 +244,7 @@ export default function LoginPage() {
         </div>
 
         <p className="absolute bottom-8 text-xs text-center" style={{ color: "#d1d5db" }}>
-          Acesso restrito · 3Cliques CRM © 2026
+          Acesso restrito · Parabellum © 2026
         </p>
       </div>
     </div>

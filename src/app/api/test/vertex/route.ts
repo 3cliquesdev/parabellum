@@ -31,7 +31,7 @@ export async function GET() {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: "Responda apenas: Vertex AI funcionando no 3Cliques CRM!" }] }],
+        contents: [{ role: "user", parts: [{ text: "Responda apenas: Vertex AI funcionando no Parabellum!" }] }],
         generationConfig: { maxOutputTokens: 50 },
       }),
     });

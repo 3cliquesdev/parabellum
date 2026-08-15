@@ -142,7 +142,7 @@ export function renderInviteEmailHtml({
     ? ""
     : `
     <p style="margin:12px 0 0;font-size:11px;color:${palette.poweredByText};font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;">
-      Enviado via <a href="${siteUrl}" style="color:${palette.poweredByText};text-decoration:none;">3Cliques CRM</a> &middot; O CRM de agencias digitais
+      Enviado via <a href="${siteUrl}" style="color:${palette.poweredByText};text-decoration:none;">Parabellum</a> &middot; O CRM de agencias digitais
     </p>`;
 
   return `<!DOCTYPE html>

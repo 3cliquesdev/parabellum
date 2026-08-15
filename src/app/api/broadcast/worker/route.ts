@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp-template";
+import { getInternalApiSecret, isInternalRequest } from "@/lib/security/internal-auth";
 import type { LooseDatabase } from "@/types/database";
 
 const SAFE_RATE_MS = 100;
@@ -64,8 +65,7 @@ function sleep(ms: number) {
 }
 
 export async function POST(request: NextRequest) {
-  const key = request.headers.get("x-internal-key");
-  if (key !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isInternalRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -230,9 +230,13 @@ export async function POST(request: NextRequest) {
   }).eq("id", campaign_id);
 
   if (pendingMessages.length === 100) {
-    fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-six.vercel.app"}/api/broadcast/worker`, {
+    const internalSecret = getInternalApiSecret();
+    if (!internalSecret) {
+      return NextResponse.json({ error: "INTERNAL_API_SECRET nao configurado" }, { status: 503 });
+    }
+    fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/broadcast/worker`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal-key": process.env.SUPABASE_SERVICE_ROLE_KEY! },
+      headers: { "Content-Type": "application/json", "x-internal-key": internalSecret },
       body: JSON.stringify({ campaign_id, tenant_id }),
     }).catch(() => {});
   }

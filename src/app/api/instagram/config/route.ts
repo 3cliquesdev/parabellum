@@ -44,7 +44,7 @@ async function ensureAdminMembership(tenantId: string) {
     .maybeSingle();
 
   const member = membership as { role?: string | null } | null;
-  if (!member || !["owner", "admin"].includes(member.role ?? "")) {
+  if (!member || !["owner", "gerente"].includes(member.role ?? "")) {
     return { error: NextResponse.json({ error: "Sem permissao" }, { status: 403 }) };
   }
 

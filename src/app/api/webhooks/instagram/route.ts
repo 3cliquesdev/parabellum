@@ -7,9 +7,10 @@ import {
   fetchInstagramSenderProfile,
   normalizeInstagramUsername,
 } from "@/lib/instagram-profiles";
+import type { LooseDatabase } from "@/types/database";
 
 function adminClient() {
-  return createServerClient<any>(
+  return createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: () => [], setAll: () => {} } },
@@ -25,11 +26,41 @@ type InstagramInboundEvent = {
   metadata: Record<string, unknown>;
 };
 
+interface InstagramWebhookBody {
+  entry?: Array<{
+    id?: unknown;
+    messaging?: Array<{
+      sender?: { id?: unknown };
+      recipient?: { id?: unknown };
+      message?: {
+        mid?: unknown;
+        text?: unknown;
+        is_echo?: boolean;
+        attachments?: Array<{
+          type?: unknown;
+          payload?: { url?: unknown };
+        }>;
+      };
+    }>;
+    changes?: Array<{
+      field?: unknown;
+      value?: {
+        messages?: Array<{
+          from?: unknown;
+          id?: unknown;
+          text?: { body?: unknown };
+          image?: { url?: unknown };
+        }>;
+      };
+    }>;
+  }>;
+}
+
 function getVerifyToken() {
   return process.env.INSTAGRAM_VERIFY_TOKEN ?? process.env.WHATSAPP_VERIFY_TOKEN ?? "liberty-instagram";
 }
 
-function extractEvents(body: any): InstagramInboundEvent[] {
+function extractEvents(body: InstagramWebhookBody): InstagramInboundEvent[] {
   const events: InstagramInboundEvent[] = [];
 
   for (const entry of body?.entry ?? []) {
@@ -115,7 +146,7 @@ export async function POST(request: NextRequest) {
     if (!verifyMetaSignature(rawBody, request.headers.get("x-hub-signature-256"))) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
-    const body = JSON.parse(rawBody);
+    const body = JSON.parse(rawBody) as InstagramWebhookBody;
     const events = extractEvents(body);
     if (events.length === 0) {
       return NextResponse.json({ status: "ok" });

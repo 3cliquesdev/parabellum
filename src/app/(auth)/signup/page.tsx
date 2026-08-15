@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -19,11 +19,9 @@ const highlights = [
 
 function SignupPageInner() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  useSearchParams();
   const branding = useBranding();
   const cor = branding.primary_color;
-  const refSlug = searchParams.get("ref");
-  const agencyId = searchParams.get("agency");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,14 +46,6 @@ function SignupPageInner() {
       setError(signUpError.message);
       setLoading(false);
       return;
-    }
-    // Vincular à agência se veio de link de indicação
-    if (agencyId || refSlug) {
-      await fetch("/api/signup/link-agency", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agency_id: agencyId, ref_slug: refSlug }),
-      });
     }
     router.push("/dashboard");
   }

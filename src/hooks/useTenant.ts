@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import type { Tenant } from "@/types/database";
 
 export function useTenant() {
@@ -10,29 +9,13 @@ export function useTenant() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const supabase = createClient();
-
     async function load() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data: member } = await supabase
-          .from("tenant_members")
-          .select("tenant_id")
-          .eq("user_id", user.id)
-          .single() as { data: { tenant_id: string } | null; error: unknown };
-
-        if (!member) return;
-
-        const { data: tenantData } = await supabase
-          .from("tenants")
-          .select("*")
-          .eq("id", member.tenant_id)
-          .single() as { data: Tenant | null; error: unknown };
-
-        setTenantId(member.tenant_id);
-        setTenant(tenantData);
+        const response = await fetch("/api/tenant/current", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { tenant?: Tenant | null };
+        setTenantId(payload.tenant?.id ?? null);
+        setTenant(payload.tenant ?? null);
       } catch (e) {
         console.error("useTenant error:", e);
       } finally {

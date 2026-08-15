@@ -9,7 +9,7 @@ type Admin = AdminClient;
 
 /**
  * Cliente com service_role — IGNORA RLS. Use somente atrás de uma checagem
- * de autorização (assertTenantMember / assertAgencyMember / assertSuperAdmin).
+ * de autorização (assertTenantMember / assertTenantAdmin).
  */
 export function createAdminClient(): Admin {
   return createServerClient<LooseDatabase>(
@@ -65,78 +65,17 @@ export async function assertTenantMember(
   const row = data as { role?: string } | null;
   if (!row) return { ok: false, response: forbidden() };
 
-  return { ok: true, user, role: row.role ?? "member", admin };
+  return { ok: true, user, role: row.role ?? "vendedor", admin };
 }
 
-/** Igual a assertTenantMember, mas exige role owner/admin no tenant. */
+/** Igual a assertTenantMember, mas exige role owner/gerente no tenant. */
 export async function assertTenantAdmin(
   tenantId: string | null | undefined,
 ): Promise<Guard<{ user: User; role: string; admin: Admin }>> {
   const result = await assertTenantMember(tenantId);
   if (!result.ok) return result;
-  if (!["owner", "admin"].includes(result.role)) {
-    return { ok: false, response: forbidden("Requer permissao de admin") };
+  if (!["owner", "gerente"].includes(result.role)) {
+    return { ok: false, response: forbidden("Requer permissao de gerente") };
   }
   return result;
-}
-
-/**
- * Exige um usuário logado que pertença a uma agência (agency_users).
- * Se `tenantId` for informado, também valida que o tenant pertence à agência do usuário.
- * Se `requireAdmin` for true, exige role owner/admin na agência.
- */
-export async function assertAgencyMember(
-  opts: { tenantId?: string | null; agencyId?: string | null; requireAdmin?: boolean } = {},
-): Promise<Guard<{ user: User; agencyId: string; role: string; admin: Admin }>> {
-  const user = await getSessionUser();
-  if (!user) return { ok: false, response: unauthorized() };
-
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("agency_users")
-    .select("agency_id, role")
-    .eq("user_id", user.id)
-    .limit(1);
-
-  const memberships = (data ?? []) as { agency_id: string; role: string }[];
-  if (memberships.length === 0) return { ok: false, response: forbidden("Sem permissao") };
-
-  const membership = memberships[0];
-  if (opts.requireAdmin && !["owner", "admin"].includes(membership.role)) {
-    return { ok: false, response: forbidden("Sem permissao") };
-  }
-
-  if (opts.agencyId && opts.agencyId !== membership.agency_id) {
-    return { ok: false, response: forbidden("Recurso nao pertence a sua agencia") };
-  }
-
-  if (opts.tenantId) {
-    const { data: tenant } = await admin
-      .from("tenants")
-      .select("agency_id")
-      .eq("id", opts.tenantId)
-      .maybeSingle();
-    const tenantRow = tenant as { agency_id?: string | null } | null;
-    if (!tenantRow || tenantRow.agency_id !== membership.agency_id) {
-      return { ok: false, response: forbidden("Tenant nao pertence a sua agencia") };
-    }
-  }
-
-  return { ok: true, user, agencyId: membership.agency_id, role: membership.role, admin };
-}
-
-/** Exige que o usuário logado conste em super_admins (por email). */
-export async function assertSuperAdmin(): Promise<Guard<{ user: User; admin: Admin }>> {
-  const user = await getSessionUser();
-  if (!user?.email) return { ok: false, response: unauthorized() };
-
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("super_admins")
-    .select("id")
-    .eq("email", user.email)
-    .maybeSingle();
-
-  if (!data) return { ok: false, response: forbidden() };
-  return { ok: true, user, admin };
 }

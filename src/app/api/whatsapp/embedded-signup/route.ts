@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import type { LooseDatabase } from "@/types/database";
+import { assertTenantAdmin } from "@/lib/auth/guard";
 
 const META_APP_ID = "2016623082257479";
 
@@ -33,32 +31,13 @@ interface MetaBusiness {
   };
 }
 
-function createAuthClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
-
-function createAdminClient() {
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-}
-
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createAuthClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = (await request.json()) as EmbeddedSignupBody;
   if (!body.code || !body.tenant_id) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
+  const auth = await assertTenantAdmin(body.tenant_id);
+  if (!auth.ok) return auth.response;
 
   const tokenRes = await fetch(
     `https://graph.facebook.com/v20.0/oauth/access_token?client_id=${META_APP_ID}&client_secret=${process.env.META_APP_SECRET}&code=${body.code}`,
@@ -103,14 +82,12 @@ export async function POST(request: NextRequest) {
 
   if (phoneNumbers.length === 1) {
     const phone = phoneNumbers[0];
-    const admin = createAdminClient();
-
-    await admin.from("whatsapp_configs").upsert({
+    await auth.admin.from("whatsapp_configs").upsert({
       tenant_id: body.tenant_id,
       phone_number_id: phone.id,
       waba_id: wabaId,
       access_token: accessToken,
-      verify_token: "liberty-crm",
+      verify_token: "3cliques-crm",
       active: true,
     }, { onConflict: "tenant_id" });
 
@@ -130,20 +107,19 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createAuthClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = (await request.json()) as EmbeddedSignupSelectionBody;
-  const admin = createAdminClient();
+  if (!body.tenant_id || !body.phone_number_id || !body.access_token || !body.waba_id) {
+    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  }
+  const auth = await assertTenantAdmin(body.tenant_id);
+  if (!auth.ok) return auth.response;
 
-  await admin.from("whatsapp_configs").upsert({
+  await auth.admin.from("whatsapp_configs").upsert({
     tenant_id: body.tenant_id,
     phone_number_id: body.phone_number_id,
     waba_id: body.waba_id,
     access_token: body.access_token,
-    verify_token: "liberty-crm",
+    verify_token: "3cliques-crm",
     active: true,
   }, { onConflict: "tenant_id" });
 
@@ -151,15 +127,11 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createAuthClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = (await request.json()) as { tenant_id?: string };
   if (!body.tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
-  const admin = createAdminClient();
+  const auth = await assertTenantAdmin(body.tenant_id);
+  if (!auth.ok) return auth.response;
 
-  await admin.from("whatsapp_configs").update({ active: false }).eq("tenant_id", body.tenant_id);
+  await auth.admin.from("whatsapp_configs").update({ active: false }).eq("tenant_id", body.tenant_id);
   return NextResponse.json({ status: "disconnected" });
 }

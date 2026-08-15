@@ -2,6 +2,12 @@ import { GoogleAuth } from "google-auth-library";
 
 const SPEECH_API = "https://speech.googleapis.com/v1/speech:recognize";
 
+interface SpeechRecognitionResponse {
+  results?: Array<{
+    alternatives?: Array<{ transcript?: string }>;
+  }>;
+}
+
 async function getSpeechToken(): Promise<string> {
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON!);
   const auth = new GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
@@ -54,9 +60,9 @@ export async function transcribeAudio(audioUrl: string, mime?: string | null): P
       return null;
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as SpeechRecognitionResponse;
     const transcript = data.results
-      ?.map((r: any) => r.alternatives?.[0]?.transcript ?? "")
+      ?.map((result) => result.alternatives?.[0]?.transcript ?? "")
       .join(" ")
       .trim();
 

@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import crypto from "crypto";
 import type { LooseDatabase } from "@/types/database";
+import { safePublicFetch } from "@/lib/security/safe-fetch";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -53,13 +54,13 @@ export async function dispatchWebhook(tenantId: string, evento: WebhookEvent, da
         const signature = crypto.createHmac("sha256", webhook.secret ?? "").update(body).digest("hex");
 
         try {
-          const response = await fetch(webhook.url, {
+        const response = await safePublicFetch(webhook.url, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "X-Liberty-Signature": `sha256=${signature}`,
-              "X-Liberty-Event": evento,
-              "User-Agent": "LibertyPlatform/1.0",
+              "X-3Cliques-Signature": `sha256=${signature}`,
+              "X-3Cliques-Event": evento,
+              "User-Agent": "3CliquesPlatform/1.0",
             },
             body,
             signal: AbortSignal.timeout(8000),

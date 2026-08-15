@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   LayoutDashboard,
   Kanban,
@@ -13,7 +13,7 @@ import {
   LogOut,
   Sparkles,
   Megaphone,
-  Building2,
+  Ticket,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useBranding } from "@/hooks/useBranding";
@@ -25,6 +25,7 @@ const navItems = [
   { href: "/contacts", icon: Users, label: "Contatos" },
   { href: "/activities", icon: CheckSquare, label: "Atividades" },
   { href: "/inbox", icon: MessageSquare, label: "Inbox IA" },
+  { href: "/tickets", icon: Ticket, label: "Tickets" },
   { href: "/broadcasts", icon: Megaphone, label: "Broadcast" },
   { href: "/ia", icon: Sparkles, label: "Studio IA", separator: true },
 ];
@@ -34,21 +35,7 @@ export function Sidebar() {
   const router = useRouter();
   const branding = useBranding();
   const cor = branding.primary_color;
-  const [isAgencyUser, setIsAgencyUser] = useState(false);
   const [hoveredHref, setHoveredHref] = useState<string | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase
-        .from("agency_users")
-        .select("id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .then(({ data }: { data: any }) => setIsAgencyUser((data ?? []).length > 0));
-    });
-  }, []);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -70,7 +57,8 @@ export function Sidebar() {
         style={{ borderBottom: "1px solid var(--sidebar-border)" }}
       >
         {branding.logo_url ? (
-          <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto shrink-0" />
+          // Logo white-label remoto com dimensões administráveis pela agência.
+          <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto shrink-0" /> // eslint-disable-line @next/next/no-img-element
         ) : (
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
@@ -137,22 +125,6 @@ export function Sidebar() {
 
       <div className="px-3 pb-5 space-y-0.5" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
         <div className="pt-3">
-          {isAgencyUser && (
-            <Link
-              href="/agency"
-              className="flex items-start gap-3 px-3 py-2.5 rounded-lg font-medium mb-1"
-              style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)", transition: "all 0.15s ease" }}
-              onMouseEnter={(event) => { (event.currentTarget as HTMLAnchorElement).style.background = "var(--primary-bg)"; }}
-              onMouseLeave={(event) => { (event.currentTarget as HTMLAnchorElement).style.background = "var(--active-soft-bg)"; }}
-            >
-              <Building2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "var(--status-ganho)" }} />
-              <div>
-                <p className="text-sm font-bold leading-tight" style={{ color: "var(--status-ganho)" }}>Painel da Agencia</p>
-                <p className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--text-secondary)" }}>Gerencie seus clientes CRM</p>
-              </div>
-            </Link>
-          )}
-
           <div className="flex items-center justify-between px-3 py-2 mb-0.5">
             <span className="text-xs font-medium" style={{ color: "var(--text-faint)" }}>Aparencia</span>
             <ThemeToggle />

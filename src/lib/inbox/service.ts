@@ -330,7 +330,10 @@ async function findOrCreateConversation(
       canal,
       status: "ativo",
       ia_ativa: true,
-      ai_mode: "autopilot",
+      // O agente principal roda no n8n (via webhook message.received). Deixar
+      // "disabled" aqui evita que a IA interna do CRM (chat_flows/Gemini)
+      // responda em duplicidade com o agente do n8n.
+      ai_mode: "disabled",
     })
     .select("id, tenant_id, lead_id, canal, status, ia_ativa, ai_mode")
     .single();
@@ -365,7 +368,7 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
 
   const conversation = await findOrCreateConversation(supabase, tenantId, lead.id, canal);
 
-  await supabase.from("mensagens").insert({
+  const { error: insertError } = await supabase.from("mensagens").insert({
     conversa_id: conversation.id,
     tenant_id: tenantId,
     remetente: "lead",
@@ -382,6 +385,9 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
     longitude: message.longitude ?? null,
     metadata: message.metadata ?? { canal, direction: "inbound" },
   });
+  if (insertError) {
+    console.error("ingestInboundMessage: falha ao salvar mensagem inbound:", insertError.message);
+  }
 
   await supabase
     .from("conversas")

@@ -32,7 +32,7 @@ export type InviteEmailPalette = {
   brandWordmark: string;
 };
 
-export function getInviteEmailPalette(theme: EmailTheme, primaryColor: string): InviteEmailPalette {
+export function getInviteEmailPalette(theme: EmailTheme): InviteEmailPalette {
   if (theme === "light") {
     return {
       theme,
@@ -85,11 +85,18 @@ export function getInviteEmailPalette(theme: EmailTheme, primaryColor: string): 
 }
 
 export function getInviteEmailFeatures(role: string): string[] {
-  if (role === "admin") {
+  if (role === "gerente") {
     return [
       "Acesso completo ao pipeline, leads e relatorios",
       "Gestao de equipe e configuracoes do workspace",
       "Inbox de WhatsApp e automacoes com IA",
+    ];
+  }
+  if (role === "atendente") {
+    return [
+      "Inbox de WhatsApp e conversas com clientes",
+      "Registro de atividades e atendimentos",
+      "Colaboracao em tempo real com seus colegas",
     ];
   }
 
@@ -116,9 +123,10 @@ export function renderInviteEmailHtml({
   siteUrl: string;
 }): string {
   const cor = branding.corPrimaria;
-  const roleLabel = role === "admin" ? "Administrador" : role === "member" ? "Membro" : role;
+  const ROLE_LABELS: Record<string, string> = { owner: "Dono", gerente: "Gerente", vendedor: "Vendedor", atendente: "Atendente" };
+  const roleLabel = ROLE_LABELS[role] ?? role;
   const initials = inviterEmail.split("@")[0].slice(0, 2).toUpperCase();
-  const palette = getInviteEmailPalette(branding.emailTheme, cor);
+  const palette = getInviteEmailPalette(branding.emailTheme);
   const features = getInviteEmailFeatures(role);
 
   const headerBrand = branding.logoUrl
@@ -134,7 +142,7 @@ export function renderInviteEmailHtml({
     ? ""
     : `
     <p style="margin:12px 0 0;font-size:11px;color:${palette.poweredByText};font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;">
-      Enviado via <a href="${siteUrl}" style="color:${palette.poweredByText};text-decoration:none;">Liberty CRM</a> &middot; O CRM de agencias digitais
+      Enviado via <a href="${siteUrl}" style="color:${palette.poweredByText};text-decoration:none;">3Cliques CRM</a> &middot; O CRM de agencias digitais
     </p>`;
 
   return `<!DOCTYPE html>

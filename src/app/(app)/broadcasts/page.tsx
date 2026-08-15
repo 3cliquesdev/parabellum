@@ -3,10 +3,25 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Plus, Megaphone, Play, Pause, CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+interface BroadcastCampaign {
+  id: string;
+  status: string;
+  nome: string;
+  total_destinatarios: number;
+  total_enviados: number;
+  total_entregues: number;
+  total_lidos: number;
+  total_optouts: number;
+  created_at: string;
+  concluido_em?: string | null;
+  meta_templates?: { template_name?: string | null; category?: string | null } | null;
+}
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: LucideIcon }> = {
   rascunho:  { label: "Rascunho",  color: "#939da4", icon: Clock },
   agendado:  { label: "Agendado",  color: "#facc15", icon: Clock },
   enviando:  { label: "Enviando",  color: "#60a5fa", icon: Play },
@@ -18,7 +33,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 
 export default function BroadcastsPage() {
   const { tenantId } = useTenant();
-  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

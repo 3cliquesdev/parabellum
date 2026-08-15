@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { generateEmbedding } from "../embed/route";
-import type { LooseDatabase } from "@/types/database";
+import { assertTenantMember } from "@/lib/auth/guard";
+import { readTextWithLimit, safePublicFetch } from "@/lib/security/safe-fetch";
+import { consumeApiRateLimit } from "@/lib/security/rate-limit";
+
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_CHUNKS = 100;
 
 interface CrawlBody {
   url?: string;
@@ -40,34 +43,12 @@ function chunkText(text: string, size = 800, overlap = 100): string[] {
   return chunks;
 }
 
-async function createAuthClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
-
-function createAdminClient() {
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-}
-
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return "Unknown error";
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createAuthClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = (await request.json().catch(() => ({}))) as CrawlBody;
   if (!body.url || !body.tenant_id) {
     return NextResponse.json({ error: "url e tenant_id sao obrigatorios" }, { status: 400 });
@@ -80,29 +61,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "URL invalida" }, { status: 400 });
   }
 
-  const admin = createAdminClient();
+  const auth = await assertTenantMember(body.tenant_id);
+  if (!auth.ok) return auth.response;
+  const admin = auth.admin;
+  if (!await consumeApiRateLimit(admin, `ai:crawl:${auth.user.id}`, 5, 600)) {
+    return NextResponse.json({ error: "Limite de crawls excedido. Tente novamente mais tarde." }, { status: 429 });
+  }
 
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
-    const response = await fetch(body.url, {
-      signal: controller.signal,
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; LibertyCRM/1.0; +https://libertycrm.com.br)" },
-    });
-    clearTimeout(timeout);
+    let response: Response;
+    try {
+      response = await safePublicFetch(body.url, {
+        signal: controller.signal,
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; 3CliquesCRM/1.0; +https://3cliques.net)" },
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       return NextResponse.json({ error: `Erro ao acessar URL: ${response.status}` }, { status: 400 });
     }
 
-    const html = await response.text();
+    const html = await readTextWithLimit(response, MAX_RESPONSE_BYTES);
     const text = extractText(html);
     if (text.length < 100) {
       return NextResponse.json({ error: "Nao foi possivel extrair conteudo util desta URL" }, { status: 400 });
     }
 
     const domain = parsedUrl.hostname.replace("www.", "");
-    const chunks = chunkText(text);
+    const chunks = chunkText(text).slice(0, MAX_CHUNKS);
     const category = `Crawled: ${domain}`;
     let created = 0;
 

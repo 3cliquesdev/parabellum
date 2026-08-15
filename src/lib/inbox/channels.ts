@@ -51,6 +51,13 @@ export const CHANNEL_META: Record<ConversaCanal, {
     supportsOutbound: false,
     supportsAttachments: false,
   },
+  webchat: {
+    label: "Chat do site",
+    accent: "#9aea62",
+    emptyLabel: "Visitante",
+    supportsOutbound: true,
+    supportsAttachments: false,
+  },
   interno: {
     label: "Interno",
     accent: "#939da4",

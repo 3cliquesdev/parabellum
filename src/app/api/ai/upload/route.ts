@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { generateEmbedding } from "../embed/route";
-import type { LooseDatabase } from "@/types/database";
+import { assertTenantMember } from "@/lib/auth/guard";
+import { consumeApiRateLimit } from "@/lib/security/rate-limit";
+
+const MAX_CHUNKS = 100;
 
 interface PdfParseResult {
   text: string;
@@ -24,24 +25,6 @@ function chunkText(text: string, size = 800, overlap = 100): string[] {
   return chunks;
 }
 
-function createAdminClient() {
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-}
-
-async function createAuthClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
-
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return "Unknown error";
@@ -56,10 +39,6 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createAuthClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const formData = await request.formData();
   const file = formData.get("file");
   const tenantId = formData.get("tenant_id");
@@ -79,7 +58,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Formato nao suportado. Use PDF, DOCX ou TXT" }, { status: 400 });
   }
 
-  const admin = createAdminClient();
+  const auth = await assertTenantMember(tenantId);
+  if (!auth.ok) return auth.response;
+  const admin = auth.admin;
+  if (!await consumeApiRateLimit(admin, `ai:upload:${auth.user.id}`, 10, 600)) {
+    return NextResponse.json({ error: "Limite de uploads excedido. Tente novamente mais tarde." }, { status: 429 });
+  }
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -102,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     const baseName = file.name.replace(/\.[^.]+$/, "");
     const category = `Documento: ${baseName}`;
-    const chunks = chunkText(text);
+    const chunks = chunkText(text).slice(0, MAX_CHUNKS);
     let created = 0;
 
     for (let index = 0; index < chunks.length; index++) {

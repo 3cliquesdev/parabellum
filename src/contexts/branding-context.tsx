@@ -12,12 +12,12 @@ export interface Branding {
 }
 
 export const DEFAULT_BRANDING: Branding = {
-  display_name: "Liberty CRM",
+  display_name: "3Cliques CRM",
   logo_url: null,
   favicon_url: null,
   primary_color: "#9aea62",
   secondary_color: "#000000",
-  support_email: "suporte@libertycrm.com.br",
+  support_email: "suporte@3cliques.net",
 };
 
 const BrandingContext = createContext<Branding>(DEFAULT_BRANDING);

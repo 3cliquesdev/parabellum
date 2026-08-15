@@ -7,9 +7,19 @@ import { useTenant } from "@/hooks/useTenant";
 
 const DEPT_COLOR: Record<string, string> = { vendas: "#10B981", suporte: "#60a5fa", todos: "#a78bfa" };
 
+interface ChatFlow {
+  id: string;
+  nome: string;
+  descricao?: string | null;
+  ativo: boolean;
+  is_master: boolean;
+  departamento: string;
+  trigger_keywords?: string[] | null;
+}
+
 export default function FlowsPage() {
   const { tenantId } = useTenant();
-  const [flows, setFlows] = useState<any[]>([]);
+  const [flows, setFlows] = useState<ChatFlow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTemplates, setShowTemplates] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState<string | null>(null);
@@ -163,7 +173,7 @@ export default function FlowsPage() {
     fetch(`/api/flows?tenant_id=${tenantId}`).then(r => r.json()).then(d => { setFlows(d.flows ?? []); setLoading(false); });
   }, [tenantId]);
 
-  async function toggleAtivo(flow: any) {
+  async function toggleAtivo(flow: ChatFlow) {
     await fetch("/api/flows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ flow_id: flow.id, ativo: !flow.ativo }) });
     setFlows(f => f.map(x => x.id === flow.id ? { ...x, ativo: !x.ativo } : x));
   }
@@ -174,7 +184,7 @@ export default function FlowsPage() {
     setFlows(f => f.filter(x => x.id !== id));
   }
 
-  async function toggleMaster(flow: any) {
+  async function toggleMaster(flow: ChatFlow) {
     // Desativar master atual (se houver) e ativar o novo
     const newIsMaster = !flow.is_master;
     if (newIsMaster) {
@@ -191,6 +201,8 @@ export default function FlowsPage() {
     await fetch("/api/flows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ flow_id: flow.id, is_master: newIsMaster }) });
   }
 
+  // Mantido para permitir reativar a criação assistida dos fluxos padrão.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function createDefault() {
     if (!tenantId) return;
     const defaults = [
@@ -248,7 +260,7 @@ export default function FlowsPage() {
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {t.keywords.slice(0, 4).map(k => (
-                    <span key={k} className="text-[9px] px-1.5 py-0.5 rounded-full font-mono" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>"{k}"</span>
+                    <span key={k} className="text-[9px] px-1.5 py-0.5 rounded-full font-mono" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>&ldquo;{k}&rdquo;</span>
                   ))}
                 </div>
                 <button onClick={() => createFromTemplate(t)} disabled={creatingTemplate === t.id}
@@ -310,10 +322,10 @@ export default function FlowsPage() {
                           <Zap className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--text-secondary)" }} />
                           {(flow.trigger_keywords ?? []).slice(0, 5).map((kw: string) => (
                             <span key={kw} className="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
-                              style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>"{kw}"</span>
+                              style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}>&ldquo;{kw}&rdquo;</span>
                           ))}
                           {(flow.trigger_keywords ?? []).length > 5 && (
-                            <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>+{flow.trigger_keywords.length - 5}</span>
+                            <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>+{(flow.trigger_keywords ?? []).length - 5}</span>
                           )}
                         </div>
                       )}

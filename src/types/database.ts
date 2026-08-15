@@ -8,9 +8,9 @@ export type LeadStatus =
   | "perdido";
 
 export type AtividadeTipo = "ligacao" | "whatsapp" | "email" | "reuniao" | "outro";
-export type TenantRole = "owner" | "admin" | "member";
+export type TenantRole = "owner" | "gerente" | "vendedor" | "atendente";
 export type ConversaStatus = "ativo" | "resolvido" | "pausado";
-export type ConversaCanal = "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "interno";
+export type ConversaCanal = "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "webchat" | "interno";
 export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "trialing";
 export type EmailTheme = "dark" | "light";
 

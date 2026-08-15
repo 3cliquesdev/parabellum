@@ -130,7 +130,7 @@ export default function StudioIAPage() {
       {/* Tools grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {TOOLS.map(({ href, icon: Icon, label, desc, color, statKey, statLabel }, idx) => {
-          const statValue = statKey ? (stats as any)[statKey] : null;
+          const statValue = statKey ? stats[statKey as keyof Stats] : null;
           const accentColor = color === "#10B981" ? "var(--status-ganho)" : color;
           const accentBg = color === "#10B981" ? "var(--primary-bg)" : `${color}12`;
           const accentBorder = color === "#10B981" ? "var(--primary-border)" : `${color}20`;

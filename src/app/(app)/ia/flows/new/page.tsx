@@ -134,7 +134,7 @@ export default function NewFlowPage() {
                     className="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
                     style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
                   >
-                    "{keyword}"
+                    &ldquo;{keyword}&rdquo;
                   </span>
                 ))}
               </div>

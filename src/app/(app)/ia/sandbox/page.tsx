@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, ThumbsUp, ThumbsDown, BookOpen } from "lucide-react";
+import { Send, Bot, ThumbsUp, ThumbsDown, BookOpen } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
-import { GoogleAuth } from "google-auth-library";
 
 interface SandboxMessage {
   id: string;

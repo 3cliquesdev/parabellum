@@ -4,6 +4,7 @@ import { dispatchConversation } from "@/lib/dispatch";
 import { processFlowMessage } from "@/lib/flow-engine";
 import { ingestInboundMessage, type InboxIdentityInput, type InboxLeadInput, type InboxMessageInput } from "@/lib/inbox/service";
 import { dispatchWebhook } from "@/lib/webhooks";
+import { maskPII } from "@/lib/security/pii-mask";
 import { textToSpeech } from "@/lib/tts";
 import type { AtividadeTipo, LooseDatabase } from "@/types/database";
 
@@ -59,6 +60,16 @@ type PersonaRow = {
   max_tokens?: number | null;
   responder_com_audio?: boolean | null;
   voz_tts?: string | null;
+};
+
+type MessageHistoryRow = {
+  remetente?: string | null;
+  conteudo?: string | null;
+};
+
+type InteractionHistoryRow = {
+  resumo?: string | null;
+  created_at: string;
 };
 
 const AI_LIMITS: Record<string, number> = { Starter: 200, Pro: 2000, Agency: Infinity };
@@ -222,7 +233,7 @@ async function buildConversationSummary(supabase: AdminClient, tenantId: string,
     .order("created_at", { ascending: true })
     .limit(20);
 
-  const summaryPrompt = `Resuma esta conversa em 3 linhas para contexto da IA:\n${(allMsgs ?? []).map((message: any) => `${message.remetente}: ${message.conteudo}`).join("\n")}`;
+  const summaryPrompt = `Resuma esta conversa em 3 linhas para contexto da IA:\n${((allMsgs ?? []) as MessageHistoryRow[]).map((message) => `${message.remetente}: ${message.conteudo}`).join("\n")}`;
   const summaryToken = await getVertexToken();
   const summary = await callGemini(summaryToken, [{ role: "user", parts: [{ text: summaryPrompt }] }], 0.3, 150);
 
@@ -242,7 +253,7 @@ async function buildKnowledgeContext(supabase: AdminClient, tenantId: string, te
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return "";
 
   try {
-    const embedRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-three.vercel.app"}/api/ai/embed`, {
+    const embedRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/ai/embed`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
@@ -348,7 +359,7 @@ async function runAiReply(
     .limit(5);
 
   const interactionContext = (interactions ?? []).length > 0
-    ? `\n\nHISTORICO DO LEAD:\n${(interactions ?? []).reverse().map((item: any) => `- ${new Date(item.created_at).toLocaleDateString("pt-BR")}: ${item.resumo}`).join("\n")}`
+    ? `\n\nHISTORICO DO LEAD:\n${((interactions ?? []) as InteractionHistoryRow[]).reverse().map((item) => `- ${new Date(item.created_at).toLocaleDateString("pt-BR")}: ${item.resumo}`).join("\n")}`
     : "";
 
   const { count: msgCount } = await supabase
@@ -377,7 +388,7 @@ async function runAiReply(
 
   const contents = [
     { role: "user", parts: [{ text: systemPrompt }] },
-    ...(history ?? []).map((item: any) => ({
+    ...((history ?? []) as MessageHistoryRow[]).map((item) => ({
       role: item.remetente === "lead" ? "user" : "model",
       parts: [{ text: item.conteudo }],
     })),
@@ -507,7 +518,8 @@ export async function handleInboundAutomation(params: InboundAutomationParams) {
   await dispatchWebhook(tenantId, "message.received", {
     lead_id: lead.id,
     lead_nome: lead.nome,
-    mensagem: text,
+    conversa_id: conversation.id,
+    mensagem: maskPII(text).masked,
     tipo: message.mediaType ?? "text",
     canal,
   });

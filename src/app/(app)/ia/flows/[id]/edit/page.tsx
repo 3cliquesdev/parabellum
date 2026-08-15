@@ -99,10 +99,6 @@ const NODE_SURFACE_STYLE = {
   background: "var(--surface-gradient)",
   boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
 };
-const PANEL_SURFACE_STYLE = {
-  background: "var(--bg-subtle)",
-  borderColor: "var(--border-subtle)",
-};
 const INPUT_SURFACE_STYLE = {
   background: "var(--input-bg)",
   border: "1px solid var(--input-border)",

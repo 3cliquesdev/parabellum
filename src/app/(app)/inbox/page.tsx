@@ -55,6 +55,8 @@ function MediaContent({ msg, tone }: { msg: Mensagem; tone: "lead" | "humano" | 
   if (msg.media_type === "image" || msg.media_type === "sticker") {
     return (
       <div>
+        {/* URL de mídia arbitrária do provedor; dimensões não são conhecidas antecipadamente. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={msg.media_url ?? ""}
           alt="imagem"
@@ -137,7 +139,7 @@ export default function InboxPage() {
   const [sending, setSending] = useState(false);
   const [filtro, setFiltro] = useState<"minhas" | "todas">("minhas");
   const [myUserId, setMyUserId] = useState<string | null>(null);
-  const [myRole, setMyRole] = useState<string>("member");
+  const [myRole, setMyRole] = useState<string>("vendedor");
   const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -155,7 +157,7 @@ export default function InboxPage() {
           .eq("user_id", user.id)
           .single();
         const tm = memberData as { role?: string | null } | null;
-        setMyRole(tm?.role ?? "member");
+        setMyRole(tm?.role ?? "vendedor");
       }
     });
   }, [tenantId]);
@@ -234,7 +236,7 @@ export default function InboxPage() {
           <div className="flex gap-2">
             {[
               { id: "minhas", label: "Minhas" },
-              ...((myRole === "owner" || myRole === "admin") ? [{ id: "todas", label: "Todas" }] : []),
+              ...((myRole === "owner" || myRole === "gerente") ? [{ id: "todas", label: "Todas" }] : []),
             ].map((item) => {
               const isActive = filtro === item.id;
               return (

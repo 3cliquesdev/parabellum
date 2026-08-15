@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertTenantMember, type AdminClient } from "@/lib/auth/guard";
+import { getInternalApiSecret } from "@/lib/security/internal-auth";
 
 interface TenantMemberRow {
   id?: string;
@@ -66,9 +67,13 @@ export async function PATCH(request: NextRequest) {
     updates.disponivel = disponivel;
 
     if (disponivel === true && target.user_id) {
-      fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-six.vercel.app"}/api/team/process-queue`, {
+      const internalSecret = getInternalApiSecret();
+      if (!internalSecret) {
+        return NextResponse.json({ error: "INTERNAL_API_SECRET nao configurado" }, { status: 503 });
+      }
+      fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/team/process-queue`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-internal-key": process.env.SUPABASE_SERVICE_ROLE_KEY! },
+        headers: { "Content-Type": "application/json", "x-internal-key": internalSecret },
         body: JSON.stringify({ tenant_id, agent_id: target.user_id }),
       }).catch(() => {});
     }
@@ -92,7 +97,7 @@ export async function DELETE(request: NextRequest) {
   if (!auth.ok) return auth.response;
   const { admin, role: callerRole } = auth;
 
-  if (!["owner", "admin"].includes(callerRole)) {
+  if (!["owner", "gerente"].includes(callerRole)) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 

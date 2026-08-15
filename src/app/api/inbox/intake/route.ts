@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import type { LooseDatabase } from "@/types/database";
 import { ingestInboundMessage, type InboxIdentityInput, type InboxLeadInput, type InboxMessageInput } from "@/lib/inbox/service";
 import type { InboxExternalCanal } from "@/lib/inbox/channels";
+import { dispatchWebhook } from "@/lib/webhooks";
+import { maskPII } from "@/lib/security/pii-mask";
 
 const SUPPORTED_CHANNELS: InboxExternalCanal[] = [
   "whatsapp",
@@ -11,6 +13,7 @@ const SUPPORTED_CHANNELS: InboxExternalCanal[] = [
   "instagram",
   "telegram",
   "facebook_messenger",
+  "webchat",
 ];
 
 interface IntakeBody {
@@ -66,7 +69,7 @@ function isSupportedChannel(value: string | undefined): value is InboxExternalCa
 }
 
 export async function POST(request: NextRequest) {
-  const expectedSecret = process.env.INBOX_INGEST_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const expectedSecret = process.env.INBOX_INGEST_SECRET;
   const providedSecret = request.headers.get("x-inbox-secret") ?? request.headers.get("x-internal-key");
   const isSecretAuthorized = Boolean(expectedSecret && providedSecret && providedSecret === expectedSecret);
 
@@ -149,6 +152,17 @@ export async function POST(request: NextRequest) {
     lead: leadInput,
     message,
   });
+
+  if (!result.duplicate && result.lead && result.conversation) {
+    await dispatchWebhook(tenantId, "message.received", {
+      lead_id: result.lead.id,
+      lead_nome: (result.lead as { nome?: string | null }).nome ?? null,
+      conversa_id: result.conversation.id,
+      mensagem: message.text ? maskPII(message.text).masked : "",
+      tipo: message.mediaType ?? "text",
+      canal,
+    });
+  }
 
   return NextResponse.json({
     ok: true,

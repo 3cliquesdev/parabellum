@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { consumeApiRateLimit } from "@/lib/security/rate-limit";
 
 function admin() {
   return createServerClient(
@@ -22,8 +23,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "configuração interna ausente" }, { status: 500 });
     }
 
+    const client = admin();
+    const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    const clientKey = forwardedFor ?? req.headers.get("x-real-ip") ?? "unknown";
+    if (!await consumeApiRateLimit(client, `lead:opus:${clientKey}`, 5, 3600)) {
+      return NextResponse.json({ error: "Muitas tentativas. Tente novamente mais tarde." }, { status: 429 });
+    }
+
     // Verifica duplicata por email
-    const { data: existing } = await admin()
+    const { data: existing } = await client
       .from("leads")
       .select("id")
       .eq("tenant_id", tenant_id)
@@ -42,7 +50,7 @@ export async function POST(req: NextRequest) {
       `Origem: Página Liberty Opus — Agendar Apresentação`,
     ].filter(Boolean).join("\n");
 
-    const { error } = await admin().from("leads").insert({
+    const { error } = await client.from("leads").insert({
       tenant_id,
       nome: nome.trim(),
       email: email.trim().toLowerCase(),

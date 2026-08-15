@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "crypto";
 import { textToSpeech } from "@/lib/tts";
+import type { LooseDatabase } from "@/types/database";
 
 export function sanitizeMetaAccessToken(accessToken: string) {
   return accessToken.trim().replace(/^['"]+|['"]+$/g, "").replace(/\s+/g, "");
@@ -118,7 +119,7 @@ export async function fetchAndStoreWhatsAppMedia(
   mediaId: string,
   accessToken: string,
   tenantId: string,
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<LooseDatabase>,
 ): Promise<string> {
   const sanitizedToken = sanitizeMetaAccessToken(accessToken);
   const metaRes = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {

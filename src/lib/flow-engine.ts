@@ -225,7 +225,7 @@ async function callGeminiFlow(
     let kbContext = "";
     if (node.data.usar_kb && process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
       try {
-        const embedRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-six.vercel.app"}/api/ai/embed`, {
+        const embedRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/ai/embed`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: userMessage }),

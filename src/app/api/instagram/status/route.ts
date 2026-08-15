@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
   if (!config?.active) {
     return NextResponse.json({
       connected: false,
-      webhook_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-three.vercel.app"}/api/webhooks/instagram`,
+      webhook_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/webhooks/instagram`,
       verify_token: process.env.INSTAGRAM_VERIFY_TOKEN ?? process.env.WHATSAPP_VERIFY_TOKEN ?? "liberty-instagram",
     });
   }
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     username: config.username ?? null,
     page_id: config.page_id ?? null,
     instagram_business_account_id: config.instagram_business_account_id ?? null,
-    webhook_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-three.vercel.app"}/api/webhooks/instagram`,
+    webhook_url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/webhooks/instagram`,
     verify_token: config.verify_token ?? process.env.INSTAGRAM_VERIFY_TOKEN ?? process.env.WHATSAPP_VERIFY_TOKEN ?? "liberty-instagram",
   });
 }

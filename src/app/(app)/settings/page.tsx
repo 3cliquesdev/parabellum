@@ -1,21 +1,67 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 import { UserProfileSection } from "@/components/settings/UserProfileSection";
 import { getInviteEmailFeatures, getInviteEmailPalette } from "@/lib/email/invite-template";
 import {
-  UserRound, Puzzle, Users, Settings, CreditCard, Sparkles,
+  UserRound, Puzzle, Users, Settings, CreditCard,
   CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp,
-  ExternalLink, Plus, Trash2, Copy, Check, Send, Activity,
+  Plus, Trash2, Copy, Check, Send,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { EmailTheme } from "@/types/database";
 
-declare global { interface Window { FB: any; fbAsyncInit: () => void; } }
+interface FacebookLoginResponse {
+  authResponse?: { code?: string };
+}
+
+interface FacebookSdk {
+  init(options: Record<string, unknown>): void;
+  login(
+    callback: (response: FacebookLoginResponse) => void,
+    options: Record<string, unknown>,
+  ): void;
+}
+
+interface PersonaSettings {
+  nome: string;
+  empresa?: string | null;
+  descricao?: string | null;
+  temperatura?: number | null;
+  max_tokens?: number | null;
+  responder_com_audio?: boolean | null;
+  voz_tts?: string | null;
+}
+
+interface TeamMemberRow {
+  id: string;
+  user_id?: string;
+  email?: string;
+  role: string;
+  departamento?: string | null;
+  disponivel?: boolean | null;
+}
+
+interface InviteRow {
+  id: string;
+  email: string;
+  role: string;
+  expires_at: string;
+}
+
+interface WebhookRow {
+  id: string;
+  nome: string;
+  url: string;
+  eventos?: string[];
+  ultimo_envio?: string | null;
+  ultimo_erro?: string | null;
+}
+
+declare global { interface Window { FB: FacebookSdk; fbAsyncInit: () => void; } }
 
 const META_APP_ID = "2016623082257479";
 
@@ -30,7 +76,7 @@ const INTEGRATIONS = [
   { id: "gemini", name: "Gemini (Vertex AI)", desc: "IA da Google para respostas automáticas e análise de leads", categoria: "ia", cor: "#4285F4", status: "installed", icon: <GeminiIcon /> },
   { id: "openai", name: "OpenAI", desc: "GPT-4 para respostas mais criativas e contextuais", categoria: "ia", cor: "#10a37f", status: "soon", icon: <OpenAIIcon /> },
   // Automações
-  { id: "zapier", name: "Zapier", desc: "Conecte o Liberty CRM com mais de 5.000 aplicativos", categoria: "automacoes", cor: "#FF4A00", status: "soon", icon: <ZapierIcon /> },
+  { id: "zapier", name: "Zapier", desc: "Conecte o 3Cliques CRM com mais de 5.000 aplicativos", categoria: "automacoes", cor: "#FF4A00", status: "soon", icon: <ZapierIcon /> },
   { id: "make", name: "Make", desc: "Crie automações visuais entre o CRM e outros sistemas", categoria: "automacoes", cor: "#6D00CC", status: "soon", icon: <MakeIcon /> },
   { id: "webhooks", name: "Webhooks", desc: "Envie eventos do CRM para qualquer URL externa em tempo real", categoria: "automacoes", cor: "#10B981", status: "available", icon: <WebhookIcon /> },
   // Email
@@ -118,7 +164,7 @@ export default function SettingsPage() {
           <div className="p-6 space-y-5">
             <div>
               <h1 className="text-lg font-semibold text-white tracking-tight">Integrações</h1>
-              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Conecte o Liberty CRM com suas ferramentas favoritas</p>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Conecte o 3Cliques CRM com suas ferramentas favoritas</p>
             </div>
 
             {/* Category filter */}
@@ -227,21 +273,6 @@ export default function SettingsPage() {
                 Fazer upgrade do plano
               </button>
             </div>
-
-            {/* Link para plano da agência */}
-            <div className="rounded-xl p-5 flex items-center justify-between" style={{ background: "var(--active-soft-bg)", border: "1px solid var(--active-soft-border)" }}>
-              <div>
-                <p className="text-sm font-bold text-white">Você é revendedor?</p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                  Gerencie o plano da sua agência e os workspaces dos seus clientes
-                </p>
-              </div>
-              <Link href="/agency/billing"
-                className="flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-bold shrink-0 ml-4"
-                style={{ background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>
-                Painel da Agência →
-              </Link>
-            </div>
           </div>
         )}
       </main>
@@ -261,7 +292,6 @@ function IntegrationCard({ integration, isActive, onManage, tenantId }: {
 
   useEffect(() => {
     if (id !== "instagram" || !tenantId) {
-      setResolvedStatus(status);
       return;
     }
 
@@ -345,7 +375,7 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
     if (!window.FB) return;
     setWaStatus("connecting");
     const timeout = setTimeout(() => setWaStatus("idle"), 30000);
-    window.FB.login((resp: any) => {
+    window.FB.login((resp: FacebookLoginResponse) => {
       clearTimeout(timeout);
       if (!resp.authResponse?.code) { setWaStatus("idle"); return; }
       fetch("/api/whatsapp/embedded-signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: resp.authResponse.code, tenant_id: tenantId }) })
@@ -429,7 +459,6 @@ function InstagramManagePanel({
 
   useEffect(() => {
     if (!tenantId) return;
-    setLoading(true);
     fetch(`/api/instagram/status?tenant_id=${tenantId}`)
       .then((response) => response.json())
       .then((data) => {
@@ -565,7 +594,7 @@ function InstagramManagePanel({
                 <div>
                   <p className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>Corrigir nomes antigos do inbox</p>
                   <p className="text-[11px] mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                    Atualiza conversas antigas que ainda ficaram como "Instagram 123456" usando os dados reais disponiveis na Meta.
+                    Atualiza conversas antigas que ainda ficaram como &ldquo;Instagram 123456&rdquo; usando os dados reais disponiveis na Meta.
                   </p>
                 </div>
                 <button
@@ -716,7 +745,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
 
   const previewColor = form.cor_primaria || "#10B981";
   const previewName = form.nome_fantasia || "Sua Empresa";
-  const previewPalette = getInviteEmailPalette(form.email_theme, previewColor);
+  const previewPalette = getInviteEmailPalette(form.email_theme);
   const previewFeatures = getInviteEmailFeatures("member");
   const previewClientBg = form.email_theme === "light" ? "#EEF4F8" : "var(--surface-panel)";
   const previewClientBorder = form.email_theme === "light" ? "#D7E1EB" : "var(--border-subtle)";
@@ -736,7 +765,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
           <Input value={form.nome_fantasia} onChange={e => setForm(f => ({ ...f, nome_fantasia: e.target.value }))}
             placeholder="Ex: Agência Exemplo"
             className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
-          <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.6)" }}>Aparece no remetente: <span style={{ color: previewColor }}>{previewName} | Liberty CRM</span></p>
+          <p className="text-[10px]" style={{ color: "rgba(147,157,164,0.6)" }}>Aparece no remetente: <span style={{ color: previewColor }}>{previewName} | 3Cliques CRM</span></p>
         </div>
 
         <div className="space-y-1.5">
@@ -852,7 +881,7 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
                   Você recebeu este email porque alguem@email.com enviou um convite para {previewName}.
                 </p>
                 <p className="text-[9px] mt-1" style={{ color: previewPalette.poweredByText }}>
-                  Enviado via Liberty CRM · O CRM de agências digitais
+                  Enviado via 3Cliques CRM · O CRM de agências digitais
                 </p>
               </div>
 
@@ -881,8 +910,9 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
   useEffect(() => {
     if (!tenantId) return;
-    createClient().from("personas").select("*").eq("tenant_id", tenantId).limit(1).maybeSingle().then(({ data }: { data: any }) => {
-      if (data) { setForm({ nome: data.nome, empresa: data.empresa ?? "", descricao: data.descricao ?? "", temperatura: data.temperatura ?? 0.7, max_tokens: data.max_tokens ?? 1000, responder_com_audio: data.responder_com_audio ?? false, voz_tts: data.voz_tts ?? "pt-BR-feminina" }); setExists(true); }
+    createClient().from("personas").select("*").eq("tenant_id", tenantId).limit(1).maybeSingle().then(({ data }) => {
+      const persona = data as unknown as PersonaSettings | null;
+      if (persona) { setForm({ nome: persona.nome, empresa: persona.empresa ?? "", descricao: persona.descricao ?? "", temperatura: persona.temperatura ?? 0.7, max_tokens: persona.max_tokens ?? 1000, responder_com_audio: persona.responder_com_audio ?? false, voz_tts: persona.voz_tts ?? "pt-BR-feminina" }); setExists(true); }
     });
   }, [tenantId]);
   async function save() {
@@ -939,7 +969,7 @@ function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onCo
   const [open, setOpen] = useState(false); const [form, setForm] = useState({ phone_number_id: "", access_token: "" }); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
   async function save() {
     if (!tenantId || !form.phone_number_id || !form.access_token) return; setSaving(true);
-    await createClient().from("whatsapp_configs").upsert({ tenant_id: tenantId, ...form, verify_token: "liberty-crm", active: true }, { onConflict: "tenant_id" });
+    await createClient().from("whatsapp_configs").upsert({ tenant_id: tenantId, ...form, verify_token: "3cliques-crm", active: true }, { onConflict: "tenant_id" });
     setSaving(false); setSaved(true); onConnected(form.phone_number_id); setTimeout(() => setSaved(false), 3000);
   }
   return (
@@ -960,25 +990,25 @@ function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onCo
 
 // ─── Team Section ───
 function TeamSection({ tenantId }: { tenantId: string }) {
-  const [members, setMembers] = useState<any[]>([]); const [invites, setInvites] = useState<any[]>([]);
-  const [showInvite, setShowInvite] = useState(false); const [inviteForm, setInviteForm] = useState({ email: "", role: "member" });
+  const [members, setMembers] = useState<TeamMemberRow[]>([]); const [invites, setInvites] = useState<InviteRow[]>([]);
+  const [showInvite, setShowInvite] = useState(false); const [inviteForm, setInviteForm] = useState({ email: "", role: "vendedor" });
   const [inviting, setInviting] = useState(false); const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
-  const ROLE_COLOR: Record<string, string> = { owner: "#10B981", admin: "#60a5fa", member: "#939da4" };
-  const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Membro" };
+  const ROLE_COLOR: Record<string, string> = { owner: "#10B981", gerente: "#60a5fa", vendedor: "#facc15", atendente: "#c084fc" };
+  const ROLE_LABEL: Record<string, string> = { owner: "Dono", gerente: "Gerente", vendedor: "Vendedor", atendente: "Atendente" };
 
   useEffect(() => {
     fetch(`/api/team/members?tenant_id=${tenantId}`).then(r => r.ok ? r.json() : { members: [] }).then(d => setMembers(d.members ?? []));
     createClient().from("invite_tokens").select("id, email, role, expires_at").eq("tenant_id", tenantId).is("accepted_at", null)
-      .then(({ data }: { data: any }) => setInvites((data ?? []).filter((i: any) => new Date(i.expires_at) > new Date())));
+      .then(({ data }) => setInvites(((data ?? []) as InviteRow[]).filter((invite) => new Date(invite.expires_at) > new Date())));
   }, [tenantId]);
 
   async function sendInvite() {
     if (!inviteForm.email) return; setInviting(true);
     const r = await fetch("/api/team/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...inviteForm, tenant_id: tenantId }) });
     const d = await r.json(); setInviting(false);
-    if (d.invite_url) { setInviteLink(d.invite_url); setInviteForm({ email: "", role: "member" }); }
+    if (d.invite_url) { setInviteLink(d.invite_url); setInviteForm({ email: "", role: "vendedor" }); }
     else alert(d.error ?? "Erro ao convidar");
   }
 
@@ -1002,8 +1032,9 @@ function TeamSection({ tenantId }: { tenantId: string }) {
             <div className="flex gap-2">
               <input value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="email@vendedor.com" type="email" className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
               <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))} className="h-9 px-3 rounded-xl text-sm outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
-                <option value="member" style={{ background: "var(--surface-solid)" }}>Membro</option>
-                <option value="admin" style={{ background: "var(--surface-solid)" }}>Admin</option>
+                <option value="vendedor" style={{ background: "var(--surface-solid)" }}>Vendedor</option>
+                <option value="atendente" style={{ background: "var(--surface-solid)" }}>Atendente</option>
+                <option value="gerente" style={{ background: "var(--surface-solid)" }}>Gerente</option>
               </select>
               <button onClick={sendInvite} disabled={inviting || !inviteForm.email} className="px-4 h-9 rounded-lg text-xs font-semibold" style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: inviting ? 0.6 : 1 }}>
                 {inviting ? "..." : "Enviar"}
@@ -1056,7 +1087,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
 }
 
 // ─── Member Config (departamento + disponível) ───
-function MemberConfig({ member, tenantId }: { member: any; tenantId: string }) {
+function MemberConfig({ member, tenantId }: { member: TeamMemberRow; tenantId: string }) {
   const [dept, setDept] = useState(member.departamento ?? "vendas");
   const [disp, setDisp] = useState(member.disponivel ?? true);
   const [saving, setSaving] = useState(false);
@@ -1108,7 +1139,7 @@ const WEBHOOK_EVENTS = [
 ];
 
 function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
-  const [webhooks, setWebhooks] = useState<any[]>([]);
+  const [webhooks, setWebhooks] = useState<WebhookRow[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ nome: "", url: "", eventos: [] as string[] });
   const [saving, setSaving] = useState(false);

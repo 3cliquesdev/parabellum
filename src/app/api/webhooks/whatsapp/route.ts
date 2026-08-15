@@ -8,13 +8,51 @@ import {
   verifyMetaSignature,
 } from "@/lib/meta-channel";
 import { handleInboundAutomation } from "@/lib/omnichannel/inbound-automation";
+import type { LooseDatabase } from "@/types/database";
 
 function adminClient() {
-  return createServerClient<any>(
+  return createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: () => [], setAll: () => {} } },
   );
+}
+
+interface WhatsAppMediaPayload {
+  id?: string;
+  caption?: string;
+  filename?: string;
+  mime_type?: string;
+}
+
+interface WhatsAppInboundMessage {
+  type: string;
+  from: string;
+  id: string;
+  text?: { body?: string };
+  location?: {
+    latitude?: number;
+    longitude?: number;
+    name?: string;
+  };
+  voice?: WhatsAppMediaPayload;
+  audio?: WhatsAppMediaPayload;
+  image?: WhatsAppMediaPayload;
+  video?: WhatsAppMediaPayload;
+  document?: WhatsAppMediaPayload;
+  sticker?: WhatsAppMediaPayload;
+}
+
+interface WhatsAppWebhookBody {
+  entry?: Array<{
+    changes?: Array<{
+      field?: string;
+      value?: {
+        metadata?: { phone_number_id?: string };
+        messages?: WhatsAppInboundMessage[];
+      };
+    }>;
+  }>;
 }
 
 export async function GET(request: NextRequest) {
@@ -35,14 +73,14 @@ export async function POST(request: NextRequest) {
     if (!verifyMetaSignature(rawBody, request.headers.get("x-hub-signature-256"))) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
-    const body = JSON.parse(rawBody);
+    const body = JSON.parse(rawBody) as WhatsAppWebhookBody;
     const value = body?.entry?.[0]?.changes?.[0]?.value;
     if (!value || body?.entry?.[0]?.changes?.[0]?.field !== "messages") {
       return NextResponse.json({ status: "ok" });
     }
 
     const phoneNumberId = value.metadata?.phone_number_id as string | undefined;
-    const messages = (value.messages ?? []) as any[];
+    const messages = value.messages ?? [];
     if (!phoneNumberId || messages.length === 0) {
       return NextResponse.json({ status: "ok" });
     }
@@ -86,12 +124,17 @@ export async function POST(request: NextRequest) {
         text = `[Localizacao] ${message.location?.name ?? ""}`.trim();
         mediaType = "location";
       } else {
-        const mediaData = message[message.type] ?? message.voice ?? message.audio ?? {};
+        const mediaData = (
+          message[message.type as keyof WhatsAppInboundMessage] ??
+          message.voice ??
+          message.audio ??
+          {}
+        ) as WhatsAppMediaPayload;
         text = mediaData.caption || `[${message.type}]`;
         mediaCaption = mediaData.caption || null;
         mediaName = mediaData.filename || null;
         mediaMime = mediaData.mime_type || null;
-        mediaType = message.type === "voice" ? "audio" : message.type;
+        mediaType = (message.type === "voice" ? "audio" : message.type) as Exclude<typeof mediaType, null>;
 
         if (mediaData.id) {
           try {

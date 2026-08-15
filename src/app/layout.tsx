@@ -19,7 +19,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Liberty CRM — Vendas com inteligência",
+  title: "3Cliques CRM — Vendas com inteligência",
   description: "CRM moderno e inteligente para agências e times de vendas. Pipeline, leads, atividades e IA em um só lugar.",
 };
 

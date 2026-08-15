@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Search, Download } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { useLeads } from "@/hooks/useLeads";
@@ -91,7 +92,7 @@ export default function ContactsPage() {
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum contato encontrado.</p>
           </div>
         ) : filtered.map((lead, i) => (
-          <div key={lead.id} className="grid px-5 py-3 items-center transition-colors"
+          <Link key={lead.id} href={`/contacts/${lead.id}`} className="grid px-5 py-3 items-center transition-colors"
             style={{ gridTemplateColumns: "2fr 1.5fr 1.5fr 1fr 1fr", borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)" }}
             onMouseEnter={e => (e.currentTarget.style.background = "var(--input-bg)")}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
@@ -114,7 +115,7 @@ export default function ContactsPage() {
             <span className="text-sm font-bold" style={{ color: lead.valor_estimado ? "var(--status-ganho)" : "var(--text-secondary)" }}>
               {lead.valor_estimado ? `R$ ${Number(lead.valor_estimado).toLocaleString("pt-BR")}` : "—"}
             </span>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

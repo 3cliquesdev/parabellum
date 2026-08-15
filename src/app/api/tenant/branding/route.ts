@@ -119,7 +119,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const membership = await getTenantMembership(body.tenant_id, user.id);
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
+    if (!membership || !["owner", "gerente"].includes(membership.role)) {
       return NextResponse.json({ error: "Sem permissao" }, { status: 403 });
     }
 

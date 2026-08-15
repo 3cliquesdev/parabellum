@@ -1,9 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { LooseDatabase } from "@/types/database";
 
-const PROTECTED = ["/dashboard", "/pipeline", "/contacts", "/activities", "/inbox", "/settings", "/agency"];
+const PROTECTED = [
+  "/dashboard",
+  "/pipeline",
+  "/contacts",
+  "/activities",
+  "/inbox",
+  "/settings",
+  "/broadcasts",
+  "/ia",
+];
 const AUTH_ROUTES = ["/login", "/signup"];
-const PLATFORM_DOMAINS = ["localhost", "libertycrm.com.br"];
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -14,43 +23,8 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   }
 
-  const hostname = request.headers.get("host")?.split(":")[0] ?? "";
-
-  // ── Detecção de domínio customizado de agência ──
-  const isPlatformDomain =
-    !hostname ||
-    hostname.endsWith(".vercel.app") ||
-    PLATFORM_DOMAINS.some(d => hostname === d || hostname.endsWith("." + d));
-
-  if (!isPlatformDomain) {
-    try {
-      const adminClient = createServerClient<any>(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { cookies: { getAll: () => [], setAll: () => {} } }
-      );
-      const { data: agency } = await adminClient
-        .from("agencies")
-        .select("id, slug, status, domain_status")
-        .eq("custom_domain", hostname)
-        .eq("domain_status", "active")
-        .eq("status", "active")
-        .single();
-
-      if (!agency) {
-        return new NextResponse("Domain not configured", { status: 404 });
-      }
-
-      supabaseResponse = NextResponse.next({ request });
-      supabaseResponse.headers.set("x-agency-id", agency.id);
-      supabaseResponse.headers.set("x-agency-slug", agency.slug);
-    } catch {
-      // Tabela ainda não existe — continua normalmente
-    }
-  }
-
   // ── Auth guard ──
-  const supabase = createServerClient<any>(
+  const supabase = createServerClient<LooseDatabase>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

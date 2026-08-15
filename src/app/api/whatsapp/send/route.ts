@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assertTenantMember } from "@/lib/auth/guard";
+import { isInternalRequest } from "@/lib/security/internal-auth";
+import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
+import { logAiDecision } from "@/lib/security/ai-audit";
 
 interface SendMessageBody {
   conversa_id?: string;
   tenant_id?: string;
   conteudo?: string;
+  remetente?: "humano" | "ia";
 }
 
 interface RelatedLeadRow {
@@ -14,6 +17,8 @@ interface RelatedLeadRow {
 interface ConversationRow {
   id: string;
   tenant_id: string;
+  canal: string;
+  lead_id: string | null;
   leads: RelatedLeadRow | RelatedLeadRow[] | null;
 }
 
@@ -47,6 +52,7 @@ export async function POST(request: NextRequest) {
   let conversaId = "";
   let tenantId = "";
   let conteudo = "";
+  let remetente: "humano" | "ia" = "humano";
   let file: File | null = null;
 
   if (isFormData) {
@@ -60,13 +66,14 @@ export async function POST(request: NextRequest) {
     conversaId = body.conversa_id ?? "";
     tenantId = body.tenant_id ?? "";
     conteudo = body.conteudo ?? "";
+    remetente = body.remetente === "ia" ? "ia" : "humano";
   }
 
   if (!conversaId || !tenantId) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
-  const auth = await assertTenantMember(tenantId);
+  const auth = await resolveInternalOrTenantAuth(request, tenantId);
   if (!auth.ok) return auth.response;
   const supabase = auth.admin;
 
@@ -78,6 +85,31 @@ export async function POST(request: NextRequest) {
   const conversation = conversa as unknown as ConversationRow | null;
   if (!conversation || conversation.tenant_id !== tenantId) {
     return NextResponse.json({ error: "Conversa nao encontrada" }, { status: 404 });
+  }
+
+  if (conversation.canal !== "whatsapp") {
+    if (!conteudo) return NextResponse.json({ error: "Conteudo vazio" }, { status: 400 });
+    const { error: insertError } = await supabase.from("mensagens").insert({
+      conversa_id: conversaId,
+      tenant_id: tenantId,
+      remetente,
+      conteudo,
+      enviada: true,
+    });
+    if (insertError) {
+      return NextResponse.json({ error: `Falha ao salvar mensagem: ${insertError.message}` }, { status: 500 });
+    }
+    await supabase.from("conversas").update({ updated_at: new Date().toISOString() }).eq("id", conversaId);
+    if (remetente === "ia" && isInternalRequest(request)) {
+      await logAiDecision(supabase, {
+        tenantId,
+        leadId: conversation.lead_id,
+        conversaId,
+        acao: "enviar_resposta",
+        detalhes: { canal: conversation.canal, conteudo },
+      });
+    }
+    return NextResponse.json({ status: "sent" });
   }
 
   const { data: waConfig } = await supabase
@@ -168,10 +200,10 @@ export async function POST(request: NextRequest) {
     if (!response.ok) return NextResponse.json({ error: "Falha ao enviar mensagem" }, { status: 500 });
   }
 
-  await supabase.from("mensagens").insert({
+  const { error: insertError } = await supabase.from("mensagens").insert({
     conversa_id: conversaId,
     tenant_id: tenantId,
-    remetente: "humano",
+    remetente,
     conteudo,
     enviada: true,
     media_url: mediaUrl,
@@ -179,10 +211,23 @@ export async function POST(request: NextRequest) {
     media_nome: mediaNome,
     media_mime: mediaMime,
   });
+  if (insertError) {
+    return NextResponse.json({ error: `Mensagem enviada mas nao salva: ${insertError.message}` }, { status: 500 });
+  }
   await supabase
     .from("conversas")
     .update({ updated_at: new Date().toISOString() })
     .eq("id", conversaId);
+
+  if (remetente === "ia" && isInternalRequest(request)) {
+    await logAiDecision(supabase, {
+      tenantId,
+      leadId: conversation.lead_id,
+      conversaId,
+      acao: "enviar_resposta",
+      detalhes: { canal: "whatsapp", conteudo },
+    });
+  }
 
   return NextResponse.json({ status: "sent" });
 }

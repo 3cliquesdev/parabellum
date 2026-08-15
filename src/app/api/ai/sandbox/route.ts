@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { GoogleAuth } from "google-auth-library";
-import type { LooseDatabase } from "@/types/database";
+import { assertTenantMember } from "@/lib/auth/guard";
+import { consumeApiRateLimit } from "@/lib/security/rate-limit";
 
 const VERTEX_PROJECT = "adsliberty";
 const VERTEX_LOCATION = "us-central1";
@@ -103,15 +102,6 @@ async function embed(text: string): Promise<number[]> {
 }
 
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -124,12 +114,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "tenant_id e message são obrigatórios" }, { status: 400 });
   }
 
+  const auth = await assertTenantMember(body.tenant_id);
+  if (!auth.ok) return auth.response;
+  if (!await consumeApiRateLimit(auth.admin, `ai:sandbox:${auth.user.id}`, 30, 60)) {
+    return NextResponse.json({ error: "Limite de mensagens excedido. Aguarde um minuto." }, { status: 429 });
+  }
+
   try {
-    const admin = createServerClient<LooseDatabase>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { cookies: { getAll: () => [], setAll: () => {} } }
-    );
+    const admin = auth.admin;
 
     const { data: persona } = await admin
       .from("personas")

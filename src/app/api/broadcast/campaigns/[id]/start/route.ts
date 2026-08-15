@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertTenantMember, createAdminClient } from "@/lib/auth/guard";
+import { getInternalApiSecret } from "@/lib/security/internal-auth";
 
 interface CampaignTemplate {
   status?: string | null;
@@ -71,6 +72,10 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
   const authCheck = await assertTenantMember(currentCampaign.tenant_id);
   if (!authCheck.ok) return authCheck.response;
   const admin = authCheck.admin;
+  const internalSecret = getInternalApiSecret();
+  if (!internalSecret) {
+    return NextResponse.json({ error: "INTERNAL_API_SECRET nao configurado" }, { status: 503 });
+  }
 
   if (currentCampaign.status !== "rascunho" && currentCampaign.status !== "agendado") {
     return NextResponse.json({ error: "Campanha não pode ser iniciada neste status" }, { status: 400 });
@@ -183,9 +188,9 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
     updated_at: new Date().toISOString(),
   }).eq("id", campaignId);
 
-  fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://liberty-crm-six.vercel.app"}/api/broadcast/worker`, {
+  fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/broadcast/worker`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-internal-key": process.env.SUPABASE_SERVICE_ROLE_KEY! },
+    headers: { "Content-Type": "application/json", "x-internal-key": internalSecret },
     body: JSON.stringify({ campaign_id: campaignId, tenant_id: tenantId }),
   }).catch(() => {});
 

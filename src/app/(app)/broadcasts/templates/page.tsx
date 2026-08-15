@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, CheckCircle, Clock, XCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
@@ -16,9 +16,20 @@ const CATEGORY_COLORS: Record<string, string> = {
   MARKETING: "#fb923c", UTILITY: "#60a5fa", AUTHENTICATION: "#a78bfa",
 };
 
+interface BroadcastTemplate {
+  id: string;
+  status: string;
+  category: string;
+  template_name: string;
+  language_code: string;
+  variables_count: number;
+  body_text: string;
+  footer_text?: string | null;
+}
+
 export default function BroadcastTemplatesPage() {
   const { tenantId } = useTenant();
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<BroadcastTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ template_name: "", category: "UTILITY", body_text: "", footer_text: "", header_type: "NONE", variables_schema: "" });
@@ -113,7 +124,7 @@ export default function BroadcastTemplatesPage() {
           <div className="space-y-1.5">
             <label className="text-xs font-medium" style={{ color: "#939da4" }}>Footer (opcional)</label>
             <input value={form.footer_text} onChange={e => setForm(f => ({ ...f, footer_text: e.target.value }))}
-              placeholder="Liberty CRM" className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none"
+              placeholder="3Cliques CRM" className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
           </div>
           <div className="flex gap-2 justify-end">

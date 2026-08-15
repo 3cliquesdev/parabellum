@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import crypto from "crypto";
-import type { LooseDatabase } from "@/types/database";
+import { assertTenantAdmin, createAdminClient } from "@/lib/auth/guard";
+import { safePublicFetch } from "@/lib/security/safe-fetch";
 
 interface WebhookTestBody {
   webhook_id?: string;
@@ -25,34 +24,12 @@ interface WebhookTestPayload {
   timestamp: string;
 }
 
-function createAdminClient() {
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } }
-  );
-}
-
-async function createAuthClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient<LooseDatabase>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
-
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return "Unknown error";
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await createAuthClient();
-  const { data: { user } } = await auth.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { webhook_id } = (await request.json().catch(() => ({}))) as WebhookTestBody;
   if (!webhook_id) return NextResponse.json({ error: "webhook_id required" }, { status: 400 });
 
@@ -65,12 +42,14 @@ export async function POST(request: NextRequest) {
 
   const webhookData = webhook as unknown as WebhookConfigRow | null;
   if (!webhookData) return NextResponse.json({ error: "Webhook nao encontrado" }, { status: 404 });
+  const auth = await assertTenantAdmin(webhookData.tenant_id);
+  if (!auth.ok) return auth.response;
 
   const timestamp = new Date().toISOString();
   const payload: WebhookTestPayload = {
     event: "test.ping",
     tenant_id: webhookData.tenant_id,
-    data: { message: "Webhook do Liberty CRM funcionando!", timestamp },
+    data: { message: "Webhook do 3Cliques CRM funcionando!", timestamp },
     timestamp,
   };
 
@@ -80,13 +59,13 @@ export async function POST(request: NextRequest) {
     .digest("hex");
 
   try {
-    const response = await fetch(webhookData.url, {
+    const response = await safePublicFetch(webhookData.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Liberty-Signature": `sha256=${signature}`,
-        "X-Liberty-Event": "test.ping",
-        "User-Agent": "LibertyPlatform/1.0",
+        "X-3Cliques-Signature": `sha256=${signature}`,
+        "X-3Cliques-Event": "test.ping",
+        "User-Agent": "3CliquesPlatform/1.0",
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10000),

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processQueueForAgent } from "@/lib/dispatch";
+import { isInternalRequest } from "@/lib/security/internal-auth";
 
 export async function POST(request: NextRequest) {
-  const key = request.headers.get("x-internal-key");
-  if (key !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isInternalRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { tenant_id, agent_id } = await request.json();

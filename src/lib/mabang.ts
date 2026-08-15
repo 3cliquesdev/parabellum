@@ -17,6 +17,8 @@ export interface PedidoArmazem {
   track_number: string | null;
   remark: string | null;
   paid_time: string | null;
+  picking_time: string | null;
+  embalado_time: string | null;
   transport_time: string | null;
   express_time: string | null;
   update_time: string | null;
@@ -46,7 +48,8 @@ export async function buscarPedidoArmazem(numero: string): Promise<PedidoArmazem
   const conn = await conectar();
   try {
     const selectFields = `platform_order_id, order_status, buyer_name, track_number, track_number_internal,
-              track_number_virtual, remark, paid_time, transport_time, express_time, update_time`;
+              track_number_virtual, remark, paid_time, order_peihuo_time, quick_pick_time, print_time,
+              transport_time, express_time, update_time`;
 
     // Prioriza matches exatos (numero do pedido visivel ao cliente costuma ser
     // o sufixo "loja#NNNNN" em remark, ou o codigo de rastreio exato) antes de
@@ -75,6 +78,9 @@ export async function buscarPedidoArmazem(numero: string): Promise<PedidoArmazem
           track_number_virtual: string | null;
           remark: string | null;
           paid_time: string | null;
+          order_peihuo_time: string | null;
+          quick_pick_time: string | null;
+          print_time: string | null;
           transport_time: string | null;
           express_time: string | null;
           update_time: string | null;
@@ -91,6 +97,8 @@ export async function buscarPedidoArmazem(numero: string): Promise<PedidoArmazem
       track_number: row.track_number || row.track_number_internal || row.track_number_virtual,
       remark: row.remark,
       paid_time: row.paid_time,
+      picking_time: row.order_peihuo_time || row.quick_pick_time,
+      embalado_time: row.print_time,
       transport_time: row.transport_time,
       express_time: row.express_time,
       update_time: row.update_time,

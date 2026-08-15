@@ -20,12 +20,24 @@ export async function GET(request: NextRequest) {
   const auth = await resolveInternalOrTenantAuth(request, tenantId);
   if (!auth.ok) return auth.response;
 
+  const stopwords = new Set(["voces", "vocês", "quais", "como", "para", "com", "que", "uma", "um", "sobre", "tem", "sao", "são", "esta", "está"]);
+  const keywords = q
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !stopwords.has(w));
+  const terms = keywords.length > 0 ? keywords : [q];
+
+  const orFilter = terms
+    .flatMap((term) => [`titulo.ilike.%${term}%`, `conteudo.ilike.%${term}%`, `categoria.ilike.%${term}%`])
+    .join(",");
+
   const { data, error } = await auth.admin
     .from("knowledge_base")
     .select("id, titulo, conteudo, categoria, tags, updated_at")
     .eq("tenant_id", tenantId)
     .eq("publicado", true)
-    .or(`titulo.ilike.%${q}%,conteudo.ilike.%${q}%,categoria.ilike.%${q}%`)
+    .or(orFilter)
     .limit(5);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

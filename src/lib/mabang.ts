@@ -13,6 +13,7 @@ export interface PedidoArmazem {
   platform_order_id: string;
   order_status_codigo: string | null;
   order_status: string;
+  marketplace: string | null;
   buyer_name: string | null;
   track_number: string | null;
   remark: string | null;
@@ -22,6 +23,26 @@ export interface PedidoArmazem {
   transport_time: string | null;
   express_time: string | null;
   update_time: string | null;
+}
+
+const MARKETPLACE_KEYWORDS: Array<[RegExp, string]> = [
+  [/tiktok/i, "TikTok Shop"],
+  [/shopee/i, "Shopee"],
+  [/mercadolivre|mercado.?livre|\bml\b/i, "Mercado Livre"],
+  [/amzn|amazon/i, "Amazon"],
+  [/magalu|magazine.?luiza/i, "Magalu"],
+  [/shopify/i, "Shopify"],
+  [/nuvemshop/i, "Nuvemshop"],
+];
+
+function detectarMarketplace(platformOrderId: string, remark: string | null): string | null {
+  const texto = `${platformOrderId} ${remark ?? ""}`;
+  const canalMatch = remark?.match(/canal:\s*([a-z0-9 ]+)/i);
+  if (canalMatch) return canalMatch[1].trim();
+  for (const [regex, nome] of MARKETPLACE_KEYWORDS) {
+    if (regex.test(texto)) return nome;
+  }
+  return null;
 }
 
 async function conectar() {
@@ -93,6 +114,7 @@ export async function buscarPedidoArmazem(numero: string): Promise<PedidoArmazem
       platform_order_id: row.platform_order_id,
       order_status_codigo: row.order_status,
       order_status: (row.order_status && ORDER_STATUS_LABEL[row.order_status]) || "desconhecido",
+      marketplace: detectarMarketplace(row.platform_order_id, row.remark),
       buyer_name: row.buyer_name,
       track_number: row.track_number || row.track_number_internal || row.track_number_virtual,
       remark: row.remark,

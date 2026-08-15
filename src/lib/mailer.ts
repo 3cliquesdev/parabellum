@@ -8,10 +8,10 @@ export interface MailOptions {
   fromName?: string;
 }
 
-export async function sendMail(opts: MailOptions): Promise<boolean> {
+export async function sendMail(opts: MailOptions): Promise<{ ok: boolean; error?: string }> {
   const { to, subject, html } = opts;
 
-  if (!process.env.RESEND_API_KEY) return false;
+  if (!process.env.RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY nao configurada" };
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const fromName = opts.fromName ?? "3Cliques CRM";
@@ -22,9 +22,13 @@ export async function sendMail(opts: MailOptions): Promise<boolean> {
       subject,
       html,
     });
-    return !error;
+    if (error) {
+      console.error("Resend recusou o envio:", error);
+      return { ok: false, error: error.message ?? JSON.stringify(error) };
+    }
+    return { ok: true };
   } catch (err) {
     console.error("Resend fallback falhou:", err);
-    return false;
+    return { ok: false, error: err instanceof Error ? err.message : "erro desconhecido" };
   }
 }

@@ -33,7 +33,7 @@ export async function sendOtpEmail(
     subject: "Código de verificação — 3Cliques",
     html: `<p>Seu código de verificação é:</p><h2 style="letter-spacing:4px">${code}</h2><p>Válido por ${OTP_TTL_MINUTES} minutos. Se você não pediu isso, ignore este e-mail.</p>`,
   });
-  if (!sent) return { ok: false, error: "Falha ao enviar e-mail" };
+  if (!sent.ok) return { ok: false, error: sent.error ?? "Falha ao enviar e-mail" };
 
   return { ok: true };
 }

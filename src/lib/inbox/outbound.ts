@@ -250,8 +250,8 @@ export async function sendEmailConversationMessage(
     fromName: senderName,
   });
 
-  if (!sent) {
-    return { ok: false as const, error: "Falha ao enviar email" };
+  if (!sent.ok) {
+    return { ok: false as const, error: sent.error ?? "Falha ao enviar email" };
   }
 
   await supabase.from("mensagens").insert({

@@ -107,6 +107,6 @@ export async function POST(request: NextRequest) {
     success: true,
     invite_url: inviteUrl,
     token: inviteData.token,
-    email_sent: emailSent,
+    email_sent: emailSent.ok,
   });
 }

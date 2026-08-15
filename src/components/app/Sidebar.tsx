@@ -60,12 +60,12 @@ export function Sidebar() {
       }}
     >
       <div
-        className="px-5 h-16 flex items-center gap-3 shrink-0"
+        className="px-4 h-24 flex items-center gap-3 shrink-0"
         style={{ borderBottom: "1px solid var(--sidebar-border)" }}
       >
         {branding.logo_url ? (
           // Logo completa (ja contem o nome) — nao repete o texto ao lado.
-          <img src={logoSrc ?? undefined} alt={branding.display_name} className="h-11 w-auto shrink-0" /> // eslint-disable-line @next/next/no-img-element
+          <img src={logoSrc ?? undefined} alt={branding.display_name} className="h-16 w-auto max-w-full shrink-0" /> // eslint-disable-line @next/next/no-img-element
         ) : (
           <>
             <div

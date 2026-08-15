@@ -25,17 +25,26 @@ async function candidatosDoDepartamento(
   tenantId: string,
   departmentId: string,
 ): Promise<CandidateRow[]> {
-  const { data } = await supabase
+  const { data: vinculos } = await supabase
     .from("agent_departments")
-    .select("user_id, tenant_members!inner(availability_status, max_concurrent_chats, ultima_atribuicao)")
+    .select("user_id")
     .eq("tenant_id", tenantId)
-    .eq("department_id", departmentId)
-    .eq("tenant_members.availability_status", "online");
+    .eq("department_id", departmentId);
 
-  return ((data ?? []) as unknown as Array<{ user_id: string; tenant_members: { availability_status: string; max_concurrent_chats: number; ultima_atribuicao: string | null } }>).map((row) => ({
-    user_id: row.user_id,
-    ultima_atribuicao: row.tenant_members.ultima_atribuicao,
-    max_concurrent_chats: row.tenant_members.max_concurrent_chats,
+  const userIds = ((vinculos ?? []) as unknown as Array<{ user_id: string }>).map((v) => v.user_id);
+  if (userIds.length === 0) return [];
+
+  const { data: membros } = await supabase
+    .from("tenant_members")
+    .select("user_id, availability_status, max_concurrent_chats, ultima_atribuicao")
+    .eq("tenant_id", tenantId)
+    .eq("availability_status", "online")
+    .in("user_id", userIds);
+
+  return ((membros ?? []) as unknown as Array<{ user_id: string; max_concurrent_chats: number; ultima_atribuicao: string | null }>).map((m) => ({
+    user_id: m.user_id,
+    ultima_atribuicao: m.ultima_atribuicao,
+    max_concurrent_chats: m.max_concurrent_chats,
   }));
 }
 

@@ -65,7 +65,7 @@ export function Sidebar() {
       >
         {branding.logo_url ? (
           // Logo completa (ja contem o nome) — nao repete o texto ao lado.
-          <img src={logoSrc ?? undefined} alt={branding.display_name} className="h-9 w-auto shrink-0" /> // eslint-disable-line @next/next/no-img-element
+          <img src={logoSrc ?? undefined} alt={branding.display_name} className="h-11 w-auto shrink-0" /> // eslint-disable-line @next/next/no-img-element
         ) : (
           <>
             <div

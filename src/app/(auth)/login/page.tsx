@@ -95,7 +95,7 @@ export default function LoginPage() {
           <Link href="/" className="inline-flex items-center gap-2.5">
             {branding.logo_url
               // Painel escuro (preto fixo) - usa a versao branca da logo.
-              ? <img src={branding.logo_url.replace(/\.png$/, "-white.png")} alt={branding.display_name} className="h-8 w-auto" /> // eslint-disable-line @next/next/no-img-element
+              ? <img src={branding.logo_url.replace(/\.png$/, "-white.png")} alt={branding.display_name} className="h-16 w-auto" /> // eslint-disable-line @next/next/no-img-element
               : <>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -112,12 +112,16 @@ export default function LoginPage() {
         <div className="relative space-y-10">
           <div>
             <p className="section-label mb-3">Plataforma SaaS</p>
-            <h2 className="text-[32px] font-extrabold text-white leading-[1.1] tracking-[-0.03em]">
-              CRM inteligente para{" "}
+            <h2 className="text-[28px] font-extrabold text-white leading-[1.25] tracking-[-0.02em]">
+              Para os concorrentes, uma equipe grande é um custo, e eles cortam. Para nós,{" "}
               <span className="font-serif italic font-normal" style={{ color: "#9aea62" }}>
-                agências modernas.
+                o TIME é uma força
               </span>
+              , e temos um mercado para dominar.
             </h2>
+            <p className="text-sm italic mt-4" style={{ color: "#939da4" }}>
+              &ldquo;Se queres paz, prepara-te para a guerra&rdquo;
+            </p>
           </div>
 
           <ul className="space-y-6">
@@ -155,7 +159,7 @@ export default function LoginPage() {
           <Link href="/" className="inline-flex items-center gap-2">
             {branding.logo_url
               // Painel claro (branco fixo) - usa a logo original (escura).
-              ? <img src={branding.logo_url} alt={branding.display_name} className="h-8 w-auto" /> // eslint-disable-line @next/next/no-img-element
+              ? <img src={branding.logo_url} alt={branding.display_name} className="h-11 w-auto" /> // eslint-disable-line @next/next/no-img-element
               : <>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

@@ -96,9 +96,10 @@ export async function POST(request: NextRequest) {
     .select("id")
     .single();
 
+  let ticketId: string | null = null;
   if (!ticketError && ticket) {
-    const ticketRow = ticket as unknown as { id: string };
-    await auth.admin.from("devolucoes").update({ ticket_id: ticketRow.id }).eq("id", devolucao.id);
+    ticketId = (ticket as unknown as { id: string }).id;
+    await auth.admin.from("devolucoes").update({ ticket_id: ticketId }).eq("id", devolucao.id);
   }
 
   if (isInternalRequest(request)) {
@@ -111,5 +112,5 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ devolucao: data });
+  return NextResponse.json({ devolucao: { ...(data as object), ticket_id: ticketId } });
 }

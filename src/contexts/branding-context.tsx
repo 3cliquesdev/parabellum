@@ -13,7 +13,7 @@ export interface Branding {
 
 export const DEFAULT_BRANDING: Branding = {
   display_name: "Parabellum",
-  logo_url: "/logo-icon.png",
+  logo_url: "/logo.png",
   favicon_url: null,
   primary_color: "#9aea62",
   secondary_color: "#000000",

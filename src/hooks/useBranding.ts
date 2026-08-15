@@ -15,7 +15,7 @@ const DEFAULT: Branding = {
   display_name: "Parabellum",
   primary_color: "#9aea62",
   secondary_color: "#000000",
-  logo_url: "/logo-icon.png",
+  logo_url: "/logo.png",
   favicon_url: null,
   support_email: "suporte@3cliques.net",
   terms_url: null,

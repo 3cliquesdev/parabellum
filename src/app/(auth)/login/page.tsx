@@ -94,15 +94,17 @@ export default function LoginPage() {
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-2.5">
             {branding.logo_url
-              // Logo white-label remoto com dimensões administráveis pela agência.
-              ? <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto" /> // eslint-disable-line @next/next/no-img-element
-              : <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
-                  </svg>
-                </div>
+              // Painel escuro (preto fixo) - usa a versao branca da logo.
+              ? <img src={branding.logo_url.replace(/\.png$/, "-white.png")} alt={branding.display_name} className="h-8 w-auto" /> // eslint-disable-line @next/next/no-img-element
+              : <>
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
+                    </svg>
+                  </div>
+                  <span className="text-white font-bold text-sm tracking-tight">{branding.display_name}</span>
+                </>
             }
-            <span className="text-white font-bold text-sm tracking-tight">{branding.display_name}</span>
           </Link>
         </div>
 
@@ -152,15 +154,17 @@ export default function LoginPage() {
         <div className="lg:hidden absolute top-8 left-8">
           <Link href="/" className="inline-flex items-center gap-2">
             {branding.logo_url
-              // Logo white-label remoto com dimensões administráveis pela agência.
-              ? <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto" /> // eslint-disable-line @next/next/no-img-element
-              : <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
-                  </svg>
-                </div>
+              // Painel claro (branco fixo) - usa a logo original (escura).
+              ? <img src={branding.logo_url} alt={branding.display_name} className="h-8 w-auto" /> // eslint-disable-line @next/next/no-img-element
+              : <>
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: cor }}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
+                    </svg>
+                  </div>
+                  <span className="font-bold text-sm" style={{ color: "#0a0a0a" }}>{branding.display_name}</span>
+                </>
             }
-            <span className="font-bold text-sm" style={{ color: "#0a0a0a" }}>{branding.display_name}</span>
           </Link>
         </div>
 

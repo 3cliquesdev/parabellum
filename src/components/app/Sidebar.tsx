@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import {
   LayoutDashboard,
   Kanban,
@@ -36,6 +37,12 @@ export function Sidebar() {
   const branding = useBranding();
   const cor = branding.primary_color;
   const [hoveredHref, setHoveredHref] = useState<string | null>(null);
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const logoSrc = branding.logo_url && mounted && resolvedTheme === "dark"
+    ? branding.logo_url.replace(/\.png$/, "-white.png")
+    : branding.logo_url;
 
   async function handleLogout() {
     const supabase = createClient();
@@ -57,21 +64,23 @@ export function Sidebar() {
         style={{ borderBottom: "1px solid var(--sidebar-border)" }}
       >
         {branding.logo_url ? (
-          // Logo white-label remoto com dimensões administráveis pela agência.
-          <img src={branding.logo_url} alt={branding.display_name} className="h-7 w-auto shrink-0" /> // eslint-disable-line @next/next/no-img-element
+          // Logo completa (ja contem o nome) — nao repete o texto ao lado.
+          <img src={logoSrc ?? undefined} alt={branding.display_name} className="h-9 w-auto shrink-0" /> // eslint-disable-line @next/next/no-img-element
         ) : (
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: cor, boxShadow: `0 0 12px ${cor}40` }}
-          >
-            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-              <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
-            </svg>
-          </div>
+          <>
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: cor, boxShadow: `0 0 12px ${cor}40` }}
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
+              </svg>
+            </div>
+            <span className="font-bold text-sm tracking-tight truncate" style={{ color: "var(--sidebar-foreground)" }}>
+              {branding.display_name}
+            </span>
+          </>
         )}
-        <span className="font-bold text-sm tracking-tight truncate" style={{ color: "var(--sidebar-foreground)" }}>
-          {branding.display_name}
-        </span>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">

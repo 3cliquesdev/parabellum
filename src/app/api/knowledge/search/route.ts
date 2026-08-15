@@ -20,16 +20,21 @@ export async function GET(request: NextRequest) {
   const auth = await resolveInternalOrTenantAuth(request, tenantId);
   if (!auth.ok) return auth.response;
 
-  const stopwords = new Set(["voces", "vocês", "quais", "como", "para", "com", "que", "uma", "um", "sobre", "tem", "sao", "são", "esta", "está"]);
+  const stopwords = new Set([
+    "voces", "quais", "como", "para", "com", "que", "uma", "um", "sobre", "tem", "sao", "esta",
+    "boa", "bom", "dia", "tarde", "noite", "ola", "oi", "vcs", "voce", "meu", "minha", "esse", "essa",
+  ]);
   const keywords = q
     .toLowerCase()
     .normalize("NFD").replace(/[̀-ͯ]/g, "")
     .split(/[^a-z0-9]+/)
-    .filter((w) => w.length >= 3 && !stopwords.has(w));
+    .filter((w) => w.length >= 4 && !stopwords.has(w));
   const terms = keywords.length > 0 ? keywords : [q];
 
+  // \y = limite de palavra no Postgres - evita "boa" casar dentro de "boas" (bug real
+  // que fazia uma saudacao generica trazer artigos completamente sem relacao).
   const orFilter = terms
-    .flatMap((term) => [`titulo.ilike.%${term}%`, `conteudo.ilike.%${term}%`, `categoria.ilike.%${term}%`])
+    .flatMap((term) => [`titulo.imatch.\\y${term}\\y`, `conteudo.imatch.\\y${term}\\y`, `categoria.imatch.\\y${term}\\y`])
     .join(",");
 
   const { data, error } = await auth.admin

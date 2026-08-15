@@ -41,8 +41,16 @@ interface TeamMemberRow {
   user_id?: string;
   email?: string;
   role: string;
-  departamento?: string | null;
-  disponivel?: boolean | null;
+  availability_status?: string | null;
+  max_concurrent_chats?: number | null;
+  department_ids?: string[];
+}
+
+interface DepartmentRow {
+  id: string;
+  name: string;
+  slug: string;
+  color: string;
 }
 
 interface InviteRow {
@@ -1086,42 +1094,75 @@ function TeamSection({ tenantId }: { tenantId: string }) {
   );
 }
 
-// ─── Member Config (departamento + disponível) ───
-function MemberConfig({ member, tenantId }: { member: TeamMemberRow; tenantId: string }) {
-  const [dept, setDept] = useState(member.departamento ?? "vendas");
-  const [disp, setDisp] = useState(member.disponivel ?? true);
-  const [saving, setSaving] = useState(false);
+// ─── Member Config (departamentos + disponibilidade) ───
+const AVAILABILITY_COLOR: Record<string, string> = { online: "#10B981", away: "#facc15", offline: "#939da4" };
+const AVAILABILITY_LABEL: Record<string, string> = { online: "Disponível", away: "Ausente", offline: "Offline" };
 
-  async function save(newDept?: string, newDisp?: boolean) {
+function MemberConfig({ member, tenantId }: { member: TeamMemberRow; tenantId: string }) {
+  const [departments, setDepartments] = useState<DepartmentRow[]>([]);
+  const [selected, setSelected] = useState<string[]>(member.department_ids ?? []);
+  const [status, setStatus] = useState(member.availability_status ?? "online");
+  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/departments?tenant_id=${tenantId}`).then(r => r.json()).then(d => setDepartments(d.departments ?? []));
+  }, [tenantId]);
+
+  async function save(newDepartmentIds?: string[], newStatus?: string) {
     setSaving(true);
     await fetch("/api/team/member", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ member_id: member.id, tenant_id: tenantId, departamento: newDept ?? dept, disponivel: newDisp ?? disp }),
+      body: JSON.stringify({
+        member_id: member.id,
+        tenant_id: tenantId,
+        department_ids: newDepartmentIds ?? selected,
+        availability_status: newStatus ?? status,
+      }),
     });
     setSaving(false);
   }
 
-  const DEPT_COLOR: Record<string, string> = { vendas: "#10B981", suporte: "#60a5fa", todos: "#a78bfa" };
+  function toggleDept(id: string) {
+    const novo = selected.includes(id) ? selected.filter(d => d !== id) : [...selected, id];
+    setSelected(novo);
+    void save(novo);
+  }
+
+  function cycleStatus() {
+    const ordem = ["online", "away", "offline"];
+    const novo = ordem[(ordem.indexOf(status) + 1) % ordem.length];
+    setStatus(novo);
+    void save(undefined, novo);
+  }
 
   return (
-    <div className="flex items-center gap-2">
-      <select value={dept} onChange={async e => { setDept(e.target.value); await save(e.target.value); }}
-        disabled={saving}
-        className="h-7 px-2 rounded-lg text-xs outline-none"
-        style={{ background: `${DEPT_COLOR[dept]}10`, border: `1px solid ${DEPT_COLOR[dept]}30`, color: DEPT_COLOR[dept] }}>
-        <option value="vendas" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Vendas</option>
-        <option value="suporte" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Suporte</option>
-        <option value="todos" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Todos</option>
-      </select>
-      <button onClick={async () => { const novo = !disp; setDisp(novo); await save(undefined, novo); }}
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative">
+        <button onClick={() => setOpen(o => !o)} disabled={saving}
+          className="h-7 px-2.5 rounded-lg text-xs font-medium"
+          style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}>
+          {selected.length === 0 ? "Sem departamento" : `${selected.length} departamento(s)`}
+        </button>
+        {open && (
+          <div className="absolute z-10 mt-1 w-56 rounded-xl p-2 space-y-1" style={{ background: "var(--surface-solid)", border: "1px solid var(--border-subtle)" }}>
+            {departments.map(d => (
+              <label key={d.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer" style={{ color: "var(--text-primary)" }}>
+                <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggleDept(d.id)} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: d.color }} />
+                {d.name}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+      <button onClick={cycleStatus}
         disabled={saving}
         className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-bold transition-all"
-        style={disp
-          ? { background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }
-          : { background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
-        <div className="w-1.5 h-1.5 rounded-full" style={{ background: disp ? "#10B981" : "#939da4" }} />
-        {disp ? "Disponível" : "Offline"}
+        style={{ background: `${AVAILABILITY_COLOR[status]}18`, color: AVAILABILITY_COLOR[status], border: `1px solid ${AVAILABILITY_COLOR[status]}30` }}>
+        <div className="w-1.5 h-1.5 rounded-full" style={{ background: AVAILABILITY_COLOR[status] }} />
+        {AVAILABILITY_LABEL[status]}
       </button>
     </div>
   );

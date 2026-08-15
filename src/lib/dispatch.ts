@@ -1,13 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import type { LooseDatabase } from "@/types/database";
 
-type QueueDepartment = "vendas" | "suporte" | "todos";
-
-interface DispatchMemberRow {
+interface CandidateRow {
   user_id: string;
   ultima_atribuicao: string | null;
-  max_conversas: number | null;
-  departamento?: QueueDepartment | null;
+  max_concurrent_chats: number;
 }
 
 interface QueueItemRow {
@@ -23,39 +20,64 @@ function adminClient() {
   );
 }
 
+async function candidatosDoDepartamento(
+  supabase: ReturnType<typeof adminClient>,
+  tenantId: string,
+  departmentId: string,
+): Promise<CandidateRow[]> {
+  const { data } = await supabase
+    .from("agent_departments")
+    .select("user_id, tenant_members!inner(availability_status, max_concurrent_chats, ultima_atribuicao)")
+    .eq("tenant_id", tenantId)
+    .eq("department_id", departmentId)
+    .eq("tenant_members.availability_status", "online");
+
+  return ((data ?? []) as unknown as Array<{ user_id: string; tenant_members: { availability_status: string; max_concurrent_chats: number; ultima_atribuicao: string | null } }>).map((row) => ({
+    user_id: row.user_id,
+    ultima_atribuicao: row.tenant_members.ultima_atribuicao,
+    max_concurrent_chats: row.tenant_members.max_concurrent_chats,
+  }));
+}
+
 /**
- * Round-robin dispatcher: atribui a conversa ao próximo agente disponível
- * no departamento correto. Se nenhum disponível, coloca na fila.
+ * Round-robin com menor carga primeiro (empate por quem esta ha mais tempo sem
+ * receber), igual ao algoritmo "round_robin_least_loaded" ja usado em producao
+ * pela Parabellum. Se o departamento e filho (ex: Suporte Pedidos) e ninguem
+ * disponivel, cai pro departamento pai (Suporte) como fallback.
  */
 export async function dispatchConversation(
   tenantId: string,
   conversaId: string,
-  departamento: "vendas" | "suporte",
+  departmentId: string,
   motivo: string
 ): Promise<{ atribuido: boolean; agente_id?: string; na_fila?: boolean }> {
   const supabase = adminClient();
 
-  const { data: agentes } = await supabase
-    .from("tenant_members")
-    .select("user_id, ultima_atribuicao, max_conversas")
-    .eq("tenant_id", tenantId)
-    .eq("disponivel", true)
-    .in("departamento", [departamento, "todos"])
-    .order("ultima_atribuicao", { ascending: true, nullsFirst: true });
+  let candidatos = await candidatosDoDepartamento(supabase, tenantId, departmentId);
+
+  if (candidatos.length === 0) {
+    const { data: dept } = await supabase.from("departments").select("parent_id").eq("id", departmentId).maybeSingle();
+    const parentId = (dept as { parent_id?: string | null } | null)?.parent_id;
+    if (parentId) candidatos = await candidatosDoDepartamento(supabase, tenantId, parentId);
+  }
 
   let agenteEscolhido: string | null = null;
+  let menorCarga = Infinity;
 
-  for (const agente of ((agentes ?? []) as unknown as DispatchMemberRow[])) {
+  for (const candidato of candidatos) {
     const { count } = await supabase
       .from("conversas")
       .select("id", { count: "exact", head: true })
-      .eq("assigned_to", agente.user_id)
+      .eq("assigned_to", candidato.user_id)
       .eq("dispatch_status", "atribuido")
       .eq("status", "ativo");
 
-    if ((count ?? 0) < (agente.max_conversas ?? 10)) {
-      agenteEscolhido = agente.user_id;
-      break;
+    const carga = count ?? 0;
+    if (carga >= candidato.max_concurrent_chats) continue;
+
+    if (carga < menorCarga) {
+      menorCarga = carga;
+      agenteEscolhido = candidato.user_id;
     }
   }
 
@@ -64,7 +86,7 @@ export async function dispatchConversation(
       assigned_to: agenteEscolhido,
       dispatch_status: "atribuido",
       assigned_at: new Date().toISOString(),
-      departamento_alvo: departamento,
+      department_id: departmentId,
       ai_mode: "disabled",
       ia_ativa: false,
     }).eq("id", conversaId);
@@ -78,7 +100,7 @@ export async function dispatchConversation(
 
   await supabase.from("conversas").update({
     dispatch_status: "fila",
-    departamento_alvo: departamento,
+    department_id: departmentId,
     ai_mode: "disabled",
     ia_ativa: false,
   }).eq("id", conversaId);
@@ -86,7 +108,7 @@ export async function dispatchConversation(
   await supabase.from("conversation_queue").upsert({
     tenant_id: tenantId,
     conversa_id: conversaId,
-    departamento,
+    department_id: departmentId,
     motivo,
     prioridade: motivo === "sentimento_negativo" ? 1 : 0,
   }, { onConflict: "conversa_id" });
@@ -95,19 +117,20 @@ export async function dispatchConversation(
 }
 
 /**
- * Quando agente fica disponível, processa a fila do seu departamento
+ * Quando um agente fica disponivel, processa a fila dos departamentos dele
+ * (do mais prioritario/antigo pro mais novo) ate esgotar a capacidade.
  */
 export async function processQueueForAgent(tenantId: string, agentId: string) {
   const supabase = adminClient();
 
   const { data: member } = await supabase
     .from("tenant_members")
-    .select("departamento, max_conversas")
+    .select("max_concurrent_chats")
     .eq("tenant_id", tenantId)
     .eq("user_id", agentId)
-    .single();
+    .maybeSingle();
 
-  const currentMember = member as unknown as DispatchMemberRow | null;
+  const currentMember = member as unknown as { max_concurrent_chats: number } | null;
   if (!currentMember) return;
 
   const { count: atual } = await supabase
@@ -117,18 +140,18 @@ export async function processQueueForAgent(tenantId: string, agentId: string) {
     .eq("dispatch_status", "atribuido")
     .eq("status", "ativo");
 
-  const slots = (currentMember.max_conversas ?? 10) - (atual ?? 0);
+  const slots = currentMember.max_concurrent_chats - (atual ?? 0);
   if (slots <= 0) return;
 
-  const depts = currentMember.departamento === "todos"
-    ? ["vendas", "suporte"]
-    : [currentMember.departamento ?? "vendas"];
+  const { data: deptRows } = await supabase.from("agent_departments").select("department_id").eq("tenant_id", tenantId).eq("user_id", agentId);
+  const departmentIds = ((deptRows ?? []) as unknown as Array<{ department_id: string }>).map((d) => d.department_id);
+  if (departmentIds.length === 0) return;
 
   const { data: fila } = await supabase
     .from("conversation_queue")
     .select("id, conversa_id")
     .eq("tenant_id", tenantId)
-    .in("departamento", depts)
+    .in("department_id", departmentIds)
     .is("assigned_at", null)
     .order("prioridade", { ascending: false })
     .order("queued_at", { ascending: true })

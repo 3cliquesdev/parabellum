@@ -13,8 +13,9 @@ interface TeamMemberBody {
   member_id?: string;
   role?: string;
   tenant_id?: string;
-  departamento?: string;
-  disponivel?: boolean;
+  department_ids?: string[];
+  availability_status?: "online" | "away" | "offline";
+  max_concurrent_chats?: number;
 }
 
 /** Confirma que o membro-alvo realmente pertence ao tenant informado. */
@@ -35,7 +36,7 @@ async function loadTargetMember(
 
 export async function PATCH(request: NextRequest) {
   const body = (await request.json()) as TeamMemberBody;
-  const { member_id, role, tenant_id, departamento, disponivel } = body;
+  const { member_id, role, tenant_id, department_ids, availability_status, max_concurrent_chats } = body;
   if (!member_id || !tenant_id) {
     return NextResponse.json({ error: "member_id e tenant_id sao obrigatorios" }, { status: 400 });
   }
@@ -61,12 +62,12 @@ export async function PATCH(request: NextRequest) {
     updates.role = role;
   }
 
-  if (departamento !== undefined) updates.departamento = departamento;
+  if (max_concurrent_chats !== undefined) updates.max_concurrent_chats = max_concurrent_chats;
 
-  if (disponivel !== undefined) {
-    updates.disponivel = disponivel;
+  if (availability_status !== undefined) {
+    updates.availability_status = availability_status;
 
-    if (disponivel === true && target.user_id) {
+    if (availability_status === "online" && target.user_id) {
       const internalSecret = getInternalApiSecret();
       if (!internalSecret) {
         return NextResponse.json({ error: "INTERNAL_API_SECRET nao configurado" }, { status: 503 });
@@ -81,6 +82,20 @@ export async function PATCH(request: NextRequest) {
 
   if (Object.keys(updates).length > 0) {
     await admin.from("tenant_members").update(updates).eq("id", member_id);
+  }
+
+  if (department_ids !== undefined && target.user_id) {
+    await admin.from("agent_departments").delete().eq("tenant_id", tenant_id).eq("user_id", target.user_id);
+    if (department_ids.length > 0) {
+      await admin.from("agent_departments").insert(
+        department_ids.map((departmentId, index) => ({
+          tenant_id,
+          user_id: target.user_id,
+          department_id: departmentId,
+          is_primary: index === 0,
+        })),
+      );
+    }
   }
 
   return NextResponse.json({ success: true });

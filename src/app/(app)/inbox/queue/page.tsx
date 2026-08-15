@@ -22,11 +22,6 @@ function tempoNaFila(queuedAt: string) {
   return `${Math.floor(min / 60)}h ${min % 60}m`;
 }
 
-const DEPT_COLOR: Record<string, string> = {
-  vendas: "#16a34a",
-  suporte: "#3b82f6",
-};
-
 interface QueueLead {
   nome?: string | null;
   whatsapp?: string | null;
@@ -38,18 +33,24 @@ interface QueueConversation {
   id: string;
   canal?: "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "interno" | null;
   lead_id?: string | null;
-  departamento_alvo?: string | null;
   leads?: QueueLead | null;
+}
+
+interface DepartmentInfo {
+  id: string;
+  name: string;
+  color: string;
 }
 
 interface QueueItem {
   id: string;
   conversa_id: string;
-  departamento?: string | null;
+  department_id?: string | null;
   motivo?: string | null;
   prioridade: number;
   queued_at: string;
   conversas?: QueueConversation | null;
+  departments?: DepartmentInfo | null;
 }
 
 export default function InboxQueuePage() {
@@ -68,7 +69,7 @@ export default function InboxQueuePage() {
     async function load() {
       const { data } = await supabase
         .from("conversation_queue")
-        .select("*, conversas(id, lead_id, canal, departamento_alvo, leads(nome, whatsapp, email, instagram))")
+        .select("*, conversas(id, lead_id, canal, leads(nome, whatsapp, email, instagram)), departments(id, name, color)")
         .eq("tenant_id", activeTenantId)
         .is("assigned_at", null)
         .order("prioridade", { ascending: false })
@@ -119,8 +120,15 @@ export default function InboxQueuePage() {
     setAssuming(null);
   }
 
-  const vendas = queue.filter((item) => item.departamento === "vendas");
-  const suporte = queue.filter((item) => item.departamento === "suporte");
+  const porDepartamento = new Map<string, { nome: string; cor: string; count: number }>();
+  for (const item of queue) {
+    const nome = item.departments?.name ?? "Sem departamento";
+    const cor = item.departments?.color ?? "#60a5fa";
+    const atual = porDepartamento.get(nome) ?? { nome, cor, count: 0 };
+    atual.count += 1;
+    porDepartamento.set(nome, atual);
+  }
+  const gruposDepartamento = Array.from(porDepartamento.values());
 
   return (
     <div className="p-6 space-y-6" style={inboxPageStyle}>
@@ -135,12 +143,9 @@ export default function InboxQueuePage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {[
-            { label: "Vendas", count: vendas.length, color: DEPT_COLOR.vendas },
-            { label: "Suporte", count: suporte.length, color: DEPT_COLOR.suporte },
-          ].map((dept) => (
-            <div key={dept.label} className="px-3.5 py-2 rounded-xl text-xs font-bold" style={inboxBadgeStyle(dept.color)}>
-              {dept.count} {dept.label}
+          {gruposDepartamento.map((dept) => (
+            <div key={dept.nome} className="px-3.5 py-2 rounded-xl text-xs font-bold" style={inboxBadgeStyle(dept.cor)}>
+              {dept.count} {dept.nome}
             </div>
           ))}
         </div>
@@ -225,8 +230,8 @@ export default function InboxQueuePage() {
         <div className="space-y-3">
           {queue.map((item) => {
             const lead = item.conversas?.leads;
-            const dept = item.departamento ?? "vendas";
-            const deptColor = DEPT_COLOR[dept] ?? DEPT_COLOR.vendas;
+            const dept = item.departments?.name ?? "Sem departamento";
+            const deptColor = item.departments?.color ?? "#60a5fa";
             const identifier = resolveConversationIdentity(item.conversas?.canal ?? "interno", {
               whatsapp: lead?.whatsapp ?? null,
               email: lead?.email ?? null,

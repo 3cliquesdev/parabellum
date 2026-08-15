@@ -6,11 +6,14 @@ interface TenantMemberRow {
   role: string;
   user_id: string;
   created_at: string;
+  availability_status: string;
+  max_concurrent_chats: number;
 }
 
 interface EnrichedTenantMember extends TenantMemberRow {
   email: string | null;
   name: string | null;
+  department_ids: string[];
 }
 
 export async function GET(request: NextRequest) {
@@ -23,8 +26,20 @@ export async function GET(request: NextRequest) {
   const admin = auth.admin;
   const { data: members } = await admin
     .from("tenant_members")
-    .select("id, role, user_id, created_at")
+    .select("id, role, user_id, created_at, availability_status, max_concurrent_chats")
     .eq("tenant_id", tenantId);
+
+  const { data: deptLinks } = await admin
+    .from("agent_departments")
+    .select("user_id, department_id")
+    .eq("tenant_id", tenantId);
+
+  const deptsByUser = new Map<string, string[]>();
+  for (const link of (deptLinks ?? []) as unknown as Array<{ user_id: string; department_id: string }>) {
+    const list = deptsByUser.get(link.user_id) ?? [];
+    list.push(link.department_id);
+    deptsByUser.set(link.user_id, list);
+  }
 
   const enriched = await Promise.all(
     ((members ?? []) as unknown as TenantMemberRow[]).map(async (member) => {
@@ -33,6 +48,7 @@ export async function GET(request: NextRequest) {
         ...member,
         email: authUser.user?.email ?? null,
         name: (authUser.user?.user_metadata?.full_name as string | undefined) ?? null,
+        department_ids: deptsByUser.get(member.user_id) ?? [],
       } satisfies EnrichedTenantMember;
     })
   );

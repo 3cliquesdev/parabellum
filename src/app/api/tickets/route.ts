@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isInternalRequest } from "@/lib/security/internal-auth";
 import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
 import { logAiDecision } from "@/lib/security/ai-audit";
+import { isUuid } from "@/lib/security/validate";
 
 interface CreateTicketBody {
   tenant_id?: string;
@@ -54,8 +55,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as CreateTicketBody;
   const { tenant_id, titulo } = body;
-  if (!tenant_id || !titulo) {
-    return NextResponse.json({ error: "tenant_id e titulo sao obrigatorios" }, { status: 400 });
+  if (!isUuid(tenant_id) || !titulo) {
+    return NextResponse.json({ error: "tenant_id (UUID valido, copiado do CONTEXTO INTERNO) e titulo sao obrigatorios" }, { status: 400 });
+  }
+  if (body.lead_id != null && !isUuid(body.lead_id)) {
+    return NextResponse.json({ error: "lead_id invalido: deve ser um UUID valido, copiado do CONTEXTO INTERNO" }, { status: 400 });
+  }
+  if (body.conversa_id != null && !isUuid(body.conversa_id)) {
+    return NextResponse.json({ error: "conversa_id invalido: deve ser um UUID valido, copiado do CONTEXTO INTERNO" }, { status: 400 });
   }
 
   const auth = await resolveInternalOrTenantAuth(request, tenant_id);

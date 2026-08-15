@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isInternalRequest } from "@/lib/security/internal-auth";
 import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
 import { logAiDecision } from "@/lib/security/ai-audit";
+import { isUuid } from "@/lib/security/validate";
 
 interface CreateDevolucaoBody {
   tenant_id?: string;
@@ -38,7 +39,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as CreateDevolucaoBody;
   const { tenant_id } = body;
-  if (!tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
+  if (!isUuid(tenant_id)) return NextResponse.json({ error: "tenant_id invalido: deve ser um UUID valido, copiado do CONTEXTO INTERNO" }, { status: 400 });
+  if (body.lead_id != null && !isUuid(body.lead_id)) {
+    return NextResponse.json({ error: "lead_id invalido: deve ser um UUID valido, copiado do CONTEXTO INTERNO" }, { status: 400 });
+  }
 
   const auth = await resolveInternalOrTenantAuth(request, tenant_id);
   if (!auth.ok) return auth.response;

@@ -241,6 +241,7 @@ export default function SettingsPage() {
             </div>
             <IdentidadeConfig tenantId={tenantId} />
             <PersonaConfig tenantId={tenantId} />
+            <AutoCloseConfig tenantId={tenantId} />
           </div>
         )}
 
@@ -912,6 +913,74 @@ function IdentidadeConfig({ tenantId }: { tenantId: string | null }) {
 }
 
 // ─── Persona Config ───
+function AutoCloseConfig({ tenantId }: { tenantId: string | null }) {
+  const [ativo, setAtivo] = useState(true);
+  const [minutos, setMinutos] = useState(5);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
+
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/tenants/auto-close-config?tenant_id=${tenantId}`).then(r => r.json()).then(d => {
+      if (d.auto_close_inatividade_ativo !== undefined) setAtivo(d.auto_close_inatividade_ativo);
+      if (d.auto_close_inatividade_minutos !== undefined) setMinutos(d.auto_close_inatividade_minutos);
+    });
+  }, [tenantId]);
+
+  async function save(novoAtivo?: boolean, novoMinutos?: number) {
+    if (!tenantId) return;
+    setSaving(true);
+    await fetch("/api/tenants/auto-close-config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, ativo: novoAtivo ?? ativo, minutos: novoMinutos ?? minutos }),
+    });
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <div className="rounded-xl p-5 space-y-4" style={cardStyle}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-bold text-white">Encerramento automático por inatividade</h2>
+          <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+            Se o cliente não responder à IA depois de um tempo, a conversa é encerrada sozinha (com tag e pesquisa de satisfação) para não ficar aberta indefinidamente.
+          </p>
+        </div>
+        <button
+          onClick={() => { const novo = !ativo; setAtivo(novo); void save(novo, undefined); }}
+          disabled={saving}
+          className="relative w-10 h-5 rounded-full transition-colors shrink-0"
+          style={{ background: ativo ? "#10B981" : "rgba(255,255,255,0.1)" }}
+        >
+          <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform"
+            style={{ transform: ativo ? "translateX(22px)" : "translateX(2px)" }} />
+        </button>
+      </div>
+
+      {ativo && (
+        <div className="flex items-center gap-3">
+          <Label className="text-xs" style={{ color: "var(--text-secondary)" }}>Minutos sem resposta até encerrar</Label>
+          <Input
+            type="number"
+            min={1}
+            max={60}
+            value={minutos}
+            onChange={(e) => setMinutos(Number(e.target.value) || 5)}
+            onBlur={() => void save(undefined, minutos)}
+            className="h-9 w-20 rounded-xl text-sm text-white"
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
+          />
+          {saved && <span className="text-xs" style={{ color: "var(--status-ganho)" }}>Salvo!</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PersonaConfig({ tenantId }: { tenantId: string | null }) {
   const [form, setForm] = useState({ nome: "Assistente", empresa: "", descricao: "", temperatura: 0.7, max_tokens: 1000, responder_com_audio: false, voz_tts: "pt-BR-feminina" });
   const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [exists, setExists] = useState(false);

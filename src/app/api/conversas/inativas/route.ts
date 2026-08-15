@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
 
-const MINUTOS_INATIVIDADE = 5;
-
 interface ConversaInativaRow {
   id: string;
   lead_id: string | null;
@@ -17,7 +15,18 @@ export async function GET(request: NextRequest) {
   const auth = await resolveInternalOrTenantAuth(request, tenantId);
   if (!auth.ok) return auth.response;
 
-  const limite = new Date(Date.now() - MINUTOS_INATIVIDADE * 60 * 1000).toISOString();
+  const { data: tenantConfig } = await auth.admin
+    .from("tenants")
+    .select("auto_close_inatividade_ativo, auto_close_inatividade_minutos")
+    .eq("id", tenantId)
+    .maybeSingle();
+  const config = tenantConfig as { auto_close_inatividade_ativo: boolean; auto_close_inatividade_minutos: number } | null;
+
+  if (!config || !config.auto_close_inatividade_ativo) {
+    return NextResponse.json({ conversas: [] });
+  }
+
+  const limite = new Date(Date.now() - config.auto_close_inatividade_minutos * 60 * 1000).toISOString();
 
   const { data, error } = await auth.admin
     .from("conversas")

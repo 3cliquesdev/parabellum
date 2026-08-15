@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, BookOpen, Search, CheckCircle, Circle, Zap, Trash2, Edit2, Globe, FileText, PenLine, Upload, X } from "lucide-react";
+import { Plus, BookOpen, Search, CheckCircle, Circle, Trash2, Edit2, Globe, FileText, PenLine, Upload, X } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 
@@ -33,7 +33,6 @@ export default function KnowledgePage() {
   const [editing, setEditing] = useState<KBArticle | null>(null);
   const [form, setForm] = useState({ titulo: "", conteudo: "", categoria: "Geral", tags: "" });
   const [saving, setSaving] = useState(false);
-  const [embeddingId, setEmbeddingId] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<KBCandidate[]>([]);
   // Importação
   const [importMode, setImportMode] = useState<"url" | "file" | null>(null);
@@ -101,25 +100,6 @@ export default function KnowledgePage() {
     fetchArticles();
   }
 
-  async function generateEmbedding(article: KBArticle) {
-    setEmbeddingId(article.id);
-    await fetch("/api/ai/embed", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: `${article.titulo}\n\n${article.conteudo}`, article_id: article.id }),
-    });
-    setEmbeddingId(null);
-    fetchArticles();
-  }
-
-  async function generateAllEmbeddings() {
-    if (!tenantId) return;
-    setEmbeddingId("all");
-    await fetch(`/api/ai/embed?batch=true&tenant_id=${tenantId}`);
-    setEmbeddingId(null);
-    fetchArticles();
-  }
-
   async function importFromUrl() {
     if (!tenantId || !importUrl) return;
     setImporting(true); setImportResult(null);
@@ -173,14 +153,6 @@ export default function KnowledgePage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {articles.some(a => !a.embedding) && (
-            <button onClick={generateAllEmbeddings} disabled={embeddingId === "all"}
-              className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold transition-all"
-              style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)", border: "1px solid rgba(16,185,129,0.2)" }}>
-              <Zap className="w-4 h-4" />
-              {embeddingId === "all" ? "Gerando..." : "Gerar todos embeddings"}
-            </button>
-          )}
           <button onClick={() => { setShowForm(true); setEditing(null); setForm({ titulo: "", conteudo: "", categoria: "Geral", tags: "" }); }}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
             style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
@@ -335,11 +307,7 @@ export default function KnowledgePage() {
                 <div className="flex items-center gap-2 shrink-0">
                   {a.embedding
                     ? <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(16,185,129,0.1)", color: "var(--status-ganho)" }}>✓ Embedding</span>
-                    : <button onClick={() => generateEmbedding(a)} disabled={embeddingId === a.id}
-                        className="text-[10px] px-2 py-1 rounded-full font-bold transition-all"
-                        style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>
-                        {embeddingId === a.id ? "..." : "Gerar embedding"}
-                      </button>}
+                    : <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }} title="Gerado automaticamente em ate 15 min">Pendente</span>}
                   <button onClick={() => togglePublish(a.id, a.publicado)} title={a.publicado ? "Despublicar" : "Publicar"}>
                     {a.publicado ? <CheckCircle className="w-4 h-4" style={{ color: "var(--status-ganho)" }} /> : <Circle className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />}
                   </button>

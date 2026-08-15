@@ -45,21 +45,27 @@ export async function buscarPedidoArmazem(numero: string): Promise<PedidoArmazem
 
   const conn = await conectar();
   try {
-    const [rows] = await conn.query(
-      `SELECT platform_order_id, order_status, buyer_name, track_number, track_number_internal,
-              track_number_virtual, remark, paid_time, transport_time, express_time, update_time
-       FROM mabang_order
-       WHERE remark LIKE ?
-          OR platform_order_id LIKE ?
-          OR track_number = ?
-          OR track_number_internal = ?
-          OR track_number_virtual = ?
-       ORDER BY create_date DESC
-       LIMIT 1`,
-      [`%${termo}`, `%${termo}%`, termo, termo, termo],
-    );
+    const selectFields = `platform_order_id, order_status, buyer_name, track_number, track_number_internal,
+              track_number_virtual, remark, paid_time, transport_time, express_time, update_time`;
 
-    const row = (rows as unknown[])[0] as
+    // Prioriza matches exatos (numero do pedido visivel ao cliente costuma ser
+    // o sufixo "loja#NNNNN" em remark, ou o codigo de rastreio exato) antes de
+    // tentar um LIKE mais solto que pode casar com um substring de outro pedido.
+    const tentativas: Array<[string, unknown[]]> = [
+      [`SELECT ${selectFields} FROM mabang_order WHERE remark LIKE ? ORDER BY create_date DESC LIMIT 1`, [`%#${termo}`]],
+      [`SELECT ${selectFields} FROM mabang_order WHERE track_number = ? OR track_number_internal = ? OR track_number_virtual = ? ORDER BY create_date DESC LIMIT 1`, [termo, termo, termo]],
+      [`SELECT ${selectFields} FROM mabang_order WHERE platform_order_id = ? ORDER BY create_date DESC LIMIT 1`, [termo]],
+      [`SELECT ${selectFields} FROM mabang_order WHERE platform_order_id LIKE ? ORDER BY create_date DESC LIMIT 1`, [`%${termo}%`]],
+    ];
+
+    let rows: unknown[] = [];
+    for (const [sql, params] of tentativas) {
+      const [result] = await conn.query(sql, params);
+      rows = result as unknown[];
+      if (rows.length > 0) break;
+    }
+
+    const row = rows[0] as
       | {
           platform_order_id: string;
           order_status: string | null;

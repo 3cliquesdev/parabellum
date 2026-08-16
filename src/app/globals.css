@@ -146,7 +146,7 @@ html.light {
   --secondary: rgba(15,23,42,0.08);
   --secondary-foreground: #0F172A;
   --muted: rgba(15,23,42,0.05);
-  --muted-foreground: #52637A;
+  --muted-foreground: #4B5563;
   --accent: rgba(21,128,61,0.20);
   --accent-foreground: #15803D;
   --destructive: #DC2626;
@@ -176,9 +176,9 @@ html.light {
   --surface-solid:   #FFFFFF;
   --border-subtle:   #D6E0EA;
   --border-strong:   #C1CFDD;
-  --text-primary:    #0F172A;
-  --text-secondary:  #5C6E86;
-  --text-faint:      #8193A8;
+  --text-primary:    #172033;
+  --text-secondary:  #4B5563;
+  --text-faint:      #64748B;
   --status-novo:     #7B8CA3;
   --status-contato:  #3B82F6;
   --status-qualificado: #8B5CF6;
@@ -215,8 +215,8 @@ html.light {
   --chat-ai-border:  rgba(21,128,61,0.16);
   --chat-ai-text:    #166534;
 
-  --badge-neutral-fg: #5C6E86;  --badge-neutral-bg: #5C6E8614; --badge-neutral-border: #5C6E862b;
-  --badge-blue-fg:    #3B82F6;  --badge-blue-bg:    #3B82F614; --badge-blue-border:    #3B82F62b;
+  --badge-neutral-fg: #4B5563;  --badge-neutral-bg: #4B556314; --badge-neutral-border: #4B55632b;
+  --badge-blue-fg:    #1D4ED8;  --badge-blue-bg:    #1D4ED814; --badge-blue-border:    #1D4ED82b;
   --badge-yellow-fg:  #92400E;  --badge-yellow-bg:  #92400E14; --badge-yellow-border:  #92400E2b;
   --badge-green-fg:   #15803D;  --badge-green-bg:   #15803D14; --badge-green-border:   #15803D2b;
   --badge-primary-fg: #FFFFFF;
@@ -263,6 +263,19 @@ html.light main.crm-main .react-flow__attribution {
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  /* Foco de teclado sempre visivel e com contraste alto, independente do tema
+     ou de estilos inline no componente - nao depende so de cor do outline
+     padrao do navegador (que pode ficar fraco em cima de fundos claros). */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--status-ganho);
+    outline-offset: 2px;
   }
 
   html {

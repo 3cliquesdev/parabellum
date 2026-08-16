@@ -6,7 +6,7 @@ import type { ConversaWithLead } from "@/hooks/useConversas";
 import type { Lead } from "@/types/database";
 import { STATUS_LABEL, STATUS_COLOR } from "@/lib/leads/status";
 import { LeadTimeline, type TimelineEvent } from "@/components/app/LeadTimeline";
-import { inboxBadgeStyle, inboxBadgeTone } from "./theme";
+import { inboxBadgeStyle, inboxBadgeTone, useContrastSafeColor } from "./theme";
 
 interface TicketRow {
   id: string;
@@ -65,6 +65,7 @@ interface ContactPanelProps {
 }
 
 export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag, adicionandoTag, onAdicionarTag, onRemoverTag, criarNegocioSignal }: ContactPanelProps) {
+  const safeColor = useContrastSafeColor();
   const [aba, setAba] = useState<Aba>("timeline");
   const [lead, setLead] = useState<Lead | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
@@ -160,7 +161,7 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
           </div>
         </div>
         {lead && (
-          <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(STATUS_COLOR[lead.status])}>
+          <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(safeColor(STATUS_COLOR[lead.status]))}>
             {STATUS_LABEL[lead.status]}
           </span>
         )}
@@ -172,7 +173,7 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
               <p className="text-xs" style={{ color: "var(--text-faint)" }}>Nenhuma tag aplicada ainda.</p>
             ) : (
               conversa.tags.map((tag) => (
-                <span key={tag.id} className="text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1" style={inboxBadgeStyle(tag.cor)}>
+                <span key={tag.id} className="text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1" style={inboxBadgeStyle(safeColor(tag.cor))}>
                   {tag.nome}
                   <button onClick={() => onRemoverTag(tag.id)} className="opacity-60 hover:opacity-100">×</button>
                 </span>
@@ -240,7 +241,7 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
                       {TICKET_STATUS_LABEL[t.status] ?? t.status}
                     </span>
                     {t.ticket_categories && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(t.ticket_categories.cor)}>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(safeColor(t.ticket_categories.cor))}>
                         {t.ticket_categories.nome}
                       </span>
                     )}
@@ -324,8 +325,8 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
 
             {lead && (
               <div className="rounded-lg p-3 space-y-2" style={{ background: "var(--surface-panel)", border: "1px solid var(--border-subtle)" }}>
-                <p className="text-[10px] font-bold uppercase" style={{ color: "var(--text-faint)" }}>Estágio do lead</p>
-                <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(STATUS_COLOR[lead.status])}>
+                <p className="text-[10px] font-bold uppercase" style={{ color: "var(--text-secondary)" }}>Estágio do lead</p>
+                <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(safeColor(STATUS_COLOR[lead.status]))}>
                   {STATUS_LABEL[lead.status]}
                 </span>
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -352,7 +353,7 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeTone(VENDA_STATUS_TONE[c.status] ?? "neutral")}>
                           {c.status}
                         </span>
-                        <span className="text-[10px]" style={{ color: "var(--text-faint)" }}>
+                        <span className="text-[10px] font-medium" style={{ color: "var(--text-secondary)" }}>
                           {new Date(c.pago_em ?? c.comprado_em).toLocaleDateString("pt-BR")}
                         </span>
                       </div>

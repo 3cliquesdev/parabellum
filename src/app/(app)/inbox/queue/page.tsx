@@ -12,6 +12,7 @@ import {
   inboxPanelStyle,
   inboxPrimaryButtonStyle,
   inboxSubtlePanelStyle,
+  useContrastSafeColor,
 } from "../theme";
 
 function tempoNaFila(queuedAt: string) {
@@ -54,6 +55,7 @@ interface QueueItem {
 }
 
 export default function InboxQueuePage() {
+  const safeColor = useContrastSafeColor();
   const { tenantId } = useTenant();
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,7 +146,7 @@ export default function InboxQueuePage() {
 
         <div className="flex flex-wrap gap-2">
           {gruposDepartamento.map((dept) => (
-            <div key={dept.nome} className="px-3.5 py-2 rounded-xl text-xs font-bold" style={inboxBadgeStyle(dept.cor)}>
+            <div key={dept.nome} className="px-3.5 py-2 rounded-xl text-xs font-bold" style={inboxBadgeStyle(safeColor(dept.cor))}>
               {dept.count} {dept.nome}
             </div>
           ))}
@@ -231,7 +233,7 @@ export default function InboxQueuePage() {
           {queue.map((item) => {
             const lead = item.conversas?.leads;
             const dept = item.departments?.name ?? "Sem departamento";
-            const deptColor = item.departments?.color ?? "#60a5fa";
+            const deptColor = safeColor(item.departments?.color ?? "#60a5fa");
             const identifier = resolveConversationIdentity(item.conversas?.canal ?? "interno", {
               whatsapp: lead?.whatsapp ?? null,
               email: lead?.email ?? null,
@@ -255,7 +257,7 @@ export default function InboxQueuePage() {
                           {dept}
                         </span>
                         {item.prioridade > 0 && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle("#dc2626")}>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(safeColor("#dc2626"))}>
                             Alta prioridade
                           </span>
                         )}
@@ -266,7 +268,7 @@ export default function InboxQueuePage() {
                       </p>
 
                       <div className="flex flex-wrap items-center gap-3 mt-2">
-                        <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-faint)" }}>
+                        <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                           <Clock className="w-3.5 h-3.5" />
                           {tempoNaFila(item.queued_at)}
                         </div>

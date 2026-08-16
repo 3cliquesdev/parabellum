@@ -18,6 +18,7 @@ import {
   inboxGhostButtonStyle,
   inboxPageStyle,
   inboxPanelStyle,
+  useContrastSafeColor,
   type InboxBadgeTone,
 } from "./theme";
 import { ContactPanel } from "./ContactPanel";
@@ -166,6 +167,7 @@ function MediaContent({ msg, tone }: { msg: Mensagem; tone: "lead" | "humano" | 
 export default function InboxPage() {
   const { tenantId, loading: tenantLoading } = useTenant();
   const { conversas, loading: conversasLoading } = useConversas(tenantId);
+  const safeColor = useContrastSafeColor();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { mensagens, loading: msgsLoading } = useMensagens(selectedId);
   const [text, setText] = useState("");
@@ -569,20 +571,20 @@ export default function InboxPage() {
                           </p>
                         </div>
 
-                        <div className="shrink-0 text-[11px] font-medium" style={{ color: active ? "var(--status-ganho)" : "var(--text-faint)" }}>
+                        <div className="shrink-0 text-[11px] font-semibold" style={{ color: active ? "var(--status-ganho)" : "var(--text-secondary)" }}>
                           {conversationTimeLabel(conversa.updated_at)}
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(conversa.canal_color)}>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(safeColor(conversa.canal_color))}>
                           {conversa.canal_label}
                         </span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeTone(conversa.eh_cliente ? "green" : "neutral")}>
                           {conversa.eh_cliente ? "Cliente" : "Não Cliente"}
                         </span>
                         {departamentoConversa && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(departamentoConversa.color)}>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(safeColor(departamentoConversa.color))}>
                             {departamentoConversa.name}
                           </span>
                         )}
@@ -628,7 +630,7 @@ export default function InboxPage() {
                   {selected.lead_nome}
                 </p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(selected.canal_color)}>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(safeColor(selected.canal_color))}>
                     {selected.canal_label}
                   </span>
                   <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -797,7 +799,7 @@ export default function InboxPage() {
                         <MediaContent msg={msg} tone={tone} />
                       </div>
 
-                      <p className={`text-[10px] mt-1 ${isLead ? "text-left" : "text-right"}`} style={{ color: "var(--text-faint)" }}>
+                      <p className={`text-[10px] mt-1 font-medium ${isLead ? "text-left" : "text-right"}`} style={{ color: "var(--text-secondary)" }}>
                         {timeLabel(msg.created_at)}
                         {!isLead && (msg.enviada ? " · Enviado" : " · Pendente")}
                       </p>

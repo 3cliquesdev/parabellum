@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import type { CSSProperties } from "react";
 
 export const inboxPageStyle: CSSProperties = {
@@ -43,6 +47,63 @@ export function inboxBadgeStyle(color: string): CSSProperties {
     background: withAlpha(color, "14"),
     border: `1px solid ${withAlpha(color, "2b")}`,
   };
+}
+
+// WCAG AA (4.5:1) e' calculado contra branco - as cores arbitrarias (departamento/
+// tag/categoria de ticket, escolhidas pelo proprio usuario) podem nao ter contraste
+// suficiente no modo claro. Escurece progressivamente ate atingir o minimo, sem
+// mexer no matiz. No modo escuro o fundo e' quase preto, entao a cor original ja
+// tem folga de sobra - nao escurece.
+function hexToRgb(hex: string): [number, number, number] | null {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return null;
+  const int = parseInt(match[1], 16);
+  return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  return `#${[clamp(r), clamp(g), clamp(b)].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function relativeLuminance(r: number, g: number, b: number): number {
+  const toLinear = (channel: number) => {
+    const c = channel / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+function contrastVsWhite(r: number, g: number, b: number): number {
+  return 1.05 / (relativeLuminance(r, g, b) + 0.05);
+}
+
+export function contrastSafeColor(hex: string, isLight: boolean, minRatio = 4.5): string {
+  if (!isLight) return hex;
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  let [r, g, b] = rgb;
+  let guard = 0;
+  while (contrastVsWhite(r, g, b) < minRatio && guard < 14) {
+    r *= 0.85;
+    g *= 0.85;
+    b *= 0.85;
+    guard += 1;
+  }
+  return rgbToHex(r, g, b);
+}
+
+export function useContrastSafeColor() {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    function marcarMontado() {
+      setMounted(true);
+    }
+    marcarMontado();
+  }, []);
+  const isLight = mounted && resolvedTheme === "light";
+  return (hex: string) => contrastSafeColor(hex, isLight);
 }
 
 // Tons fixos do sistema (nao vindos do banco) - resolvidos por variavel de

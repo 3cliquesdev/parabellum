@@ -239,5 +239,35 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Carrinho abandonado/cartao recusado/aguardando pagamento tambem
+  // alimentam o valor estimado do lead (aparece no card do Kanban e soma no
+  // funil) - so quando o lead ainda nao tem nenhum valor, nunca sobrescreve.
+  // Carrinho abandonado nao manda valor no proprio payload (a Kiwify nao
+  // manda esse dado nesse evento) - estima pelo preco mais recente desse
+  // mesmo produto em outra venda registrada.
+  if (["carrinho_abandonado", "cartao_recusado", "aguardando_pagamento"].includes(status) && leadId) {
+    const { data: leadAtual } = await admin.from("leads").select("valor_estimado").eq("id", leadId).maybeSingle();
+    const jaTemValor = (leadAtual as { valor_estimado?: number | null } | null)?.valor_estimado;
+
+    if (!jaTemValor) {
+      let valorParaLead = valor;
+      if (!valorParaLead && body.Product?.product_id) {
+        const { data: vendaComparavel } = await admin
+          .from("vendas")
+          .select("valor")
+          .eq("tenant_id", tenantId)
+          .eq("raw_payload->Product->>product_id", body.Product.product_id)
+          .gt("valor", 0)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        valorParaLead = (vendaComparavel as { valor?: number } | null)?.valor ?? 0;
+      }
+      if (valorParaLead) {
+        await admin.from("leads").update({ valor_estimado: valorParaLead }).eq("id", leadId);
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true, lead_id: leadId });
 }

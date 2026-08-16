@@ -368,7 +368,7 @@ export default function InboxPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         alert(err.error ?? "Erro ao enviar mensagem");
         setText(msg);
       }
@@ -379,7 +379,8 @@ export default function InboxPage() {
 
   async function toggleIA(conversa: ConversaWithLead) {
     const supabase = createClient();
-    await supabase.from("conversas").update({ ia_ativa: !conversa.ia_ativa }).eq("id", conversa.id);
+    const { error } = await supabase.from("conversas").update({ ia_ativa: !conversa.ia_ativa }).eq("id", conversa.id);
+    if (error) alert("Erro ao alternar IA: " + error.message);
   }
 
   const [tags, setTags] = useState<{ id: string; nome: string; cor: string }[]>([]);
@@ -1059,7 +1060,7 @@ export default function InboxPage() {
                     formData.append("tenant_id", tenantId);
                     const res = await fetch("/api/inbox/send", { method: "POST", body: formData });
                     if (!res.ok) {
-                      const err = await res.json();
+                      const err = await res.json().catch(() => ({}));
                       alert(err.error ?? "Erro ao enviar arquivo");
                     }
                     setSending(false);

@@ -71,15 +71,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     aguardando_csat: enviar_csat,
   }).eq("id", conversaId);
 
-  // Uma conversa resolvida deve terminar com uma unica tag (o motivo do
-  // encerramento) - remove qualquer tag anterior antes de aplicar a nova,
-  // em vez de acumular (ex: uma tentativa de fechamento anterior que so
-  // aplicou a tag mas nao chegou a resolver por causa da trava acima).
-  await auth.admin.from("conversation_tags").delete().eq("conversa_id", conversaId);
-  await auth.admin.from("conversation_tags").insert({
+  // Aplica a tag do motivo de encerramento sem apagar tags que o atendente
+  // ja tenha adicionado durante a conversa (ex: categorizacao manual) - o
+  // UNIQUE(conversa_id, tag_id) evita duplicar caso essa mesma tag ja tenha
+  // sido aplicada numa tentativa de fechamento anterior.
+  await auth.admin.from("conversation_tags").upsert({
     conversa_id: conversaId,
     tag_id: tagRow.id,
-  });
+  }, { onConflict: "conversa_id,tag_id" });
 
   if (enviar_csat) {
     const internalSecret = getInternalApiSecret();

@@ -113,6 +113,7 @@ export async function dispatchConversation(
     department_id: departmentId,
     ai_mode: "disabled",
     ia_ativa: false,
+    assigned_to: null,
   }).eq("id", conversaId);
 
   await supabase.from("conversation_queue").upsert({

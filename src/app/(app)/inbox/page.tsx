@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Check, CheckCheck, ChevronDown, ChevronRight, Clock, Download, FileText, MapPin, MessageSquare, Paperclip, Reply, Send, User } from "lucide-react";
+import { Bot, Check, CheckCheck, ChevronDown, ChevronRight, Clock, Download, FileText, MapPin, MessageSquare, MoreVertical, Paperclip, Reply, Send, User } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
+import { useIsCompact } from "@/hooks/useIsCompact";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
 import { useMensagens } from "@/hooks/useMensagens";
 import { createClient } from "@/lib/supabase/client";
@@ -414,6 +415,8 @@ export default function InboxPage() {
   const [showTransferirMenu, setShowTransferirMenu] = useState(false);
   const [departamentoEscolhido, setDepartamentoEscolhido] = useState("");
   const [transferindo, setTransferindo] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const isCompact = useIsCompact();
 
   async function transferirConversa(conversa: ConversaWithLead) {
     if (!departamentoEscolhido || !tenantId) return;
@@ -583,7 +586,7 @@ export default function InboxPage() {
                   onClick={() => setSelectedId(conversa.id)}
                   onMouseEnter={() => setHoveredConversationId(conversa.id)}
                   onMouseLeave={() => setHoveredConversationId(null)}
-                  className="w-full px-4 py-3.5 text-left"
+                  className="group w-full px-4 py-3.5 text-left"
                   style={{
                     ...inboxConversationItemStyle(active),
                     background: active ? "var(--active-soft-bg)" : hovered ? "var(--surface-hover)" : "transparent",
@@ -601,7 +604,10 @@ export default function InboxPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[15px] font-bold truncate" style={{ color: "var(--text-primary)" }}>
+                          <p
+                            className="text-[15px] font-bold truncate group-hover:underline"
+                            style={{ color: active ? "var(--status-ganho)" : "var(--text-primary)" }}
+                          >
                             {conversa.lead_nome}
                           </p>
                           <p className="text-xs truncate mt-1" style={{ color: "var(--text-secondary)" }}>
@@ -658,7 +664,7 @@ export default function InboxPage() {
         </div>
       ) : (
         <section className="flex-1 min-w-0 rounded-[28px] overflow-hidden flex flex-col min-h-0" style={inboxPanelStyle}>
-          <div className="px-6 py-4 flex items-center justify-between gap-4 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
+          <div className="px-6 py-4 flex items-center justify-between gap-4 shrink-0 flex-wrap" style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "var(--primary-bg)", color: "var(--status-ganho)" }}>
                 {selected.lead_nome.charAt(0).toUpperCase()}
@@ -696,7 +702,7 @@ export default function InboxPage() {
                 IA {selected.ia_ativa ? "ativada" : "desativada"}
               </button>
 
-              {selected.status === "resolvido" && (
+              {!isCompact && selected.status === "resolvido" && (
                 <a
                   href={`/api/conversas/${selected.id}/export?tenant_id=${tenantId}`}
                   download
@@ -709,7 +715,7 @@ export default function InboxPage() {
                 </a>
               )}
 
-              {selected.status !== "resolvido" && selected.assigned_to !== myUserId && (
+              {!isCompact && selected.status !== "resolvido" && selected.assigned_to !== myUserId && (
                 <button
                   onClick={() => assumirConversa(selected)}
                   className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
@@ -719,15 +725,17 @@ export default function InboxPage() {
                 </button>
               )}
 
-              <button
-                onClick={() => setCriarNegocioTick((v) => v + 1)}
-                className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
-                style={inboxGhostButtonStyle}
-              >
-                Negócio
-              </button>
+              {!isCompact && (
+                <button
+                  onClick={() => setCriarNegocioTick((v) => v + 1)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={inboxGhostButtonStyle}
+                >
+                  Negócio
+                </button>
+              )}
 
-              {selected.status !== "resolvido" && (
+              {!isCompact && selected.status !== "resolvido" && (
                 <button
                   onClick={() => setShowTransferirMenu((v) => !v)}
                   className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
@@ -735,6 +743,68 @@ export default function InboxPage() {
                 >
                   Transferir
                 </button>
+              )}
+
+              {isCompact && (
+                <button
+                  onClick={() => setShowMoreMenu((v) => !v)}
+                  title="Mais ações"
+                  className="w-9 h-9 flex items-center justify-center rounded-xl text-xs font-bold transition-all"
+                  style={inboxGhostButtonStyle}
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+              )}
+
+              {isCompact && showMoreMenu && (
+                <div className="absolute right-0 top-full mt-2 z-20 w-56 rounded-xl p-1.5 space-y-0.5" style={{ background: "var(--surface-solid)", border: "1px solid var(--border-subtle)" }}>
+                  {selected.status === "resolvido" && (
+                    <a
+                      href={`/api/conversas/${selected.id}/export?tenant_id=${tenantId}`}
+                      download
+                      onClick={() => setShowMoreMenu(false)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Baixar conversa
+                    </a>
+                  )}
+                  {selected.status !== "resolvido" && selected.assigned_to !== myUserId && (
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        assumirConversa(selected);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      Assumir
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      setCriarNegocioTick((v) => v + 1);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Negócio
+                  </button>
+                  {selected.status !== "resolvido" && (
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        setShowTransferirMenu((v) => !v);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      Transferir
+                    </button>
+                  )}
+                </div>
               )}
 
               {showTransferirMenu && (

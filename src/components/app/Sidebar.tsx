@@ -46,9 +46,12 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    const saved = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-    if (saved === "1") setCollapsed(true);
+    function inicializar() {
+      setMounted(true);
+      const saved = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      if (saved === "1") setCollapsed(true);
+    }
+    inicializar();
   }, []);
 
   function toggleCollapsed() {
@@ -83,30 +86,32 @@ export function Sidebar() {
         style={{ borderBottom: "1px solid var(--sidebar-border)" }}
       >
         {!collapsed && (
-          branding.logo_url ? (
-            // Logo completa (ja contem o nome) — nao repete o texto ao lado.
-            <img src={logoSrc ?? undefined} alt={branding.display_name} className="h-16 w-auto max-w-full shrink-0 min-w-0" /> // eslint-disable-line @next/next/no-img-element
-          ) : (
-            <>
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: cor, boxShadow: `0 0 12px ${cor}40` }}
-              >
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                  <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
-                </svg>
-              </div>
-              <span className="font-bold text-sm tracking-tight truncate" style={{ color: "var(--sidebar-foreground)" }}>
-                {branding.display_name}
-              </span>
-            </>
-          )
+          <div className="flex-1 min-w-0 overflow-hidden flex items-center">
+            {branding.logo_url ? (
+              // Logo completa (ja contem o nome) — nao repete o texto ao lado.
+              <img src={logoSrc ?? undefined} alt={branding.display_name} className="h-16 w-auto max-w-full min-w-0" /> // eslint-disable-line @next/next/no-img-element
+            ) : (
+              <>
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: cor, boxShadow: `0 0 12px ${cor}40` }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
+                  </svg>
+                </div>
+                <span className="font-bold text-sm tracking-tight truncate ml-3" style={{ color: "var(--sidebar-foreground)" }}>
+                  {branding.display_name}
+                </span>
+              </>
+            )}
+          </div>
         )}
         <button
           onClick={toggleCollapsed}
           title={collapsed ? "Expandir menu" : "Recolher menu"}
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-          style={{ color: "var(--text-faint)" }}
+          style={{ color: "var(--text-secondary)", background: "var(--surface-soft)", border: "1px solid var(--sidebar-border)" }}
         >
           {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
         </button>

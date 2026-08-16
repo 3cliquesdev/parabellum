@@ -22,6 +22,7 @@ interface ConversationRow {
   canal: string;
   lead_id: string | null;
   assigned_to: string | null;
+  whatsapp_config_id: string | null;
   leads: RelatedLeadRow | RelatedLeadRow[] | null;
 }
 
@@ -140,13 +141,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: "sent" });
   }
 
-  const { data: waConfig } = await supabase
-    .from("whatsapp_configs")
-    .select("phone_number_id, access_token")
-    .eq("tenant_id", tenantId)
-    .eq("active", true)
-    .single();
-  const config = waConfig as unknown as WhatsAppConfigRow | null;
+  let config: WhatsAppConfigRow | null = null;
+  if (conversation.whatsapp_config_id) {
+    const { data } = await supabase
+      .from("whatsapp_configs")
+      .select("phone_number_id, access_token")
+      .eq("id", conversation.whatsapp_config_id)
+      .eq("active", true)
+      .maybeSingle();
+    config = data as unknown as WhatsAppConfigRow | null;
+  }
+  if (!config) {
+    // Fallback pra conversas antigas (de antes de suportarmos mais de um
+    // numero por tenant): usa o numero "universal", sem dono dedicado.
+    const { data } = await supabase
+      .from("whatsapp_configs")
+      .select("phone_number_id, access_token")
+      .eq("tenant_id", tenantId)
+      .eq("active", true)
+      .is("dedicado_para_user_id", null)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    config = data as unknown as WhatsAppConfigRow | null;
+  }
   if (!config) return NextResponse.json({ error: "WhatsApp nao configurado" }, { status: 400 });
 
   const toNumber = getLeadPhone(conversation.leads);

@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       access_token: accessToken,
       verify_token: "3cliques-crm",
       active: true,
-    }, { onConflict: "tenant_id" });
+    }, { onConflict: "phone_number_id" });
 
     return NextResponse.json({
       status: "connected",
@@ -127,11 +127,33 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const body = (await request.json()) as { tenant_id?: string };
+  const body = (await request.json()) as { tenant_id?: string; phone_number_id?: string };
   if (!body.tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
   const auth = await assertTenantAdmin(body.tenant_id);
   if (!auth.ok) return auth.response;
 
-  await auth.admin.from("whatsapp_configs").update({ active: false }).eq("tenant_id", body.tenant_id);
+  if (body.phone_number_id) {
+    await auth.admin.from("whatsapp_configs").update({ active: false })
+      .eq("tenant_id", body.tenant_id)
+      .eq("phone_number_id", body.phone_number_id);
+    return NextResponse.json({ status: "disconnected" });
+  }
+
+  // Sem phone_number_id (painel antigo, 1 numero so): desconecta so o
+  // primeiro numero conectado, nunca todos - com varios numeros por tenant,
+  // desativar tudo de uma vez derrubaria numeros que nao tem nada a ver com
+  // essa acao.
+  const { data: primary } = await auth.admin
+    .from("whatsapp_configs")
+    .select("id")
+    .eq("tenant_id", body.tenant_id)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (primary) {
+    await auth.admin.from("whatsapp_configs").update({ active: false }).eq("id", (primary as { id: string }).id);
+  }
+
   return NextResponse.json({ status: "disconnected" });
 }

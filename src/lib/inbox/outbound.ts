@@ -17,6 +17,7 @@ type ConversationLookup = {
   id: string;
   tenant_id: string;
   canal: ConversaCanal;
+  whatsapp_config_id: string | null;
   leads: LeadRef | LeadRef[] | null;
 };
 
@@ -64,11 +65,39 @@ function escapeHtml(input: string) {
 export async function loadConversationForOutbound(supabase: AdminClient, conversationId: string) {
   const { data } = await supabase
     .from("conversas")
-    .select("id, tenant_id, canal, lead_id, leads(id, nome, whatsapp, email, instagram)")
+    .select("id, tenant_id, canal, lead_id, whatsapp_config_id, leads(id, nome, whatsapp, email, instagram)")
     .eq("id", conversationId)
     .maybeSingle();
 
   return (data as unknown as ConversationLookup | null) ?? null;
+}
+
+// Resolve qual numero de WhatsApp usar pra responder: o mesmo que recebeu a
+// mensagem (whatsapp_config_id da conversa), com fallback pro numero
+// "universal" do tenant (sem dono dedicado) pra conversas antigas, de antes
+// de suportarmos mais de um numero por tenant.
+async function resolveWhatsAppConfig(supabase: AdminClient, conversation: ConversationLookup) {
+  if (conversation.whatsapp_config_id) {
+    const { data } = await supabase
+      .from("whatsapp_configs")
+      .select("phone_number_id, access_token")
+      .eq("id", conversation.whatsapp_config_id)
+      .eq("active", true)
+      .maybeSingle();
+    if (data) return data as unknown as WhatsAppConfigRow;
+  }
+
+  const { data } = await supabase
+    .from("whatsapp_configs")
+    .select("phone_number_id, access_token")
+    .eq("tenant_id", conversation.tenant_id)
+    .eq("active", true)
+    .is("dedicado_para_user_id", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  return (data as unknown as WhatsAppConfigRow | null) ?? null;
 }
 
 async function resolveInstagramRecipientId(supabase: AdminClient, conversation: ConversationLookup) {
@@ -102,14 +131,7 @@ export async function sendWhatsAppConversationMessage(
     return { ok: false as const, error: "Lead sem numero de WhatsApp" };
   }
 
-  const { data: waConfig } = await supabase
-    .from("whatsapp_configs")
-    .select("phone_number_id, access_token")
-    .eq("tenant_id", conversation.tenant_id)
-    .eq("active", true)
-    .maybeSingle();
-
-  const config = waConfig as unknown as WhatsAppConfigRow | null;
+  const config = await resolveWhatsAppConfig(supabase, conversation);
   if (!config) {
     return { ok: false as const, error: "WhatsApp nao configurado" };
   }

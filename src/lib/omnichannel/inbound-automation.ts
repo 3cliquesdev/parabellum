@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { GoogleAuth } from "google-auth-library";
 import { dispatchConversation } from "@/lib/dispatch";
 import { processFlowMessage } from "@/lib/flow-engine";
-import { ingestInboundMessage, type InboxIdentityInput, type InboxLeadInput, type InboxMessageInput } from "@/lib/inbox/service";
+import { ingestInboundMessage, type ConversationChannelHints, type InboxIdentityInput, type InboxLeadInput, type InboxMessageInput } from "@/lib/inbox/service";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { checkAndHandleCsatReply } from "@/lib/inbox/csat";
 import { maskPII } from "@/lib/security/pii-mask";
@@ -32,6 +32,7 @@ type InboundAutomationParams = {
   sender: SenderAdapter;
   activityType?: AtividadeTipo;
   interactionHistoryType?: string;
+  channelHints?: ConversationChannelHints;
 };
 
 type LeadLike = {
@@ -498,6 +499,7 @@ export async function handleInboundAutomation(params: InboundAutomationParams) {
     message,
     sender,
     activityType = canal === "whatsapp" ? "whatsapp" : canal === "email" ? "email" : "outro",
+    channelHints,
   } = params;
 
   const ingested = await ingestInboundMessage({
@@ -507,6 +509,7 @@ export async function handleInboundAutomation(params: InboundAutomationParams) {
     identity,
     lead: leadInput,
     message,
+    channelHints,
   });
 
   if (ingested.duplicate || !ingested.lead || !ingested.conversation) {

@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     const { data: waConfig } = await supabase
       .from("whatsapp_configs")
-      .select("tenant_id, access_token, active")
+      .select("id, tenant_id, access_token, active, dedicado_para_user_id, ia_ativa_padrao")
       .eq("phone_number_id", phoneNumberId)
       .eq("active", true)
       .single();
@@ -145,6 +145,11 @@ export async function POST(request: NextRequest) {
 
     const tenantId = waConfig.tenant_id as string;
     const accessToken = waConfig.access_token as string;
+    const channelHints = {
+      whatsappConfigId: waConfig.id as string,
+      assignedTo: (waConfig.dedicado_para_user_id as string | null) ?? null,
+      iaAtivaPadrao: (waConfig.ia_ativa_padrao as boolean | null) ?? true,
+    };
     const supportedTypes = new Set(["text", "image", "audio", "video", "document", "sticker", "location", "voice"]);
 
     for (const message of messages) {
@@ -231,6 +236,7 @@ export async function POST(request: NextRequest) {
           sendText: (replyText) => sendWhatsAppTextMessage(accessToken, phoneNumberId, fromNumber, replyText),
           sendAudioBuffer: (audioBuffer) => sendWhatsAppAudioMessage(accessToken, phoneNumberId, fromNumber, audioBuffer),
         },
+        channelHints,
       });
     }
 

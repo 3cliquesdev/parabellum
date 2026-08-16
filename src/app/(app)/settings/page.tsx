@@ -369,6 +369,7 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
   const [phoneOptions, setPhoneOptions] = useState<PhoneOption[]>([]);
   const [pendingToken, setPendingToken] = useState("");
   const [pendingWabaId, setPendingWabaId] = useState("");
+  const [numerosRefreshSignal, setNumerosRefreshSignal] = useState(0);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -391,7 +392,7 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
         .then(r => r.json().then(d => ({ ok: r.ok, d })))
         .then(({ ok, d }) => {
           if (!ok) { alert(d.error ?? "Erro"); setWaStatus("idle"); return; }
-          if (d.status === "connected") { setWaStatus("connected"); setWaPhone(d.phone_number ?? ""); setWaName(d.verified_name ?? ""); }
+          if (d.status === "connected") { setWaStatus("connected"); setWaPhone(d.phone_number ?? ""); setWaName(d.verified_name ?? ""); setNumerosRefreshSignal((v) => v + 1); }
           else if (d.status === "select_phone") { setPhoneOptions(d.phones); setPendingToken(d.access_token); setPendingWabaId(d.waba_id); setWaStatus("select"); }
         }).catch(() => { setWaStatus("idle"); });
     }, { config_id: "1712571456601258", response_type: "code", override_default_response_type: true, extras: { sessionInfoVersion: "3" } });
@@ -401,12 +402,13 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
     if (!confirm("Desconectar WhatsApp?")) return;
     await fetch("/api/whatsapp/embedded-signup", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant_id: tenantId }) });
     setWaStatus("idle"); setWaPhone(""); setWaName("");
+    setNumerosRefreshSignal((v) => v + 1);
   }
 
   async function selectPhone(phone: PhoneOption) {
     setWaStatus("connecting");
     const r = await fetch("/api/whatsapp/embedded-signup", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant_id: tenantId, phone_number_id: phone.id, access_token: pendingToken, waba_id: pendingWabaId }) });
-    if (r.ok) { setWaStatus("connected"); setWaPhone(phone.display_phone_number); setWaName(phone.verified_name); }
+    if (r.ok) { setWaStatus("connected"); setWaPhone(phone.display_phone_number); setWaName(phone.verified_name); setNumerosRefreshSignal((v) => v + 1); }
     else setWaStatus("idle");
   }
 
@@ -442,7 +444,8 @@ function WhatsAppManagePanel({ tenantId }: { tenantId: string | null }) {
           Continuar com Facebook
         </button>
       )}
-      <ManualWAForm tenantId={tenantId} onConnected={(p) => { setWaStatus("connected"); setWaPhone(p); }} />
+      <NumerosConectadosList tenantId={tenantId} refreshSignal={numerosRefreshSignal} />
+      <ManualWAForm tenantId={tenantId} onConnected={(p) => { setWaStatus("connected"); setWaPhone(p); setNumerosRefreshSignal((v) => v + 1); }} />
     </div>
   );
 }
@@ -1043,24 +1046,142 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
 
 // ─── Manual WA Form ───
 function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onConnected: (phone: string) => void }) {
-  const [open, setOpen] = useState(false); const [form, setForm] = useState({ phone_number_id: "", access_token: "" }); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
+  const [open, setOpen] = useState(false); const [form, setForm] = useState({ phone_number_id: "", access_token: "", apelido: "" }); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
   async function save() {
     if (!tenantId || !form.phone_number_id || !form.access_token) return; setSaving(true);
-    await createClient().from("whatsapp_configs").upsert({ tenant_id: tenantId, ...form, verify_token: "3cliques-crm", active: true }, { onConflict: "tenant_id" });
-    setSaving(false); setSaved(true); onConnected(form.phone_number_id); setTimeout(() => setSaved(false), 3000);
+    await createClient().from("whatsapp_configs").upsert({
+      tenant_id: tenantId,
+      phone_number_id: form.phone_number_id,
+      access_token: form.access_token,
+      apelido: form.apelido || null,
+      verify_token: "3cliques-crm",
+      active: true,
+    }, { onConflict: "phone_number_id" });
+    setSaving(false); setSaved(true); onConnected(form.phone_number_id); setForm({ phone_number_id: "", access_token: "", apelido: "" }); setTimeout(() => setSaved(false), 3000);
   }
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-subtle)" }}>
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium" style={{ background: "var(--surface-soft)", color: "var(--text-secondary)" }}>
-        Configurar manualmente (avançado) {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        Adicionar número manualmente (avançado) {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
       {open && (
         <div className="px-4 py-3 space-y-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-          <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))} placeholder="Phone Number ID" className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
-          <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} placeholder="Access Token" className="h-9 rounded-xl text-sm text-white" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+          <Input value={form.apelido} onChange={e => setForm(f => ({ ...f, apelido: e.target.value }))} placeholder="Apelido (ex: Comercial Nacional, João Vendedor)" className="h-9 rounded-xl text-sm" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }} />
+          <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))} placeholder="Phone Number ID" className="h-9 rounded-xl text-sm" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }} />
+          <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} placeholder="Access Token" className="h-9 rounded-xl text-sm" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }} />
           <div className="flex justify-end"><button onClick={save} disabled={saving || !form.phone_number_id || !form.access_token} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "var(--primary-bg)" : "var(--primary)", color: saved ? "var(--status-ganho)" : "var(--primary-foreground)" }}>{saving ? "..." : saved ? "Salvo!" : "Salvar"}</button></div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Números Conectados (multi-numero) ───
+interface NumeroWhatsApp {
+  id: string;
+  phone_number_id: string;
+  apelido: string | null;
+  active: boolean;
+  dedicado_para_user_id: string | null;
+  ia_ativa_padrao: boolean;
+}
+
+function NumerosConectadosList({ tenantId, refreshSignal }: { tenantId: string | null; refreshSignal: number }) {
+  const [numeros, setNumeros] = useState<NumeroWhatsApp[]>([]);
+  const [membros, setMembros] = useState<{ user_id?: string; email?: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function carregar() {
+    if (!tenantId) return;
+    setLoading(true);
+    const [numerosRes, membrosRes] = await Promise.all([
+      fetch(`/api/whatsapp/numeros?tenant_id=${tenantId}`).then(r => r.json()),
+      fetch(`/api/team/members?tenant_id=${tenantId}`).then(r => r.ok ? r.json() : { members: [] }),
+    ]);
+    setNumeros(numerosRes.numeros ?? []);
+    setMembros(membrosRes.members ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    function iniciarCarga() {
+      void carregar();
+    }
+    iniciarCarga();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, refreshSignal]);
+
+  async function atualizar(id: string, patch: Partial<NumeroWhatsApp>) {
+    if (!tenantId) return;
+    setNumeros(prev => prev.map(n => (n.id === id ? { ...n, ...patch } : n)));
+    await fetch("/api/whatsapp/numeros", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, id, ...patch }),
+    });
+  }
+
+  async function remover(numero: NumeroWhatsApp) {
+    if (!tenantId || !confirm(`Desconectar o número ${numero.apelido || numero.phone_number_id}?`)) return;
+    await fetch("/api/whatsapp/embedded-signup", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, phone_number_id: numero.phone_number_id }),
+    });
+    void carregar();
+  }
+
+  if (loading || numeros.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>Números conectados ({numeros.filter(n => n.active).length})</p>
+      {numeros.map((numero) => (
+        <div key={numero.id} className="rounded-xl p-3 space-y-2" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <Input
+                value={numero.apelido ?? ""}
+                onChange={(e) => atualizar(numero.id, { apelido: e.target.value })}
+                placeholder="Apelido do número"
+                className="h-8 rounded-lg text-xs font-bold px-2"
+                style={{ background: "transparent", border: "none", color: "var(--text-primary)" }}
+              />
+              <p className="text-[11px] px-2" style={{ color: "var(--text-faint)" }}>{numero.phone_number_id}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {!numero.active && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(248,113,113,0.1)", color: "#f87171" }}>Desconectado</span>
+              )}
+              <button onClick={() => remover(numero)} className="text-[11px] font-bold px-2 py-1 rounded-lg" style={{ color: "#f87171", background: "rgba(248,113,113,0.08)" }}>Remover</button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 px-2">
+            <label className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+              <span>Dedicado a:</span>
+              <select
+                value={numero.dedicado_para_user_id ?? ""}
+                onChange={(e) => atualizar(numero.id, { dedicado_para_user_id: e.target.value || null })}
+                className="h-7 px-2 rounded-lg text-xs outline-none"
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+              >
+                <option value="" style={{ background: "var(--surface-solid)" }}>Universal (rodízio)</option>
+                {membros.map((m) => (
+                  <option key={m.user_id} value={m.user_id} style={{ background: "var(--surface-solid)" }}>{m.email}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+              <input
+                type="checkbox"
+                checked={numero.ia_ativa_padrao}
+                onChange={(e) => atualizar(numero.id, { ia_ativa_padrao: e.target.checked })}
+              />
+              IA ligada por padrão nas conversas novas
+            </label>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

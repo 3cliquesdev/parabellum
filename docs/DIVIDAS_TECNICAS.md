@@ -77,13 +77,22 @@ Isso não foi implementado — hoje só respondemos dentro da janela de 24h. Fic
 próxima rodada: cadastro/gestão de templates aprovados + UI pra escolher qual mandar
 quando a conversa esfriou.
 
-## WhatsApp: um número só por tenant
+## WhatsApp: múltiplos números por tenant
 
-`whatsapp_configs` tem `UNIQUE(tenant_id)` — só permite 1 número de WhatsApp conectado
-por tenant. A referência tem uma tabela sem essa trava, permitindo N números (um por
-vendedor/departamento). Se um dia precisar de múltiplos números na mesma conta, essa
-constraint (e todo lookup que hoje busca config só por `tenant_id`, sem considerar
-`phone_number_id`) precisa ser revisto.
+**Resolvido**: `whatsapp_configs` não tem mais `UNIQUE(tenant_id)` (agora é
+`UNIQUE(phone_number_id)`) — dá pra conectar vários números no mesmo tenant. Cada
+número pode ser "universal" (rodízio normal entre departamentos, `dedicado_para_user_id`
+nulo) ou "dedicado" a um vendedor específico (toda conversa nova desse número já nasce
+atribuída a ele, sem passar pelo rodízio), e tem seu próprio padrão de IA
+ligada/desligada (`ia_ativa_padrao`) pras conversas novas. `conversas.whatsapp_config_id`
+guarda por qual número aquela conversa entrou, pra responder sempre pelo número certo.
+Gerenciado em Configurações → Integrações → WhatsApp → "Números conectados". O painel de
+OAuth ("Continuar com Facebook") continua gerenciando só o primeiro número conectado —
+números adicionais entram por "Adicionar número manualmente".
+
+Ainda falta: fluxo de OAuth (Facebook Login) pra conectar o SEGUNDO+ número — hoje só dá
+pra adicionar número extra colando `phone_number_id`/`access_token` manualmente (o botão
+"Continuar com Facebook" sempre associa ao primeiro).
 
 ## WhatsApp: envio de localização e contato (vCard)
 

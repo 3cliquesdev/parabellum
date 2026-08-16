@@ -76,6 +76,7 @@ export interface IngestInboundMessageParams {
   identity: InboxIdentityInput;
   lead?: InboxLeadInput;
   message: InboxMessageInput;
+  channelHints?: ConversationChannelHints;
 }
 
 function buildMessageKey(canal: InboxExternalCanal, externalMessageId?: string | null) {
@@ -336,11 +337,22 @@ async function upsertLeadIdentity(
   await supabase.from("lead_identities").insert(payload);
 }
 
+export interface ConversationChannelHints {
+  whatsappConfigId?: string | null;
+  // Numero "dedicado" a um unico vendedor: ja nasce atribuida a ele, sem
+  // passar pelo rodizio de departamento.
+  assignedTo?: string | null;
+  // Cada numero de WhatsApp pode ter um padrao proprio de IA ligada/desligada
+  // pras conversas novas (ex: numero dedicado com IA so fora do expediente).
+  iaAtivaPadrao?: boolean;
+}
+
 async function findOrCreateConversation(
   supabase: AdminClient,
   tenantId: string,
   leadId: string,
   canal: InboxExternalCanal,
+  channelHints?: ConversationChannelHints,
 ) {
   const { data: existingConversation } = await supabase
     .from("conversas")
@@ -364,11 +376,14 @@ async function findOrCreateConversation(
       lead_id: leadId,
       canal,
       status: "ativo",
-      ia_ativa: true,
+      ia_ativa: channelHints?.iaAtivaPadrao ?? true,
       // O agente principal roda no n8n (via webhook message.received). Deixar
       // "disabled" aqui evita que a IA interna do CRM (chat_flows/Gemini)
       // responda em duplicidade com o agente do n8n.
       ai_mode: "disabled",
+      whatsapp_config_id: channelHints?.whatsappConfigId ?? null,
+      assigned_to: channelHints?.assignedTo ?? null,
+      dispatch_status: channelHints?.assignedTo ? "atribuido" : null,
     })
     .select("id, tenant_id, lead_id, canal, status, ia_ativa, ai_mode, aguardando_csat")
     .single();
@@ -399,7 +414,7 @@ export async function resolveOrLinkLead(
 }
 
 export async function ingestInboundMessage(params: IngestInboundMessageParams) {
-  const { supabase, tenantId, canal, identity, lead: leadInput, message } = params;
+  const { supabase, tenantId, canal, identity, lead: leadInput, message, channelHints } = params;
   const externalMessageKey = buildMessageKey(canal, message.externalMessageId ?? message.waMessageId);
 
   if (externalMessageKey) {
@@ -416,7 +431,7 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
 
   const lead = await resolveOrLinkLead(supabase, tenantId, identity, leadInput);
 
-  const conversation = await findOrCreateConversation(supabase, tenantId, lead.id, canal);
+  const conversation = await findOrCreateConversation(supabase, tenantId, lead.id, canal, channelHints);
 
   let replyToMensagemId: string | null = null;
   if (message.replyToWaMessageId) {

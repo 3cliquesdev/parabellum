@@ -9,12 +9,17 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return NextResponse.json({ connected: false });
   const admin = auth.admin;
 
+  // Com varios numeros por tenant, este painel (OAuth "Continuar com
+  // Facebook") continua mostrando/gerenciando so o primeiro conectado - os
+  // demais aparecem na lista "Numeros conectados" logo abaixo.
   const { data } = await admin
     .from("whatsapp_configs")
     .select("phone_number_id, access_token, active")
     .eq("tenant_id", tenantId)
     .eq("active", true)
-    .single();
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
   if (!data) return NextResponse.json({ connected: false });
 

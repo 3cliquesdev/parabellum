@@ -394,9 +394,9 @@ export default function NewBroadcastPage() {
               <label className="text-xs font-medium text-white">{`{{${num}}}`} → campo do lead</label>
               <select value={form.template_variables[num] ?? ""} onChange={e => setForm(f => ({ ...f, template_variables: { ...f.template_variables, [num]: e.target.value } }))}
                 className="w-full h-9 px-3 rounded-xl text-sm outline-none"
-                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "#fff" }}>
-                <option value="" style={{ background: "#111" }}>Selecionar campo...</option>
-                {LEAD_FIELDS.map(f => <option key={f.id} value={f.id} style={{ background: "#111" }}>{f.label}</option>)}
+                style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
+                <option value="" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Selecionar campo...</option>
+                {LEAD_FIELDS.map(f => <option key={f.id} value={f.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>{f.label}</option>)}
               </select>
             </div>
           ))}

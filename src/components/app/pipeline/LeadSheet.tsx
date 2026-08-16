@@ -163,7 +163,7 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
               className="w-full h-9 rounded-lg text-sm px-3 outline-none"
               style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
               {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value} style={{ background: "#111" }}>{o.label}</option>
+                <option key={o.value} value={o.value} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>{o.label}</option>
               ))}
             </select>
           </div>
@@ -236,7 +236,7 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
                     <select value={newAtiv.tipo} onChange={e => setNewAtiv(a => ({ ...a, tipo: e.target.value }))}
                       className="w-full h-8 rounded-lg text-xs px-2 outline-none"
                       style={{ background: "var(--border-subtle)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
-                      {TIPO_OPTIONS.map(o => <option key={o.value} value={o.value} style={{ background: "#111" }}>{o.label}</option>)}
+                      {TIPO_OPTIONS.map(o => <option key={o.value} value={o.value} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>{o.label}</option>)}
                     </select>
                     <input value={newAtiv.titulo} onChange={e => setNewAtiv(a => ({ ...a, titulo: e.target.value }))}
                       placeholder="Título da atividade *"

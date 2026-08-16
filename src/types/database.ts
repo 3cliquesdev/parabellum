@@ -23,6 +23,48 @@ export type TenantRole =
   | "analista_ecommerce"
   | "gerente_geral";
 export type ConversaStatus = "ativo" | "resolvido" | "pausado";
+export type NegocioEstagio = "aberto" | "ganho" | "perdido";
+
+export interface PipelineEtapa {
+  id: string;
+  pipeline_id: string;
+  nome: string;
+  posicao: number;
+  e_ganho: boolean;
+  e_perdido: boolean;
+  created_at: string;
+}
+
+export interface Pipeline {
+  id: string;
+  tenant_id: string;
+  nome: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+  pipeline_etapas: PipelineEtapa[];
+  total_negocios: number;
+}
+
+export interface Negocio {
+  id: string;
+  tenant_id: string;
+  lead_id: string;
+  conversa_id: string | null;
+  canal: string | null;
+  titulo: string;
+  valor: number | null;
+  estagio: NegocioEstagio;
+  origem: string | null;
+  assigned_to: string | null;
+  motivo_perda: string | null;
+  pipeline_id: string | null;
+  pipeline_etapa_id: string | null;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  leads?: { nome: string } | null;
+}
 export type ConversaCanal = "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "webchat" | "interno";
 export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "trialing";
 export type EmailTheme = "dark" | "light";

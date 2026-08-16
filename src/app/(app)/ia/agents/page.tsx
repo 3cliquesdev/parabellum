@@ -168,7 +168,7 @@ export default function AgentsPage() {
               <select value={form.modelo} onChange={e => setForm(f => ({ ...f, modelo: e.target.value }))}
                 className="w-full h-10 px-3 rounded-xl text-sm outline-none"
                 style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
-                {MODELS.map(m => <option key={m.id} value={m.id} style={{ background: "#111" }}>{m.label}</option>)}
+                {MODELS.map(m => <option key={m.id} value={m.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>{m.label}</option>)}
               </select>
             </div>
           </div>
@@ -196,9 +196,9 @@ export default function AgentsPage() {
               <select value={form.max_tokens} onChange={e => setForm(f => ({ ...f, max_tokens: parseInt(e.target.value) }))}
                 className="w-full h-10 px-3 rounded-xl text-sm outline-none"
                 style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
-                <option value={150} style={{ background: "#111" }}>Curto</option>
-                <option value={300} style={{ background: "#111" }}>Médio</option>
-                <option value={600} style={{ background: "#111" }}>Longo</option>
+                <option value={150} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Curto</option>
+                <option value={300} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Médio</option>
+                <option value={600} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Longo</option>
               </select>
             </div>
           </div>

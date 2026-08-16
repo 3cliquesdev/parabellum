@@ -74,9 +74,9 @@ export default function ContactsPage() {
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as LeadStatus | "all")}
           className="h-9 px-3 rounded-lg text-sm outline-none"
           style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: filterStatus === "all" ? "var(--text-secondary)" : "var(--text-primary)" }}>
-          <option value="all" style={{ background: "#111" }}>Todos os status</option>
+          <option value="all" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>Todos os status</option>
           {Object.entries(STATUS_LABEL).map(([v, l]) => (
-            <option key={v} value={v} style={{ background: "#111" }}>{l}</option>
+            <option key={v} value={v} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>{l}</option>
           ))}
         </select>
       </div>

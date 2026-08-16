@@ -15,6 +15,7 @@ import {
   Sparkles,
   Megaphone,
   Ticket,
+  Handshake,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/pipeline", icon: Kanban, label: "Pipeline" },
+  { href: "/negocios", icon: Handshake, label: "Negócios" },
   { href: "/contacts", icon: Users, label: "Contatos" },
   { href: "/activities", icon: CheckSquare, label: "Atividades" },
   { href: "/inbox", icon: MessageSquare, label: "Inbox IA" },

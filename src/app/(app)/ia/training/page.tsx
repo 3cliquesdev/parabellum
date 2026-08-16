@@ -126,7 +126,7 @@ export default function TrainingPage() {
           <select value={form.cenario} onChange={e => setForm(f => ({ ...f, cenario: e.target.value }))}
             className="w-full h-10 px-3 rounded-xl text-sm outline-none"
             style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
-            {CENARIOS.map(c => <option key={c.id} value={c.id} style={{ background: "#111" }}>{c.label}</option>)}
+            {CENARIOS.map(c => <option key={c.id} value={c.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>{c.label}</option>)}
           </select>
           <div className="space-y-1">
             <label className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>O que o lead diz (input)</label>

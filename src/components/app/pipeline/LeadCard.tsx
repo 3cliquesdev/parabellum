@@ -3,6 +3,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Lead } from "@/types/database";
+import { ORIGEM_LEAD_LABEL } from "@/lib/leads/origem";
 
 interface LeadCardProps {
   lead: Lead;
@@ -13,18 +14,6 @@ const SITUACAO_PAGAMENTO_LABEL: Record<string, { label: string; color: string; b
   carrinho_abandonado: { label: "Carrinho abandonado", color: "#b45309", bg: "rgba(180,83,9,0.12)" },
   cartao_recusado: { label: "Pagamento recusado", color: "#b91c1c", bg: "rgba(185,28,28,0.12)" },
   aguardando_pagamento: { label: "Aguardando pagamento", color: "#a16207", bg: "rgba(161,98,7,0.12)" },
-};
-
-const ORIGEM_LEAD_LABEL: Record<string, { label: string; color: string }> = {
-  kiwify: { label: "Kiwify", color: "#0ea5e9" },
-  whatsapp: { label: "WhatsApp", color: "#25D366" },
-  webchat: { label: "Chat do site", color: "#9aea62" },
-  instagram: { label: "Instagram", color: "#E1306C" },
-  telegram: { label: "Telegram", color: "#229ED9" },
-  email: { label: "E-mail", color: "#60a5fa" },
-  facebook_messenger: { label: "Messenger", color: "#0084FF" },
-  formulario: { label: "Formulário", color: "#a78bfa" },
-  manual: { label: "Manual", color: "#939da4" },
 };
 
 export function LeadCard({ lead, onClick }: LeadCardProps) {

@@ -14,6 +14,7 @@ interface SendMessageBody {
   tenant_id?: string;
   conteudo?: string;
   assunto?: string;
+  reply_to_mensagem_id?: string;
 }
 
 async function createAuthClient() {
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
   let conteudo = "";
   let assunto = "";
   let file: File | null = null;
+  let replyToMensagemId: string | undefined;
 
   if (isFormData) {
     const formData = await request.formData();
@@ -57,12 +59,14 @@ export async function POST(request: NextRequest) {
     conteudo = String(formData.get("conteudo") ?? "");
     assunto = String(formData.get("assunto") ?? "");
     file = formData.get("file") as File | null;
+    replyToMensagemId = (formData.get("reply_to_mensagem_id") as string | null) ?? undefined;
   } else {
     const body = (await request.json().catch(() => ({}))) as SendMessageBody;
     conversaId = body.conversa_id ?? "";
     tenantId = body.tenant_id ?? "";
     conteudo = body.conteudo ?? "";
     assunto = body.assunto ?? "";
+    replyToMensagemId = body.reply_to_mensagem_id;
   }
 
   if (!conversaId || !tenantId) {
@@ -96,7 +100,7 @@ export async function POST(request: NextRequest) {
 
   switch (conversation.canal) {
     case "whatsapp": {
-      const result = await sendWhatsAppConversationMessage(admin, conversation, conteudo.trim(), file);
+      const result = await sendWhatsAppConversationMessage(admin, conversation, conteudo.trim(), file, replyToMensagemId);
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }

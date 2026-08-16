@@ -29,6 +29,7 @@ interface WhatsAppInboundMessage {
   type: string;
   from: string;
   id: string;
+  context?: { id?: string };
   text?: { body?: string };
   location?: {
     latitude?: number;
@@ -43,6 +44,12 @@ interface WhatsAppInboundMessage {
   sticker?: WhatsAppMediaPayload;
 }
 
+interface WhatsAppStatusUpdate {
+  id?: string;
+  status?: "sent" | "delivered" | "read" | "failed";
+  recipient_id?: string;
+}
+
 interface WhatsAppWebhookBody {
   entry?: Array<{
     changes?: Array<{
@@ -50,9 +57,38 @@ interface WhatsAppWebhookBody {
       value?: {
         metadata?: { phone_number_id?: string };
         messages?: WhatsAppInboundMessage[];
+        statuses?: WhatsAppStatusUpdate[];
       };
     }>;
   }>;
+}
+
+const STATUS_RANK: Record<string, number> = { sending: 0, sent: 1, delivered: 2, read: 3 };
+
+async function processStatusUpdates(
+  supabase: ReturnType<typeof adminClient>,
+  statuses: WhatsAppStatusUpdate[],
+) {
+  for (const status of statuses) {
+    if (!status.id || !status.status) continue;
+
+    const { data: existing } = await supabase
+      .from("mensagens")
+      .select("id, status")
+      .or(`wa_message_id.eq.${status.id},external_message_id.eq.${status.id}`)
+      .maybeSingle();
+
+    const row = existing as { id?: string; status?: string | null } | null;
+    if (!row?.id) continue;
+
+    const currentRank = STATUS_RANK[row.status ?? "sending"] ?? 0;
+    const incomingRank = STATUS_RANK[status.status] ?? 0;
+    // Nunca deixa um evento atrasado da Meta regredir um status ja mais
+    // avancado (ex: "sent" chegando depois de "read" ja confirmado).
+    if (incomingRank <= currentRank) continue;
+
+    await supabase.from("mensagens").update({ status: status.status }).eq("id", row.id);
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -81,11 +117,21 @@ export async function POST(request: NextRequest) {
 
     const phoneNumberId = value.metadata?.phone_number_id as string | undefined;
     const messages = value.messages ?? [];
-    if (!phoneNumberId || messages.length === 0) {
+    const statuses = value.statuses ?? [];
+    if (!phoneNumberId || (messages.length === 0 && statuses.length === 0)) {
       return NextResponse.json({ status: "ok" });
     }
 
     const supabase = adminClient();
+
+    if (statuses.length > 0) {
+      await processStatusUpdates(supabase, statuses);
+    }
+
+    if (messages.length === 0) {
+      return NextResponse.json({ status: "ok" });
+    }
+
     const { data: waConfig } = await supabase
       .from("whatsapp_configs")
       .select("tenant_id, access_token, active")
@@ -165,6 +211,7 @@ export async function POST(request: NextRequest) {
         message: {
           externalMessageId: waMessageId,
           waMessageId,
+          replyToWaMessageId: message.context?.id ?? null,
           text,
           mediaUrl,
           mediaType,

@@ -153,6 +153,8 @@ export interface Mensagem {
   conteudo: string;
   wa_message_id: string | null;
   external_message_id: string | null;
+  reply_to_mensagem_id: string | null;
+  status: "sending" | "sent" | "delivered" | "read" | "failed" | null;
   enviada: boolean;
   created_at: string;
   // Mídia

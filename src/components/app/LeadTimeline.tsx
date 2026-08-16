@@ -1,7 +1,7 @@
-import { MessageSquare, Tag, CheckSquare, Ticket, ShoppingBag, Undo2 } from "lucide-react";
+import { CheckCircle2, MessageSquare, Tag, CheckSquare, Ticket, ShoppingBag, Undo2 } from "lucide-react";
 
 export interface TimelineEvent {
-  tipo: "status" | "mensagem" | "atividade" | "ticket" | "venda" | "devolucao";
+  tipo: "status" | "mensagem" | "atividade" | "ticket" | "venda" | "devolucao" | "conversa_encerrada";
   data: string;
   titulo: string;
   detalhe: string | null;
@@ -9,9 +9,11 @@ export interface TimelineEvent {
 
 const EVENT_ICON: Record<TimelineEvent["tipo"], React.ElementType> = {
   status: Tag, mensagem: MessageSquare, atividade: CheckSquare, ticket: Ticket, venda: ShoppingBag, devolucao: Undo2,
+  conversa_encerrada: CheckCircle2,
 };
 const EVENT_COLOR: Record<TimelineEvent["tipo"], string> = {
   status: "#a78bfa", mensagem: "#60a5fa", atividade: "#facc15", ticket: "#fb923c", venda: "#10B981", devolucao: "#f87171",
+  conversa_encerrada: "#15803D",
 };
 
 export function LeadTimeline({ events }: { events: TimelineEvent[] }) {

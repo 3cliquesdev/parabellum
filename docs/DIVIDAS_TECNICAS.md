@@ -68,3 +68,25 @@ Kiwify (`gross_value`, `kiwify_fee`, `affiliate_commission`, rastreio de "negóc
 ficou podre" com `became_rotten_at`). Não trouxemos porque não tem uso ainda — a
 reconciliação de venda já é coberta separadamente pela tabela `vendas` (webhook da
 Kiwify). Se um dia precisar linkar negócio↔venda de verdade, é aqui que entra.
+
+## WhatsApp: Etapa 2 (template fora da janela de 24h)
+
+O Meta só deixa reabrir uma conversa depois de 24h sem contato do cliente usando um
+"template" pré-aprovado pela própria Meta (mensagem estruturada, não texto livre).
+Isso não foi implementado — hoje só respondemos dentro da janela de 24h. Fica pra uma
+próxima rodada: cadastro/gestão de templates aprovados + UI pra escolher qual mandar
+quando a conversa esfriou.
+
+## WhatsApp: um número só por tenant
+
+`whatsapp_configs` tem `UNIQUE(tenant_id)` — só permite 1 número de WhatsApp conectado
+por tenant. A referência tem uma tabela sem essa trava, permitindo N números (um por
+vendedor/departamento). Se um dia precisar de múltiplos números na mesma conta, essa
+constraint (e todo lookup que hoje busca config só por `tenant_id`, sem considerar
+`phone_number_id`) precisa ser revisto.
+
+## WhatsApp: envio de localização e contato (vCard)
+
+Recebemos localização do cliente normalmente, mas não implementamos enviar localização
+ou contato de volta — nem a própria referência tem isso no envio, só no recebimento.
+Baixa prioridade.

@@ -9,6 +9,7 @@ interface SendMessageBody {
   conteudo?: string;
   remetente?: "humano" | "ia";
   departamento?: string;
+  reply_to_mensagem_id?: string;
 }
 
 interface RelatedLeadRow {
@@ -49,7 +50,11 @@ interface MetaMediaUploadResponse {
   id?: string;
 }
 
-type MediaMessageType = "image" | "audio" | "video" | "document";
+type MediaMessageType = "image" | "audio" | "video" | "document" | "sticker";
+
+interface MetaSendMessageResponse {
+  messages?: Array<{ id?: string }>;
+}
 
 function getLeadPhone(leads: ConversationRow["leads"]): string {
   const lead = Array.isArray(leads) ? leads[0] : leads;
@@ -57,6 +62,7 @@ function getLeadPhone(leads: ConversationRow["leads"]): string {
 }
 
 function getMediaMessageType(mimeType: string): MediaMessageType {
+  if (mimeType === "image/webp") return "sticker";
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("audio/")) return "audio";
   if (mimeType.startsWith("video/")) return "video";
@@ -73,6 +79,7 @@ export async function POST(request: NextRequest) {
   let remetente: "humano" | "ia" = "humano";
   let departamento: string | undefined;
   let file: File | null = null;
+  let replyToMensagemId: string | undefined;
 
   if (isFormData) {
     const formData = await request.formData();
@@ -87,6 +94,7 @@ export async function POST(request: NextRequest) {
     conteudo = body.conteudo ?? "";
     remetente = body.remetente === "ia" ? "ia" : "humano";
     departamento = body.departamento;
+    replyToMensagemId = body.reply_to_mensagem_id;
   }
 
   if (!conversaId || !tenantId) {
@@ -144,10 +152,22 @@ export async function POST(request: NextRequest) {
   const toNumber = getLeadPhone(conversation.leads);
   if (!toNumber) return NextResponse.json({ error: "Lead sem numero de WhatsApp" }, { status: 400 });
 
+  let replyContext: { context: { message_id: string } } | Record<string, never> = {};
+  if (replyToMensagemId) {
+    const { data: quotedMessage } = await supabase
+      .from("mensagens")
+      .select("wa_message_id")
+      .eq("id", replyToMensagemId)
+      .maybeSingle();
+    const waMessageId = (quotedMessage as { wa_message_id?: string | null } | null)?.wa_message_id;
+    if (waMessageId) replyContext = { context: { message_id: waMessageId } };
+  }
+
   let mediaUrl: string | null = null;
   let mediaType: MediaMessageType | null = null;
   let mediaNome: string | null = null;
   let mediaMime: string | null = null;
+  let outboundMessageId: string | null = null;
 
   if (file) {
     const mimeType = file.type;
@@ -187,6 +207,7 @@ export async function POST(request: NextRequest) {
       messaging_product: "whatsapp",
       to: toNumber,
       type: mediaType,
+      ...replyContext,
     };
     payload[mediaType] = mediaType === "document"
       ? { id: mediaId, filename: file.name }
@@ -201,6 +222,8 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(payload),
     });
     if (!response.ok) return NextResponse.json({ error: "Falha ao enviar midia" }, { status: 500 });
+    const responseData = (await response.json()) as MetaSendMessageResponse;
+    outboundMessageId = responseData.messages?.[0]?.id ?? null;
   } else {
     if (!conteudo) return NextResponse.json({ error: "Conteudo vazio" }, { status: 400 });
 
@@ -215,9 +238,12 @@ export async function POST(request: NextRequest) {
         to: toNumber,
         type: "text",
         text: { body: conteudo },
+        ...replyContext,
       }),
     });
     if (!response.ok) return NextResponse.json({ error: "Falha ao enviar mensagem" }, { status: 500 });
+    const responseData = (await response.json()) as MetaSendMessageResponse;
+    outboundMessageId = responseData.messages?.[0]?.id ?? null;
   }
 
   const { error: insertError } = await supabase.from("mensagens").insert({
@@ -226,6 +252,10 @@ export async function POST(request: NextRequest) {
     remetente,
     conteudo,
     enviada: true,
+    status: "sent",
+    wa_message_id: outboundMessageId,
+    external_message_id: outboundMessageId ? `whatsapp:${outboundMessageId}` : null,
+    reply_to_mensagem_id: replyToMensagemId ?? null,
     media_url: mediaUrl,
     media_type: mediaType,
     media_nome: mediaNome,

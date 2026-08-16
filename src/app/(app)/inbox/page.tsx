@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Clock, FileText, MapPin, MessageSquare, Paperclip, Send, User } from "lucide-react";
+import { Bot, Check, CheckCheck, Clock, Download, FileText, MapPin, MessageSquare, Paperclip, Reply, Send, User } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
@@ -28,6 +28,14 @@ const DISPATCH_BADGE: Record<string, { label: string; tone: InboxBadgeTone }> = 
   atribuido: { label: "Atribuído", tone: "blue" },
   fila: { label: "Na fila", tone: "yellow" },
   resolvido: { label: "Resolvido", tone: "neutral" },
+};
+
+const STATUS_LABEL_TICK: Record<string, string> = {
+  sending: "Enviando...",
+  sent: "Enviado",
+  delivered: "Entregue",
+  read: "Lido",
+  failed: "Falhou",
 };
 
 type FiltroInbox =
@@ -172,6 +180,15 @@ export default function InboxPage() {
   const { mensagens, loading: msgsLoading } = useMensagens(selectedId);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Mensagem | null>(null);
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    function limparRespondendo() {
+      setReplyingTo(null);
+    }
+    limparRespondendo();
+  }, [selectedId]);
   const [filtro, setFiltro] = useState<FiltroInbox>("todas");
   const [departamentoFiltro, setDepartamentoFiltro] = useState<string | null>(null);
   const [tagFiltro, setTagFiltro] = useState<string | null>(null);
@@ -286,7 +303,9 @@ export default function InboxPage() {
 
     setSending(true);
     const msg = text.trim();
+    const replyToId = replyingTo?.id;
     setText("");
+    setReplyingTo(null);
 
     try {
       const res = await fetch("/api/inbox/send", {
@@ -296,6 +315,7 @@ export default function InboxPage() {
           conversa_id: selectedId,
           conteudo: msg,
           tenant_id: tenantId,
+          reply_to_mensagem_id: replyToId,
         }),
       });
 
@@ -307,6 +327,23 @@ export default function InboxPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  function baixarConversaTxt() {
+    if (!selected) return;
+    const linhas = mensagens.map((msg) => {
+      const quem = msg.remetente === "lead" ? selected.lead_nome : msg.remetente === "ia" ? "IA" : "Atendente";
+      const quando = new Date(msg.created_at).toLocaleString("pt-BR");
+      const corpo = msg.media_url ? `[${msg.media_type ?? "midia"}: ${msg.media_nome ?? msg.media_url}]${msg.conteudo ? ` ${msg.conteudo}` : ""}` : msg.conteudo;
+      return `[${quando}] ${quem}: ${corpo}`;
+    });
+    const blob = new Blob([linhas.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `conversa-${selected.protocolo}-${selected.lead_nome.replace(/\s+/g, "_")}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function toggleIA(conversa: ConversaWithLead) {
@@ -658,6 +695,16 @@ export default function InboxPage() {
                 IA {selected.ia_ativa ? "ativada" : "desativada"}
               </button>
 
+              <button
+                onClick={baixarConversaTxt}
+                title="Baixar conversa (.txt)"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                style={inboxGhostButtonStyle}
+              >
+                <Download className="w-3.5 h-3.5" />
+                Baixar
+              </button>
+
               {selected.status !== "resolvido" && selected.assigned_to !== myUserId && (
                 <button
                   onClick={() => assumirConversa(selected)}
@@ -782,10 +829,30 @@ export default function InboxPage() {
               mensagens.map((msg: Mensagem) => {
                 const isLead = msg.remetente === "lead";
                 const tone: "lead" | "humano" | "ia" = isLead ? "lead" : msg.remetente === "ia" ? "ia" : "humano";
+                const quoted = msg.reply_to_mensagem_id ? mensagens.find((m) => m.id === msg.reply_to_mensagem_id) : null;
 
                 return (
-                  <div key={msg.id} className={`flex ${isLead ? "justify-start" : "justify-end"}`}>
-                    <div className="max-w-[82%] md:max-w-[74%]">
+                  <div
+                    key={msg.id}
+                    className={`flex group ${isLead ? "justify-start" : "justify-end"}`}
+                    onMouseEnter={() => setHoveredMsgId(msg.id)}
+                    onMouseLeave={() => setHoveredMsgId((v) => (v === msg.id ? null : v))}
+                  >
+                    <div className={`flex items-center gap-1.5 ${isLead ? "order-2" : "order-1"}`}>
+                      <button
+                        onClick={() => setReplyingTo(msg)}
+                        title="Responder"
+                        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-opacity"
+                        style={{
+                          opacity: hoveredMsgId === msg.id ? 1 : 0,
+                          background: "var(--ghost-bg)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        <Reply className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className={`max-w-[82%] md:max-w-[74%] ${isLead ? "order-1" : "order-2"}`}>
                       {tone === "ia" && (
                         <div className="flex items-center gap-1.5 mb-1 justify-end">
                           <Bot className="w-3 h-3" style={{ color: "var(--status-ganho)" }} />
@@ -795,13 +862,49 @@ export default function InboxPage() {
                         </div>
                       )}
 
+                      {quoted && (
+                        <div
+                          className="rounded-lg px-2.5 py-1.5 mb-1 text-xs border-l-2"
+                          style={{ background: "var(--surface-soft)", borderColor: "var(--status-ganho)", color: "var(--text-secondary)" }}
+                        >
+                          <p className="font-bold text-[10px]" style={{ color: "var(--status-ganho)" }}>
+                            {quoted.remetente === "lead" ? selected.lead_nome : quoted.remetente === "ia" ? "IA" : "Atendente"}
+                          </p>
+                          <p className="truncate">{quoted.conteudo}</p>
+                        </div>
+                      )}
+                      {msg.reply_to_mensagem_id && !quoted && (
+                        <div
+                          className="rounded-lg px-2.5 py-1.5 mb-1 text-xs border-l-2 italic"
+                          style={{ background: "var(--surface-soft)", borderColor: "var(--border-strong)", color: "var(--text-faint)" }}
+                        >
+                          Mensagem anterior
+                        </div>
+                      )}
+
                       <div className="rounded-xl overflow-hidden text-sm" style={inboxBubbleStyle(tone)}>
                         <MediaContent msg={msg} tone={tone} />
                       </div>
 
-                      <p className={`text-[10px] mt-1 font-medium ${isLead ? "text-left" : "text-right"}`} style={{ color: "var(--text-secondary)" }}>
+                      <p className={`text-[10px] mt-1 font-medium flex items-center gap-1 ${isLead ? "text-left" : "text-right justify-end"}`} style={{ color: "var(--text-secondary)" }}>
                         {timeLabel(msg.created_at)}
-                        {!isLead && (msg.enviada ? " · Enviado" : " · Pendente")}
+                        {!isLead && (
+                          msg.status ? (
+                            <span className="flex items-center" title={STATUS_LABEL_TICK[msg.status]}>
+                              {msg.status === "read" ? (
+                                <CheckCheck className="w-3 h-3" style={{ color: "var(--status-contato)" }} />
+                              ) : msg.status === "delivered" ? (
+                                <CheckCheck className="w-3 h-3" />
+                              ) : msg.status === "failed" ? (
+                                <span className="text-[10px]">Falhou</span>
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              )}
+                            </span>
+                          ) : (
+                            <span>{msg.enviada ? "· Enviado" : "· Pendente"}</span>
+                          )
+                        )}
                       </p>
                     </div>
                   </div>
@@ -812,6 +915,20 @@ export default function InboxPage() {
           </div>
 
           <div className="px-4 py-4 shrink-0" style={{ borderTop: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
+            {replyingTo && (
+              <div
+                className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 mb-2 border-l-2 text-xs"
+                style={{ background: "var(--surface-soft)", borderColor: "var(--status-ganho)", color: "var(--text-secondary)" }}
+              >
+                <div className="min-w-0">
+                  <p className="font-bold text-[10px]" style={{ color: "var(--status-ganho)" }}>
+                    Respondendo a {replyingTo.remetente === "lead" ? selected.lead_nome : replyingTo.remetente === "ia" ? "IA" : "Atendente"}
+                  </p>
+                  <p className="truncate">{replyingTo.conteudo}</p>
+                </div>
+                <button onClick={() => setReplyingTo(null)} className="shrink-0 text-sm font-bold" style={{ color: "var(--text-faint)" }}>×</button>
+              </div>
+            )}
             <div className="rounded-[24px] p-2 flex items-center gap-2" style={inboxComposerStyle}>
               <label
                 className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"

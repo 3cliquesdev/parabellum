@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/auth/guard";
 import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
 
 interface TimelineEvent {
-  tipo: "status" | "mensagem" | "atividade" | "ticket" | "venda" | "devolucao";
+  tipo: "status" | "mensagem" | "atividade" | "ticket" | "venda" | "devolucao" | "conversa_encerrada";
   data: string;
   titulo: string;
   detalhe: string | null;
@@ -23,13 +23,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!auth.ok) return auth.response;
   const admin = auth.admin;
 
-  const [statusHistory, mensagens, atividades, tickets, vendas, devolucoes] = await Promise.all([
+  const [statusHistory, mensagens, atividades, tickets, vendas, devolucoes, conversasEncerradas] = await Promise.all([
     admin.from("lead_status_history").select("status_de, status_para, created_at").eq("lead_id", leadId).order("created_at"),
     admin.from("mensagens").select("remetente, conteudo, created_at, conversa_id, conversas!inner(canal, lead_id)").eq("conversas.lead_id", leadId).order("created_at"),
     admin.from("atividades").select("tipo, titulo, descricao, created_at").eq("lead_id", leadId).order("created_at"),
     admin.from("tickets").select("ticket_number, titulo, status, created_at").eq("lead_id", leadId).order("created_at"),
     admin.from("vendas").select("produto_nome, valor, status, tipo_produto, created_at").eq("lead_id", leadId).order("created_at"),
     admin.from("devolucoes").select("external_order_id, motivo, status, created_at").eq("lead_id", leadId).order("created_at"),
+    admin
+      .from("conversas")
+      .select("protocolo, canal, resolvido_por, resolvido_em, conversation_tags(tags(nome))")
+      .eq("lead_id", leadId)
+      .eq("status", "resolvido")
+      .not("resolvido_em", "is", null)
+      .order("resolvido_em"),
   ]);
 
   const events: TimelineEvent[] = [];
@@ -83,6 +90,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       data: row.created_at,
       titulo: `Devolução${row.external_order_id ? ` (pedido ${row.external_order_id})` : ""}`,
       detalhe: `${row.motivo ?? "Motivo não informado"} — ${row.status}`,
+    });
+  }
+
+  for (const row of (conversasEncerradas.data ?? []) as unknown as {
+    protocolo: number;
+    canal: string;
+    resolvido_por: string | null;
+    resolvido_em: string;
+    conversation_tags: { tags: { nome: string } | { nome: string }[] | null }[] | null;
+  }[]) {
+    const tagNomes = (row.conversation_tags ?? [])
+      .flatMap((ct) => (Array.isArray(ct.tags) ? ct.tags : ct.tags ? [ct.tags] : []))
+      .map((tag) => tag.nome);
+
+    events.push({
+      tipo: "conversa_encerrada",
+      data: row.resolvido_em,
+      titulo: `Conversa encerrada (${row.canal}, protocolo #${String(row.protocolo).padStart(4, "0")})`,
+      detalhe: `Encerrada por ${row.resolvido_por === "ia" ? "IA" : "atendente"}${tagNomes.length > 0 ? ` — ${tagNomes.join(", ")}` : ""}`,
     });
   }
 

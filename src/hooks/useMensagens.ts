@@ -43,6 +43,16 @@ export function useMensagens(conversaId: string | null) {
       }, (payload) => {
         setMensagens(prev => [...prev, payload.new as Mensagem]);
       })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "mensagens",
+        filter: `conversa_id=eq.${conversaId}`,
+      }, (payload) => {
+        // Cobre status de entrega/leitura da Meta chegando depois do envio.
+        const updated = payload.new as Mensagem;
+        setMensagens(prev => prev.map((m) => (m.id === updated.id ? updated : m)));
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };

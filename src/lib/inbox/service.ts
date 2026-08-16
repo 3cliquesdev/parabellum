@@ -66,6 +66,7 @@ export interface InboxMessageInput {
   longitude?: number | null;
   metadata?: Record<string, unknown> | null;
   waMessageId?: string | null;
+  replyToWaMessageId?: string | null;
 }
 
 export interface IngestInboundMessageParams {
@@ -417,6 +418,17 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
 
   const conversation = await findOrCreateConversation(supabase, tenantId, lead.id, canal);
 
+  let replyToMensagemId: string | null = null;
+  if (message.replyToWaMessageId) {
+    const { data: quotedMessage } = await supabase
+      .from("mensagens")
+      .select("id")
+      .eq("conversa_id", conversation.id)
+      .or(`wa_message_id.eq.${message.replyToWaMessageId},external_message_id.eq.${message.replyToWaMessageId}`)
+      .maybeSingle();
+    replyToMensagemId = (quotedMessage as { id?: string } | null)?.id ?? null;
+  }
+
   const { error: insertError } = await supabase.from("mensagens").insert({
     conversa_id: conversation.id,
     tenant_id: tenantId,
@@ -424,6 +436,7 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
     conteudo: message.text?.trim() || "[Mensagem sem texto]",
     wa_message_id: canal === "whatsapp" ? message.waMessageId ?? message.externalMessageId ?? null : null,
     external_message_id: externalMessageKey,
+    reply_to_mensagem_id: replyToMensagemId,
     enviada: true,
     media_url: message.mediaUrl ?? null,
     media_type: message.mediaType ?? null,

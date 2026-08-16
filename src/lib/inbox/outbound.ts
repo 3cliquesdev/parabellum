@@ -38,13 +38,14 @@ interface MetaSendMessageResponse {
   messages?: Array<{ id?: string }>;
 }
 
-type MediaMessageType = "image" | "audio" | "video" | "document";
+type MediaMessageType = "image" | "audio" | "video" | "document" | "sticker";
 
 function singleLead(leads: ConversationLookup["leads"]) {
   return Array.isArray(leads) ? leads[0] ?? null : leads;
 }
 
 function getMediaMessageType(mimeType: string): MediaMessageType {
+  if (mimeType === "image/webp") return "sticker";
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("audio/")) return "audio";
   if (mimeType.startsWith("video/")) return "video";
@@ -93,6 +94,7 @@ export async function sendWhatsAppConversationMessage(
   conversation: ConversationLookup,
   text: string,
   file?: File | null,
+  replyToMensagemId?: string | null,
 ) {
   const lead = singleLead(conversation.leads);
   const toNumber = lead?.whatsapp?.replace(/\D/g, "") ?? "";
@@ -110,6 +112,17 @@ export async function sendWhatsAppConversationMessage(
   const config = waConfig as unknown as WhatsAppConfigRow | null;
   if (!config) {
     return { ok: false as const, error: "WhatsApp nao configurado" };
+  }
+
+  let replyContext: { context: { message_id: string } } | Record<string, never> = {};
+  if (replyToMensagemId) {
+    const { data: quotedMessage } = await supabase
+      .from("mensagens")
+      .select("wa_message_id")
+      .eq("id", replyToMensagemId)
+      .maybeSingle();
+    const waMessageId = (quotedMessage as { wa_message_id?: string | null } | null)?.wa_message_id;
+    if (waMessageId) replyContext = { context: { message_id: waMessageId } };
   }
 
   let mediaUrl: string | null = null;
@@ -156,6 +169,7 @@ export async function sendWhatsAppConversationMessage(
       messaging_product: "whatsapp",
       to: toNumber,
       type: mediaType,
+      ...replyContext,
     };
     payload[mediaType] = mediaType === "document"
       ? { id: uploadData.id, filename: file.name }
@@ -188,6 +202,7 @@ export async function sendWhatsAppConversationMessage(
         to: toNumber,
         type: "text",
         text: { body: text },
+        ...replyContext,
       }),
     });
     if (!response.ok) {
@@ -205,7 +220,9 @@ export async function sendWhatsAppConversationMessage(
     conteudo: text,
     wa_message_id: outboundMessageId,
     external_message_id: outboundMessageId ? `whatsapp:${outboundMessageId}` : null,
+    reply_to_mensagem_id: replyToMensagemId ?? null,
     enviada: true,
+    status: "sent",
     media_url: mediaUrl,
     media_type: mediaType,
     media_nome: mediaName,

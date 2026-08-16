@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
-import type { AdminClient } from "@/lib/auth/guard";
+import { escolherVendedorMenosCarregado } from "@/lib/negocios/distribuicao";
+import { resolvePipelinePadrao } from "@/lib/negocios/pipeline-padrao";
 
 interface CreateNegocioBody {
   tenant_id?: string;
@@ -13,29 +14,6 @@ interface CreateNegocioBody {
   assigned_to?: string | null;
   pipeline_id?: string | null;
   pipeline_etapa_id?: string | null;
-}
-
-// Quando quem cria o negocio nao escolhe pipeline/etapa (ex: criacao manual
-// pelo Inbox), cai no pipeline padrao do tenant + primeira etapa dele -
-// nunca fica sem pipeline.
-async function resolvePipelinePadrao(admin: AdminClient, tenantId: string) {
-  const { data: pipeline } = await admin
-    .from("pipelines")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("is_default", true)
-    .maybeSingle();
-  if (!pipeline) return { pipelineId: null, etapaId: null };
-
-  const { data: etapa } = await admin
-    .from("pipeline_etapas")
-    .select("id")
-    .eq("pipeline_id", (pipeline as { id: string }).id)
-    .order("posicao", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  return { pipelineId: (pipeline as { id: string }).id, etapaId: (etapa as { id: string } | null)?.id ?? null };
 }
 
 export async function GET(request: NextRequest) {
@@ -100,6 +78,14 @@ export async function POST(request: NextRequest) {
     pipelineEtapaId = padrao.etapaId;
   }
 
+  // Se ninguem foi explicitamente escolhido, tenta auto-atribuir pelo
+  // round-robin de menor carga da equipe do pipeline (fica null se o
+  // pipeline nao tem equipe configurada - cai na fila de distribuicao).
+  let assignedTo = body.assigned_to ?? null;
+  if (!assignedTo && pipelineId) {
+    assignedTo = await escolherVendedorMenosCarregado(auth.admin, pipelineId);
+  }
+
   const { data, error } = await auth.admin
     .from("negocios")
     .insert({
@@ -111,7 +97,7 @@ export async function POST(request: NextRequest) {
       valor: body.valor ?? null,
       estagio: body.estagio ?? "aberto",
       origem: body.origem ?? "manual",
-      assigned_to: body.assigned_to ?? null,
+      assigned_to: assignedTo,
       pipeline_id: pipelineId,
       pipeline_etapa_id: pipelineEtapaId,
     })

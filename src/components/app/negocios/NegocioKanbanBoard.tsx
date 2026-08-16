@@ -21,17 +21,23 @@ function DroppableColuna({ etapa, children, isOver }: { etapa: PipelineEtapa; ch
   );
 }
 
+interface MembroEquipe {
+  user_id: string | null;
+  email: string | null;
+}
+
 interface NegocioKanbanBoardProps {
   pipeline: Pipeline;
   negocios: Negocio[];
   tenantId: string;
+  equipe: MembroEquipe[];
   selecionados: string[];
   onToggleSelecionado: (id: string) => void;
   onNegocioAtualizado: () => void;
   onAbrirNegocio: (negocio: Negocio) => void;
 }
 
-export function NegocioKanbanBoard({ pipeline, negocios, tenantId, selecionados, onToggleSelecionado, onNegocioAtualizado, onAbrirNegocio }: NegocioKanbanBoardProps) {
+export function NegocioKanbanBoard({ pipeline, negocios, tenantId, equipe, selecionados, onToggleSelecionado, onNegocioAtualizado, onAbrirNegocio }: NegocioKanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
@@ -114,7 +120,7 @@ export function NegocioKanbanBoard({ pipeline, negocios, tenantId, selecionados,
                     </div>
                   )}
                   {etapaNegocios.map((negocio) => (
-                    <NegocioCard key={negocio.id} negocio={negocio} selecionado={selecionados.includes(negocio.id)}
+                    <NegocioCard key={negocio.id} negocio={negocio} selecionado={selecionados.includes(negocio.id)} equipe={equipe}
                       onToggleSelecionado={onToggleSelecionado} onClick={onAbrirNegocio} />
                   ))}
                 </DroppableColuna>

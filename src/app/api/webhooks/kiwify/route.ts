@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { LooseDatabase } from "@/types/database";
 import { resolveOrLinkLead } from "@/lib/inbox/service";
+import { resolvePipelinePadrao } from "@/lib/negocios/pipeline-padrao";
+import { escolherVendedorMenosCarregado } from "@/lib/negocios/distribuicao";
 
 function adminClient() {
   return createServerClient<LooseDatabase>(
@@ -235,6 +237,22 @@ export async function POST(request: NextRequest) {
       .eq("status", "pago");
 
     if ((count ?? 0) <= 1) {
+      const { pipelineId, etapaId } = await resolvePipelinePadrao(admin, tenantId);
+      // Ganho ja e' etapa terminal - busca a etapa marcada e_ganho do
+      // pipeline padrao em vez da primeira etapa (que e' "Novo").
+      let etapaGanhoId = etapaId;
+      if (pipelineId) {
+        const { data: etapaGanho } = await admin
+          .from("pipeline_etapas")
+          .select("id")
+          .eq("pipeline_id", pipelineId)
+          .eq("e_ganho", true)
+          .limit(1)
+          .maybeSingle();
+        etapaGanhoId = (etapaGanho as { id: string } | null)?.id ?? etapaId;
+      }
+      const assignedTo = pipelineId ? await escolherVendedorMenosCarregado(admin, pipelineId) : null;
+
       await admin.from("negocios").insert({
         tenant_id: tenantId,
         lead_id: leadId,
@@ -243,6 +261,9 @@ export async function POST(request: NextRequest) {
         canal: "kiwify",
         estagio: "ganho",
         origem: "kiwify_auto",
+        pipeline_id: pipelineId,
+        pipeline_etapa_id: etapaGanhoId,
+        assigned_to: assignedTo,
       });
       await admin.from("leads").update({ status: "ganho", valor_estimado: valor }).eq("id", leadId);
     }

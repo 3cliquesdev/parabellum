@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Plus, Trash2, Star, ChevronUp, ChevronDown } from "lucide-react";
 import type { Pipeline } from "@/types/database";
 
@@ -9,6 +9,12 @@ interface GerenciarPipelinesModalProps {
   pipelines: Pipeline[];
   onClose: () => void;
   onAtualizado: () => void;
+}
+
+interface MembroEquipe {
+  id: string;
+  user_id: string;
+  email: string | null;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -22,8 +28,41 @@ export function GerenciarPipelinesModal({ tenantId, pipelines, onClose, onAtuali
   const [novoPipelineNome, setNovoPipelineNome] = useState("");
   const [novaEtapaNome, setNovaEtapaNome] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [aba, setAba] = useState<"etapas" | "equipe">("etapas");
+  const [equipeTenant, setEquipeTenant] = useState<MembroEquipe[]>([]);
+  const [equipePipeline, setEquipePipeline] = useState<string[]>([]);
 
   const pipeline = pipelines.find((p) => p.id === pipelineAberto);
+
+  useEffect(() => {
+    fetch(`/api/team/members?tenant_id=${tenantId}`)
+      .then((r) => (r.ok ? r.json() : { members: [] }))
+      .then((d) => setEquipeTenant(d.members ?? []));
+  }, [tenantId]);
+
+  useEffect(() => {
+    function limparEquipePipeline() {
+      setEquipePipeline([]);
+    }
+    if (!pipeline) { limparEquipePipeline(); return; }
+    fetch(`/api/pipelines/${pipeline.id}/vendedores?tenant_id=${tenantId}`)
+      .then((r) => (r.ok ? r.json() : { vendedores: [] }))
+      .then((d) => setEquipePipeline((d.vendedores ?? []).map((v: { user_id: string }) => v.user_id)));
+  }, [pipeline, tenantId]);
+
+  async function alternarVendedor(userId: string, incluir: boolean) {
+    if (!pipeline) return;
+    if (incluir) {
+      await fetch(`/api/pipelines/${pipeline.id}/vendedores`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, user_id: userId }),
+      });
+      setEquipePipeline((prev) => [...prev, userId]);
+    } else {
+      await fetch(`/api/pipelines/${pipeline.id}/vendedores?tenant_id=${tenantId}&user_id=${userId}`, { method: "DELETE" });
+      setEquipePipeline((prev) => prev.filter((id) => id !== userId));
+    }
+  }
 
   async function criarPipeline() {
     if (!novoPipelineNome.trim()) return;
@@ -188,6 +227,36 @@ export function GerenciarPipelinesModal({ tenantId, pipelines, onClose, onAtuali
               </div>
             </div>
 
+            {pipeline && (
+              <div className="flex px-4 pt-2 gap-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                {(["etapas", "equipe"] as const).map((t) => (
+                  <button key={t} onClick={() => setAba(t)}
+                    className="pb-2 text-xs font-bold capitalize"
+                    style={{
+                      color: aba === t ? "var(--status-ganho)" : "var(--text-secondary)",
+                      borderBottom: aba === t ? "2px solid var(--status-ganho)" : "2px solid transparent",
+                    }}>
+                    {t === "etapas" ? "Etapas" : "Equipe do pipeline"}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {pipeline && aba === "equipe" ? (
+              <div className="flex-1 overflow-y-auto p-4 space-y-1.5">
+                <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
+                  Quem está marcado aqui entra no round-robin de distribuição automática desse pipeline.
+                </p>
+                {equipeTenant.map((m) => (
+                  <label key={m.id} className="flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium"
+                    style={{ background: "var(--surface-panel)", color: "var(--text-primary)" }}>
+                    <input type="checkbox" checked={equipePipeline.includes(m.user_id)}
+                      onChange={(e) => alternarVendedor(m.user_id, e.target.checked)} />
+                    {m.email ?? m.user_id}
+                  </label>
+                ))}
+              </div>
+            ) : (
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {pipeline && [...pipeline.pipeline_etapas].sort((a, b) => a.posicao - b.posicao).map((etapa, i, arr) => (
                 <div key={etapa.id} className="rounded-lg p-2.5 flex items-center gap-2" style={{ background: "var(--surface-panel)", border: "1px solid var(--border-subtle)" }}>
@@ -215,8 +284,9 @@ export function GerenciarPipelinesModal({ tenantId, pipelines, onClose, onAtuali
                 </div>
               ))}
             </div>
+            )}
 
-            {pipeline && (
+            {pipeline && aba === "etapas" && (
               <div className="p-3 flex gap-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
                 <input value={novaEtapaNome} onChange={(e) => setNovaEtapaNome(e.target.value)}
                   placeholder="Nome da nova etapa" className="flex-1 h-9 px-2 rounded-lg text-xs outline-none" style={inputStyle} />

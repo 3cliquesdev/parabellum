@@ -172,6 +172,23 @@ function MediaContent({ msg, tone }: { msg: Mensagem; tone: "lead" | "humano" | 
   );
 }
 
+function NavRow({ ativo, cor, label, count, title, onClick }: { ativo: boolean; cor?: string; label: string; count: number; title?: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-left"
+      style={{
+        color: ativo ? (cor ?? "var(--status-ganho)") : "var(--text-secondary)",
+        background: ativo ? (cor ? `${cor}14` : "var(--active-soft-bg)") : "transparent",
+      }}
+    >
+      <span className="truncate">{label}</span>
+      <span className="opacity-70 shrink-0">{count}</span>
+    </button>
+  );
+}
+
 export default function InboxPage() {
   const { tenantId, loading: tenantLoading } = useTenant();
   const { conversas, loading: conversasLoading } = useConversas(tenantId);
@@ -444,105 +461,88 @@ export default function InboxPage() {
     );
   }
 
+  const FILTROS_STATUS: { id: FiltroInbox; label: string; count: number }[] = [
+    { id: "todas", label: "Todas", count: conversasAtivas.length },
+    { id: "minhas", label: "Minhas", count: contagemMinhas },
+    { id: "novas_atribuicoes", label: "Novas atribuições", count: contagemNovasAtribuicoes },
+    { id: "nao_respondidas", label: "Não respondidas", count: contagemNaoRespondidas },
+    { id: "aguardando_cliente", label: "Aguardando cliente", count: contagemAguardandoCliente },
+    { id: "sla_excedido", label: "SLA Excedido", count: contagemSlaExcedido },
+    { id: "nao_atribuidas", label: "Não atribuídas", count: contagemNaoAtribuidas },
+    { id: "fila_ia", label: "Fila IA", count: contagemFilaIA },
+    { id: "fila_humana", label: "Fila Humana", count: contagemFilaHumana },
+  ];
+
   return (
     <div className="flex h-full min-h-0 gap-4 p-4 overflow-hidden" style={inboxPageStyle}>
-      <aside className="w-[340px] xl:w-[360px] shrink-0 rounded-[28px] overflow-hidden flex flex-col min-h-0" style={inboxPanelStyle}>
+      <aside className="w-[210px] shrink-0 rounded-[28px] overflow-hidden flex flex-col min-h-0" style={inboxPanelStyle}>
         <div className="px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-lg font-extrabold tracking-[-0.02em]" style={{ color: "var(--text-primary)" }}>
-                Inbox
-              </h2>
-              <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-                Conversas do WhatsApp, Instagram e canais conectados
-              </p>
-            </div>
-            <Link href="/inbox/queue" className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-full" style={inboxBadgeTone("yellow")}>
-              <Clock className="w-3 h-3" />
-              Fila
-            </Link>
+          <h2 className="text-base font-extrabold tracking-[-0.02em]" style={{ color: "var(--text-primary)" }}>
+            Conversas
+          </h2>
+          <Link href="/inbox/queue" className="mt-2 flex items-center justify-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-full w-full" style={inboxBadgeTone("yellow")}>
+            <Clock className="w-3 h-3" />
+            Fila
+          </Link>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+          {FILTROS_STATUS.map((item) => (
+            <NavRow key={item.id} ativo={filtro === item.id} label={item.label} count={item.count} onClick={() => setFiltro(item.id)} />
+          ))}
+
+          <div className="pt-1.5 mt-1.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+            <NavRow ativo={filtro === "encerradas"} cor="var(--text-secondary)" label="Encerradas" count={contagemEncerradas} onClick={() => setFiltro("encerradas")} />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value as FiltroInbox)}
-              className="h-9 px-2.5 rounded-xl text-xs font-bold outline-none"
-              style={{ background: "var(--active-soft-bg)", color: "var(--status-ganho)", border: "1px solid var(--active-soft-border)" }}
-            >
-              {[
-                { id: "todas" as const, label: "Todas", count: conversasAtivas.length },
-                { id: "minhas" as const, label: "Minhas", count: contagemMinhas },
-                { id: "novas_atribuicoes" as const, label: "Novas atribuições", count: contagemNovasAtribuicoes },
-                { id: "nao_respondidas" as const, label: "Não respondidas", count: contagemNaoRespondidas },
-                { id: "aguardando_cliente" as const, label: "Aguardando cliente", count: contagemAguardandoCliente },
-                { id: "sla_excedido" as const, label: "SLA Excedido", count: contagemSlaExcedido },
-                { id: "nao_atribuidas" as const, label: "Não atribuídas", count: contagemNaoAtribuidas },
-                { id: "fila_ia" as const, label: "Fila IA", count: contagemFilaIA },
-                { id: "fila_humana" as const, label: "Fila Humana", count: contagemFilaHumana },
-                { id: "encerradas" as const, label: "Encerradas", count: contagemEncerradas },
-              ].map((item) => (
-                <option key={item.id} value={item.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
-                  {item.label} ({item.count})
-                </option>
+          {departamentos.length > 0 && (
+            <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-wide mb-1 px-2" style={{ color: "var(--text-faint)" }}>Departamentos</p>
+              <NavRow ativo={!departamentoFiltro} label="Todos deptos" count={conversasAtivas.length} onClick={() => setDepartamentoFiltro(null)} />
+              {departamentos.map((dep) => (
+                <NavRow key={dep.id} ativo={departamentoFiltro === dep.id} cor={safeColor(dep.color)} label={dep.name} count={contagemPorDepartamento.get(dep.id) ?? 0} onClick={() => setDepartamentoFiltro(dep.id)} />
               ))}
-            </select>
+            </div>
+          )}
 
-            {departamentos.length > 0 && (
-              <select
-                value={departamentoFiltro ?? ""}
-                onChange={(e) => setDepartamentoFiltro(e.target.value || null)}
-                className="h-9 px-2.5 rounded-xl text-xs font-bold outline-none"
-                style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
-              >
-                <option value="" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
-                  Todos deptos ({conversasAtivas.length})
-                </option>
-                {departamentos.map((dep) => (
-                  <option key={dep.id} value={dep.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
-                    {dep.name} ({contagemPorDepartamento.get(dep.id) ?? 0})
-                  </option>
-                ))}
-              </select>
-            )}
+          {tags.length > 0 && (
+            <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-wide mb-1 px-2" style={{ color: "var(--text-faint)" }}>Tags</p>
+              <NavRow ativo={!tagFiltro} label="Todas as tags" count={conversasAtivas.length} onClick={() => setTagFiltro(null)} />
+              {tags.map((tag) => (
+                <NavRow key={tag.id} ativo={tagFiltro === tag.id} cor={safeColor(tag.cor)} label={tag.nome} count={contagemPorTag.get(tag.id) ?? 0} onClick={() => setTagFiltro(tag.id)} />
+              ))}
+            </div>
+          )}
 
-            {tags.length > 0 && (
-              <select
-                value={tagFiltro ?? ""}
-                onChange={(e) => setTagFiltro(e.target.value || null)}
-                className="h-9 px-2.5 rounded-xl text-xs font-bold outline-none"
-                style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
-              >
-                <option value="" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
-                  Todas as tags ({conversasAtivas.length})
-                </option>
-                {tags.map((tag) => (
-                  <option key={tag.id} value={tag.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
-                    {tag.nome} ({contagemPorTag.get(tag.id) ?? 0})
-                  </option>
-                ))}
-              </select>
-            )}
+          {equipe.length > 0 && (
+            <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-wide mb-1 px-2" style={{ color: "var(--text-faint)" }}>Por atendente</p>
+              <NavRow ativo={!atendenteFiltro} label="Todos atendentes" count={conversasAtivas.length} onClick={() => setAtendenteFiltro(null)} />
+              {equipe.map((membro) => (
+                <NavRow
+                  key={membro.id}
+                  ativo={atendenteFiltro === membro.user_id}
+                  cor={membro.availability_status === "online" ? "var(--badge-green-fg)" : membro.availability_status === "away" ? "var(--badge-yellow-fg)" : undefined}
+                  label={membro.email ?? membro.user_id ?? "?"}
+                  title={AVAILABILITY_LABEL[membro.availability_status ?? "offline"] ?? membro.availability_status ?? undefined}
+                  count={contagemPorAtendente.get(membro.user_id ?? "") ?? 0}
+                  onClick={() => setAtendenteFiltro(membro.user_id ?? null)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
 
-            {equipe.length > 0 && (
-              <select
-                value={atendenteFiltro ?? ""}
-                onChange={(e) => setAtendenteFiltro(e.target.value || null)}
-                className="h-9 px-2.5 rounded-xl text-xs font-bold outline-none"
-                style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
-              >
-                <option value="" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
-                  Todos atendentes
-                </option>
-                {equipe.map((membro) => (
-                  <option key={membro.id} value={membro.user_id ?? ""} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
-                    {membro.email ?? membro.user_id} — {AVAILABILITY_LABEL[membro.availability_status ?? "offline"] ?? membro.availability_status} ({contagemPorAtendente.get(membro.user_id ?? "") ?? 0})
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
+      <aside className="w-[320px] xl:w-[340px] shrink-0 rounded-[28px] overflow-hidden flex flex-col min-h-0" style={inboxPanelStyle}>
+        <div className="px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
+          <h2 className="text-lg font-extrabold tracking-[-0.02em]" style={{ color: "var(--text-primary)" }}>
+            {FILTROS_STATUS.find((f) => f.id === filtro)?.label ?? (filtro === "encerradas" ? "Encerradas" : "Conversas")}
+          </h2>
+          <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+            Conversas do WhatsApp, Instagram e canais conectados
+          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto">

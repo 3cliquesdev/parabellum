@@ -20,7 +20,31 @@ export function useLeads(tenantId: string | null) {
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      setLeads((data as unknown as Lead[]) ?? []);
+      const leadsData = (data as unknown as Lead[]) ?? [];
+
+      // Tag de situacao de pagamento no card do Kanban: venda Kiwify mais
+      // recente ainda nao paga (carrinho abandonado/cartao recusado/
+      // aguardando pagamento) de quem ainda nao virou cliente - so
+      // informativo, nao muda leads.status nem cria coluna nova.
+      const { data: vendasPendentes } = await supabase
+        .from("vendas")
+        .select("lead_id, status, created_at")
+        .eq("tenant_id", tenantId)
+        .in("status", ["carrinho_abandonado", "cartao_recusado", "aguardando_pagamento"])
+        .not("lead_id", "is", null)
+        .order("created_at", { ascending: false });
+
+      const situacaoPorLead = new Map<string, Lead["situacao_pagamento"]>();
+      for (const venda of (vendasPendentes ?? []) as unknown as { lead_id: string; status: string }[]) {
+        if (!situacaoPorLead.has(venda.lead_id)) {
+          situacaoPorLead.set(venda.lead_id, venda.status as Lead["situacao_pagamento"]);
+        }
+      }
+
+      setLeads(leadsData.map((lead) => ({
+        ...lead,
+        situacao_pagamento: lead.eh_cliente ? null : (situacaoPorLead.get(lead.id) ?? null),
+      })));
     } catch (e) {
       console.error("useLeads error:", e);
     } finally {

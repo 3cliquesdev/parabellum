@@ -9,6 +9,12 @@ interface LeadCardProps {
   onClick: (lead: Lead) => void;
 }
 
+const SITUACAO_PAGAMENTO_LABEL: Record<string, { label: string; color: string; bg: string }> = {
+  carrinho_abandonado: { label: "Carrinho abandonado", color: "#b45309", bg: "rgba(180,83,9,0.12)" },
+  cartao_recusado: { label: "Pagamento recusado", color: "#b91c1c", bg: "rgba(185,28,28,0.12)" },
+  aguardando_pagamento: { label: "Aguardando pagamento", color: "#a16207", bg: "rgba(161,98,7,0.12)" },
+};
+
 export function LeadCard({ lead, onClick }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
@@ -32,6 +38,18 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       }}>
 
       <p className="text-sm font-semibold text-white mb-1 truncate">{lead.nome}</p>
+
+      {lead.situacao_pagamento && SITUACAO_PAGAMENTO_LABEL[lead.situacao_pagamento] && (
+        <span
+          className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-2"
+          style={{
+            color: SITUACAO_PAGAMENTO_LABEL[lead.situacao_pagamento].color,
+            background: SITUACAO_PAGAMENTO_LABEL[lead.situacao_pagamento].bg,
+          }}
+        >
+          {SITUACAO_PAGAMENTO_LABEL[lead.situacao_pagamento].label}
+        </span>
+      )}
 
       {lead.servico_interesse && (
         <p className="text-xs mb-3 truncate" style={{ color: "var(--text-secondary)" }}>{lead.servico_interesse}</p>

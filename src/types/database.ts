@@ -102,11 +102,16 @@ export interface Lead {
   status: LeadStatus;
   observacoes: string | null;
   valor_estimado: number | null;
+  eh_cliente?: boolean;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
   created_at: string;
   updated_at: string;
+  // Nao existe coluna no banco - calculado no cliente (useLeads) a partir da
+  // venda Kiwify mais recente nao-paga, so pra mostrar uma tag no card do
+  // Kanban. Sempre null pra quem ja e cliente ou nunca teve tentativa de compra.
+  situacao_pagamento?: "carrinho_abandonado" | "cartao_recusado" | "aguardando_pagamento" | null;
 }
 
 export interface Atividade {

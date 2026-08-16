@@ -45,6 +45,43 @@ interface KiwifyWebhookBody {
   product_type?: string;
 }
 
+// O webhook de "carrinho abandonado" da Kiwify manda um formato TOTALMENTE
+// diferente do webhook de pedido/pagamento: campos soltos na raiz, sem
+// Customer/Product. Sem essa normalizacao, esses eventos caiam como "outro",
+// sem produto/valor e sem vincular a nenhum lead (44 casos confirmados).
+interface KiwifyAbandonedCartBody {
+  id?: string;
+  cpf?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  status?: string;
+  product_id?: string;
+  product_name?: string;
+}
+
+function isAbandonedCartShape(raw: unknown): raw is KiwifyAbandonedCartBody {
+  const r = raw as Record<string, unknown>;
+  return !r.Customer && r.status === "abandoned";
+}
+
+function normalizeKiwifyBody(raw: unknown): KiwifyWebhookBody {
+  if (isAbandonedCartShape(raw)) {
+    return {
+      order_id: raw.id,
+      order_status: "cart_abandoned",
+      Customer: {
+        full_name: raw.name,
+        email: raw.email,
+        mobile: raw.phone,
+        CPF: raw.cpf,
+      },
+      Product: { product_id: raw.product_id, product_name: raw.product_name },
+    };
+  }
+  return raw as KiwifyWebhookBody;
+}
+
 // Kiwify manda em Subscription.charges.completed o historico de cobrancas ja
 // concluidas daquela assinatura. Se alguma delas tem order_id diferente do
 // pedido atual, ja existe um ciclo anterior - o evento atual e renovacao
@@ -73,6 +110,9 @@ const STATUS_MAP: Record<string, string> = {
 
   subscription_late: "aguardando_pagamento",
   subscription_card_declined: "aguardando_pagamento",
+  waiting_payment: "aguardando_pagamento",
+  pix_created: "aguardando_pagamento",
+  billet_created: "aguardando_pagamento",
 
   refunded: "reembolsado",
   chargedback: "chargeback",
@@ -89,7 +129,8 @@ export async function POST(request: NextRequest) {
   const tenantId = searchParams.get("tenant_id");
   if (!tenantId) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
 
-  const body = (await request.json().catch(() => ({}))) as KiwifyWebhookBody;
+  const rawBody = await request.json().catch(() => ({}));
+  const body = normalizeKiwifyBody(rawBody);
   const rawStatus = (body.order_status ?? body.webhook_event_type ?? "").toLowerCase();
   const status = STATUS_MAP[rawStatus] ?? "outro";
 
@@ -163,7 +204,7 @@ export async function POST(request: NextRequest) {
     // um webhook por produto com o mesmo order_id - sem o product_id aqui, o
     // segundo evento sobrescrevia o primeiro em vez de registrar os dois.
     external_id: body.order_id ? `${body.order_id}:${body.Product?.product_id ?? produtoNome}` : null,
-    raw_payload: body,
+    raw_payload: rawBody,
     paid_at: status === "pago" ? new Date().toISOString() : null,
   }, { onConflict: "tenant_id,origem,external_id" });
 

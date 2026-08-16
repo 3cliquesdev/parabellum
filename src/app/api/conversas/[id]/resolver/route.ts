@@ -71,10 +71,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     aguardando_csat: enviar_csat,
   }).eq("id", conversaId);
 
-  await auth.admin.from("conversation_tags").upsert({
+  // Uma conversa resolvida deve terminar com uma unica tag (o motivo do
+  // encerramento) - remove qualquer tag anterior antes de aplicar a nova,
+  // em vez de acumular (ex: uma tentativa de fechamento anterior que so
+  // aplicou a tag mas nao chegou a resolver por causa da trava acima).
+  await auth.admin.from("conversation_tags").delete().eq("conversa_id", conversaId);
+  await auth.admin.from("conversation_tags").insert({
     conversa_id: conversaId,
     tag_id: tagRow.id,
-  }, { onConflict: "conversa_id,tag_id" });
+  });
 
   if (enviar_csat) {
     const internalSecret = getInternalApiSecret();

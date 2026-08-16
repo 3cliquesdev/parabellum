@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Mensagem } from "@/types/database";
 import {
   inboxBadgeStyle,
+  inboxBadgeTone,
   inboxBubbleStyle,
   inboxCanvasStyle,
   inboxComposerStyle,
@@ -17,13 +18,15 @@ import {
   inboxGhostButtonStyle,
   inboxPageStyle,
   inboxPanelStyle,
+  type InboxBadgeTone,
 } from "./theme";
+import { ContactPanel } from "./ContactPanel";
 
-const DISPATCH_BADGE: Record<string, { label: string; color: string }> = {
-  ia: { label: "IA", color: "var(--status-ganho)" },
-  atribuido: { label: "Atribuído", color: "#60a5fa" },
-  fila: { label: "Na fila", color: "#facc15" },
-  resolvido: { label: "Resolvido", color: "var(--text-secondary)" },
+const DISPATCH_BADGE: Record<string, { label: string; tone: InboxBadgeTone }> = {
+  ia: { label: "IA", tone: "green" },
+  atribuido: { label: "Atribuído", tone: "blue" },
+  fila: { label: "Na fila", tone: "yellow" },
+  resolvido: { label: "Resolvido", tone: "neutral" },
 };
 
 type FiltroInbox = "todas" | "fila_ia" | "fila_humana" | "encerradas";
@@ -345,7 +348,7 @@ export default function InboxPage() {
                 Conversas do WhatsApp, Instagram e canais conectados
               </p>
             </div>
-            <Link href="/inbox/queue" className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-full" style={inboxBadgeStyle("#d4a91d")}>
+            <Link href="/inbox/queue" className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-full" style={inboxBadgeTone("yellow")}>
               <Clock className="w-3 h-3" />
               Fila
             </Link>
@@ -390,7 +393,7 @@ export default function InboxPage() {
               <button
                 onClick={() => setDepartamentoFiltro(null)}
                 className="px-2.5 h-6 rounded-full text-[10px] font-bold transition-all"
-                style={!departamentoFiltro ? inboxBadgeStyle("#939da4") : { background: "var(--ghost-bg)", color: "var(--text-faint)", border: "1px solid var(--chip-border)" }}
+                style={!departamentoFiltro ? inboxBadgeTone("neutral") : { background: "var(--ghost-bg)", color: "var(--text-faint)", border: "1px solid var(--chip-border)" }}
               >
                 Todos deptos
               </button>
@@ -468,7 +471,7 @@ export default function InboxPage() {
                             {conversa.lead_nome}
                           </p>
                           <p className="text-xs truncate mt-1" style={{ color: "var(--text-secondary)" }}>
-                            {conversa.lead_identifier}
+                            Protocolo #{String(conversa.protocolo).padStart(4, "0")}
                           </p>
                         </div>
 
@@ -481,7 +484,7 @@ export default function InboxPage() {
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(conversa.canal_color)}>
                           {conversa.canal_label}
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(conversa.eh_cliente ? "#16a34a" : "#939da4")}>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeTone(conversa.eh_cliente ? "green" : "neutral")}>
                           {conversa.eh_cliente ? "Cliente" : "Não Cliente"}
                         </span>
                         {departamentoConversa && (
@@ -489,7 +492,7 @@ export default function InboxPage() {
                             {departamentoConversa.name}
                           </span>
                         )}
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(badge.color)}>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeTone(badge.tone)}>
                           {badge.label}
                         </span>
                         {conversa.ia_ativa ? (
@@ -535,7 +538,7 @@ export default function InboxPage() {
                     {selected.canal_label}
                   </span>
                   <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                    {selected.lead_identifier}
+                    Protocolo #{String(selected.protocolo).padStart(4, "0")}
                   </span>
                 </div>
               </div>
@@ -608,12 +611,15 @@ export default function InboxPage() {
               )}
 
               {selected.status === "resolvido" ? (
-                <span className="px-3 py-2 rounded-xl text-xs font-bold" style={inboxBadgeStyle("#939da4")}>
+                <span className="px-3 py-2 rounded-xl text-xs font-bold" style={inboxBadgeTone("neutral")}>
                   Resolvido
                 </span>
               ) : (
                 <button
-                  onClick={() => setShowResolverMenu((v) => !v)}
+                  onClick={() => {
+                    if (selected.tags.length > 0) setTagEscolhida(selected.tags[0].nome);
+                    setShowResolverMenu((v) => !v);
+                  }}
                   className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
                   style={inboxGhostButtonStyle}
                 >
@@ -786,42 +792,18 @@ export default function InboxPage() {
         </section>
       )}
 
-      {selected && (
-        <aside className="w-64 shrink-0 rounded-[28px] p-4 space-y-3 hidden xl:flex xl:flex-col" style={inboxPanelStyle}>
-          <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Tags</p>
-          <div className="flex flex-wrap gap-1.5">
-            {selected.tags.length === 0 ? (
-              <p className="text-xs" style={{ color: "var(--text-faint)" }}>Nenhuma tag aplicada ainda.</p>
-            ) : (
-              selected.tags.map((tag) => (
-                <span key={tag.id} className="text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1" style={inboxBadgeStyle(tag.cor)}>
-                  {tag.nome}
-                  <button onClick={() => removerTag(selected, tag.id)} className="opacity-60 hover:opacity-100">×</button>
-                </span>
-              ))
-            )}
-          </div>
-          <div className="flex gap-1.5">
-            <select
-              value={novaTag}
-              onChange={(e) => setNovaTag(e.target.value)}
-              className="flex-1 h-8 px-2 rounded-lg text-[11px] outline-none"
-              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
-            >
-              <option value="">Adicionar tag...</option>
-              {tags.filter((t) => !selected.tags.some((st) => st.id === t.id)).map((t) => (
-                <option key={t.id} value={t.nome} style={{ background: "var(--surface-solid)" }}>{t.nome}</option>
-              ))}
-            </select>
-            <button
-              onClick={() => adicionarTag(selected)}
-              disabled={!novaTag || adicionandoTag}
-              className="px-2.5 h-8 rounded-lg text-[11px] font-bold"
-              style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: !novaTag || adicionandoTag ? 0.6 : 1 }}
-            >
-              +
-            </button>
-          </div>
+      {selected && tenantId && (
+        <aside className="w-72 shrink-0 rounded-[28px] overflow-hidden hidden xl:flex xl:flex-col min-h-0" style={inboxPanelStyle}>
+          <ContactPanel
+            conversa={selected}
+            tenantId={tenantId}
+            allTags={tags}
+            novaTag={novaTag}
+            setNovaTag={setNovaTag}
+            adicionandoTag={adicionandoTag}
+            onAdicionarTag={() => adicionarTag(selected)}
+            onRemoverTag={(tagId) => removerTag(selected, tagId)}
+          />
         </aside>
       )}
     </div>

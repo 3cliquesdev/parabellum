@@ -2,32 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, MessageSquare, Tag, CheckSquare, Ticket, ShoppingBag, Undo2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Lead, LeadStatus } from "@/types/database";
-
-interface TimelineEvent {
-  tipo: "status" | "mensagem" | "atividade" | "ticket" | "venda" | "devolucao";
-  data: string;
-  titulo: string;
-  detalhe: string | null;
-}
-
-const STATUS_LABEL: Record<LeadStatus, string> = {
-  novo: "Novo", em_contato: "Em Contato", qualificado: "Qualificado",
-  proposta: "Proposta", negociacao: "Negociação", ganho: "Ganho", perdido: "Perdido",
-};
-const STATUS_COLOR: Record<LeadStatus, string> = {
-  novo: "rgba(255,255,255,0.2)", em_contato: "#60a5fa", qualificado: "#a78bfa",
-  proposta: "#fb923c", negociacao: "#facc15", ganho: "#10B981", perdido: "#f87171",
-};
-
-const EVENT_ICON: Record<TimelineEvent["tipo"], React.ElementType> = {
-  status: Tag, mensagem: MessageSquare, atividade: CheckSquare, ticket: Ticket, venda: ShoppingBag, devolucao: Undo2,
-};
-const EVENT_COLOR: Record<TimelineEvent["tipo"], string> = {
-  status: "#a78bfa", mensagem: "#60a5fa", atividade: "#facc15", ticket: "#fb923c", venda: "#10B981", devolucao: "#f87171",
-};
+import type { Lead } from "@/types/database";
+import { LeadTimeline, type TimelineEvent } from "@/components/app/LeadTimeline";
+import { STATUS_LABEL, STATUS_COLOR } from "@/lib/leads/status";
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -80,7 +59,7 @@ export default function ContactDetailPage() {
             {lead.nome.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-semibold text-white tracking-tight truncate">{lead.nome}</h1>
+            <h1 className="text-lg font-semibold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>{lead.nome}</h1>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
               {lead.whatsapp ?? "—"} · {lead.email ?? "—"}
             </p>
@@ -107,37 +86,7 @@ export default function ContactDetailPage() {
 
       <div>
         <p className="text-xs font-bold mb-3" style={{ color: "var(--text-secondary)" }}>Linha do tempo — {events.length} eventos</p>
-        {events.length === 0 ? (
-          <p className="text-xs" style={{ color: "var(--text-faint)" }}>Nenhum evento registrado ainda.</p>
-        ) : (
-          <div className="space-y-3">
-            {events.map((event, i) => {
-              const Icon = EVENT_ICON[event.tipo];
-              const color = EVENT_COLOR[event.tipo];
-              return (
-                <div key={i} className="flex gap-3">
-                  <div className="flex flex-col items-center shrink-0">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: `${color}15`, border: `1px solid ${color}30` }}>
-                      <Icon className="w-3.5 h-3.5" style={{ color }} />
-                    </div>
-                    {i < events.length - 1 && <div className="w-px flex-1 mt-1" style={{ background: "var(--border-subtle)" }} />}
-                  </div>
-                  <div className="pb-4 flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-white">{event.titulo}</p>
-                      <span className="text-[10px]" style={{ color: "var(--text-faint)" }}>
-                        {new Date(event.data).toLocaleString("pt-BR")}
-                      </span>
-                    </div>
-                    {event.detalhe && (
-                      <p className="text-xs mt-0.5 whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>{event.detalhe}</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <LeadTimeline events={events} />
       </div>
     </div>
   );

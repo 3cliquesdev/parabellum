@@ -16,6 +16,7 @@ export interface ConversaWithLead extends Conversa {
   dispatch_status?: string | null;
   department_id?: string | null;
   resolvido_por?: string | null;
+  protocolo: number;
   lead_nome: string;
   lead_whatsapp: string | null;
   lead_email: string | null;
@@ -53,6 +54,7 @@ interface ConversaRow extends Conversa {
   dispatch_status?: string | null;
   department_id?: string | null;
   resolvido_por?: string | null;
+  protocolo: number;
   ai_mode?: "autopilot" | "copilot" | "disabled" | null;
   ai_suggestion?: string | null;
   leads?: LeadRow | null;

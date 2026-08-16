@@ -122,6 +122,15 @@
   --chat-ai-bg:      rgba(16,185,129,0.14);
   --chat-ai-border:  rgba(16,185,129,0.2);
   --chat-ai-text:    #6EE7B7;
+
+  /* Badges do Inbox - tons fixos do sistema (canal indisponivel, atribuido,
+     na fila, cliente/nao-cliente). Cores arbitrarias vindas do banco
+     (departamento/tag) continuam usando inboxBadgeStyle(hex) direto. */
+  --badge-neutral-fg: #939da4;  --badge-neutral-bg: #939da414; --badge-neutral-border: #939da42b;
+  --badge-blue-fg:    #60a5fa;  --badge-blue-bg:    #60a5fa14; --badge-blue-border:    #60a5fa2b;
+  --badge-yellow-fg:  #facc15;  --badge-yellow-bg:  #facc1514; --badge-yellow-border:  #facc152b;
+  --badge-green-fg:   #10B981;  --badge-green-bg:   #10B98114; --badge-green-border:   #10B9812b;
+  --badge-primary-fg: #0a0a0a;
 }
 
 /* ── Light Theme ── */
@@ -205,6 +214,12 @@ html.light {
   --chat-ai-bg:      rgba(22,163,74,0.12);
   --chat-ai-border:  rgba(21,128,61,0.16);
   --chat-ai-text:    #166534;
+
+  --badge-neutral-fg: #5C6E86;  --badge-neutral-bg: #5C6E8614; --badge-neutral-border: #5C6E862b;
+  --badge-blue-fg:    #3B82F6;  --badge-blue-bg:    #3B82F614; --badge-blue-border:    #3B82F62b;
+  --badge-yellow-fg:  #92400E;  --badge-yellow-bg:  #92400E14; --badge-yellow-border:  #92400E2b;
+  --badge-green-fg:   #15803D;  --badge-green-bg:   #15803D14; --badge-green-border:   #15803D2b;
+  --badge-primary-fg: #FFFFFF;
 }
 
 /* CRM app content: white text → foreground in light mode */

@@ -45,6 +45,19 @@ export function inboxBadgeStyle(color: string): CSSProperties {
   };
 }
 
+// Tons fixos do sistema (nao vindos do banco) - resolvidos por variavel de
+// tema em vez de hex cru, senao o texto do badge fica tunado so pro modo
+// escuro e ilegivel no claro (ex: cinza claro em fundo quase-branco).
+export type InboxBadgeTone = "neutral" | "blue" | "yellow" | "green";
+
+export function inboxBadgeTone(tone: InboxBadgeTone): CSSProperties {
+  return {
+    color: `var(--badge-${tone}-fg)`,
+    background: `var(--badge-${tone}-bg)`,
+    border: `1px solid var(--badge-${tone}-border)`,
+  };
+}
+
 export function inboxConversationItemStyle(active: boolean): CSSProperties {
   return {
     background: active ? "var(--active-soft-bg)" : "transparent",
@@ -93,7 +106,7 @@ export const inboxCanvasStyle: CSSProperties = {
 
 export const inboxPrimaryButtonStyle: CSSProperties = {
   background: "var(--status-ganho)",
-  color: "#0a0a0a",
+  color: "var(--badge-primary-fg)",
 };
 
 export const inboxGhostButtonStyle: CSSProperties = {

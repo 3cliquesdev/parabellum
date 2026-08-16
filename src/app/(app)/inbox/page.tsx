@@ -355,72 +355,44 @@ export default function InboxPage() {
             </Link>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            {[
-              { id: "todas" as const, label: "Todas", count: conversasAtivas.length },
-              { id: "fila_ia" as const, label: "Fila IA", count: contagemFilaIA },
-              { id: "fila_humana" as const, label: "Fila Humana", count: contagemFilaHumana },
-              { id: "encerradas" as const, label: "Encerradas", count: contagemEncerradas },
-            ].map((item) => {
-              const isActive = filtro === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setFiltro(item.id)}
-                  className="px-3.5 h-8 rounded-full text-xs font-bold transition-all flex items-center gap-1.5"
-                  style={
-                    isActive
-                      ? {
-                          background: "var(--active-soft-bg)",
-                          color: "var(--status-ganho)",
-                          border: "1px solid var(--active-soft-border)",
-                        }
-                      : {
-                          background: "var(--ghost-bg)",
-                          color: "var(--text-secondary)",
-                          border: "1px solid var(--chip-border)",
-                        }
-                  }
-                >
-                  {item.label}
-                  <span className="text-[10px] opacity-70">{item.count}</span>
-                </button>
-              );
-            })}
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value as FiltroInbox)}
+              className="h-9 px-2.5 rounded-xl text-xs font-bold outline-none"
+              style={{ background: "var(--active-soft-bg)", color: "var(--status-ganho)", border: "1px solid var(--active-soft-border)" }}
+            >
+              {[
+                { id: "todas" as const, label: "Todas", count: conversasAtivas.length },
+                { id: "fila_ia" as const, label: "Fila IA", count: contagemFilaIA },
+                { id: "fila_humana" as const, label: "Fila Humana", count: contagemFilaHumana },
+                { id: "encerradas" as const, label: "Encerradas", count: contagemEncerradas },
+              ].map((item) => (
+                <option key={item.id} value={item.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
+                  {item.label} ({item.count})
+                </option>
+              ))}
+            </select>
+
+            {departamentos.length > 0 && (
+              <select
+                value={departamentoFiltro ?? ""}
+                onChange={(e) => setDepartamentoFiltro(e.target.value || null)}
+                className="h-9 px-2.5 rounded-xl text-xs font-bold outline-none"
+                style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
+              >
+                <option value="" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
+                  Todos deptos ({conversasAtivas.length})
+                </option>
+                {departamentos.map((dep) => (
+                  <option key={dep.id} value={dep.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
+                    {dep.name} ({contagemPorDepartamento.get(dep.id) ?? 0})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
-          {departamentos.length > 0 && (
-            <div className="mt-3 pt-3 space-y-0.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-              <p className="text-[10px] font-bold uppercase tracking-wide mb-1.5 px-1" style={{ color: "var(--text-faint)" }}>
-                Departamentos
-              </p>
-              <button
-                onClick={() => setDepartamentoFiltro(null)}
-                className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                style={{
-                  color: !departamentoFiltro ? "var(--status-ganho)" : "var(--text-secondary)",
-                  background: !departamentoFiltro ? "var(--active-soft-bg)" : "transparent",
-                }}
-              >
-                <span>Todos deptos</span>
-                <span className="opacity-70">{conversasAtivas.length}</span>
-              </button>
-              {departamentos.map((dep) => (
-                <button
-                  key={dep.id}
-                  onClick={() => setDepartamentoFiltro(dep.id)}
-                  className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                  style={{
-                    color: departamentoFiltro === dep.id ? dep.color : "var(--text-secondary)",
-                    background: departamentoFiltro === dep.id ? `${dep.color}14` : "transparent",
-                  }}
-                >
-                  <span className="truncate">{dep.name}</span>
-                  <span className="opacity-70 shrink-0 ml-2">{contagemPorDepartamento.get(dep.id) ?? 0}</span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">

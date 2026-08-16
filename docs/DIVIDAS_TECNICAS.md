@@ -15,13 +15,24 @@ criar/editar, e as rotas de escrita correspondentes em `src/app/api/departments/
 
 ## Permissões diferenciadas por cargo
 
-**Parcialmente resolvido**: `useConversas.ts` agora restringe a visibilidade do Inbox
-por cargo — quem não é `owner`/`gerente` só vê conversas atribuídas a si mesmo ou
+**Parcialmente resolvido**: `useConversas.ts` restringe a visibilidade do Inbox por
+cargo — quem não é `owner`/`gerente` só vê conversas atribuídas a si mesmo ou
 não-atribuídas do próprio departamento (via `agent_departments`), igual a referência.
-Ainda falta: RBAC por módulo (ex: só `financeiro`/`gerente_financeiro` acessarem uma
-futura tela financeira, `marketing`/`gerente_marketing` não mexerem em departamentos)
-— hoje isso é tudo-ou-nada fora do Inbox (qualquer membro autenticado acessa qualquer
-tela do app).
+
+Pra WhatsApp especificamente, a permissão deixou de ser por cargo: existe agora
+`integracao_acessos` (tenant_id, user_id, integracao, acesso_full) — o dono sempre tem
+acesso a tudo, qualquer outra pessoa (independente do cargo) só mexe numa integração se
+tiver essa linha com `acesso_full=true` pra ela. Gerenciável em Configurações → Equipe,
+por membro, num dropdown "Integrações" (`assertIntegrationAccess` em
+`src/lib/auth/guard.ts`). O modelo é genérico por `integracao` (string livre) — quando
+uma integração nova existir (ex: email), só adiciona a chave em
+`INTEGRACOES_COM_ACESSO` (`settings/page.tsx`) e chama `assertIntegrationAccess(tenantId,
+"email")` nas rotas dela, sem migration nova.
+
+Ainda falta: migrar as integrações que já existem hoje (Instagram, Gemini, Resend,
+Webhooks) pra esse mesmo sistema — continuam abertas pra qualquer membro do tenant. E
+RBAC por módulo fora de integrações (ex: só quem tem cargo financeiro acessar uma futura
+tela financeira) continua tudo-ou-nada.
 
 ## Hierarquia gerente → consultor (`manager_id`)
 

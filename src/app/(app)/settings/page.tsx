@@ -1046,18 +1046,27 @@ function PersonaConfig({ tenantId }: { tenantId: string | null }) {
 
 // ─── Manual WA Form ───
 function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onConnected: (phone: string) => void }) {
-  const [open, setOpen] = useState(false); const [form, setForm] = useState({ phone_number_id: "", access_token: "", apelido: "" }); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false);
+  const [open, setOpen] = useState(false); const [form, setForm] = useState({ phone_number_id: "", access_token: "", apelido: "" }); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [error, setError] = useState("");
   async function save() {
-    if (!tenantId || !form.phone_number_id || !form.access_token) return; setSaving(true);
-    await createClient().from("whatsapp_configs").upsert({
-      tenant_id: tenantId,
-      phone_number_id: form.phone_number_id,
-      access_token: form.access_token,
-      apelido: form.apelido || null,
-      verify_token: "3cliques-crm",
-      active: true,
-    }, { onConflict: "phone_number_id" });
-    setSaving(false); setSaved(true); onConnected(form.phone_number_id); setForm({ phone_number_id: "", access_token: "", apelido: "" }); setTimeout(() => setSaved(false), 3000);
+    if (!tenantId || !form.phone_number_id || !form.access_token) return;
+    setSaving(true); setError("");
+    const r = await fetch("/api/whatsapp/numeros", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        phone_number_id: form.phone_number_id,
+        access_token: form.access_token,
+        apelido: form.apelido || null,
+      }),
+    });
+    setSaving(false);
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      setError(d.error ?? "Erro ao salvar");
+      return;
+    }
+    setSaved(true); onConnected(form.phone_number_id); setForm({ phone_number_id: "", access_token: "", apelido: "" }); setTimeout(() => setSaved(false), 3000);
   }
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-subtle)" }}>
@@ -1069,6 +1078,7 @@ function ManualWAForm({ tenantId, onConnected }: { tenantId: string | null; onCo
           <Input value={form.apelido} onChange={e => setForm(f => ({ ...f, apelido: e.target.value }))} placeholder="Apelido (ex: Comercial Nacional, João Vendedor)" className="h-9 rounded-xl text-sm" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }} />
           <Input value={form.phone_number_id} onChange={e => setForm(f => ({ ...f, phone_number_id: e.target.value }))} placeholder="Phone Number ID" className="h-9 rounded-xl text-sm" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }} />
           <Input type="password" value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} placeholder="Access Token" className="h-9 rounded-xl text-sm" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }} />
+          {error && <p className="text-xs font-bold" style={{ color: "#f87171" }}>{error}</p>}
           <div className="flex justify-end"><button onClick={save} disabled={saving || !form.phone_number_id || !form.access_token} className="px-4 h-8 rounded-xl text-xs font-bold" style={{ background: saved ? "var(--primary-bg)" : "var(--primary)", color: saved ? "var(--status-ganho)" : "var(--primary-foreground)" }}>{saving ? "..." : saved ? "Salvo!" : "Salvar"}</button></div>
         </div>
       )}
@@ -1316,16 +1326,36 @@ function TeamSection({ tenantId }: { tenantId: string }) {
 const AVAILABILITY_COLOR: Record<string, string> = { online: "#10B981", away: "#facc15", offline: "#939da4" };
 const AVAILABILITY_LABEL: Record<string, string> = { online: "Disponível", away: "Ausente", offline: "Offline" };
 
+const INTEGRACOES_COM_ACESSO = [{ key: "whatsapp", label: "WhatsApp" }];
+
 function MemberConfig({ member, tenantId }: { member: TeamMemberRow; tenantId: string }) {
   const [departments, setDepartments] = useState<DepartmentRow[]>([]);
   const [selected, setSelected] = useState<string[]>(member.department_ids ?? []);
   const [status, setStatus] = useState(member.availability_status ?? "online");
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
+  const [openIntegracoes, setOpenIntegracoes] = useState(false);
+  const [acessos, setAcessos] = useState<string[]>([]);
 
   useEffect(() => {
     fetch(`/api/departments?tenant_id=${tenantId}`).then(r => r.json()).then(d => setDepartments(d.departments ?? []));
-  }, [tenantId]);
+    fetch(`/api/team/member/integracoes?tenant_id=${tenantId}`).then(r => r.json()).then((d) => {
+      const acessosDoMembro = ((d.acessos ?? []) as Array<{ user_id: string; integracao: string; acesso_full: boolean }>)
+        .filter((a) => a.user_id === member.user_id && a.acesso_full)
+        .map((a) => a.integracao);
+      setAcessos(acessosDoMembro);
+    });
+  }, [tenantId, member.user_id]);
+
+  async function toggleIntegracao(integracao: string) {
+    const novoValor = !acessos.includes(integracao);
+    setAcessos((prev) => (novoValor ? [...prev, integracao] : prev.filter((i) => i !== integracao)));
+    await fetch("/api/team/member/integracoes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, member_user_id: member.user_id, integracao, acesso_full: novoValor }),
+    });
+  }
 
   async function save(newDepartmentIds?: string[], newStatus?: string) {
     setSaving(true);
@@ -1382,6 +1412,26 @@ function MemberConfig({ member, tenantId }: { member: TeamMemberRow; tenantId: s
         <div className="w-1.5 h-1.5 rounded-full" style={{ background: AVAILABILITY_COLOR[status] }} />
         {AVAILABILITY_LABEL[status]}
       </button>
+      {member.role !== "owner" && (
+        <div className="relative">
+          <button onClick={() => setOpenIntegracoes(o => !o)}
+            className="h-7 px-2.5 rounded-lg text-xs font-medium"
+            style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}>
+            {acessos.length === 0 ? "Sem acesso a integrações" : `${acessos.length} integração(ões)`}
+          </button>
+          {openIntegracoes && (
+            <div className="absolute z-10 mt-1 w-64 rounded-xl p-2 space-y-1" style={{ background: "var(--surface-solid)", border: "1px solid var(--border-subtle)" }}>
+              <p className="text-[10px] font-bold uppercase px-2 pt-1" style={{ color: "var(--text-faint)" }}>Acesso full por integração</p>
+              {INTEGRACOES_COM_ACESSO.map((integracao) => (
+                <label key={integracao.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer" style={{ color: "var(--text-primary)" }}>
+                  <input type="checkbox" checked={acessos.includes(integracao.key)} onChange={() => toggleIntegracao(integracao.key)} />
+                  {integracao.label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

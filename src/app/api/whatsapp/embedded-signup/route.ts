@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assertTenantAdmin } from "@/lib/auth/guard";
+import { assertIntegrationAccess } from "@/lib/auth/guard";
 
 const META_APP_ID = "2016623082257479";
 
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   if (!body.code || !body.tenant_id) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-  const auth = await assertTenantAdmin(body.tenant_id);
+  const auth = await assertIntegrationAccess(body.tenant_id, "whatsapp");
   if (!auth.ok) return auth.response;
 
   const tokenRes = await fetch(
@@ -111,7 +111,7 @@ export async function PUT(request: NextRequest) {
   if (!body.tenant_id || !body.phone_number_id || !body.access_token || !body.waba_id) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-  const auth = await assertTenantAdmin(body.tenant_id);
+  const auth = await assertIntegrationAccess(body.tenant_id, "whatsapp");
   if (!auth.ok) return auth.response;
 
   await auth.admin.from("whatsapp_configs").upsert({
@@ -121,7 +121,7 @@ export async function PUT(request: NextRequest) {
     access_token: body.access_token,
     verify_token: "3cliques-crm",
     active: true,
-  }, { onConflict: "tenant_id" });
+  }, { onConflict: "phone_number_id" });
 
   return NextResponse.json({ status: "connected" });
 }
@@ -129,7 +129,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const body = (await request.json()) as { tenant_id?: string; phone_number_id?: string };
   if (!body.tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
-  const auth = await assertTenantAdmin(body.tenant_id);
+  const auth = await assertIntegrationAccess(body.tenant_id, "whatsapp");
   if (!auth.ok) return auth.response;
 
   if (body.phone_number_id) {

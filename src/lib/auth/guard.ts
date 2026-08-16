@@ -79,3 +79,34 @@ export async function assertTenantAdmin(
   }
   return result;
 }
+
+/**
+ * Igual a assertTenantMember, mas exige acesso liberado a uma integracao
+ * especifica (ex: "whatsapp"). Nao e por cargo - o dono sempre tem acesso a
+ * tudo, qualquer outra pessoa (independente do cargo) so passa se tiver uma
+ * linha em integracao_acessos com acesso_full=true pra essa integracao.
+ * Cada integracao nova (email, etc) so precisa passar sua propria chave
+ * aqui - nao precisa de migration nem de mexer nesta funcao.
+ */
+export async function assertIntegrationAccess(
+  tenantId: string | null | undefined,
+  integracao: string,
+): Promise<Guard<{ user: User; role: string; admin: Admin }>> {
+  const result = await assertTenantMember(tenantId);
+  if (!result.ok) return result;
+  if (result.role === "owner") return result;
+
+  const { data } = await result.admin
+    .from("integracao_acessos")
+    .select("acesso_full")
+    .eq("tenant_id", tenantId as string)
+    .eq("user_id", result.user.id)
+    .eq("integracao", integracao)
+    .maybeSingle();
+
+  const row = data as { acesso_full?: boolean } | null;
+  if (!row?.acesso_full) {
+    return { ok: false, response: forbidden("Sem acesso a esta integracao") };
+  }
+  return result;
+}

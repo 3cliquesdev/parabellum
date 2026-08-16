@@ -251,20 +251,48 @@ export async function POST(request: NextRequest) {
           .maybeSingle();
         etapaGanhoId = (etapaGanho as { id: string } | null)?.id ?? etapaId;
       }
-      const assignedTo = pipelineId ? await escolherVendedorMenosCarregado(admin, pipelineId) : null;
+      // Todo lead ja nasce com um negocio "aberto" no pipeline padrao (ver
+      // resolveLead em lib/inbox/service.ts) - move esse negocio existente pra
+      // Ganho em vez de criar um segundo card duplicado pro mesmo lead.
+      const { data: negocioExistente } = await admin
+        .from("negocios")
+        .select("id, assigned_to")
+        .eq("lead_id", leadId)
+        .eq("estagio", "aberto")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-      await admin.from("negocios").insert({
-        tenant_id: tenantId,
-        lead_id: leadId,
-        titulo: produtoNome,
-        valor,
-        canal: "kiwify",
-        estagio: "ganho",
-        origem: "kiwify_auto",
-        pipeline_id: pipelineId,
-        pipeline_etapa_id: etapaGanhoId,
-        assigned_to: assignedTo,
-      });
+      const negocioInfo = negocioExistente as { id: string; assigned_to: string | null } | null;
+      const assignedTo = negocioInfo?.assigned_to ?? (pipelineId ? await escolherVendedorMenosCarregado(admin, pipelineId) : null);
+
+      if (negocioInfo) {
+        await admin.from("negocios").update({
+          titulo: produtoNome,
+          valor,
+          canal: "kiwify",
+          estagio: "ganho",
+          origem: "kiwify_auto",
+          pipeline_id: pipelineId,
+          pipeline_etapa_id: etapaGanhoId,
+          assigned_to: assignedTo,
+          closed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", negocioInfo.id);
+      } else {
+        await admin.from("negocios").insert({
+          tenant_id: tenantId,
+          lead_id: leadId,
+          titulo: produtoNome,
+          valor,
+          canal: "kiwify",
+          estagio: "ganho",
+          origem: "kiwify_auto",
+          pipeline_id: pipelineId,
+          pipeline_etapa_id: etapaGanhoId,
+          assigned_to: assignedTo,
+        });
+      }
       await admin.from("leads").update({ status: "ganho", valor_estimado: valor }).eq("id", leadId);
     }
   }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LooseDatabase } from "@/types/database";
 import { getLeadDirectIdentity, normalizeChannelIdentity, type InboxExternalCanal } from "@/lib/inbox/channels";
+import { resolvePipelinePadrao } from "@/lib/negocios/pipeline-padrao";
 
 type AdminClient = SupabaseClient<LooseDatabase>;
 
@@ -290,6 +291,23 @@ async function resolveLead(
     await supabase.from("leads").delete().eq("id", newLead.id);
     const winner = await loadLeadByIdentity(supabase, tenantId, primaryIdentity);
     if (winner) return winner;
+  } else {
+    // Todo lead novo ja nasce como oportunidade no pipeline padrao, etapa
+    // "Novo" - unifica o Kanban de Negocios como fonte unica (antes so
+    // clientes pagos da Kiwify ganhavam negocio automatico).
+    const { pipelineId, etapaId } = await resolvePipelinePadrao(supabase, tenantId);
+    if (pipelineId) {
+      await supabase.from("negocios").insert({
+        tenant_id: tenantId,
+        lead_id: newLead.id,
+        titulo: newLead.nome,
+        canal: primaryIdentity.canal,
+        origem: leadInput?.origem ?? primaryIdentity.canal,
+        estagio: "aberto",
+        pipeline_id: pipelineId,
+        pipeline_etapa_id: etapaId,
+      });
+    }
   }
 
   return newLead;

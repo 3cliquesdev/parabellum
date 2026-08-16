@@ -213,6 +213,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // eh_cliente tambem era setado so por um trigger no banco (AFTER INSERT OR
+  // UPDATE OF status em vendas) - um reassign de lead_id (ex: merge de leads
+  // duplicados) nao dispara esse trigger, entao um lead podia ficar com uma
+  // venda paga vinculada e mesmo assim eh_cliente=false pra sempre (bug real
+  // encontrado). Setar direto aqui a cada evento pago remove essa dependencia.
+  if (status === "pago" && leadId) {
+    await admin.from("leads").update({ eh_cliente: true }).eq("id", leadId).eq("eh_cliente", false);
+  }
+
   // Cliente novo (primeira venda paga, nao renovacao/recompra) vira
   // oportunidade automatica no Pipeline, ja fechada como "ganho" - ele ja
   // pagou, nao precisa passar pelo funil manual. Renovacao ou recompra de

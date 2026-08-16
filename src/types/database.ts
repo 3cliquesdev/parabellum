@@ -103,6 +103,7 @@ export interface Lead {
   observacoes: string | null;
   valor_estimado: number | null;
   eh_cliente?: boolean;
+  origem_lead?: string | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;

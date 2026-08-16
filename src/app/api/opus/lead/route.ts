@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
       status: "qualificado",
       utm_source: "opus_landing",
       utm_medium: "organic",
+      origem_lead: "formulario",
     });
 
     if (error) {

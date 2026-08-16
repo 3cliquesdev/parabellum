@@ -15,6 +15,18 @@ const SITUACAO_PAGAMENTO_LABEL: Record<string, { label: string; color: string; b
   aguardando_pagamento: { label: "Aguardando pagamento", color: "#a16207", bg: "rgba(161,98,7,0.12)" },
 };
 
+const ORIGEM_LEAD_LABEL: Record<string, { label: string; color: string }> = {
+  kiwify: { label: "Kiwify", color: "#0ea5e9" },
+  whatsapp: { label: "WhatsApp", color: "#25D366" },
+  webchat: { label: "Chat do site", color: "#9aea62" },
+  instagram: { label: "Instagram", color: "#E1306C" },
+  telegram: { label: "Telegram", color: "#229ED9" },
+  email: { label: "E-mail", color: "#60a5fa" },
+  facebook_messenger: { label: "Messenger", color: "#0084FF" },
+  formulario: { label: "Formulário", color: "#a78bfa" },
+  manual: { label: "Manual", color: "#939da4" },
+};
+
 export function LeadCard({ lead, onClick }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
@@ -56,9 +68,16 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       )}
 
       <div className="flex items-center justify-between mt-2">
-        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
-          style={{ background: "var(--accent)", color: "var(--status-ganho)" }}>
-          {lead.nome.charAt(0).toUpperCase()}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+            style={{ background: "var(--accent)", color: "var(--status-ganho)" }}>
+            {lead.nome.charAt(0).toUpperCase()}
+          </div>
+          {lead.origem_lead && ORIGEM_LEAD_LABEL[lead.origem_lead] && (
+            <span className="text-[10px] font-semibold truncate" style={{ color: ORIGEM_LEAD_LABEL[lead.origem_lead].color }}>
+              {ORIGEM_LEAD_LABEL[lead.origem_lead].label}
+            </span>
+          )}
         </div>
         {lead.valor_estimado ? (
           <span className="text-xs font-bold" style={{ color: "var(--status-ganho)" }}>

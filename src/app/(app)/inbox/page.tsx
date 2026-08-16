@@ -174,14 +174,17 @@ function MediaContent({ msg, tone }: { msg: Mensagem; tone: "lead" | "humano" | 
 }
 
 function NavRow({ ativo, cor, label, count, title, onClick }: { ativo: boolean; cor?: string; label: string; count: number; title?: string; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <button
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       title={title}
       className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-left"
       style={{
         color: ativo ? (cor ?? "var(--status-ganho)") : "var(--text-secondary)",
-        background: ativo ? (cor ? `${cor}14` : "var(--active-soft-bg)") : "transparent",
+        background: ativo ? (cor ? `${cor}14` : "var(--active-soft-bg)") : hovered ? "var(--surface-hover)" : "transparent",
       }}
     >
       <span className="truncate">{label}</span>
@@ -191,12 +194,18 @@ function NavRow({ ativo, cor, label, count, title, onClick }: { ativo: boolean; 
 }
 
 function SecaoAccordion({ titulo, aberta, onToggle, children }: { titulo: string; aberta: boolean; onToggle: () => void; children: React.ReactNode }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between gap-2 px-2 mb-1 text-[10px] font-bold uppercase tracking-wide"
-        style={{ color: "var(--text-faint)" }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className="w-full flex items-center justify-between gap-2 px-2 py-1 mb-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all"
+        style={{
+          color: aberta ? "var(--status-ganho)" : hovered ? "var(--text-secondary)" : "var(--text-faint)",
+          background: hovered ? "var(--surface-hover)" : "transparent",
+        }}
       >
         {titulo}
         {aberta ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
@@ -417,6 +426,19 @@ export default function InboxPage() {
   const [transferindo, setTransferindo] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const isCompact = useIsCompact();
+  const headerActionsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function fecharAoClicarFora(event: MouseEvent) {
+      if (headerActionsRef.current && !headerActionsRef.current.contains(event.target as Node)) {
+        setShowTransferirMenu(false);
+        setShowResolverMenu(false);
+        setShowMoreMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", fecharAoClicarFora);
+    return () => document.removeEventListener("mousedown", fecharAoClicarFora);
+  }, []);
 
   async function transferirConversa(conversa: ConversaWithLead) {
     if (!departamentoEscolhido || !tenantId) return;
@@ -505,35 +527,41 @@ export default function InboxPage() {
           {departamentos.length > 0 && (
             <SecaoAccordion titulo="Departamentos" aberta={!!secoesAbertas.departamentos} onToggle={() => toggleSecao("departamentos")}>
               <NavRow ativo={!departamentoFiltro} label="Todos deptos" count={conversasAtivas.length} onClick={() => setDepartamentoFiltro(null)} />
-              {departamentos.map((dep) => (
-                <NavRow key={dep.id} ativo={departamentoFiltro === dep.id} cor={safeColor(dep.color)} label={dep.name} count={contagemPorDepartamento.get(dep.id) ?? 0} onClick={() => setDepartamentoFiltro(dep.id)} />
-              ))}
+              <div className="max-h-64 overflow-y-auto pr-1">
+                {departamentos.map((dep) => (
+                  <NavRow key={dep.id} ativo={departamentoFiltro === dep.id} cor={safeColor(dep.color)} label={dep.name} count={contagemPorDepartamento.get(dep.id) ?? 0} onClick={() => setDepartamentoFiltro(dep.id)} />
+                ))}
+              </div>
             </SecaoAccordion>
           )}
 
           {tags.length > 0 && (
             <SecaoAccordion titulo="Tags" aberta={!!secoesAbertas.tags} onToggle={() => toggleSecao("tags")}>
               <NavRow ativo={!tagFiltro} label="Todas as tags" count={conversasAtivas.length} onClick={() => setTagFiltro(null)} />
-              {tags.map((tag) => (
-                <NavRow key={tag.id} ativo={tagFiltro === tag.id} cor={safeColor(tag.cor)} label={tag.nome} count={contagemPorTag.get(tag.id) ?? 0} onClick={() => setTagFiltro(tag.id)} />
-              ))}
+              <div className="max-h-64 overflow-y-auto pr-1">
+                {tags.map((tag) => (
+                  <NavRow key={tag.id} ativo={tagFiltro === tag.id} cor={safeColor(tag.cor)} label={tag.nome} count={contagemPorTag.get(tag.id) ?? 0} onClick={() => setTagFiltro(tag.id)} />
+                ))}
+              </div>
             </SecaoAccordion>
           )}
 
           {equipe.length > 0 && (
             <SecaoAccordion titulo="Por atendente" aberta={!!secoesAbertas.atendentes} onToggle={() => toggleSecao("atendentes")}>
               <NavRow ativo={!atendenteFiltro} label="Todos atendentes" count={conversasAtivas.length} onClick={() => setAtendenteFiltro(null)} />
-              {equipe.map((membro) => (
-                <NavRow
-                  key={membro.id}
-                  ativo={atendenteFiltro === membro.user_id}
-                  cor={membro.availability_status === "online" ? "var(--badge-green-fg)" : membro.availability_status === "away" ? "var(--badge-yellow-fg)" : undefined}
-                  label={membro.email ?? membro.user_id ?? "?"}
-                  title={AVAILABILITY_LABEL[membro.availability_status ?? "offline"] ?? membro.availability_status ?? undefined}
-                  count={contagemPorAtendente.get(membro.user_id ?? "") ?? 0}
-                  onClick={() => setAtendenteFiltro(membro.user_id ?? null)}
-                />
-              ))}
+              <div className="max-h-64 overflow-y-auto pr-1">
+                {equipe.map((membro) => (
+                  <NavRow
+                    key={membro.id}
+                    ativo={atendenteFiltro === membro.user_id}
+                    cor={membro.availability_status === "online" ? "var(--badge-green-fg)" : membro.availability_status === "away" ? "var(--badge-yellow-fg)" : undefined}
+                    label={membro.email ?? membro.user_id ?? "?"}
+                    title={AVAILABILITY_LABEL[membro.availability_status ?? "offline"] ?? membro.availability_status ?? undefined}
+                    count={contagemPorAtendente.get(membro.user_id ?? "") ?? 0}
+                    onClick={() => setAtendenteFiltro(membro.user_id ?? null)}
+                  />
+                ))}
+              </div>
             </SecaoAccordion>
           )}
         </div>
@@ -684,10 +712,10 @@ export default function InboxPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 relative">
+            <div ref={headerActionsRef} className="flex items-center gap-2 shrink-0 relative">
               <button
                 onClick={() => toggleIA(selected)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${selected.ia_ativa ? "" : "inbox-ghost-btn"}`}
                 style={
                   selected.ia_ativa
                     ? {
@@ -707,7 +735,7 @@ export default function InboxPage() {
                   href={`/api/conversas/${selected.id}/export?tenant_id=${tenantId}`}
                   download
                   title="Baixar conversa (.txt)"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  className="inbox-ghost-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
                   style={inboxGhostButtonStyle}
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -718,7 +746,7 @@ export default function InboxPage() {
               {!isCompact && selected.status !== "resolvido" && selected.assigned_to !== myUserId && (
                 <button
                   onClick={() => assumirConversa(selected)}
-                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  className="inbox-ghost-btn px-3 py-2 rounded-xl text-xs font-bold transition-all"
                   style={inboxGhostButtonStyle}
                 >
                   Assumir
@@ -728,7 +756,7 @@ export default function InboxPage() {
               {!isCompact && (
                 <button
                   onClick={() => setCriarNegocioTick((v) => v + 1)}
-                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  className="inbox-ghost-btn px-3 py-2 rounded-xl text-xs font-bold transition-all"
                   style={inboxGhostButtonStyle}
                 >
                   Negócio
@@ -738,7 +766,7 @@ export default function InboxPage() {
               {!isCompact && selected.status !== "resolvido" && (
                 <button
                   onClick={() => setShowTransferirMenu((v) => !v)}
-                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  className="inbox-ghost-btn px-3 py-2 rounded-xl text-xs font-bold transition-all"
                   style={inboxGhostButtonStyle}
                 >
                   Transferir
@@ -749,7 +777,7 @@ export default function InboxPage() {
                 <button
                   onClick={() => setShowMoreMenu((v) => !v)}
                   title="Mais ações"
-                  className="w-9 h-9 flex items-center justify-center rounded-xl text-xs font-bold transition-all"
+                  className="inbox-ghost-btn w-9 h-9 flex items-center justify-center rounded-xl text-xs font-bold transition-all"
                   style={inboxGhostButtonStyle}
                 >
                   <MoreVertical className="w-4 h-4" />
@@ -763,7 +791,7 @@ export default function InboxPage() {
                       href={`/api/conversas/${selected.id}/export?tenant_id=${tenantId}`}
                       download
                       onClick={() => setShowMoreMenu(false)}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold"
+                      className="inbox-menu-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all"
                       style={{ color: "var(--text-primary)" }}
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -776,7 +804,7 @@ export default function InboxPage() {
                         setShowMoreMenu(false);
                         assumirConversa(selected);
                       }}
-                      className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold"
+                      className="inbox-menu-item w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all"
                       style={{ color: "var(--text-primary)" }}
                     >
                       Assumir
@@ -787,7 +815,7 @@ export default function InboxPage() {
                       setShowMoreMenu(false);
                       setCriarNegocioTick((v) => v + 1);
                     }}
-                    className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold"
+                    className="inbox-menu-item w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all"
                     style={{ color: "var(--text-primary)" }}
                   >
                     Negócio
@@ -798,7 +826,7 @@ export default function InboxPage() {
                         setShowMoreMenu(false);
                         setShowTransferirMenu((v) => !v);
                       }}
-                      className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold"
+                      className="inbox-menu-item w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all"
                       style={{ color: "var(--text-primary)" }}
                     >
                       Transferir
@@ -822,7 +850,7 @@ export default function InboxPage() {
                     ))}
                   </select>
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowTransferirMenu(false)} className="px-3 h-8 rounded-lg text-xs" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
+                    <button onClick={() => setShowTransferirMenu(false)} className="inbox-ghost-btn px-3 h-8 rounded-lg text-xs transition-all" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
                     <button
                       onClick={() => transferirConversa(selected)}
                       disabled={!departamentoEscolhido || transferindo}
@@ -845,7 +873,7 @@ export default function InboxPage() {
                     if (selected.tags.length > 0) setTagEscolhida(selected.tags[0].nome);
                     setShowResolverMenu((v) => !v);
                   }}
-                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  className="inbox-ghost-btn px-3 py-2 rounded-xl text-xs font-bold transition-all"
                   style={inboxGhostButtonStyle}
                 >
                   Marcar como resolvido
@@ -867,7 +895,7 @@ export default function InboxPage() {
                     ))}
                   </select>
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowResolverMenu(false)} className="px-3 h-8 rounded-lg text-xs" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
+                    <button onClick={() => setShowResolverMenu(false)} className="inbox-ghost-btn px-3 h-8 rounded-lg text-xs transition-all" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
                     <button
                       onClick={() => marcarComoResolvido(selected)}
                       disabled={!tagEscolhida || resolvendo}

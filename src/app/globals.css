@@ -361,6 +361,17 @@ html.light main.crm-main .react-flow__attribution {
   color: #939da4;
 }
 
+.inbox-ghost-btn:hover {
+  background: var(--ghost-hover) !important;
+}
+.inbox-ghost-btn:active {
+  transform: scale(0.97);
+}
+
+.inbox-menu-item:hover {
+  background: var(--surface-hover) !important;
+}
+
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }

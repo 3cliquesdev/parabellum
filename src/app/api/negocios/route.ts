@@ -4,6 +4,7 @@ import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
 interface CreateNegocioBody {
   tenant_id?: string;
   lead_id?: string;
+  conversa_id?: string;
   titulo?: string;
   valor?: number | null;
   estagio?: "aberto" | "ganho" | "perdido";
@@ -52,11 +53,24 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
   if (!lead) return NextResponse.json({ error: "lead nao encontrado" }, { status: 404 });
 
+  let canal: string | null = null;
+  if (body.conversa_id) {
+    const { data: conversa } = await auth.admin
+      .from("conversas")
+      .select("canal")
+      .eq("id", body.conversa_id)
+      .eq("tenant_id", tenant_id)
+      .maybeSingle();
+    canal = (conversa as { canal?: string } | null)?.canal ?? null;
+  }
+
   const { data, error } = await auth.admin
     .from("negocios")
     .insert({
       tenant_id,
       lead_id,
+      conversa_id: body.conversa_id ?? null,
+      canal,
       titulo,
       valor: body.valor ?? null,
       estagio: body.estagio ?? "aberto",
@@ -67,5 +81,10 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (body.valor != null) {
+    await auth.admin.from("leads").update({ valor_estimado: body.valor }).eq("id", lead_id);
+  }
+
   return NextResponse.json({ negocio: data });
 }

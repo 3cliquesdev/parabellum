@@ -75,10 +75,17 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
   const [loading, setLoading] = useState(true);
   const [novoNegocio, setNovoNegocio] = useState<{ titulo: string; valor: string } | null>(null);
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
+  const [erroNegocio, setErroNegocio] = useState<string | null>(null);
 
   async function carregarNegocios() {
     const res = await fetch(`/api/negocios?tenant_id=${tenantId}&lead_id=${conversa.lead_id}`);
     if (res.ok) setNegocios((await res.json()).negocios ?? []);
+  }
+
+  async function carregarLead() {
+    const supabase = createClient();
+    const { data } = await supabase.from("leads").select("*").eq("id", conversa.lead_id).single();
+    setLead((data as unknown as Lead) ?? null);
   }
 
   useEffect(() => {
@@ -111,19 +118,26 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
   async function criarNegocio() {
     if (!novoNegocio?.titulo.trim()) return;
     setSalvandoNegocio(true);
-    await fetch("/api/negocios", {
+    setErroNegocio(null);
+    const res = await fetch("/api/negocios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tenant_id: tenantId,
         lead_id: conversa.lead_id,
+        conversa_id: conversa.id,
         titulo: novoNegocio.titulo.trim(),
         valor: novoNegocio.valor ? Number(novoNegocio.valor) : null,
       }),
     });
     setSalvandoNegocio(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setErroNegocio(err.error ?? "Erro ao criar negócio");
+      return;
+    }
     setNovoNegocio(null);
-    await carregarNegocios();
+    await Promise.all([carregarNegocios(), carregarLead()]);
   }
 
   useEffect(() => {
@@ -257,7 +271,7 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
                 <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>Negócios</p>
                 {!novoNegocio && (
                   <button
-                    onClick={() => setNovoNegocio({ titulo: "", valor: "" })}
+                    onClick={() => { setErroNegocio(null); setNovoNegocio({ titulo: "", valor: "" }); }}
                     className="text-[11px] font-bold px-2 py-1 rounded-lg"
                     style={{ background: "var(--primary-bg)", color: "var(--status-ganho)" }}
                   >
@@ -268,6 +282,9 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
 
               {novoNegocio && (
                 <div className="rounded-lg p-2.5 space-y-2 mb-2" style={{ background: "var(--surface-panel)", border: "1px solid var(--border-subtle)" }}>
+                  {erroNegocio && (
+                    <p className="text-[11px] font-semibold" style={{ color: "#dc2626" }}>{erroNegocio}</p>
+                  )}
                   <input
                     value={novoNegocio.titulo}
                     onChange={(e) => setNovoNegocio({ ...novoNegocio, titulo: e.target.value })}
@@ -283,7 +300,7 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
                     style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
                   />
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => setNovoNegocio(null)} className="px-2.5 h-7 rounded-lg text-[11px]" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
+                    <button onClick={() => { setNovoNegocio(null); setErroNegocio(null); }} className="px-2.5 h-7 rounded-lg text-[11px]" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
                     <button
                       onClick={criarNegocio}
                       disabled={!novoNegocio.titulo.trim() || salvandoNegocio}

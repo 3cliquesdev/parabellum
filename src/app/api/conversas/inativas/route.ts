@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
   }
 
   const limite = new Date(Date.now() - config.auto_close_inatividade_minutos * 60 * 1000).toISOString();
-
+  // Cooldown pra re-tentar em vez de excluir pra sempre: se o disparo anterior
+  // nao fechou a conversa (ex: IA nao chamou a ferramenta), o timeout fica
+  // "velho" e a conversa volta a ser elegivel, ao inves de travar com
+  // timeout_disparado_em preenchido e nunca mais ser reavaliada.
   const { data, error } = await auth.admin
     .from("conversas")
     .select("id, lead_id, ia_ultimo_departamento")
@@ -35,7 +38,7 @@ export async function GET(request: NextRequest) {
     .eq("status", "ativo")
     .eq("ia_ativa", true)
     .eq("aguardando_csat", false)
-    .is("timeout_disparado_em", null)
+    .or(`timeout_disparado_em.is.null,timeout_disparado_em.lt.${limite}`)
     .not("ultima_resposta_ia_em", "is", null)
     .lt("ultima_resposta_ia_em", limite)
     .limit(20);

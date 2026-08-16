@@ -7,6 +7,7 @@ interface ResolverBody {
   tag_nome?: string;
   resolvido_por?: "ia" | "humano";
   enviar_csat?: boolean;
+  ignorar_confirmacao?: boolean;
 }
 
 const NAO_CONFIRMACAO_RE = /\?|^\s*(obrigad[ao]|valeu|vlw|blz|beleza|ok|de nada)\s*!?\.?\s*$/i;
@@ -16,7 +17,7 @@ const CSAT_MENSAGEM = "Antes de encerrar, avalie nosso atendimento de 1 a 5 (1 =
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: conversaId } = await params;
   const body = (await request.json().catch(() => ({}))) as ResolverBody;
-  const { tenant_id, tag_nome, enviar_csat = true } = body;
+  const { tenant_id, tag_nome, enviar_csat = true, ignorar_confirmacao = false } = body;
   const resolvidoPor = body.resolvido_por === "humano" ? "humano" : "ia";
 
   if (!tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
@@ -43,7 +44,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const tagRow = tag as { id: string } | null;
   if (!tagRow) return NextResponse.json({ error: `tag_nome '${tag_nome}' nao existe para este tenant` }, { status: 400 });
 
-  if (resolvidoPor === "ia") {
+  // Encerramento automatico por inatividade nao tem "confirmacao do cliente"
+  // pra checar - a ultima mensagem dele e so o que disse antes de sumir (pode
+  // ate ser uma pergunta). Só a IA respondendo a um "obrigado"/pergunta nova
+  // com base numa confirmacao explicita deve passar por essa trava.
+  if (resolvidoPor === "ia" && !ignorar_confirmacao) {
     const { data: ultimaMensagem } = await auth.admin
       .from("mensagens")
       .select("conteudo")

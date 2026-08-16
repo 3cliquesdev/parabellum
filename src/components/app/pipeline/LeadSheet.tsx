@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Phone, MessageSquare, Mail, Clock, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Phone, MessageSquare, Mail, Clock, History, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Lead, LeadStatus } from "@/types/database";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LeadTimeline, type TimelineEvent } from "@/components/app/LeadTimeline";
 
 const STATUS_OPTIONS: { value: LeadStatus; label: string }[] = [
   { value: "novo", label: "Novo" },
@@ -41,6 +42,8 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
   const [atividades, setAtividades] = useState<Array<{ id: string; tipo: string; titulo: string; descricao: string | null; created_at: string }>>([]);
   const [showAddAtiv, setShowAddAtiv] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
+  const [showTimeline, setShowTimeline] = useState(true);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [savingAtiv, setSavingAtiv] = useState(false);
   const [newAtiv, setNewAtiv] = useState({ tipo: "ligacao", titulo: "", descricao: "" });
   const [form, setForm] = useState({
@@ -61,6 +64,11 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
       .order("created_at", { ascending: false })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(({ data }: { data: any }) => setAtividades(data ?? []));
+
+    fetch(`/api/leads/${lead.id}/timeline`)
+      .then((res) => (res.ok ? res.json() : { events: [] }))
+      .then((d) => setTimelineEvents(d.events ?? []))
+      .catch(() => setTimelineEvents([]));
   }, [lead.id]);
 
   async function saveAtividade() {
@@ -184,7 +192,25 @@ export function LeadSheet({ lead, onClose, onUpdated, tenantId }: LeadSheetProps
               style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }} />
           </div>
 
-          {/* ── HISTÓRICO / TIMELINE ── */}
+          {/* ── TIMELINE (mensagens, negócios, vendas, tickets, devoluções) ── */}
+          <div className="pt-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+            <button className="w-full flex items-center justify-between py-2 text-left"
+              onClick={() => setShowTimeline(t => !t)}>
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                <History className="inline w-3 h-3 mr-1.5 mb-0.5" />Timeline
+              </span>
+              {showTimeline
+                ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--text-secondary)" }} />
+                : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--text-secondary)" }} />}
+            </button>
+            {showTimeline && (
+              <div className="mt-1">
+                <LeadTimeline events={timelineEvents} tenantId={tenantId} />
+              </div>
+            )}
+          </div>
+
+          {/* ── HISTÓRICO / ATIVIDADES MANUAIS ── */}
           <div className="pt-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
             <button className="w-full flex items-center justify-between py-2 text-left"
               onClick={() => setShowHistory(h => !h)}>

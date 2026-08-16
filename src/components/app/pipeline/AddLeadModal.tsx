@@ -57,15 +57,31 @@ export function AddLeadModal({ tenantId, onClose, onCreated }: AddLeadModalProps
     setLoading(true);
     try {
       const supabase = createClient();
+      const whatsapp = form.whatsapp ? form.whatsapp.replace(/\D/g, "") : null;
+      const email = form.email || null;
+
+      if (whatsapp || email) {
+        let dupQuery = supabase.from("leads").select("id, nome").eq("tenant_id", tenantId).limit(1);
+        dupQuery = email
+          ? dupQuery.or(`email.ilike.${email},whatsapp.ilike.%${whatsapp ?? ""}%`)
+          : dupQuery.ilike("whatsapp", `%${whatsapp}%`);
+        const { data: possivelDuplicado } = await dupQuery.maybeSingle();
+        if (possivelDuplicado) {
+          const seguir = window.confirm(`Já existe um lead com esse WhatsApp/e-mail ("${(possivelDuplicado as { nome: string }).nome}"). Criar mesmo assim?`);
+          if (!seguir) { setLoading(false); return; }
+        }
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from("leads") as any).insert({
         tenant_id: tenantId,
         nome: form.nome,
-        whatsapp: form.whatsapp ? form.whatsapp.replace(/\D/g, "") : null,
-        email: form.email || null,
+        whatsapp,
+        email,
         servico_interesse: form.servico_interesse || null,
         valor_estimado: parseCurrency(form.valor_display),
         status: form.status,
+        origem_lead: "manual",
       });
       if (error) { alert(`Erro: ${error.message}`); setLoading(false); return; }
       onCreated();

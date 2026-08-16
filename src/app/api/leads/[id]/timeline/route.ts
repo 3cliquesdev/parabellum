@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/auth/guard";
 import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
 
 interface TimelineEvent {
-  tipo: "status" | "mensagem" | "atividade" | "ticket" | "venda" | "devolucao" | "conversa_encerrada";
+  tipo: "status" | "mensagem" | "atividade" | "ticket" | "venda" | "devolucao" | "conversa_encerrada" | "negocio_criado";
   data: string;
   titulo: string;
   detalhe: string | null;
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!auth.ok) return auth.response;
   const admin = auth.admin;
 
-  const [statusHistory, mensagens, atividades, tickets, vendas, devolucoes, conversasEncerradas] = await Promise.all([
+  const [statusHistory, mensagens, atividades, tickets, vendas, devolucoes, conversasEncerradas, negocios] = await Promise.all([
     admin.from("lead_status_history").select("status_de, status_para, created_at").eq("lead_id", leadId).order("created_at"),
     admin.from("mensagens").select("remetente, conteudo, created_at, conversa_id, conversas!inner(canal, lead_id)").eq("conversas.lead_id", leadId).order("created_at"),
     admin.from("atividades").select("tipo, titulo, descricao, created_at").eq("lead_id", leadId).order("created_at"),
@@ -38,6 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .eq("status", "resolvido")
       .not("resolvido_em", "is", null)
       .order("resolvido_em"),
+    admin.from("negocios").select("titulo, valor, canal, estagio, created_at").eq("lead_id", leadId).order("created_at"),
   ]);
 
   const events: TimelineEvent[] = [];
@@ -112,6 +113,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       titulo: `Conversa encerrada (${row.canal}, protocolo #${String(row.protocolo).padStart(4, "0")})`,
       detalhe: `Encerrada por ${row.resolvido_por === "ia" ? "IA" : "atendente"}${tagNomes.length > 0 ? ` — ${tagNomes.join(", ")}` : ""}`,
       conversa_id: row.id,
+    });
+  }
+
+  for (const row of (negocios.data ?? []) as { titulo: string; valor: number | null; canal: string | null; estagio: string; created_at: string }[]) {
+    events.push({
+      tipo: "negocio_criado",
+      data: row.created_at,
+      titulo: `Negócio: ${row.titulo}`,
+      detalhe: `${row.valor != null ? `R$ ${row.valor}` : "Sem valor"}${row.canal ? ` — via ${row.canal}` : ""} — ${row.estagio}`,
     });
   }
 

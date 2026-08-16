@@ -11,6 +11,7 @@ interface WebchatMessageBody {
   visitor_id?: string;
   nome?: string;
   mensagem?: string;
+  origem?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     tenantId: tenant_id,
     canal: "webchat",
     identity: { canal: "webchat", value: visitor_id, externalId: visitor_id },
-    lead: { name: body.nome ?? "Visitante do site" },
+    lead: { name: body.nome ?? "Visitante do site", origem: body.origem || "webchat" },
     message: { text: mensagem },
   });
 

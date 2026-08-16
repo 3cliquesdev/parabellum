@@ -25,15 +25,6 @@ type ConversationRow = {
   aguardando_csat?: boolean;
 };
 
-type IdentityRow = {
-  id: string;
-  lead_id: string;
-  canal: InboxExternalCanal;
-  valor: string | null;
-  valor_normalizado: string | null;
-  external_id: string | null;
-};
-
 export type InboxMessageMediaType =
   | "image"
   | "audio"
@@ -48,10 +39,25 @@ export interface InboxIdentityInput {
   externalId?: string | null;
 }
 
+export interface InboxLeadExtraFields {
+  cpf?: string | null;
+  enderecoRua?: string | null;
+  enderecoNumero?: string | null;
+  enderecoComplemento?: string | null;
+  enderecoBairro?: string | null;
+  enderecoCidade?: string | null;
+  enderecoEstado?: string | null;
+  enderecoCep?: string | null;
+}
+
 export interface InboxLeadInput {
   id?: string | null;
   name?: string | null;
   identities?: InboxIdentityInput[];
+  // Canal real de aquisicao do lead (ex: "kiwify"), gravado so na criacao. Se
+  // omitido, usa o canal da identidade primaria (comportamento anterior).
+  origem?: string | null;
+  extra?: InboxLeadExtraFields;
 }
 
 export interface InboxMessageInput {
@@ -183,6 +189,51 @@ async function findLeadByKiwifyPhone(supabase: AdminClient, tenantId: string, id
   return loadLeadById(supabase, tenantId, match.lead_id);
 }
 
+async function findLeadByCpf(supabase: AdminClient, tenantId: string, cpf: string | null | undefined) {
+  if (!cpf) return null;
+  const normalized = cpf.replace(/\D/g, "");
+  if (!normalized) return null;
+
+  const { data } = await supabase
+    .from("leads")
+    .select("id, tenant_id, nome, whatsapp, email, instagram, status")
+    .eq("tenant_id", tenantId)
+    .eq("cpf", normalized)
+    .maybeSingle();
+
+  return (data as unknown as LeadRow | null) ?? null;
+}
+
+// Reivindica a identidade primaria de um lead recem-criado de forma atomica,
+// usando o indice unico (tenant_id, canal, valor_normalizado) de
+// lead_identities como arbitro. Sem isso, dois webhooks quase simultaneos
+// (ex: cartao recusado + nova tentativa, comum na Kiwify) passam os dois pelo
+// SELECT de "ja existe?" antes de qualquer um commitar o INSERT, e cada um
+// cria um lead duplicado (confirmado em producao: leads com o mesmo email
+// criados a menos de 1.1s de diferenca).
+async function claimPrimaryIdentity(
+  supabase: AdminClient,
+  tenantId: string,
+  leadId: string,
+  identity: InboxIdentityInput,
+): Promise<boolean> {
+  const normalizedValue = normalizeChannelIdentity(identity.canal, identity.value);
+  if (!normalizedValue && !identity.externalId) return true;
+
+  const { error } = await supabase.from("lead_identities").insert({
+    tenant_id: tenantId,
+    lead_id: leadId,
+    canal: identity.canal,
+    valor: identity.value ?? null,
+    valor_normalizado: normalizedValue,
+    external_id: identity.externalId ?? null,
+  });
+
+  if (!error) return true;
+  if (error.code === "23505") return false; // perdeu a corrida
+  throw error;
+}
+
 async function resolveLead(
   supabase: AdminClient,
   tenantId: string,
@@ -205,6 +256,9 @@ async function resolveLead(
     if (kiwifyMatch) return kiwifyMatch;
   }
 
+  const cpfMatch = await findLeadByCpf(supabase, tenantId, leadInput?.extra?.cpf);
+  if (cpfMatch) return cpfMatch;
+
   const initialLead: Record<string, string | null> = {
     tenant_id: tenantId,
     nome: leadInput?.name?.trim() || primaryIdentity.value?.trim() || `Lead ${primaryIdentity.canal}`,
@@ -212,6 +266,7 @@ async function resolveLead(
     whatsapp: null,
     email: null,
     instagram: null,
+    origem_lead: leadInput?.origem ?? primaryIdentity.canal,
   };
 
   const directField = directLeadField(primaryIdentity.canal);
@@ -225,7 +280,19 @@ async function resolveLead(
     .select("id, tenant_id, nome, whatsapp, email, instagram, status")
     .single();
 
-  return data as LeadRow;
+  const newLead = data as LeadRow;
+
+  const claimed = await claimPrimaryIdentity(supabase, tenantId, newLead.id, primaryIdentity);
+  if (!claimed) {
+    // outro request reivindicou a mesma identidade um instante antes - o lead
+    // recem-criado ainda nao tem conversa/mensagem/venda associada, entao e
+    // seguro descarta-lo e devolver o lead que venceu a corrida.
+    await supabase.from("leads").delete().eq("id", newLead.id);
+    const winner = await loadLeadByIdentity(supabase, tenantId, primaryIdentity);
+    if (winner) return winner;
+  }
+
+  return newLead;
 }
 
 async function syncLeadDirectField(
@@ -284,6 +351,45 @@ async function syncLeadName(
   return (data as unknown as LeadRow | null) ?? lead;
 }
 
+// Preenche CPF/endereco vindos da Kiwify so nos campos que o lead ainda nao
+// tem - nunca sobrescreve dado ja existente no CRM.
+async function syncLeadExtraFields(
+  supabase: AdminClient,
+  lead: LeadRow,
+  extra: InboxLeadExtraFields | undefined,
+) {
+  if (!extra) return lead;
+
+  const { data: current } = await supabase
+    .from("leads")
+    .select("cpf, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep")
+    .eq("id", lead.id)
+    .maybeSingle();
+
+  const currentRow = (current as Record<string, string | null> | null) ?? {};
+
+  const fieldMap: Record<string, string | null | undefined> = {
+    cpf: extra.cpf?.replace(/\D/g, "") || null,
+    endereco_rua: extra.enderecoRua,
+    endereco_numero: extra.enderecoNumero,
+    endereco_complemento: extra.enderecoComplemento,
+    endereco_bairro: extra.enderecoBairro,
+    endereco_cidade: extra.enderecoCidade,
+    endereco_estado: extra.enderecoEstado,
+    endereco_cep: extra.enderecoCep,
+  };
+
+  const updatePayload: Record<string, string> = {};
+  for (const [column, value] of Object.entries(fieldMap)) {
+    if (value && !currentRow[column]) updatePayload[column] = value;
+  }
+
+  if (Object.keys(updatePayload).length === 0) return lead;
+
+  await supabase.from("leads").update(updatePayload).eq("id", lead.id);
+  return lead;
+}
+
 async function upsertLeadIdentity(
   supabase: AdminClient,
   tenantId: string,
@@ -292,32 +398,6 @@ async function upsertLeadIdentity(
 ) {
   const normalizedValue = normalizeChannelIdentity(identity.canal, identity.value);
   if (!normalizedValue && !identity.externalId) return;
-
-  let existing: IdentityRow | null = null;
-
-  if (identity.externalId) {
-    const { data } = await supabase
-      .from("lead_identities")
-      .select("id, lead_id, canal, valor, valor_normalizado, external_id")
-      .eq("tenant_id", tenantId)
-      .eq("canal", identity.canal)
-      .eq("external_id", identity.externalId)
-      .maybeSingle();
-
-    existing = (data as unknown as IdentityRow | null) ?? null;
-  }
-
-  if (!existing && normalizedValue) {
-    const { data } = await supabase
-      .from("lead_identities")
-      .select("id, lead_id, canal, valor, valor_normalizado, external_id")
-      .eq("tenant_id", tenantId)
-      .eq("canal", identity.canal)
-      .eq("valor_normalizado", normalizedValue)
-      .maybeSingle();
-
-    existing = (data as unknown as IdentityRow | null) ?? null;
-  }
 
   const payload = {
     tenant_id: tenantId,
@@ -329,12 +409,17 @@ async function upsertLeadIdentity(
     updated_at: new Date().toISOString(),
   };
 
-  if (existing) {
-    await supabase.from("lead_identities").update(payload).eq("id", existing.id);
+  // Upsert atomico via o indice unico (tenant_id, canal, valor_normalizado) -
+  // substitui o antigo select-then-insert/update, que tinha a mesma race
+  // condition corrigida em claimPrimaryIdentity/resolveLead.
+  if (normalizedValue) {
+    await supabase.from("lead_identities").upsert(payload, { onConflict: "tenant_id,canal,valor_normalizado" });
     return;
   }
 
-  await supabase.from("lead_identities").insert(payload);
+  // Identidades so com external_id (sem valor/valor_normalizado) usam o outro
+  // indice unico existente (tenant_id, canal, external_id).
+  await supabase.from("lead_identities").upsert(payload, { onConflict: "tenant_id,canal,external_id" });
 }
 
 export interface ConversationChannelHints {
@@ -402,10 +487,14 @@ export async function resolveOrLinkLead(
   leadInput?: InboxLeadInput,
 ) {
   let lead = await resolveLead(supabase, tenantId, identity, leadInput);
-  lead = await syncLeadDirectField(supabase, lead, identity);
-  lead = await syncLeadName(supabase, lead, leadInput?.name);
 
   const identities = [identity, ...(leadInput?.identities ?? [])];
+  for (const item of identities) {
+    lead = await syncLeadDirectField(supabase, lead, item);
+  }
+  lead = await syncLeadName(supabase, lead, leadInput?.name);
+  lead = await syncLeadExtraFields(supabase, lead, leadInput?.extra);
+
   for (const item of identities) {
     await upsertLeadIdentity(supabase, tenantId, lead.id, item);
   }

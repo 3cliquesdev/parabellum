@@ -70,7 +70,7 @@ function WebchatTestInner() {
     const r = await fetch("/api/webchat/message", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: tenantId, visitor_id: visitorId, mensagem: texto }),
+      body: JSON.stringify({ tenant_id: tenantId, visitor_id: visitorId, mensagem: texto, origem: "webchat_teste_interno" }),
     });
     if (r.ok) {
       const d = await r.json();

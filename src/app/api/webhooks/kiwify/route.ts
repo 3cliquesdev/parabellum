@@ -16,9 +16,18 @@ interface KiwifyCustomer {
   email?: string;
   mobile?: string;
   phone_number?: string;
+  CPF?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  zipcode?: string;
 }
 
 interface KiwifyProduct {
+  product_id?: string;
   product_name?: string;
   name?: string;
 }
@@ -108,9 +117,20 @@ export async function POST(request: NextRequest) {
       { canal: "email", value: customer.email ?? null },
       {
         name: customer.full_name ?? null,
+        origem: "kiwify",
         identities: customer.mobile || customer.phone_number
           ? [{ canal: "whatsapp", value: customer.mobile ?? customer.phone_number ?? null }]
           : [],
+        extra: {
+          cpf: customer.CPF ?? null,
+          enderecoRua: customer.street ?? null,
+          enderecoNumero: customer.number ?? null,
+          enderecoComplemento: customer.complement ?? null,
+          enderecoBairro: customer.neighborhood ?? null,
+          enderecoCidade: customer.city ?? null,
+          enderecoEstado: customer.state ?? null,
+          enderecoCep: customer.zipcode ?? null,
+        },
       },
     );
     leadId = lead?.id ?? null;
@@ -125,7 +145,10 @@ export async function POST(request: NextRequest) {
     tipo_produto: tipoProduto,
     origem: "kiwify",
     buyer_phone_normalized: buyerPhoneNormalized,
-    external_id: body.order_id ?? null,
+    // Inclui o produto na chave de conflito: um pedido com order bump manda
+    // um webhook por produto com o mesmo order_id - sem o product_id aqui, o
+    // segundo evento sobrescrevia o primeiro em vez de registrar os dois.
+    external_id: body.order_id ? `${body.order_id}:${body.Product?.product_id ?? produtoNome}` : null,
     raw_payload: body,
     paid_at: status === "pago" ? new Date().toISOString() : null,
   }, { onConflict: "tenant_id,origem,external_id" });

@@ -29,7 +29,19 @@ const DISPATCH_BADGE: Record<string, { label: string; tone: InboxBadgeTone }> = 
   resolvido: { label: "Resolvido", tone: "neutral" },
 };
 
-type FiltroInbox = "todas" | "fila_ia" | "fila_humana" | "encerradas";
+type FiltroInbox =
+  | "todas"
+  | "minhas"
+  | "novas_atribuicoes"
+  | "nao_respondidas"
+  | "aguardando_cliente"
+  | "sla_excedido"
+  | "nao_atribuidas"
+  | "fila_ia"
+  | "fila_humana"
+  | "encerradas";
+
+const SLA_MINUTOS = 30;
 
 interface DepartmentInfo {
   id: string;
@@ -37,6 +49,15 @@ interface DepartmentInfo {
   slug: string;
   color: string;
 }
+
+interface MembroEquipe {
+  id: string;
+  user_id?: string;
+  email?: string;
+  availability_status?: string | null;
+}
+
+const AVAILABILITY_LABEL: Record<string, string> = { online: "Disponível", away: "Ausente", offline: "Offline" };
 
 function timeLabel(dateStr: string) {
   const d = new Date(dateStr);
@@ -151,15 +172,30 @@ export default function InboxPage() {
   const [sending, setSending] = useState(false);
   const [filtro, setFiltro] = useState<FiltroInbox>("todas");
   const [departamentoFiltro, setDepartamentoFiltro] = useState<string | null>(null);
+  const [tagFiltro, setTagFiltro] = useState<string | null>(null);
+  const [atendenteFiltro, setAtendenteFiltro] = useState<string | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<string>("vendedor");
   const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null);
   const [departamentos, setDepartamentos] = useState<DepartmentInfo[]>([]);
+  const [equipe, setEquipe] = useState<MembroEquipe[]>([]);
+  const [criarNegocioTick, setCriarNegocioTick] = useState(0);
+  const [agora, setAgora] = useState<number | null>(null);
+
+  useEffect(() => {
+    function atualizarAgora() {
+      setAgora(Date.now());
+    }
+    atualizarAgora();
+    const intervalo = setInterval(atualizarAgora, 30_000);
+    return () => clearInterval(intervalo);
+  }, []);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!tenantId) return;
     fetch(`/api/departments?tenant_id=${tenantId}`).then((r) => r.json()).then((d) => setDepartamentos(d.departments ?? []));
+    fetch(`/api/team/members?tenant_id=${tenantId}`).then((r) => (r.ok ? r.json() : { members: [] })).then((d) => setEquipe(d.members ?? []));
   }, [tenantId]);
 
   useEffect(() => {
@@ -182,27 +218,59 @@ export default function InboxPage() {
   }, [tenantId]);
 
   const conversasAtivas = conversas.filter((c) => c.status === "ativo");
-  const contagemFilaIA = conversasAtivas.filter((c) => c.ia_ativa).length;
-  const contagemFilaHumana = conversasAtivas.filter((c) => c.dispatch_status === "fila" || c.dispatch_status === "atribuido").length;
+  const slaLimite = (agora ?? 0) - SLA_MINUTOS * 60 * 1000;
+
+  const eMinhas = (c: ConversaWithLead) => c.assigned_to === myUserId;
+  const ePredicados: Record<Exclude<FiltroInbox, "todas" | "encerradas">, (c: ConversaWithLead) => boolean> = {
+    minhas: (c) => eMinhas(c),
+    novas_atribuicoes: (c) => eMinhas(c) && !c.agente_respondeu,
+    nao_respondidas: (c) => eMinhas(c) && c.agente_respondeu && c.ultima_mensagem_remetente === "lead",
+    aguardando_cliente: (c) => eMinhas(c) && c.ultima_mensagem_remetente != null && c.ultima_mensagem_remetente !== "lead",
+    sla_excedido: (c) => c.ultima_mensagem_remetente === "lead" && !!c.ultima_mensagem_em && new Date(c.ultima_mensagem_em).getTime() < slaLimite,
+    nao_atribuidas: (c) => !c.assigned_to && !c.ia_ativa,
+    fila_ia: (c) => c.ia_ativa,
+    fila_humana: (c) => c.dispatch_status === "fila" || c.dispatch_status === "atribuido",
+  };
+
+  const contagemFilaIA = conversasAtivas.filter(ePredicados.fila_ia).length;
+  const contagemFilaHumana = conversasAtivas.filter(ePredicados.fila_humana).length;
   const contagemEncerradas = conversas.filter((c) => c.status === "resolvido").length;
+  const contagemMinhas = conversasAtivas.filter(ePredicados.minhas).length;
+  const contagemNovasAtribuicoes = conversasAtivas.filter(ePredicados.novas_atribuicoes).length;
+  const contagemNaoRespondidas = conversasAtivas.filter(ePredicados.nao_respondidas).length;
+  const contagemAguardandoCliente = conversasAtivas.filter(ePredicados.aguardando_cliente).length;
+  const contagemSlaExcedido = conversasAtivas.filter(ePredicados.sla_excedido).length;
+  const contagemNaoAtribuidas = conversasAtivas.filter(ePredicados.nao_atribuidas).length;
 
   const conversasPorFiltro =
-    filtro === "fila_ia"
-      ? conversasAtivas.filter((c) => c.ia_ativa)
-      : filtro === "fila_humana"
-        ? conversasAtivas.filter((c) => c.dispatch_status === "fila" || c.dispatch_status === "atribuido")
-        : filtro === "encerradas"
-          ? conversas.filter((c) => c.status === "resolvido")
-          : conversasAtivas;
+    filtro === "encerradas"
+      ? conversas.filter((c) => c.status === "resolvido")
+      : filtro === "todas"
+        ? conversasAtivas
+        : conversasAtivas.filter(ePredicados[filtro]);
 
-  const conversasFiltradas = departamentoFiltro
-    ? conversasPorFiltro.filter((c) => c.department_id === departamentoFiltro)
-    : conversasPorFiltro;
+  const conversasFiltradas = conversasPorFiltro
+    .filter((c) => !departamentoFiltro || c.department_id === departamentoFiltro)
+    .filter((c) => !tagFiltro || c.tags.some((t) => t.id === tagFiltro))
+    .filter((c) => !atendenteFiltro || c.assigned_to === atendenteFiltro);
 
   const contagemPorDepartamento = new Map<string, number>();
   for (const c of conversas) {
     if (c.status !== "ativo" || !c.department_id) continue;
     contagemPorDepartamento.set(c.department_id, (contagemPorDepartamento.get(c.department_id) ?? 0) + 1);
+  }
+
+  const contagemPorTag = new Map<string, number>();
+  for (const c of conversasAtivas) {
+    for (const tag of c.tags) {
+      contagemPorTag.set(tag.id, (contagemPorTag.get(tag.id) ?? 0) + 1);
+    }
+  }
+
+  const contagemPorAtendente = new Map<string, number>();
+  for (const c of conversasAtivas) {
+    if (!c.assigned_to) continue;
+    contagemPorAtendente.set(c.assigned_to, (contagemPorAtendente.get(c.assigned_to) ?? 0) + 1);
   }
 
   const selected = conversas.find((conversa) => conversa.id === selectedId);
@@ -279,6 +347,7 @@ export default function InboxPage() {
       assigned_to: myUserId,
       dispatch_status: "atribuido",
       ia_ativa: false,
+      agente_respondeu: false,
     }).eq("id", conversa.id);
   }
 
@@ -364,6 +433,12 @@ export default function InboxPage() {
             >
               {[
                 { id: "todas" as const, label: "Todas", count: conversasAtivas.length },
+                { id: "minhas" as const, label: "Minhas", count: contagemMinhas },
+                { id: "novas_atribuicoes" as const, label: "Novas atribuições", count: contagemNovasAtribuicoes },
+                { id: "nao_respondidas" as const, label: "Não respondidas", count: contagemNaoRespondidas },
+                { id: "aguardando_cliente" as const, label: "Aguardando cliente", count: contagemAguardandoCliente },
+                { id: "sla_excedido" as const, label: "SLA Excedido", count: contagemSlaExcedido },
+                { id: "nao_atribuidas" as const, label: "Não atribuídas", count: contagemNaoAtribuidas },
                 { id: "fila_ia" as const, label: "Fila IA", count: contagemFilaIA },
                 { id: "fila_humana" as const, label: "Fila Humana", count: contagemFilaHumana },
                 { id: "encerradas" as const, label: "Encerradas", count: contagemEncerradas },
@@ -387,6 +462,42 @@ export default function InboxPage() {
                 {departamentos.map((dep) => (
                   <option key={dep.id} value={dep.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
                     {dep.name} ({contagemPorDepartamento.get(dep.id) ?? 0})
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {tags.length > 0 && (
+              <select
+                value={tagFiltro ?? ""}
+                onChange={(e) => setTagFiltro(e.target.value || null)}
+                className="h-9 px-2.5 rounded-xl text-xs font-bold outline-none"
+                style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
+              >
+                <option value="" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
+                  Todas as tags ({conversasAtivas.length})
+                </option>
+                {tags.map((tag) => (
+                  <option key={tag.id} value={tag.id} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
+                    {tag.nome} ({contagemPorTag.get(tag.id) ?? 0})
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {equipe.length > 0 && (
+              <select
+                value={atendenteFiltro ?? ""}
+                onChange={(e) => setAtendenteFiltro(e.target.value || null)}
+                className="h-9 px-2.5 rounded-xl text-xs font-bold outline-none"
+                style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)", border: "1px solid var(--chip-border)" }}
+              >
+                <option value="" style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
+                  Todos atendentes
+                </option>
+                {equipe.map((membro) => (
+                  <option key={membro.id} value={membro.user_id ?? ""} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>
+                    {membro.email ?? membro.user_id} — {AVAILABILITY_LABEL[membro.availability_status ?? "offline"] ?? membro.availability_status} ({contagemPorAtendente.get(membro.user_id ?? "") ?? 0})
                   </option>
                 ))}
               </select>
@@ -554,6 +665,14 @@ export default function InboxPage() {
                   Assumir
                 </button>
               )}
+
+              <button
+                onClick={() => setCriarNegocioTick((v) => v + 1)}
+                className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                style={inboxGhostButtonStyle}
+              >
+                Negócio
+              </button>
 
               {selected.status !== "resolvido" && (
                 <button
@@ -786,6 +905,7 @@ export default function InboxPage() {
             adicionandoTag={adicionandoTag}
             onAdicionarTag={() => adicionarTag(selected)}
             onRemoverTag={(tagId) => removerTag(selected, tagId)}
+            criarNegocioSignal={criarNegocioTick}
           />
         </aside>
       )}

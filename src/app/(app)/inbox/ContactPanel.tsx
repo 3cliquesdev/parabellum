@@ -25,6 +25,21 @@ interface CompraRow {
   pago_em: string | null;
 }
 
+interface NegocioRow {
+  id: string;
+  titulo: string;
+  valor: number | null;
+  estagio: "aberto" | "ganho" | "perdido";
+  created_at: string;
+}
+
+const NEGOCIO_ESTAGIO_TONE: Record<NegocioRow["estagio"], "green" | "yellow" | "neutral"> = {
+  aberto: "yellow", ganho: "green", perdido: "neutral",
+};
+const NEGOCIO_ESTAGIO_LABEL: Record<NegocioRow["estagio"], string> = {
+  aberto: "Aberto", ganho: "Ganho", perdido: "Perdido",
+};
+
 const TICKET_STATUS_LABEL: Record<string, string> = {
   aberto: "Aberto", em_andamento: "Em andamento", aguardando_cliente: "Aguardando cliente",
   resolvido: "Resolvido", fechado: "Fechado",
@@ -46,15 +61,24 @@ interface ContactPanelProps {
   adicionandoTag: boolean;
   onAdicionarTag: () => void;
   onRemoverTag: (tagId: string) => void;
+  criarNegocioSignal?: number;
 }
 
-export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag, adicionandoTag, onAdicionarTag, onRemoverTag }: ContactPanelProps) {
+export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag, adicionandoTag, onAdicionarTag, onRemoverTag, criarNegocioSignal }: ContactPanelProps) {
   const [aba, setAba] = useState<Aba>("timeline");
   const [lead, setLead] = useState<Lead | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [compras, setCompras] = useState<CompraRow[]>([]);
+  const [negocios, setNegocios] = useState<NegocioRow[]>([]);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [novoNegocio, setNovoNegocio] = useState<{ titulo: string; valor: string } | null>(null);
+  const [salvandoNegocio, setSalvandoNegocio] = useState(false);
+
+  async function carregarNegocios() {
+    const res = await fetch(`/api/negocios?tenant_id=${tenantId}&lead_id=${conversa.lead_id}`);
+    if (res.ok) setNegocios((await res.json()).negocios ?? []);
+  }
 
   useEffect(() => {
     let cancelado = false;
@@ -62,11 +86,12 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
     async function carregar() {
       setLoading(true);
       const supabase = createClient();
-      const [{ data: leadData }, ticketsRes, comprasRes, timelineRes] = await Promise.all([
+      const [{ data: leadData }, ticketsRes, comprasRes, timelineRes, negociosRes] = await Promise.all([
         supabase.from("leads").select("*").eq("id", conversa.lead_id).single(),
         fetch(`/api/tickets?tenant_id=${tenantId}&lead_id=${conversa.lead_id}`),
         fetch(`/api/leads/${conversa.lead_id}/compras`),
         fetch(`/api/leads/${conversa.lead_id}/timeline`),
+        fetch(`/api/negocios?tenant_id=${tenantId}&lead_id=${conversa.lead_id}`),
       ]);
       if (cancelado) return;
 
@@ -74,12 +99,51 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
       if (ticketsRes.ok) setTickets((await ticketsRes.json()).tickets ?? []);
       if (comprasRes.ok) setCompras((await comprasRes.json()).compras ?? []);
       if (timelineRes.ok) setEvents((await timelineRes.json()).events ?? []);
+      if (negociosRes.ok) setNegocios((await negociosRes.json()).negocios ?? []);
       setLoading(false);
     }
 
     void carregar();
     return () => { cancelado = true; };
   }, [conversa.lead_id, tenantId]);
+
+  async function criarNegocio() {
+    if (!novoNegocio?.titulo.trim()) return;
+    setSalvandoNegocio(true);
+    await fetch("/api/negocios", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        lead_id: conversa.lead_id,
+        titulo: novoNegocio.titulo.trim(),
+        valor: novoNegocio.valor ? Number(novoNegocio.valor) : null,
+      }),
+    });
+    setSalvandoNegocio(false);
+    setNovoNegocio(null);
+    await carregarNegocios();
+  }
+
+  useEffect(() => {
+    if (criarNegocioSignal === undefined || criarNegocioSignal === 0) return;
+
+    function abrirFormularioNegocio() {
+      setAba("negocios");
+      setNovoNegocio({ titulo: "", valor: "" });
+    }
+
+    abrirFormularioNegocio();
+  }, [criarNegocioSignal]);
+
+  async function mudarEstagioNegocio(negocioId: string, estagio: NegocioRow["estagio"]) {
+    await fetch(`/api/negocios/${negocioId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, estagio }),
+    });
+    await carregarNegocios();
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -187,9 +251,80 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
           )
         ) : aba === "negocios" ? (
           <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>Negócios</p>
+                {!novoNegocio && (
+                  <button
+                    onClick={() => setNovoNegocio({ titulo: "", valor: "" })}
+                    className="text-[11px] font-bold px-2 py-1 rounded-lg"
+                    style={{ background: "var(--primary-bg)", color: "var(--status-ganho)" }}
+                  >
+                    + Criar
+                  </button>
+                )}
+              </div>
+
+              {novoNegocio && (
+                <div className="rounded-lg p-2.5 space-y-2 mb-2" style={{ background: "var(--surface-panel)", border: "1px solid var(--border-subtle)" }}>
+                  <input
+                    value={novoNegocio.titulo}
+                    onChange={(e) => setNovoNegocio({ ...novoNegocio, titulo: e.target.value })}
+                    placeholder="Título do negócio"
+                    className="w-full h-8 px-2 rounded-lg text-xs outline-none"
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+                  />
+                  <input
+                    value={novoNegocio.valor}
+                    onChange={(e) => setNovoNegocio({ ...novoNegocio, valor: e.target.value.replace(/[^0-9.]/g, "") })}
+                    placeholder="Valor (R$)"
+                    className="w-full h-8 px-2 rounded-lg text-xs outline-none"
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setNovoNegocio(null)} className="px-2.5 h-7 rounded-lg text-[11px]" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
+                    <button
+                      onClick={criarNegocio}
+                      disabled={!novoNegocio.titulo.trim() || salvandoNegocio}
+                      className="px-2.5 h-7 rounded-lg text-[11px] font-bold"
+                      style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: !novoNegocio.titulo.trim() || salvandoNegocio ? 0.6 : 1 }}
+                    >
+                      {salvandoNegocio ? "Salvando..." : "Salvar"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {negocios.length === 0 ? (
+                <p className="text-xs" style={{ color: "var(--text-faint)" }}>Nenhum negócio para este contato.</p>
+              ) : (
+                <div className="space-y-2">
+                  {negocios.map((n) => (
+                    <div key={n.id} className="rounded-lg p-2.5" style={{ background: "var(--surface-panel)", border: "1px solid var(--border-subtle)" }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold truncate" style={{ color: "var(--text-primary)" }}>{n.titulo}</p>
+                        {n.valor != null && <span className="text-xs font-bold shrink-0" style={{ color: "var(--text-primary)" }}>R$ {n.valor}</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeTone(NEGOCIO_ESTAGIO_TONE[n.estagio])}>
+                          {NEGOCIO_ESTAGIO_LABEL[n.estagio]}
+                        </span>
+                        {n.estagio === "aberto" && (
+                          <>
+                            <button onClick={() => mudarEstagioNegocio(n.id, "ganho")} className="text-[10px] font-bold" style={{ color: "var(--status-ganho)" }}>Marcar ganho</button>
+                            <button onClick={() => mudarEstagioNegocio(n.id, "perdido")} className="text-[10px] font-bold" style={{ color: "var(--text-faint)" }}>Marcar perdido</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {lead && (
               <div className="rounded-lg p-3 space-y-2" style={{ background: "var(--surface-panel)", border: "1px solid var(--border-subtle)" }}>
-                <p className="text-[10px] font-bold uppercase" style={{ color: "var(--text-faint)" }}>Estágio atual</p>
+                <p className="text-[10px] font-bold uppercase" style={{ color: "var(--text-faint)" }}>Estágio do lead</p>
                 <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(STATUS_COLOR[lead.status])}>
                   {STATUS_LABEL[lead.status]}
                 </span>

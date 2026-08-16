@@ -17,6 +17,9 @@ export interface ConversaWithLead extends Conversa {
   department_id?: string | null;
   resolvido_por?: string | null;
   protocolo: number;
+  ultima_mensagem_remetente?: "lead" | "humano" | "ia" | null;
+  ultima_mensagem_em?: string | null;
+  agente_respondeu: boolean;
   lead_nome: string;
   lead_whatsapp: string | null;
   lead_email: string | null;
@@ -55,6 +58,9 @@ interface ConversaRow extends Conversa {
   department_id?: string | null;
   resolvido_por?: string | null;
   protocolo: number;
+  ultima_mensagem_remetente?: "lead" | "humano" | "ia" | null;
+  ultima_mensagem_em?: string | null;
+  agente_respondeu: boolean;
   ai_mode?: "autopilot" | "copilot" | "disabled" | null;
   ai_suggestion?: string | null;
   leads?: LeadRow | null;
@@ -77,11 +83,43 @@ export function useConversas(tenantId: string | null) {
 
     try {
       const supabase = createClient();
-      const { data } = await supabase
+
+      const { data: { user } } = await supabase.auth.getUser();
+      let query = supabase
         .from("conversas")
         .select("*, leads(id, nome, whatsapp, email, instagram, eh_cliente)")
         .eq("tenant_id", tenantId)
         .order("updated_at", { ascending: false });
+
+      if (user) {
+        const { data: memberData } = await supabase
+          .from("tenant_members")
+          .select("role")
+          .eq("tenant_id", tenantId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        const role = (memberData as { role?: string } | null)?.role ?? "atendente";
+
+        // Gerente/dono veem tudo; qualquer outro cargo so ve o que e dele ou o
+        // que ainda nao tem dono (fila da IA, ou nao-atribuido do proprio
+        // departamento/sem departamento) - mesma logica ja usada na referencia
+        // (Parabellum) pra nao expor a fila inteira do tenant pra todo mundo.
+        if (role !== "owner" && role !== "gerente") {
+          const { data: deptRows } = await supabase
+            .from("agent_departments")
+            .select("department_id")
+            .eq("tenant_id", tenantId)
+            .eq("user_id", user.id);
+          const deptIds = ((deptRows ?? []) as unknown as Array<{ department_id: string }>).map((d) => d.department_id);
+
+          const unassignedOr = ["ia_ativa.eq.true", "department_id.is.null"];
+          if (deptIds.length > 0) unassignedOr.push(`department_id.in.(${deptIds.join(",")})`);
+
+          query = query.or(`assigned_to.eq.${user.id},and(assigned_to.is.null,or(${unassignedOr.join(",")}))`);
+        }
+      }
+
+      const { data } = await query;
 
       const rows = (data ?? []) as unknown as ConversaRow[];
       const conversaIds = rows.map((row) => row.id);

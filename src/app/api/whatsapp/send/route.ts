@@ -20,7 +20,24 @@ interface ConversationRow {
   tenant_id: string;
   canal: string;
   lead_id: string | null;
+  assigned_to: string | null;
   leads: RelatedLeadRow | RelatedLeadRow[] | null;
+}
+
+function buildConversaUpdates(remetente: "humano" | "ia", departamento?: string): Record<string, unknown> {
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    ultima_mensagem_remetente: remetente,
+    ultima_mensagem_em: new Date().toISOString(),
+  };
+  if (remetente === "ia") {
+    updates.ultima_resposta_ia_em = new Date().toISOString();
+    if (departamento) updates.ia_ultimo_departamento = departamento;
+  }
+  if (remetente === "humano") {
+    updates.agente_respondeu = true;
+  }
+  return updates;
 }
 
 interface WhatsAppConfigRow {
@@ -102,12 +119,7 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       return NextResponse.json({ error: `Falha ao salvar mensagem: ${insertError.message}` }, { status: 500 });
     }
-    const updatesNaoWa: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (remetente === "ia") {
-      updatesNaoWa.ultima_resposta_ia_em = new Date().toISOString();
-      if (departamento) updatesNaoWa.ia_ultimo_departamento = departamento;
-    }
-    await supabase.from("conversas").update(updatesNaoWa).eq("id", conversaId);
+    await supabase.from("conversas").update(buildConversaUpdates(remetente, departamento)).eq("id", conversaId);
     if (remetente === "ia" && isInternalRequest(request)) {
       await logAiDecision(supabase, {
         tenantId,
@@ -222,14 +234,9 @@ export async function POST(request: NextRequest) {
   if (insertError) {
     return NextResponse.json({ error: `Mensagem enviada mas nao salva: ${insertError.message}` }, { status: 500 });
   }
-  const updatesWa: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (remetente === "ia") {
-    updatesWa.ultima_resposta_ia_em = new Date().toISOString();
-    if (departamento) updatesWa.ia_ultimo_departamento = departamento;
-  }
   await supabase
     .from("conversas")
-    .update(updatesWa)
+    .update(buildConversaUpdates(remetente, departamento))
     .eq("id", conversaId);
 
   if (remetente === "ia" && isInternalRequest(request)) {

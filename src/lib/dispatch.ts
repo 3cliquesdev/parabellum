@@ -98,6 +98,7 @@ export async function dispatchConversation(
       department_id: departmentId,
       ai_mode: "disabled",
       ia_ativa: false,
+      agente_respondeu: false,
     }).eq("id", conversaId);
 
     await supabase.from("tenant_members").update({
@@ -173,6 +174,7 @@ export async function processQueueForAgent(tenantId: string, agentId: string) {
       assigned_to: agentId,
       dispatch_status: "atribuido",
       assigned_at: new Date().toISOString(),
+      agente_respondeu: false,
     }).eq("id", item.conversa_id);
 
     await supabase.from("conversation_queue").update({

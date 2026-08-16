@@ -215,7 +215,12 @@ export async function sendWhatsAppConversationMessage(
 
   await supabase
     .from("conversas")
-    .update({ updated_at: new Date().toISOString() })
+    .update({
+      updated_at: new Date().toISOString(),
+      ultima_mensagem_remetente: "humano",
+      ultima_mensagem_em: new Date().toISOString(),
+      agente_respondeu: true,
+    })
     .eq("id", conversation.id);
 
   return { ok: true as const };
@@ -272,7 +277,12 @@ export async function sendEmailConversationMessage(
 
   await supabase
     .from("conversas")
-    .update({ updated_at: new Date().toISOString() })
+    .update({
+      updated_at: new Date().toISOString(),
+      ultima_mensagem_remetente: "humano",
+      ultima_mensagem_em: new Date().toISOString(),
+      agente_respondeu: true,
+    })
     .eq("id", conversation.id);
 
   return { ok: true as const };
@@ -328,7 +338,12 @@ export async function sendInstagramConversationMessage(
 
   await supabase
     .from("conversas")
-    .update({ updated_at: new Date().toISOString() })
+    .update({
+      updated_at: new Date().toISOString(),
+      ultima_mensagem_remetente: "humano",
+      ultima_mensagem_em: new Date().toISOString(),
+      agente_respondeu: true,
+    })
     .eq("id", conversation.id);
 
   return { ok: true as const };

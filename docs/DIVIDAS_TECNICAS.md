@@ -15,12 +15,13 @@ criar/editar, e as rotas de escrita correspondentes em `src/app/api/departments/
 
 ## Permissões diferenciadas por cargo
 
-Todos os cargos não-`owner` (`gerente`, `vendedor`, `atendente`, `consultor`,
-`gerente_suporte`, `gerente_cs`, `gerente_financeiro`, `financeiro`,
-`gerente_marketing`, `marketing`, `analista_ecommerce`, `gerente_geral`) caem hoje no
-mesmo balde de permissão "membro padrão" — só mudam o rótulo/cor exibidos, não o que a
-pessoa pode fazer no sistema. A referência tem um RBAC mais granular por cargo (ex:
-`financial_manager` vê módulo financeiro, `marketing_agent` não mexe em departamentos).
+**Parcialmente resolvido**: `useConversas.ts` agora restringe a visibilidade do Inbox
+por cargo — quem não é `owner`/`gerente` só vê conversas atribuídas a si mesmo ou
+não-atribuídas do próprio departamento (via `agent_departments`), igual a referência.
+Ainda falta: RBAC por módulo (ex: só `financeiro`/`gerente_financeiro` acessarem uma
+futura tela financeira, `marketing`/`gerente_marketing` não mexerem em departamentos)
+— hoje isso é tudo-ou-nada fora do Inbox (qualquer membro autenticado acessa qualquer
+tela do app).
 
 ## Hierarquia gerente → consultor (`manager_id`)
 
@@ -43,3 +44,27 @@ Suporte com SLA mais agressivo que Comercial).
 `tenant_members.availability_status` aceita hoje `online`/`away`/`offline`. A
 referência tem um quarto estado, `busy`, distinto de `away` (ausente por escolha vs.
 ocupado atendendo). Avaliar se vale adicionar quando o volume de atendimento justificar.
+
+## SLA fixo (30min), não configurável por departamento
+
+O filtro "SLA Excedido" do Inbox usa um limite fixo de 30 minutos sem resposta humana
+pra qualquer departamento. Na referência isso é configurável por departamento (Suporte
+pode ter SLA mais agressivo que Comercial, por exemplo). Fica pendente até fazer
+sentido diferenciar.
+
+## Advanced filter popover unificado
+
+A referência tem um botão "Filtros" que abre um painel único combinando canal, status
+(aberto/pendente/resolvido), modo IA, departamento, atendente e tags numa aba só. Aqui
+cada um desses virou um dropdown separado no cabeçalho do Inbox (mais simples de
+implementar, mesma cobertura funcional) — uma unificação num popover só fica pra uma
+passada de polish visual futura.
+
+## `negocios` enxuta (sem campos de reconciliação Kiwify)
+
+A tabela `negocios` criada aqui tem só `titulo/valor/estagio/origem/assigned_to/
+motivo_perda` — a referência tem 44 colunas incluindo reconciliação financeira com a
+Kiwify (`gross_value`, `kiwify_fee`, `affiliate_commission`, rastreio de "negócio
+ficou podre" com `became_rotten_at`). Não trouxemos porque não tem uso ainda — a
+reconciliação de venda já é coberta separadamente pela tabela `vendas` (webhook da
+Kiwify). Se um dia precisar linkar negócio↔venda de verdade, é aqui que entra.

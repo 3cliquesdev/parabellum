@@ -440,7 +440,11 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
 
   await supabase
     .from("conversas")
-    .update({ updated_at: new Date().toISOString() })
+    .update({
+      updated_at: new Date().toISOString(),
+      ultima_mensagem_remetente: "lead",
+      ultima_mensagem_em: new Date().toISOString(),
+    })
     .eq("id", conversation.id);
 
   return {

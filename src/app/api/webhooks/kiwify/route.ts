@@ -38,11 +38,22 @@ interface KiwifyWebhookBody {
   webhook_event_type?: string;
   Customer?: KiwifyCustomer;
   Product?: KiwifyProduct;
-  Subscription?: { plan?: { name?: string } };
+  Subscription?: { plan?: { name?: string }; charges?: { completed?: { order_id?: string }[] } };
   Commissions?: { charge_amount?: number; product_base_price?: number };
   charge_amount?: number;
   amount?: number;
   product_type?: string;
+}
+
+// Kiwify manda em Subscription.charges.completed o historico de cobrancas ja
+// concluidas daquela assinatura. Se alguma delas tem order_id diferente do
+// pedido atual, ja existe um ciclo anterior - o evento atual e renovacao
+// (ou tentativa de renovacao, mesmo que tenha falhado). Produto avulso (sem
+// Subscription) e sempre "nova" por definicao.
+function tipoCobranca(body: KiwifyWebhookBody): "nova" | "renovacao" {
+  const completed = body.Subscription?.charges?.completed ?? [];
+  const temCicloAnterior = completed.some((c) => c.order_id && c.order_id !== body.order_id);
+  return temCicloAnterior ? "renovacao" : "nova";
 }
 
 // Valores REAIS de order_status, confirmados no codigo em producao do
@@ -136,6 +147,8 @@ export async function POST(request: NextRequest) {
     leadId = lead?.id ?? null;
   }
 
+  const tipoCobrancaAtual = tipoCobranca(body);
+
   const { error } = await admin.from("vendas").upsert({
     tenant_id: tenantId,
     lead_id: leadId,
@@ -143,6 +156,7 @@ export async function POST(request: NextRequest) {
     valor,
     status,
     tipo_produto: tipoProduto,
+    tipo_cobranca: tipoCobrancaAtual,
     origem: "kiwify",
     buyer_phone_normalized: buyerPhoneNormalized,
     // Inclui o produto na chave de conflito: um pedido com order bump manda
@@ -156,6 +170,32 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error("kiwify webhook: falha ao salvar venda:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Cliente novo (primeira venda paga, nao renovacao/recompra) vira
+  // oportunidade automatica no Pipeline, ja fechada como "ganho" - ele ja
+  // pagou, nao precisa passar pelo funil manual. Renovacao ou recompra de
+  // quem ja e cliente nao mexe em nada disso (evita ficar "recriando" lead
+  // antigo como se fosse novo).
+  if (status === "pago" && leadId) {
+    const { count } = await admin
+      .from("vendas")
+      .select("id", { count: "exact", head: true })
+      .eq("lead_id", leadId)
+      .eq("status", "pago");
+
+    if ((count ?? 0) <= 1) {
+      await admin.from("negocios").insert({
+        tenant_id: tenantId,
+        lead_id: leadId,
+        titulo: produtoNome,
+        valor,
+        canal: "kiwify",
+        estagio: "ganho",
+        origem: "kiwify_auto",
+      });
+      await admin.from("leads").update({ status: "ganho", valor_estimado: valor }).eq("id", leadId);
+    }
   }
 
   return NextResponse.json({ ok: true, lead_id: leadId });

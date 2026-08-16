@@ -26,6 +26,15 @@ const DISPATCH_BADGE: Record<string, { label: string; color: string }> = {
   resolvido: { label: "Resolvido", color: "var(--text-secondary)" },
 };
 
+type FiltroInbox = "todas" | "fila_ia" | "fila_humana" | "encerradas";
+
+interface DepartmentInfo {
+  id: string;
+  name: string;
+  slug: string;
+  color: string;
+}
+
 function timeLabel(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -137,11 +146,18 @@ export default function InboxPage() {
   const { mensagens, loading: msgsLoading } = useMensagens(selectedId);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [filtro, setFiltro] = useState<"minhas" | "todas">("minhas");
+  const [filtro, setFiltro] = useState<FiltroInbox>("todas");
+  const [departamentoFiltro, setDepartamentoFiltro] = useState<string | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<string>("vendedor");
   const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null);
+  const [departamentos, setDepartamentos] = useState<DepartmentInfo[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/departments?tenant_id=${tenantId}`).then((r) => r.json()).then((d) => setDepartamentos(d.departments ?? []));
+  }, [tenantId]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -162,10 +178,28 @@ export default function InboxPage() {
     });
   }, [tenantId]);
 
-  const conversasFiltradas =
-    filtro === "minhas" && myUserId
-      ? conversas.filter((conversa) => conversa.assigned_to === myUserId || !conversa.assigned_to)
-      : conversas;
+  const contagemFilaIA = conversas.filter((c) => c.status === "ativo" && c.ia_ativa).length;
+  const contagemFilaHumana = conversas.filter((c) => c.status === "ativo" && (c.dispatch_status === "fila" || c.dispatch_status === "atribuido")).length;
+  const contagemEncerradas = conversas.filter((c) => c.status === "resolvido").length;
+
+  const conversasPorFiltro =
+    filtro === "fila_ia"
+      ? conversas.filter((c) => c.status === "ativo" && c.ia_ativa)
+      : filtro === "fila_humana"
+        ? conversas.filter((c) => c.status === "ativo" && (c.dispatch_status === "fila" || c.dispatch_status === "atribuido"))
+        : filtro === "encerradas"
+          ? conversas.filter((c) => c.status === "resolvido")
+          : conversas;
+
+  const conversasFiltradas = departamentoFiltro
+    ? conversasPorFiltro.filter((c) => c.department_id === departamentoFiltro)
+    : conversasPorFiltro;
+
+  const contagemPorDepartamento = new Map<string, number>();
+  for (const c of conversas) {
+    if (c.status !== "ativo" || !c.department_id) continue;
+    contagemPorDepartamento.set(c.department_id, (contagemPorDepartamento.get(c.department_id) ?? 0) + 1);
+  }
 
   const selected = conversas.find((conversa) => conversa.id === selectedId);
 
@@ -234,6 +268,62 @@ export default function InboxPage() {
     setTagEscolhida("");
   }
 
+  async function assumirConversa(conversa: ConversaWithLead) {
+    if (!myUserId) return;
+    const supabase = createClient();
+    await supabase.from("conversas").update({
+      assigned_to: myUserId,
+      dispatch_status: "atribuido",
+      ia_ativa: false,
+    }).eq("id", conversa.id);
+  }
+
+  const [showTransferirMenu, setShowTransferirMenu] = useState(false);
+  const [departamentoEscolhido, setDepartamentoEscolhido] = useState("");
+  const [transferindo, setTransferindo] = useState(false);
+
+  async function transferirConversa(conversa: ConversaWithLead) {
+    if (!departamentoEscolhido || !tenantId) return;
+    setTransferindo(true);
+    const r = await fetch(`/api/conversas/${conversa.id}/transferir`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, departamento_slug: departamentoEscolhido, motivo: "transferencia_manual" }),
+    });
+    setTransferindo(false);
+    if (!r.ok) {
+      const err = await r.json();
+      alert(err.error ?? "Erro ao transferir conversa");
+      return;
+    }
+    setShowTransferirMenu(false);
+    setDepartamentoEscolhido("");
+  }
+
+  const [novaTag, setNovaTag] = useState("");
+  const [adicionandoTag, setAdicionandoTag] = useState(false);
+
+  async function adicionarTag(conversa: ConversaWithLead) {
+    if (!novaTag || !tenantId) return;
+    setAdicionandoTag(true);
+    await fetch(`/api/conversas/${conversa.id}/tags`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, tag_nome: novaTag }),
+    });
+    setAdicionandoTag(false);
+    setNovaTag("");
+  }
+
+  async function removerTag(conversa: ConversaWithLead, tagId: string) {
+    if (!tenantId) return;
+    await fetch(`/api/conversas/${conversa.id}/tags`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, tag_id: tagId }),
+    });
+  }
+
   if (tenantLoading) {
     return (
       <div className="flex items-center justify-center h-full" style={inboxPageStyle}>
@@ -261,17 +351,19 @@ export default function InboxPage() {
             </Link>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {[
-              { id: "minhas", label: "Minhas" },
-              ...((myRole === "owner" || myRole === "gerente") ? [{ id: "todas", label: "Todas" }] : []),
+              { id: "todas" as const, label: "Todas", count: conversas.length },
+              { id: "fila_ia" as const, label: "Fila IA", count: contagemFilaIA },
+              { id: "fila_humana" as const, label: "Fila Humana", count: contagemFilaHumana },
+              { id: "encerradas" as const, label: "Encerradas", count: contagemEncerradas },
             ].map((item) => {
               const isActive = filtro === item.id;
               return (
                 <button
                   key={item.id}
-                  onClick={() => setFiltro(item.id as typeof filtro)}
-                  className="px-3.5 h-8 rounded-full text-xs font-bold transition-all"
+                  onClick={() => setFiltro(item.id)}
+                  className="px-3.5 h-8 rounded-full text-xs font-bold transition-all flex items-center gap-1.5"
                   style={
                     isActive
                       ? {
@@ -287,10 +379,34 @@ export default function InboxPage() {
                   }
                 >
                   {item.label}
+                  <span className="text-[10px] opacity-70">{item.count}</span>
                 </button>
               );
             })}
           </div>
+
+          {departamentos.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap mt-2.5">
+              <button
+                onClick={() => setDepartamentoFiltro(null)}
+                className="px-2.5 h-6 rounded-full text-[10px] font-bold transition-all"
+                style={!departamentoFiltro ? inboxBadgeStyle("#939da4") : { background: "var(--ghost-bg)", color: "var(--text-faint)", border: "1px solid var(--chip-border)" }}
+              >
+                Todos deptos
+              </button>
+              {departamentos.map((dep) => (
+                <button
+                  key={dep.id}
+                  onClick={() => setDepartamentoFiltro(dep.id)}
+                  className="px-2.5 h-6 rounded-full text-[10px] font-bold transition-all flex items-center gap-1"
+                  style={departamentoFiltro === dep.id ? inboxBadgeStyle(dep.color) : { background: "var(--ghost-bg)", color: "var(--text-faint)", border: "1px solid var(--chip-border)" }}
+                >
+                  {dep.name}
+                  <span className="opacity-70">{contagemPorDepartamento.get(dep.id) ?? 0}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -307,7 +423,13 @@ export default function InboxPage() {
                 Nenhuma conversa por aqui
               </p>
               <p className="text-xs mt-1 leading-5" style={{ color: "var(--text-secondary)" }}>
-                {filtro === "minhas" ? "Nenhuma conversa atribuída a você no momento." : "As novas conversas vão aparecer aqui assim que entrarem."}
+                {filtro === "fila_ia"
+                  ? "Nenhuma conversa com a IA no momento."
+                  : filtro === "fila_humana"
+                    ? "Nenhuma conversa esperando ou atribuída a um humano."
+                    : filtro === "encerradas"
+                      ? "Nenhuma conversa encerrada ainda."
+                      : "As novas conversas vão aparecer aqui assim que entrarem."}
               </p>
             </div>
           ) : (
@@ -316,6 +438,7 @@ export default function InboxPage() {
               const badge = DISPATCH_BADGE[dispatch] ?? DISPATCH_BADGE.ia;
               const active = selectedId === conversa.id;
               const hovered = hoveredConversationId === conversa.id;
+              const departamentoConversa = departamentos.find((d) => d.id === conversa.department_id);
 
               return (
                 <button
@@ -358,6 +481,14 @@ export default function InboxPage() {
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(conversa.canal_color)}>
                           {conversa.canal_label}
                         </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(conversa.eh_cliente ? "#16a34a" : "#939da4")}>
+                          {conversa.eh_cliente ? "Cliente" : "Não Cliente"}
+                        </span>
+                        {departamentoConversa && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(departamentoConversa.color)}>
+                            {departamentoConversa.name}
+                          </span>
+                        )}
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(badge.color)}>
                           {badge.label}
                         </span>
@@ -427,6 +558,54 @@ export default function InboxPage() {
                 <Bot className="w-3.5 h-3.5" />
                 IA {selected.ia_ativa ? "ativada" : "desativada"}
               </button>
+
+              {selected.status !== "resolvido" && selected.assigned_to !== myUserId && (
+                <button
+                  onClick={() => assumirConversa(selected)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={inboxGhostButtonStyle}
+                >
+                  Assumir
+                </button>
+              )}
+
+              {selected.status !== "resolvido" && (
+                <button
+                  onClick={() => setShowTransferirMenu((v) => !v)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={inboxGhostButtonStyle}
+                >
+                  Transferir
+                </button>
+              )}
+
+              {showTransferirMenu && (
+                <div className="absolute right-0 top-full mt-2 z-20 w-72 rounded-xl p-3 space-y-2" style={{ background: "var(--surface-solid)", border: "1px solid var(--border-subtle)" }}>
+                  <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>Transferir para qual departamento?</p>
+                  <select
+                    value={departamentoEscolhido}
+                    onChange={(e) => setDepartamentoEscolhido(e.target.value)}
+                    className="w-full h-9 px-2 rounded-lg text-xs outline-none"
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+                  >
+                    <option value="">Selecione um departamento...</option>
+                    {departamentos.map((dep) => (
+                      <option key={dep.id} value={dep.slug} style={{ background: "var(--surface-solid)" }}>{dep.name}</option>
+                    ))}
+                  </select>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setShowTransferirMenu(false)} className="px-3 h-8 rounded-lg text-xs" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
+                    <button
+                      onClick={() => transferirConversa(selected)}
+                      disabled={!departamentoEscolhido || transferindo}
+                      className="px-3 h-8 rounded-lg text-xs font-bold"
+                      style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: !departamentoEscolhido || transferindo ? 0.6 : 1 }}
+                    >
+                      {transferindo ? "Transferindo..." : "Confirmar"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {selected.status === "resolvido" ? (
                 <span className="px-3 py-2 rounded-xl text-xs font-bold" style={inboxBadgeStyle("#939da4")}>
@@ -605,6 +784,45 @@ export default function InboxPage() {
             </p>
           </div>
         </section>
+      )}
+
+      {selected && (
+        <aside className="w-64 shrink-0 rounded-[28px] p-4 space-y-3 hidden xl:flex xl:flex-col" style={inboxPanelStyle}>
+          <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Tags</p>
+          <div className="flex flex-wrap gap-1.5">
+            {selected.tags.length === 0 ? (
+              <p className="text-xs" style={{ color: "var(--text-faint)" }}>Nenhuma tag aplicada ainda.</p>
+            ) : (
+              selected.tags.map((tag) => (
+                <span key={tag.id} className="text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1" style={inboxBadgeStyle(tag.cor)}>
+                  {tag.nome}
+                  <button onClick={() => removerTag(selected, tag.id)} className="opacity-60 hover:opacity-100">×</button>
+                </span>
+              ))
+            )}
+          </div>
+          <div className="flex gap-1.5">
+            <select
+              value={novaTag}
+              onChange={(e) => setNovaTag(e.target.value)}
+              className="flex-1 h-8 px-2 rounded-lg text-[11px] outline-none"
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+            >
+              <option value="">Adicionar tag...</option>
+              {tags.filter((t) => !selected.tags.some((st) => st.id === t.id)).map((t) => (
+                <option key={t.id} value={t.nome} style={{ background: "var(--surface-solid)" }}>{t.nome}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => adicionarTag(selected)}
+              disabled={!novaTag || adicionandoTag}
+              className="px-2.5 h-8 rounded-lg text-[11px] font-bold"
+              style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: !novaTag || adicionandoTag ? 0.6 : 1 }}
+            >
+              +
+            </button>
+          </div>
+        </aside>
       )}
     </div>
   );

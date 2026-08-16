@@ -7,6 +7,7 @@ interface TimelineEvent {
   data: string;
   titulo: string;
   detalhe: string | null;
+  conversa_id?: string;
 }
 
 async function getLeadTenantId(leadId: string): Promise<string | null> {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     admin.from("devolucoes").select("external_order_id, motivo, status, created_at").eq("lead_id", leadId).order("created_at"),
     admin
       .from("conversas")
-      .select("protocolo, canal, resolvido_por, resolvido_em, conversation_tags(tags(nome))")
+      .select("id, protocolo, canal, resolvido_por, resolvido_em, conversation_tags(tags(nome))")
       .eq("lead_id", leadId)
       .eq("status", "resolvido")
       .not("resolvido_em", "is", null)
@@ -94,6 +95,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   for (const row of (conversasEncerradas.data ?? []) as unknown as {
+    id: string;
     protocolo: number;
     canal: string;
     resolvido_por: string | null;
@@ -109,6 +111,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       data: row.resolvido_em,
       titulo: `Conversa encerrada (${row.canal}, protocolo #${String(row.protocolo).padStart(4, "0")})`,
       detalhe: `Encerrada por ${row.resolvido_por === "ia" ? "IA" : "atendente"}${tagNomes.length > 0 ? ` — ${tagNomes.join(", ")}` : ""}`,
+      conversa_id: row.id,
     });
   }
 

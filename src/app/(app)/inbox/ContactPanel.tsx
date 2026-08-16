@@ -364,7 +364,7 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
             </div>
           </div>
         ) : (
-          <LeadTimeline events={events} />
+          <LeadTimeline events={events} tenantId={tenantId} />
         )}
       </div>
     </div>

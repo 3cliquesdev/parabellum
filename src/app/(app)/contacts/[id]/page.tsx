@@ -86,7 +86,7 @@ export default function ContactDetailPage() {
 
       <div>
         <p className="text-xs font-bold mb-3" style={{ color: "var(--text-secondary)" }}>Linha do tempo — {events.length} eventos</p>
-        <LeadTimeline events={events} />
+        <LeadTimeline events={events} tenantId={lead?.tenant_id} />
       </div>
     </div>
   );

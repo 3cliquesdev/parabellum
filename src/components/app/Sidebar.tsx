@@ -15,6 +15,8 @@ import {
   Sparkles,
   Megaphone,
   Ticket,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useBranding } from "@/hooks/useBranding";
@@ -31,6 +33,8 @@ const navItems = [
   { href: "/ia", icon: Sparkles, label: "Studio IA", separator: true },
 ];
 
+const SIDEBAR_COLLAPSED_KEY = "3cliques-sidebar-collapsed";
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -39,7 +43,22 @@ export function Sidebar() {
   const [hoveredHref, setHoveredHref] = useState<string | null>(null);
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const saved = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (saved === "1") setCollapsed(true);
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
+
   const logoSrc = branding.logo_url && mounted && resolvedTheme === "dark"
     ? branding.logo_url.replace(/\.png$/, "-white.png")
     : branding.logo_url;
@@ -53,37 +72,47 @@ export function Sidebar() {
 
   return (
     <aside
-      className="crm-sidebar w-56 shrink-0 flex flex-col h-full"
+      className={`crm-sidebar ${collapsed ? "w-16" : "w-56"} shrink-0 flex flex-col h-full transition-[width] duration-150`}
       style={{
         background: "var(--sidebar-gradient)",
         borderRight: "1px solid var(--sidebar-border)",
       }}
     >
       <div
-        className="px-4 h-24 flex items-center gap-3 shrink-0"
+        className={`h-24 flex items-center shrink-0 ${collapsed ? "justify-center px-2" : "justify-between px-4 gap-3"}`}
         style={{ borderBottom: "1px solid var(--sidebar-border)" }}
       >
-        {branding.logo_url ? (
-          // Logo completa (ja contem o nome) — nao repete o texto ao lado.
-          <img src={logoSrc ?? undefined} alt={branding.display_name} className="h-16 w-auto max-w-full shrink-0" /> // eslint-disable-line @next/next/no-img-element
-        ) : (
-          <>
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: cor, boxShadow: `0 0 12px ${cor}40` }}
-            >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
-              </svg>
-            </div>
-            <span className="font-bold text-sm tracking-tight truncate" style={{ color: "var(--sidebar-foreground)" }}>
-              {branding.display_name}
-            </span>
-          </>
+        {!collapsed && (
+          branding.logo_url ? (
+            // Logo completa (ja contem o nome) — nao repete o texto ao lado.
+            <img src={logoSrc ?? undefined} alt={branding.display_name} className="h-16 w-auto max-w-full shrink-0 min-w-0" /> // eslint-disable-line @next/next/no-img-element
+          ) : (
+            <>
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: cor, boxShadow: `0 0 12px ${cor}40` }}
+              >
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path d="M6 1L10.5 10.5H1.5L6 1Z" fill="#0a0a0a" />
+                </svg>
+              </div>
+              <span className="font-bold text-sm tracking-tight truncate" style={{ color: "var(--sidebar-foreground)" }}>
+                {branding.display_name}
+              </span>
+            </>
+          )
         )}
+        <button
+          onClick={toggleCollapsed}
+          title={collapsed ? "Expandir menu" : "Recolher menu"}
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{ color: "var(--text-faint)" }}
+        >
+          {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+        </button>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {navItems.map(({ href, icon: Icon, label, separator }) => {
           const active = href === "/ia" ? pathname.startsWith("/ia") : pathname.startsWith(href);
           const hovered = hoveredHref === href;
@@ -104,7 +133,8 @@ export function Sidebar() {
 
               <Link
                 href={href}
-                className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
+                title={collapsed ? label : undefined}
+                className={`relative flex items-center gap-3 py-2.5 rounded-lg text-sm font-medium ${collapsed ? "justify-center px-0" : "px-3"}`}
                 style={{
                   color: active ? "var(--status-ganho)" : hovered ? "var(--sidebar-foreground)" : "var(--text-secondary)",
                   background: active ? "var(--primary-bg)" : hovered ? "var(--surface-soft)" : "transparent",
@@ -115,7 +145,7 @@ export function Sidebar() {
                 onMouseEnter={() => setHoveredHref(href)}
                 onMouseLeave={() => setHoveredHref(null)}
               >
-                {active && (
+                {active && !collapsed && (
                   <div
                     className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
                     style={{ background: "var(--status-ganho)", boxShadow: "0 0 8px rgba(21,128,61,0.45)" }}
@@ -125,7 +155,7 @@ export function Sidebar() {
                   className="w-4 h-4 shrink-0"
                   style={{ color: active ? "var(--status-ganho)" : hovered ? "var(--sidebar-foreground)" : "var(--text-faint)" }}
                 />
-                {label}
+                {!collapsed && label}
               </Link>
             </div>
           );
@@ -134,14 +164,17 @@ export function Sidebar() {
 
       <div className="px-3 pb-5 space-y-0.5" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
         <div className="pt-3">
-          <div className="flex items-center justify-between px-3 py-2 mb-0.5">
-            <span className="text-xs font-medium" style={{ color: "var(--text-faint)" }}>Aparencia</span>
-            <ThemeToggle />
-          </div>
+          {!collapsed && (
+            <div className="flex items-center justify-between px-3 py-2 mb-0.5">
+              <span className="text-xs font-medium" style={{ color: "var(--text-faint)" }}>Aparencia</span>
+              <ThemeToggle />
+            </div>
+          )}
 
           <Link
             href="/settings"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
+            title={collapsed ? "Configuracoes" : undefined}
+            className={`flex items-center gap-3 py-2.5 rounded-lg text-sm font-medium ${collapsed ? "justify-center px-0" : "px-3"}`}
             style={{ color: "var(--text-secondary)", border: "1px solid transparent", transition: "all 0.15s ease" }}
             onMouseEnter={(event) => {
               const el = event.currentTarget as HTMLAnchorElement;
@@ -155,12 +188,13 @@ export function Sidebar() {
             }}
           >
             <Settings className="w-4 h-4 shrink-0" style={{ color: "var(--text-faint)" }} />
-            Configuracoes
+            {!collapsed && "Configuracoes"}
           </Link>
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
+            title={collapsed ? "Sair" : undefined}
+            className={`w-full flex items-center gap-3 py-2.5 rounded-lg text-sm font-medium ${collapsed ? "justify-center px-0" : "px-3"}`}
             style={{ color: "var(--text-faint)", border: "1px solid transparent", transition: "all 0.15s ease" }}
             onMouseEnter={(event) => {
               const el = event.currentTarget as HTMLButtonElement;
@@ -174,7 +208,7 @@ export function Sidebar() {
             }}
           >
             <LogOut className="w-4 h-4 shrink-0" style={{ color: "var(--text-faint)" }} />
-            Sair
+            {!collapsed && "Sair"}
           </button>
         </div>
       </div>

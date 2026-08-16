@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Check, CheckCheck, Clock, Download, FileText, MapPin, MessageSquare, Paperclip, Reply, Send, User } from "lucide-react";
+import { Bot, Check, CheckCheck, ChevronDown, ChevronRight, Clock, Download, FileText, MapPin, MessageSquare, Paperclip, Reply, Send, User } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
@@ -189,6 +189,22 @@ function NavRow({ ativo, cor, label, count, title, onClick }: { ativo: boolean; 
   );
 }
 
+function SecaoAccordion({ titulo, aberta, onToggle, children }: { titulo: string; aberta: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-2 px-2 mb-1 text-[10px] font-bold uppercase tracking-wide"
+        style={{ color: "var(--text-faint)" }}
+      >
+        {titulo}
+        {aberta ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+      </button>
+      {aberta && children}
+    </div>
+  );
+}
+
 export default function InboxPage() {
   const { tenantId, loading: tenantLoading } = useTenant();
   const { conversas, loading: conversasLoading } = useConversas(tenantId);
@@ -217,6 +233,11 @@ export default function InboxPage() {
   const [equipe, setEquipe] = useState<MembroEquipe[]>([]);
   const [criarNegocioTick, setCriarNegocioTick] = useState(0);
   const [agora, setAgora] = useState<number | null>(null);
+  const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({});
+
+  function toggleSecao(nome: string) {
+    setSecoesAbertas((prev) => ({ ...prev, [nome]: !prev[nome] }));
+  }
 
   useEffect(() => {
     function atualizarAgora() {
@@ -344,23 +365,6 @@ export default function InboxPage() {
     } finally {
       setSending(false);
     }
-  }
-
-  function baixarConversaTxt() {
-    if (!selected) return;
-    const linhas = mensagens.map((msg) => {
-      const quem = msg.remetente === "lead" ? selected.lead_nome : msg.remetente === "ia" ? "IA" : "Atendente";
-      const quando = new Date(msg.created_at).toLocaleString("pt-BR");
-      const corpo = msg.media_url ? `[${msg.media_type ?? "midia"}: ${msg.media_nome ?? msg.media_url}]${msg.conteudo ? ` ${msg.conteudo}` : ""}` : msg.conteudo;
-      return `[${quando}] ${quem}: ${corpo}`;
-    });
-    const blob = new Blob([linhas.join("\n")], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `conversa-${selected.protocolo}-${selected.lead_nome.replace(/\s+/g, "_")}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
   }
 
   async function toggleIA(conversa: ConversaWithLead) {
@@ -496,28 +500,25 @@ export default function InboxPage() {
           </div>
 
           {departamentos.length > 0 && (
-            <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-              <p className="text-[10px] font-bold uppercase tracking-wide mb-1 px-2" style={{ color: "var(--text-faint)" }}>Departamentos</p>
+            <SecaoAccordion titulo="Departamentos" aberta={!!secoesAbertas.departamentos} onToggle={() => toggleSecao("departamentos")}>
               <NavRow ativo={!departamentoFiltro} label="Todos deptos" count={conversasAtivas.length} onClick={() => setDepartamentoFiltro(null)} />
               {departamentos.map((dep) => (
                 <NavRow key={dep.id} ativo={departamentoFiltro === dep.id} cor={safeColor(dep.color)} label={dep.name} count={contagemPorDepartamento.get(dep.id) ?? 0} onClick={() => setDepartamentoFiltro(dep.id)} />
               ))}
-            </div>
+            </SecaoAccordion>
           )}
 
           {tags.length > 0 && (
-            <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-              <p className="text-[10px] font-bold uppercase tracking-wide mb-1 px-2" style={{ color: "var(--text-faint)" }}>Tags</p>
+            <SecaoAccordion titulo="Tags" aberta={!!secoesAbertas.tags} onToggle={() => toggleSecao("tags")}>
               <NavRow ativo={!tagFiltro} label="Todas as tags" count={conversasAtivas.length} onClick={() => setTagFiltro(null)} />
               {tags.map((tag) => (
                 <NavRow key={tag.id} ativo={tagFiltro === tag.id} cor={safeColor(tag.cor)} label={tag.nome} count={contagemPorTag.get(tag.id) ?? 0} onClick={() => setTagFiltro(tag.id)} />
               ))}
-            </div>
+            </SecaoAccordion>
           )}
 
           {equipe.length > 0 && (
-            <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-              <p className="text-[10px] font-bold uppercase tracking-wide mb-1 px-2" style={{ color: "var(--text-faint)" }}>Por atendente</p>
+            <SecaoAccordion titulo="Por atendente" aberta={!!secoesAbertas.atendentes} onToggle={() => toggleSecao("atendentes")}>
               <NavRow ativo={!atendenteFiltro} label="Todos atendentes" count={conversasAtivas.length} onClick={() => setAtendenteFiltro(null)} />
               {equipe.map((membro) => (
                 <NavRow
@@ -530,12 +531,12 @@ export default function InboxPage() {
                   onClick={() => setAtendenteFiltro(membro.user_id ?? null)}
                 />
               ))}
-            </div>
+            </SecaoAccordion>
           )}
         </div>
       </aside>
 
-      <aside className="w-[320px] xl:w-[340px] shrink-0 rounded-[28px] overflow-hidden flex flex-col min-h-0" style={inboxPanelStyle}>
+      <aside className="w-[260px] xl:w-[280px] shrink-0 rounded-[28px] overflow-hidden flex flex-col min-h-0" style={inboxPanelStyle}>
         <div className="px-4 pt-4 pb-3 shrink-0" style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
           <h2 className="text-lg font-extrabold tracking-[-0.02em]" style={{ color: "var(--text-primary)" }}>
             {FILTROS_STATUS.find((f) => f.id === filtro)?.label ?? (filtro === "encerradas" ? "Encerradas" : "Conversas")}
@@ -695,15 +696,18 @@ export default function InboxPage() {
                 IA {selected.ia_ativa ? "ativada" : "desativada"}
               </button>
 
-              <button
-                onClick={baixarConversaTxt}
-                title="Baixar conversa (.txt)"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
-                style={inboxGhostButtonStyle}
-              >
-                <Download className="w-3.5 h-3.5" />
-                Baixar
-              </button>
+              {selected.status === "resolvido" && (
+                <a
+                  href={`/api/conversas/${selected.id}/export?tenant_id=${tenantId}`}
+                  download
+                  title="Baixar conversa (.txt)"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={inboxGhostButtonStyle}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Baixar
+                </a>
+              )}
 
               {selected.status !== "resolvido" && selected.assigned_to !== myUserId && (
                 <button

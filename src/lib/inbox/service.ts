@@ -375,6 +375,28 @@ async function findOrCreateConversation(
   return data as ConversationRow;
 }
 
+// Resolve/cria o lead e sincroniza identidades sem tocar em conversas/mensagens.
+// Usado por integracoes que so precisam vincular um evento a um lead (ex:
+// webhook de status de pedido da Kiwify) e NAO devem gerar uma mensagem
+// fake no Inbox como se o cliente tivesse escrito algo.
+export async function resolveOrLinkLead(
+  supabase: AdminClient,
+  tenantId: string,
+  identity: InboxIdentityInput,
+  leadInput?: InboxLeadInput,
+) {
+  let lead = await resolveLead(supabase, tenantId, identity, leadInput);
+  lead = await syncLeadDirectField(supabase, lead, identity);
+  lead = await syncLeadName(supabase, lead, leadInput?.name);
+
+  const identities = [identity, ...(leadInput?.identities ?? [])];
+  for (const item of identities) {
+    await upsertLeadIdentity(supabase, tenantId, lead.id, item);
+  }
+
+  return lead;
+}
+
 export async function ingestInboundMessage(params: IngestInboundMessageParams) {
   const { supabase, tenantId, canal, identity, lead: leadInput, message } = params;
   const externalMessageKey = buildMessageKey(canal, message.externalMessageId ?? message.waMessageId);
@@ -391,14 +413,7 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
     }
   }
 
-  let lead = await resolveLead(supabase, tenantId, identity, leadInput);
-  lead = await syncLeadDirectField(supabase, lead, identity);
-  lead = await syncLeadName(supabase, lead, leadInput?.name);
-
-  const identities = [identity, ...(leadInput?.identities ?? [])];
-  for (const item of identities) {
-    await upsertLeadIdentity(supabase, tenantId, lead.id, item);
-  }
+  const lead = await resolveOrLinkLead(supabase, tenantId, identity, leadInput);
 
   const conversation = await findOrCreateConversation(supabase, tenantId, lead.id, canal);
 

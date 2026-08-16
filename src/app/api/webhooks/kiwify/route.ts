@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { LooseDatabase } from "@/types/database";
-import { ingestInboundMessage } from "@/lib/inbox/service";
+import { resolveOrLinkLead } from "@/lib/inbox/service";
 
 function adminClient() {
   return createServerClient<LooseDatabase>(
@@ -98,20 +98,22 @@ export async function POST(request: NextRequest) {
 
   let leadId: string | null = null;
   if (customer?.email || customer?.mobile || customer?.phone_number) {
-    const result = await ingestInboundMessage({
-      supabase: admin,
+    // So vincula/atualiza o lead. Status de pedido nao e mensagem de
+    // conversa — nao deve criar/reabrir uma conversa no Inbox como se o
+    // cliente tivesse escrito algo (bug real: emails de status da Kiwify
+    // apareciam misturados com emails de verdade do cliente).
+    const lead = await resolveOrLinkLead(
+      admin,
       tenantId,
-      canal: "email",
-      identity: { canal: "email", value: customer.email ?? null },
-      lead: {
+      { canal: "email", value: customer.email ?? null },
+      {
         name: customer.full_name ?? null,
         identities: customer.mobile || customer.phone_number
           ? [{ canal: "whatsapp", value: customer.mobile ?? customer.phone_number ?? null }]
           : [],
       },
-      message: { text: `[Kiwify] ${produtoNome} — status: ${status}`, metadata: { canal: "kiwify", direction: "system" } },
-    });
-    leadId = result.lead?.id ?? null;
+    );
+    leadId = lead?.id ?? null;
   }
 
   const { error } = await admin.from("vendas").upsert({

@@ -181,18 +181,19 @@ export default function InboxPage() {
     });
   }, [tenantId]);
 
-  const contagemFilaIA = conversas.filter((c) => c.status === "ativo" && c.ia_ativa).length;
-  const contagemFilaHumana = conversas.filter((c) => c.status === "ativo" && (c.dispatch_status === "fila" || c.dispatch_status === "atribuido")).length;
+  const conversasAtivas = conversas.filter((c) => c.status === "ativo");
+  const contagemFilaIA = conversasAtivas.filter((c) => c.ia_ativa).length;
+  const contagemFilaHumana = conversasAtivas.filter((c) => c.dispatch_status === "fila" || c.dispatch_status === "atribuido").length;
   const contagemEncerradas = conversas.filter((c) => c.status === "resolvido").length;
 
   const conversasPorFiltro =
     filtro === "fila_ia"
-      ? conversas.filter((c) => c.status === "ativo" && c.ia_ativa)
+      ? conversasAtivas.filter((c) => c.ia_ativa)
       : filtro === "fila_humana"
-        ? conversas.filter((c) => c.status === "ativo" && (c.dispatch_status === "fila" || c.dispatch_status === "atribuido"))
+        ? conversasAtivas.filter((c) => c.dispatch_status === "fila" || c.dispatch_status === "atribuido")
         : filtro === "encerradas"
           ? conversas.filter((c) => c.status === "resolvido")
-          : conversas;
+          : conversasAtivas;
 
   const conversasFiltradas = departamentoFiltro
     ? conversasPorFiltro.filter((c) => c.department_id === departamentoFiltro)
@@ -356,7 +357,7 @@ export default function InboxPage() {
 
           <div className="flex gap-2 flex-wrap">
             {[
-              { id: "todas" as const, label: "Todas", count: conversas.length },
+              { id: "todas" as const, label: "Todas", count: conversasAtivas.length },
               { id: "fila_ia" as const, label: "Fila IA", count: contagemFilaIA },
               { id: "fila_humana" as const, label: "Fila Humana", count: contagemFilaHumana },
               { id: "encerradas" as const, label: "Encerradas", count: contagemEncerradas },
@@ -389,23 +390,33 @@ export default function InboxPage() {
           </div>
 
           {departamentos.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap mt-2.5">
+            <div className="mt-3 pt-3 space-y-0.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-wide mb-1.5 px-1" style={{ color: "var(--text-faint)" }}>
+                Departamentos
+              </p>
               <button
                 onClick={() => setDepartamentoFiltro(null)}
-                className="px-2.5 h-6 rounded-full text-[10px] font-bold transition-all"
-                style={!departamentoFiltro ? inboxBadgeTone("neutral") : { background: "var(--ghost-bg)", color: "var(--text-faint)", border: "1px solid var(--chip-border)" }}
+                className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  color: !departamentoFiltro ? "var(--status-ganho)" : "var(--text-secondary)",
+                  background: !departamentoFiltro ? "var(--active-soft-bg)" : "transparent",
+                }}
               >
-                Todos deptos
+                <span>Todos deptos</span>
+                <span className="opacity-70">{conversasAtivas.length}</span>
               </button>
               {departamentos.map((dep) => (
                 <button
                   key={dep.id}
                   onClick={() => setDepartamentoFiltro(dep.id)}
-                  className="px-2.5 h-6 rounded-full text-[10px] font-bold transition-all flex items-center gap-1"
-                  style={departamentoFiltro === dep.id ? inboxBadgeStyle(dep.color) : { background: "var(--ghost-bg)", color: "var(--text-faint)", border: "1px solid var(--chip-border)" }}
+                  className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  style={{
+                    color: departamentoFiltro === dep.id ? dep.color : "var(--text-secondary)",
+                    background: departamentoFiltro === dep.id ? `${dep.color}14` : "transparent",
+                  }}
                 >
-                  {dep.name}
-                  <span className="opacity-70">{contagemPorDepartamento.get(dep.id) ?? 0}</span>
+                  <span className="truncate">{dep.name}</span>
+                  <span className="opacity-70 shrink-0 ml-2">{contagemPorDepartamento.get(dep.id) ?? 0}</span>
                 </button>
               ))}
             </div>

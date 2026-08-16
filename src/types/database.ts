@@ -8,7 +8,20 @@ export type LeadStatus =
   | "perdido";
 
 export type AtividadeTipo = "ligacao" | "whatsapp" | "email" | "reuniao" | "outro";
-export type TenantRole = "owner" | "gerente" | "vendedor" | "atendente";
+export type TenantRole =
+  | "owner"
+  | "gerente"
+  | "vendedor"
+  | "atendente"
+  | "consultor"
+  | "gerente_suporte"
+  | "gerente_cs"
+  | "gerente_financeiro"
+  | "financeiro"
+  | "gerente_marketing"
+  | "marketing"
+  | "analista_ecommerce"
+  | "gerente_geral";
 export type ConversaStatus = "ativo" | "resolvido" | "pausado";
 export type ConversaCanal = "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "webchat" | "interno";
 export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "trialing";

@@ -1072,8 +1072,36 @@ function TeamSection({ tenantId }: { tenantId: string }) {
   const [inviting, setInviting] = useState(false); const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
-  const ROLE_COLOR: Record<string, string> = { owner: "#10B981", gerente: "#60a5fa", vendedor: "#facc15", atendente: "#c084fc" };
-  const ROLE_LABEL: Record<string, string> = { owner: "Dono", gerente: "Gerente", vendedor: "Vendedor", atendente: "Atendente" };
+  const ROLE_COLOR: Record<string, string> = {
+    owner: "#10B981",
+    gerente: "#60a5fa",
+    vendedor: "#facc15",
+    atendente: "#c084fc",
+    consultor: "#fb923c",
+    gerente_suporte: "#38bdf8",
+    gerente_cs: "#a78bfa",
+    gerente_financeiro: "#f59e0b",
+    financeiro: "#eab308",
+    gerente_marketing: "#f472b6",
+    marketing: "#ec4899",
+    analista_ecommerce: "#2dd4bf",
+    gerente_geral: "#34d399",
+  };
+  const ROLE_LABEL: Record<string, string> = {
+    owner: "Dono",
+    gerente: "Gerente",
+    vendedor: "Vendedor",
+    atendente: "Atendente",
+    consultor: "Consultor",
+    gerente_suporte: "Gerente de Suporte",
+    gerente_cs: "Gerente de Customer Success",
+    gerente_financeiro: "Gerente Financeiro",
+    financeiro: "Financeiro",
+    gerente_marketing: "Gerente de Marketing",
+    marketing: "Marketing",
+    analista_ecommerce: "Analista de E-commerce",
+    gerente_geral: "Gerente Geral",
+  };
 
   useEffect(() => {
     fetch(`/api/team/members?tenant_id=${tenantId}`).then(r => r.ok ? r.json() : { members: [] }).then(d => setMembers(d.members ?? []));
@@ -1109,9 +1137,9 @@ function TeamSection({ tenantId }: { tenantId: string }) {
             <div className="flex gap-2">
               <input value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="email@vendedor.com" type="email" className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
               <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))} className="h-9 px-3 rounded-xl text-sm outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
-                <option value="vendedor" style={{ background: "var(--surface-solid)" }}>Vendedor</option>
-                <option value="atendente" style={{ background: "var(--surface-solid)" }}>Atendente</option>
-                <option value="gerente" style={{ background: "var(--surface-solid)" }}>Gerente</option>
+                {Object.entries(ROLE_LABEL).filter(([role]) => role !== "owner").map(([role, label]) => (
+                  <option key={role} value={role} style={{ background: "var(--surface-solid)" }}>{label}</option>
+                ))}
               </select>
               <button onClick={sendInvite} disabled={inviting || !inviteForm.email} className="px-4 h-9 rounded-lg text-xs font-semibold" style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: inviting ? 0.6 : 1 }}>
                 {inviting ? "..." : "Enviar"}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertTenantMember, type AdminClient } from "@/lib/auth/guard";
 import { getInternalApiSecret } from "@/lib/security/internal-auth";
+import { reassignAgentActiveConversations } from "@/lib/dispatch";
 
 interface TenantMemberRow {
   id?: string;
@@ -63,11 +64,14 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (max_concurrent_chats !== undefined) updates.max_concurrent_chats = max_concurrent_chats;
+  if (availability_status !== undefined) updates.availability_status = availability_status;
 
-  if (availability_status !== undefined) {
-    updates.availability_status = availability_status;
+  if (Object.keys(updates).length > 0) {
+    await admin.from("tenant_members").update(updates).eq("id", member_id);
+  }
 
-    if (availability_status === "online" && target.user_id) {
+  if (availability_status !== undefined && target.user_id) {
+    if (availability_status === "online") {
       const internalSecret = getInternalApiSecret();
       if (!internalSecret) {
         return NextResponse.json({ error: "INTERNAL_API_SECRET nao configurado" }, { status: 503 });
@@ -78,10 +82,14 @@ export async function PATCH(request: NextRequest) {
         body: JSON.stringify({ tenant_id, agent_id: target.user_id }),
       }).catch(() => {});
     }
-  }
 
-  if (Object.keys(updates).length > 0) {
-    await admin.from("tenant_members").update(updates).eq("id", member_id);
+    if (availability_status === "offline") {
+      // Status ja foi gravado como offline acima, entao o proprio agente
+      // nunca e escolhido de volta. Aguarda de verdade (nao dispara-e-esquece):
+      // o cliente nao pode ficar sem ninguem porque a redistribuicao nao
+      // terminou a tempo.
+      await reassignAgentActiveConversations(tenant_id, target.user_id);
+    }
   }
 
   if (department_ids !== undefined && target.user_id) {

@@ -1202,6 +1202,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
   const [showInvite, setShowInvite] = useState(false); const [inviteForm, setInviteForm] = useState({ email: "", role: "vendedor" });
   const [inviting, setInviting] = useState(false); const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
   const ROLE_COLOR: Record<string, string> = {
     owner: "#10B981",
@@ -1238,6 +1239,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
     fetch(`/api/team/members?tenant_id=${tenantId}`).then(r => r.ok ? r.json() : { members: [] }).then(d => setMembers(d.members ?? []));
     createClient().from("invite_tokens").select("id, email, role, expires_at").eq("tenant_id", tenantId).is("accepted_at", null)
       .then(({ data }) => setInvites(((data ?? []) as InviteRow[]).filter((invite) => new Date(invite.expires_at) > new Date())));
+    createClient().auth.getUser().then(({ data: { user } }) => setMyUserId(user?.id ?? null));
   }, [tenantId]);
 
   async function sendInvite() {
@@ -1302,7 +1304,7 @@ function TeamSection({ tenantId }: { tenantId: string }) {
                 )}
               </div>
               {/* Departamento + Disponível */}
-              <MemberConfig member={m} tenantId={tenantId} />
+              <MemberConfig member={m} tenantId={tenantId} isSelf={m.user_id === myUserId} />
             </div>
           ))}
         </div>
@@ -1328,7 +1330,7 @@ const AVAILABILITY_LABEL: Record<string, string> = { online: "Disponível", away
 
 const INTEGRACOES_COM_ACESSO = [{ key: "whatsapp", label: "WhatsApp" }];
 
-function MemberConfig({ member, tenantId }: { member: TeamMemberRow; tenantId: string }) {
+function MemberConfig({ member, tenantId, isSelf }: { member: TeamMemberRow; tenantId: string; isSelf: boolean }) {
   const [departments, setDepartments] = useState<DepartmentRow[]>([]);
   const [selected, setSelected] = useState<string[]>(member.department_ids ?? []);
   const [status, setStatus] = useState(member.availability_status ?? "online");
@@ -1405,10 +1407,11 @@ function MemberConfig({ member, tenantId }: { member: TeamMemberRow; tenantId: s
           </div>
         )}
       </div>
-      <button onClick={cycleStatus}
-        disabled={saving}
+      <button onClick={isSelf ? cycleStatus : undefined}
+        disabled={saving || !isSelf}
+        title={isSelf ? "Clique para mudar seu status" : "Cada pessoa so pode mudar o proprio status"}
         className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-bold transition-all"
-        style={{ background: `${AVAILABILITY_COLOR[status]}18`, color: AVAILABILITY_COLOR[status], border: `1px solid ${AVAILABILITY_COLOR[status]}30` }}>
+        style={{ background: `${AVAILABILITY_COLOR[status]}18`, color: AVAILABILITY_COLOR[status], border: `1px solid ${AVAILABILITY_COLOR[status]}30`, cursor: isSelf ? "pointer" : "default", opacity: isSelf ? 1 : 0.75 }}>
         <div className="w-1.5 h-1.5 rounded-full" style={{ background: AVAILABILITY_COLOR[status] }} />
         {AVAILABILITY_LABEL[status]}
       </button>

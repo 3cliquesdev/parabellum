@@ -20,7 +20,12 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useBranding } from "@/hooks/useBranding";
+import { useTenant } from "@/hooks/useTenant";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+
+const AVAILABILITY_ORDER = ["online", "away", "offline"] as const;
+const AVAILABILITY_COLOR: Record<string, string> = { online: "#10B981", away: "#facc15", offline: "#939da4" };
+const AVAILABILITY_LABEL: Record<string, string> = { online: "Disponivel", away: "Ausente", offline: "Offline" };
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -39,11 +44,16 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const branding = useBranding();
+  const { tenantId } = useTenant();
   const cor = branding.primary_color;
   const [hoveredHref, setHoveredHref] = useState<string | null>(null);
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("offline");
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [atendimentosAtivos, setAtendimentosAtivos] = useState(0);
 
   useEffect(() => {
     function inicializar() {
@@ -53,6 +63,50 @@ export function Sidebar() {
     }
     inicializar();
   }, []);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const { data: member } = await supabase
+        .from("tenant_members")
+        .select("id, availability_status")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const row = member as { id: string; availability_status: string | null } | null;
+      if (!row) return;
+      setMemberId(row.id);
+      setStatus(row.availability_status ?? "offline");
+
+      const { count } = await supabase
+        .from("conversas")
+        .select("id", { count: "exact", head: true })
+        .eq("assigned_to", user.id)
+        .eq("dispatch_status", "atribuido")
+        .eq("status", "ativo");
+      setAtendimentosAtivos(count ?? 0);
+    });
+  }, [tenantId]);
+
+  async function updateStatus(novoStatus: string) {
+    if (!memberId || !tenantId) return;
+    setSavingStatus(true);
+    setStatus(novoStatus);
+    await fetch("/api/team/member", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ member_id: memberId, tenant_id: tenantId, availability_status: novoStatus }),
+    });
+    setSavingStatus(false);
+    if (novoStatus === "offline") setAtendimentosAtivos(0);
+  }
+
+  function cycleMyStatus() {
+    const novo = AVAILABILITY_ORDER[(AVAILABILITY_ORDER.indexOf(status as typeof AVAILABILITY_ORDER[number]) + 1) % AVAILABILITY_ORDER.length];
+    void updateStatus(novo);
+  }
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -67,6 +121,13 @@ export function Sidebar() {
     : branding.logo_url;
 
   async function handleLogout() {
+    if (atendimentosAtivos > 0) {
+      const confirmado = window.confirm(
+        `Voce tem ${atendimentosAtivos} atendimento(s) em andamento. Tem certeza que quer sair? Suas conversas serao redistribuidas para outro atendente disponivel.`
+      );
+      if (!confirmado) return;
+      await updateStatus("offline");
+    }
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");
@@ -169,6 +230,18 @@ export function Sidebar() {
 
       <div className="px-3 pb-5 space-y-0.5" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
         <div className="pt-3">
+          {!collapsed && memberId && (
+            <button
+              onClick={cycleMyStatus}
+              disabled={savingStatus}
+              title="Clique para mudar seu status"
+              className="w-full flex items-center gap-2 px-3 py-2 mb-0.5 rounded-lg text-xs font-bold"
+              style={{ background: `${AVAILABILITY_COLOR[status]}18`, color: AVAILABILITY_COLOR[status], border: `1px solid ${AVAILABILITY_COLOR[status]}30` }}
+            >
+              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: AVAILABILITY_COLOR[status] }} />
+              {AVAILABILITY_LABEL[status]}
+            </button>
+          )}
           {!collapsed && (
             <div className="flex items-center justify-between px-3 py-2 mb-0.5">
               <span className="text-xs font-medium" style={{ color: "var(--text-faint)" }}>Aparencia</span>

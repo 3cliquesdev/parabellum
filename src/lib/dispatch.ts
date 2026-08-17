@@ -128,6 +128,35 @@ export async function dispatchConversation(
 }
 
 /**
+ * Quando um agente fica offline, redistribui as conversas que estavam
+ * atribuidas a ele (ainda ativas) - usa o mesmo dispatchConversation de
+ * sempre, que so considera agentes com availability_status "online", entao
+ * o proprio agente que acabou de ficar offline nunca e escolhido de volta.
+ */
+export async function reassignAgentActiveConversations(tenantId: string, agentId: string) {
+  const supabase = adminClient();
+
+  const { data } = await supabase
+    .from("conversas")
+    .select("id, department_id")
+    .eq("tenant_id", tenantId)
+    .eq("assigned_to", agentId)
+    .eq("dispatch_status", "atribuido")
+    .eq("status", "ativo");
+
+  const conversasAtivas = (data ?? []) as unknown as Array<{ id: string; department_id: string | null }>;
+  let redistribuidas = 0;
+
+  for (const conversa of conversasAtivas) {
+    if (!conversa.department_id) continue;
+    await dispatchConversation(tenantId, conversa.id, conversa.department_id, "agente_ficou_offline");
+    redistribuidas += 1;
+  }
+
+  return { redistribuidas };
+}
+
+/**
  * Quando um agente fica disponivel, processa a fila dos departamentos dele
  * (do mais prioritario/antigo pro mais novo) ate esgotar a capacidade.
  */

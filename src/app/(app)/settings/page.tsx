@@ -8,7 +8,7 @@ import { getInviteEmailFeatures, getInviteEmailPalette } from "@/lib/email/invit
 import {
   UserRound, Puzzle, Users, Settings, CreditCard,
   CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp,
-  Plus, Trash2, Copy, Check, Send,
+  Plus, Trash2, Copy, Check, Send, Briefcase,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,11 +106,12 @@ const NAV_ITEMS = [
   { id: "perfil", icon: UserRound, label: "Perfil" },
   { id: "integracoes", icon: Puzzle, label: "Integrações" },
   { id: "equipe", icon: Users, label: "Equipe" },
+  { id: "operacoes", icon: Briefcase, label: "Depart. & Operações" },
   { id: "workspace", icon: Settings, label: "Workspace" },
   { id: "plano", icon: CreditCard, label: "Plano" },
 ];
 
-type NavSection = "perfil" | "integracoes" | "equipe" | "workspace" | "plano";
+type NavSection = "perfil" | "integracoes" | "equipe" | "operacoes" | "workspace" | "plano";
 interface PhoneOption { id: string; display_phone_number: string; verified_name: string; }
 
 // ─── Main Page ───
@@ -217,6 +218,17 @@ export default function SettingsPage() {
               <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Gerencie os membros do seu workspace</p>
             </div>
             <TeamSection tenantId={tenantId} />
+          </div>
+        )}
+
+        {/* ─── DEPART. & OPERAÇÕES ─── */}
+        {section === "operacoes" && tenantId && (
+          <div className="p-6">
+            <div className="mb-6">
+              <h1 className="text-lg font-semibold text-white tracking-tight">Depart. &amp; Operações</h1>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Operações (modelos de drop) e horário de atendimento humano</p>
+            </div>
+            <OperacoesHorarioSection tenantId={tenantId} />
           </div>
         )}
 
@@ -1575,6 +1587,109 @@ function WebhooksManagePanel({ tenantId }: { tenantId: string | null }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Operações & Horário Comercial ───
+interface OperacaoRow { id: string; nome: string; ativo: boolean }
+
+const DIAS_SEMANA = [
+  { valor: 0, label: "Dom" }, { valor: 1, label: "Seg" }, { valor: 2, label: "Ter" },
+  { valor: 3, label: "Qua" }, { valor: 4, label: "Qui" }, { valor: 5, label: "Sex" }, { valor: 6, label: "Sáb" },
+];
+
+function OperacoesHorarioSection({ tenantId }: { tenantId: string }) {
+  const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
+  const [operacoes, setOperacoes] = useState<OperacaoRow[]>([]);
+  const [novaOperacao, setNovaOperacao] = useState("");
+  const [criando, setCriando] = useState(false);
+
+  const [horaInicio, setHoraInicio] = useState("08:00");
+  const [horaFim, setHoraFim] = useState("17:00");
+  const [dias, setDias] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [salvandoHorario, setSalvandoHorario] = useState(false);
+  const [horarioSalvo, setHorarioSalvo] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/operacoes?tenant_id=${tenantId}`).then(r => r.ok ? r.json() : { operacoes: [] }).then(d => setOperacoes(d.operacoes ?? []));
+    createClient().from("tenants").select("horario_atendimento_inicio, horario_atendimento_fim, horario_atendimento_dias").eq("id", tenantId).maybeSingle()
+      .then(({ data }) => {
+        const row = data as { horario_atendimento_inicio: string | null; horario_atendimento_fim: string | null; horario_atendimento_dias: number[] | null } | null;
+        if (row?.horario_atendimento_inicio) setHoraInicio(row.horario_atendimento_inicio.slice(0, 5));
+        if (row?.horario_atendimento_fim) setHoraFim(row.horario_atendimento_fim.slice(0, 5));
+        if (row?.horario_atendimento_dias) setDias(row.horario_atendimento_dias);
+      });
+  }, [tenantId]);
+
+  async function criarOperacao() {
+    if (!novaOperacao.trim()) return;
+    setCriando(true);
+    const r = await fetch("/api/operacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant_id: tenantId, nome: novaOperacao.trim() }) });
+    const d = await r.json();
+    setCriando(false);
+    if (d.operacao) { setOperacoes(prev => [...prev, d.operacao]); setNovaOperacao(""); }
+    else alert(d.error ?? "Erro ao criar operação");
+  }
+
+  function toggleDia(dia: number) {
+    setDias(prev => prev.includes(dia) ? prev.filter(d => d !== dia) : [...prev, dia].sort());
+  }
+
+  async function salvarHorario() {
+    setSalvandoHorario(true);
+    await createClient().from("tenants").update({
+      horario_atendimento_inicio: horaInicio,
+      horario_atendimento_fim: horaFim,
+      horario_atendimento_dias: dias,
+    }).eq("id", tenantId);
+    setSalvandoHorario(false);
+    setHorarioSalvo(true);
+    setTimeout(() => setHorarioSalvo(false), 2000);
+  }
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="rounded-xl p-5 space-y-4" style={cardStyle}>
+        <div><p className="text-sm font-bold text-white">Operações</p><p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Modelos usados no campo &quot;Operação&quot; dos tickets</p></div>
+        <div className="flex flex-wrap gap-2">
+          {operacoes.map(op => (
+            <span key={op.id} className="text-xs font-medium px-3 py-1.5 rounded-full" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}>
+              {op.nome}
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <input value={novaOperacao} onChange={e => setNovaOperacao(e.target.value)} placeholder="Nova operação (ex: Global)"
+            className="flex-1 h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+          <button onClick={criarOperacao} disabled={criando || !novaOperacao.trim()} className="px-4 h-9 rounded-lg text-xs font-semibold" style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: criando ? 0.6 : 1 }}>
+            {criando ? "..." : "Adicionar"}
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl p-5 space-y-4" style={cardStyle}>
+        <div><p className="text-sm font-bold text-white">Horário Comercial</p><p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Usado pela IA antes de transferir uma conversa pra atendimento humano</p></div>
+        <div className="flex items-center gap-3">
+          <input type="time" value={horaInicio} onChange={e => setHoraInicio(e.target.value)} className="h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>até</span>
+          <input type="time" value={horaFim} onChange={e => setHoraFim(e.target.value)} className="h-9 px-3 rounded-xl text-sm text-white outline-none" style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }} />
+        </div>
+        <div className="flex gap-1.5">
+          {DIAS_SEMANA.map(d => (
+            <button key={d.valor} onClick={() => toggleDia(d.valor)}
+              className="w-9 h-9 rounded-lg text-xs font-bold"
+              style={dias.includes(d.valor)
+                ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
+                : { background: "var(--surface-soft)", color: "var(--text-faint)", border: "1px solid var(--border-subtle)" }}>
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={salvarHorario} disabled={salvandoHorario} className="px-4 h-9 rounded-lg text-xs font-semibold" style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: salvandoHorario ? 0.6 : 1 }}>
+          {horarioSalvo ? "Salvo!" : salvandoHorario ? "..." : "Salvar horário"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, RefreshCw } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
@@ -34,6 +34,8 @@ export default function BroadcastTemplatesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ template_name: "", category: "UTILITY", body_text: "", footer_text: "", header_type: "NONE", variables_schema: "" });
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
 
@@ -55,6 +57,23 @@ export default function BroadcastTemplatesPage() {
     if (d.template) { setTemplates(t => [d.template, ...t]); setShowForm(false); setForm({ template_name: "", category: "UTILITY", body_text: "", footer_text: "", header_type: "NONE", variables_schema: "" }); }
   }
 
+  async function sincronizarDoMeta() {
+    if (!tenantId) return;
+    setSyncing(true);
+    setSyncMsg(null);
+    const r = await fetch("/api/broadcast/templates/sync", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant_id: tenantId }),
+    });
+    const d = await r.json();
+    setSyncing(false);
+    if (r.ok) {
+      setSyncMsg(`${d.sincronizados} de ${d.total_na_meta} templates sincronizados da Meta.`);
+      fetch(`/api/broadcast/templates?tenant_id=${tenantId}`).then((res) => res.json()).then((data) => setTemplates(data.templates ?? []));
+    } else {
+      setSyncMsg(d.error ?? "Erro ao sincronizar com a Meta");
+    }
+  }
+
   async function remove(id: string) {
     if (!confirm("Excluir template?")) return;
     await fetch("/api/broadcast/templates", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template_id: id }) });
@@ -73,11 +92,23 @@ export default function BroadcastTemplatesPage() {
           <h1 className="text-lg font-semibold text-white tracking-[-0.03em]">Templates</h1>
           <p className="text-sm mt-1" style={{ color: "#939da4" }}>Templates aprovados pela Meta para envio em massa</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
-          style={{ background: "#10B981", color: "#0a0a0a" }}>
-          <Plus className="w-4 h-4" /> Novo template
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={sincronizarDoMeta} disabled={syncing} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
+            style={{ background: "rgba(255,255,255,0.06)", color: "#fff", opacity: syncing ? 0.6 : 1 }}>
+            <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Sincronizando..." : "Sincronizar do Meta"}
+          </button>
+          <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
+            style={{ background: "#10B981", color: "#0a0a0a" }}>
+            <Plus className="w-4 h-4" /> Novo template
+          </button>
+        </div>
       </div>
+
+      {syncMsg && (
+        <div className="rounded-xl p-3 text-xs" style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", color: "#60a5fa" }}>
+          {syncMsg}
+        </div>
+      )}
 
       {/* Aviso importante */}
       <div className="rounded-xl p-4" style={{ background: "rgba(250,204,21,0.06)", border: "1px solid rgba(250,204,21,0.2)" }}>

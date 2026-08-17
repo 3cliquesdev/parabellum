@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Bot, Check, CheckCheck, ChevronDown, ChevronRight, Clock, Download, FileText, MapPin, MessageSquare, MoreVertical, Paperclip, Reply, Send, User } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
@@ -8,6 +9,8 @@ import { useIsCompact } from "@/hooks/useIsCompact";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
 import { useMensagens } from "@/hooks/useMensagens";
 import { createClient } from "@/lib/supabase/client";
+import { isWindowOpen } from "@/lib/inbox/window";
+import { TemplatePickerModal } from "@/components/app/inbox/TemplatePickerModal";
 import type { Mensagem } from "@/types/database";
 import {
   inboxBadgeStyle,
@@ -216,6 +219,14 @@ function SecaoAccordion({ titulo, aberta, onToggle, children }: { titulo: string
 }
 
 export default function InboxPage() {
+  return (
+    <Suspense fallback={null}>
+      <InboxPageInner />
+    </Suspense>
+  );
+}
+
+function InboxPageInner() {
   const { tenantId, loading: tenantLoading } = useTenant();
   const { conversas, loading: conversasLoading } = useConversas(tenantId);
   const safeColor = useContrastSafeColor();
@@ -225,6 +236,9 @@ export default function InboxPage() {
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Mensagem | null>(null);
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
     function limparRespondendo() {
@@ -232,6 +246,18 @@ export default function InboxPage() {
     }
     limparRespondendo();
   }, [selectedId]);
+
+  useEffect(() => {
+    const conversaParam = searchParams.get("conversa");
+    if (!conversaParam) return;
+    function abrirConversaDoLink() {
+      if (conversas.some((c) => c.id === conversaParam)) {
+        setSelectedId(conversaParam);
+        router.replace("/inbox");
+      }
+    }
+    abrirConversaDoLink();
+  }, [searchParams, conversas, router]);
   const [filtro, setFiltro] = useState<FiltroInbox>("todas");
   const [departamentoFiltro, setDepartamentoFiltro] = useState<string | null>(null);
   const [tagFiltro, setTagFiltro] = useState<string | null>(null);
@@ -1032,88 +1058,114 @@ export default function InboxPage() {
                 <button onClick={() => setReplyingTo(null)} className="shrink-0 text-sm font-bold" style={{ color: "var(--text-faint)" }}>×</button>
               </div>
             )}
-            <div className="rounded-[24px] p-2 flex items-center gap-2" style={inboxComposerStyle}>
-              <label
-                className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
-                style={{
-                  background: "var(--ghost-bg)",
-                  color: "var(--text-secondary)",
-                  border: "1px solid var(--chip-border)",
-                  cursor: selected.supports_attachments ? "pointer" : "not-allowed",
-                  opacity: selected.supports_attachments ? 1 : 0.45,
-                }}
-              >
-                <Paperclip className="w-4 h-4" />
-                <input
-                  type="file"
-                  className="hidden"
-                  disabled={!selected.supports_attachments || sending}
-                  accept="image/*,audio/*,video/*,application/pdf,.doc,.docx"
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0];
-                    if (!file || !selectedId || !tenantId || !selected.supports_attachments) return;
+            {selected.canal === "whatsapp" && selected.supports_outbound && !isWindowOpen(selected) ? (
+              <div className="rounded-2xl p-4 flex items-center justify-between gap-3" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  Janela de 24h fechada — envie um template pra reabrir a conversa.
+                </p>
+                <button
+                  onClick={() => setShowTemplatePicker(true)}
+                  className="shrink-0 h-9 px-4 rounded-lg text-xs font-bold"
+                  style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+                >
+                  Enviar template
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-[24px] p-2 flex items-center gap-2" style={inboxComposerStyle}>
+                  <label
+                    className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
+                    style={{
+                      background: "var(--ghost-bg)",
+                      color: "var(--text-secondary)",
+                      border: "1px solid var(--chip-border)",
+                      cursor: selected.supports_attachments ? "pointer" : "not-allowed",
+                      opacity: selected.supports_attachments ? 1 : 0.45,
+                    }}
+                  >
+                    <Paperclip className="w-4 h-4" />
+                    <input
+                      type="file"
+                      className="hidden"
+                      disabled={!selected.supports_attachments || sending}
+                      accept="image/*,audio/*,video/*,application/pdf,.doc,.docx"
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+                        if (!file || !selectedId || !tenantId || !selected.supports_attachments) return;
 
-                    setSending(true);
-                    const formData = new FormData();
-                    formData.append("file", file);
-                    formData.append("conversa_id", selectedId);
-                    formData.append("tenant_id", tenantId);
-                    const res = await fetch("/api/inbox/send", { method: "POST", body: formData });
-                    if (!res.ok) {
-                      const err = await res.json().catch(() => ({}));
-                      alert(err.error ?? "Erro ao enviar arquivo");
+                        setSending(true);
+                        const formData = new FormData();
+                        formData.append("file", file);
+                        formData.append("conversa_id", selectedId);
+                        formData.append("tenant_id", tenantId);
+                        const res = await fetch("/api/inbox/send", { method: "POST", body: formData });
+                        if (!res.ok) {
+                          const err = await res.json().catch(() => ({}));
+                          alert(err.error ?? "Erro ao enviar arquivo");
+                        }
+                        setSending(false);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+
+                  <input
+                    value={text}
+                    onChange={(event) => setText(event.target.value)}
+                    onKeyDown={(event) => event.key === "Enter" && !event.shiftKey && handleSend()}
+                    disabled={!selected.supports_outbound || sending}
+                    placeholder={
+                      !selected.supports_outbound
+                        ? `Entrada via ${selected.canal_label}. Resposta manual ativa em breve.`
+                        : selected.canal === "email"
+                          ? "Escreva o corpo do email..."
+                          : "Digite uma mensagem..."
                     }
-                    setSending(false);
-                    event.target.value = "";
-                  }}
-                />
-              </label>
+                    className="flex-1 h-11 px-3 text-sm outline-none rounded-xl"
+                    style={{ background: "transparent", border: "none", color: "var(--text-primary)" }}
+                  />
 
-              <input
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && !event.shiftKey && handleSend()}
-                disabled={!selected.supports_outbound || sending}
-                placeholder={
-                  !selected.supports_outbound
-                    ? `Entrada via ${selected.canal_label}. Resposta manual ativa em breve.`
-                    : selected.canal === "email"
-                      ? "Escreva o corpo do email..."
-                      : "Digite uma mensagem..."
-                }
-                className="flex-1 h-11 px-3 text-sm outline-none rounded-xl"
-                style={{ background: "transparent", border: "none", color: "var(--text-primary)" }}
-              />
+                  <button
+                    onClick={handleSend}
+                    disabled={!selected.supports_outbound || !text.trim() || sending}
+                    className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
+                    style={
+                      text.trim() && !sending && selected.supports_outbound
+                        ? {
+                            background: "var(--status-ganho)",
+                            color: "#0a0a0a",
+                            boxShadow: "0 10px 18px rgba(21,128,61,0.22)",
+                          }
+                        : {
+                            background: "var(--ghost-bg)",
+                            color: "var(--text-faint)",
+                            border: "1px solid var(--chip-border)",
+                          }
+                    }
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
 
-              <button
-                onClick={handleSend}
-                disabled={!selected.supports_outbound || !text.trim() || sending}
-                className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
-                style={
-                  text.trim() && !sending && selected.supports_outbound
-                    ? {
-                        background: "var(--status-ganho)",
-                        color: "#0a0a0a",
-                        boxShadow: "0 10px 18px rgba(21,128,61,0.22)",
-                      }
-                    : {
-                        background: "var(--ghost-bg)",
-                        color: "var(--text-faint)",
-                        border: "1px solid var(--chip-border)",
-                      }
-                }
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-[10px] mt-2.5 text-center" style={{ color: "var(--text-faint)" }}>
-              {selected.supports_outbound
-                ? "Enter para enviar · Clipe para anexar imagem, áudio, vídeo ou documento"
-                : "Canal em modo inbound-first nesta fase. O histórico segue funcionando normalmente."}
-            </p>
+                <p className="text-[10px] mt-2.5 text-center" style={{ color: "var(--text-faint)" }}>
+                  {selected.supports_outbound
+                    ? "Enter para enviar · Clipe para anexar imagem, áudio, vídeo ou documento"
+                    : "Canal em modo inbound-first nesta fase. O histórico segue funcionando normalmente."}
+                </p>
+              </>
+            )}
           </div>
         </section>
+      )}
+
+      {showTemplatePicker && selected && tenantId && (
+        <TemplatePickerModal
+          tenantId={tenantId}
+          conversaId={selected.id}
+          onClose={() => setShowTemplatePicker(false)}
+          onEnviado={() => setShowTemplatePicker(false)}
+        />
       )}
 
       {selected && tenantId && (

@@ -18,6 +18,7 @@ type ConversationLookup = {
   tenant_id: string;
   canal: ConversaCanal;
   whatsapp_config_id: string | null;
+  ultima_mensagem_lead_em?: string | null;
   leads: LeadRef | LeadRef[] | null;
 };
 
@@ -37,6 +38,20 @@ interface MetaMediaUploadResponse {
 
 interface MetaSendMessageResponse {
   messages?: Array<{ id?: string }>;
+}
+
+interface MetaErrorResponse {
+  error?: { message?: string; code?: number; error_subcode?: number };
+}
+
+async function parseMetaError(response: Response): Promise<{ error: string; metaErrorCode?: number }> {
+  const body = (await response.json().catch(() => null)) as MetaErrorResponse | null;
+  const metaError = body?.error;
+  if (!metaError) return { error: "Falha ao enviar mensagem" };
+  return {
+    error: metaError.message ?? "Falha ao enviar mensagem",
+    metaErrorCode: metaError.code,
+  };
 }
 
 type MediaMessageType = "image" | "audio" | "video" | "document" | "sticker";
@@ -65,7 +80,7 @@ function escapeHtml(input: string) {
 export async function loadConversationForOutbound(supabase: AdminClient, conversationId: string) {
   const { data } = await supabase
     .from("conversas")
-    .select("id, tenant_id, canal, lead_id, whatsapp_config_id, leads(id, nome, whatsapp, email, instagram)")
+    .select("id, tenant_id, canal, lead_id, whatsapp_config_id, ultima_mensagem_lead_em, leads(id, nome, whatsapp, email, instagram)")
     .eq("id", conversationId)
     .maybeSingle();
 
@@ -228,7 +243,7 @@ export async function sendWhatsAppConversationMessage(
       }),
     });
     if (!response.ok) {
-      return { ok: false as const, error: "Falha ao enviar mensagem" };
+      return { ok: false as const, ...(await parseMetaError(response)) };
     }
 
     const responseData = (await response.json()) as MetaSendMessageResponse;
@@ -250,6 +265,83 @@ export async function sendWhatsAppConversationMessage(
     media_nome: mediaName,
     media_mime: mediaMime,
     metadata: { canal: "whatsapp", direction: "outbound" },
+  });
+
+  await supabase
+    .from("conversas")
+    .update({
+      updated_at: new Date().toISOString(),
+      ultima_mensagem_remetente: "humano",
+      ultima_mensagem_em: new Date().toISOString(),
+      agente_respondeu: true,
+    })
+    .eq("id", conversation.id);
+
+  return { ok: true as const };
+}
+
+// Envia um template pre-aprovado da Meta (HSM) - unico jeito de iniciar ou
+// reabrir uma conversa fora da janela de 24h de resposta livre. Reaproveita
+// resolveWhatsAppConfig (numero dedicado > numero universal do tenant),
+// igual ao envio de texto livre.
+export async function sendWhatsAppTemplateConversationMessage(
+  supabase: AdminClient,
+  conversation: ConversationLookup,
+  templateName: string,
+  languageCode: string,
+  variables: Record<string, string>,
+  previewText: string,
+) {
+  const lead = singleLead(conversation.leads);
+  const toNumber = lead?.whatsapp?.replace(/\D/g, "") ?? "";
+  if (!toNumber) {
+    return { ok: false as const, error: "Lead sem numero de WhatsApp" };
+  }
+
+  const config = await resolveWhatsAppConfig(supabase, conversation);
+  if (!config) {
+    return { ok: false as const, error: "WhatsApp nao configurado" };
+  }
+
+  const bodyParameters = Object.entries(variables)
+    .sort(([left], [right]) => Number.parseInt(left, 10) - Number.parseInt(right, 10))
+    .map(([, value]) => ({ type: "text" as const, text: value }));
+
+  const response = await fetch(`https://graph.facebook.com/v20.0/${config.phone_number_id}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.access_token}`,
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: toNumber,
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        components: bodyParameters.length > 0 ? [{ type: "body", parameters: bodyParameters }] : undefined,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    return { ok: false as const, ...(await parseMetaError(response)) };
+  }
+
+  const responseData = (await response.json()) as MetaSendMessageResponse;
+  const outboundMessageId = responseData.messages?.[0]?.id ?? null;
+
+  await supabase.from("mensagens").insert({
+    conversa_id: conversation.id,
+    tenant_id: conversation.tenant_id,
+    remetente: "humano",
+    conteudo: previewText,
+    wa_message_id: outboundMessageId,
+    external_message_id: outboundMessageId ? `whatsapp:${outboundMessageId}` : null,
+    enviada: true,
+    status: "sent",
+    metadata: { canal: "whatsapp", direction: "outbound", is_template: true, template_name: templateName },
   });
 
   await supabase

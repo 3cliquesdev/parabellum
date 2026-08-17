@@ -19,6 +19,7 @@ export interface ConversaWithLead extends Conversa {
   protocolo: number;
   ultima_mensagem_remetente?: "lead" | "humano" | "ia" | null;
   ultima_mensagem_em?: string | null;
+  ultima_mensagem_lead_em?: string | null;
   agente_respondeu: boolean;
   lead_nome: string;
   lead_whatsapp: string | null;
@@ -60,6 +61,7 @@ interface ConversaRow extends Conversa {
   protocolo: number;
   ultima_mensagem_remetente?: "lead" | "humano" | "ia" | null;
   ultima_mensagem_em?: string | null;
+  ultima_mensagem_lead_em?: string | null;
   agente_respondeu: boolean;
   ai_mode?: "autopilot" | "copilot" | "disabled" | null;
   ai_suggestion?: string | null;

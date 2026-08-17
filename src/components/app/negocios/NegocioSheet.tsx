@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { X, Phone, MessageSquare, Mail, Clock, History, Plus, ChevronDown, ChevronUp, Handshake } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Negocio, Pipeline } from "@/types/database";
 import { NegocioTimeline } from "./NegocioTimeline";
 import { LeadTimeline, type TimelineEvent } from "@/components/app/LeadTimeline";
+import { TemplatePickerModal } from "@/components/app/inbox/TemplatePickerModal";
 import { SITUACAO_PAGAMENTO_LABEL } from "@/lib/leads/situacao-pagamento";
 import { maskPhone } from "@/lib/format";
 
@@ -48,7 +50,9 @@ function enderecoCompleto(lead: Negocio["leads"]): string | null {
 }
 
 export function NegocioSheet({ negocio, tenantId, pipelines, onClose, onAtualizado }: NegocioSheetProps) {
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [form, setForm] = useState({
     titulo: negocio.titulo,
     valor: negocio.valor?.toString() ?? "",
@@ -121,7 +125,12 @@ export function NegocioSheet({ negocio, tenantId, pipelines, onClose, onAtualiza
   }
 
   function openWA() {
-    if (contato.whatsapp) window.open(`https://wa.me/55${contato.whatsapp.replace(/\D/g, "")}`, "_blank");
+    if (contato.whatsapp) setShowTemplatePicker(true);
+  }
+
+  function handleTemplateEnviado(conversaId: string) {
+    setShowTemplatePicker(false);
+    router.push(`/inbox?conversa=${conversaId}`);
   }
 
   function ligar() {
@@ -422,6 +431,16 @@ export function NegocioSheet({ negocio, tenantId, pipelines, onClose, onAtualiza
           </button>
         </div>
       </div>
+
+      {showTemplatePicker && (
+        <TemplatePickerModal
+          tenantId={tenantId}
+          leadId={negocio.lead_id}
+          negocioId={negocio.id}
+          onClose={() => setShowTemplatePicker(false)}
+          onEnviado={handleTemplateEnviado}
+        />
+      )}
     </>
   );
 }

@@ -466,7 +466,7 @@ export interface ConversationChannelHints {
   iaAtivaPadrao?: boolean;
 }
 
-async function findOrCreateConversation(
+export async function findOrCreateConversation(
   supabase: AdminClient,
   tenantId: string,
   leadId: string,
@@ -595,6 +595,7 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
       updated_at: new Date().toISOString(),
       ultima_mensagem_remetente: "lead",
       ultima_mensagem_em: new Date().toISOString(),
+      ultima_mensagem_lead_em: new Date().toISOString(),
     })
     .eq("id", conversation.id);
 

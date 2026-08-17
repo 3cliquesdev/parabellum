@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
 import { dispatchConversation } from "@/lib/dispatch";
+import { estaDentroDoHorarioComercial } from "@/lib/horario-comercial";
 
 interface TransferirBody {
   tenant_id?: string;
@@ -34,6 +35,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: conversa } = await auth.admin.from("conversas").select("id").eq("id", conversaId).eq("tenant_id", tenant_id).maybeSingle();
   if (!conversa) return NextResponse.json({ error: "conversa nao encontrada" }, { status: 404 });
+
+  const { data: tenantRow } = await auth.admin
+    .from("tenants")
+    .select("horario_atendimento_inicio, horario_atendimento_fim, horario_atendimento_dias")
+    .eq("id", tenant_id)
+    .maybeSingle();
+
+  const horarioConfig = tenantRow as {
+    horario_atendimento_inicio: string | null;
+    horario_atendimento_fim: string | null;
+    horario_atendimento_dias: number[] | null;
+  } | null;
+
+  if (horarioConfig && !estaDentroDoHorarioComercial(horarioConfig)) {
+    return NextResponse.json({
+      transferido: false,
+      fora_do_horario: true,
+      horario_atendimento_inicio: horarioConfig.horario_atendimento_inicio,
+      horario_atendimento_fim: horarioConfig.horario_atendimento_fim,
+    });
+  }
 
   const resultado = await dispatchConversation(tenant_id, conversaId, departamento.id, motivo ?? "transferencia_ia");
 

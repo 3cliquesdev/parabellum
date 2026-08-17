@@ -24,6 +24,7 @@ async function candidatosDoDepartamento(
   supabase: ReturnType<typeof adminClient>,
   tenantId: string,
   departmentId: string,
+  excludeAgentId?: string,
 ): Promise<CandidateRow[]> {
   const { data: vinculos } = await supabase
     .from("agent_departments")
@@ -31,7 +32,9 @@ async function candidatosDoDepartamento(
     .eq("tenant_id", tenantId)
     .eq("department_id", departmentId);
 
-  const userIds = ((vinculos ?? []) as unknown as Array<{ user_id: string }>).map((v) => v.user_id);
+  const userIds = ((vinculos ?? []) as unknown as Array<{ user_id: string }>)
+    .map((v) => v.user_id)
+    .filter((id) => id !== excludeAgentId);
   if (userIds.length === 0) return [];
 
   const { data: membros } = await supabase
@@ -58,16 +61,17 @@ export async function dispatchConversation(
   tenantId: string,
   conversaId: string,
   departmentId: string,
-  motivo: string
+  motivo: string,
+  excludeAgentId?: string,
 ): Promise<{ atribuido: boolean; agente_id?: string; na_fila?: boolean }> {
   const supabase = adminClient();
 
-  let candidatos = await candidatosDoDepartamento(supabase, tenantId, departmentId);
+  let candidatos = await candidatosDoDepartamento(supabase, tenantId, departmentId, excludeAgentId);
 
   if (candidatos.length === 0) {
     const { data: dept } = await supabase.from("departments").select("parent_id").eq("id", departmentId).maybeSingle();
     const parentId = (dept as { parent_id?: string | null } | null)?.parent_id;
-    if (parentId) candidatos = await candidatosDoDepartamento(supabase, tenantId, parentId);
+    if (parentId) candidatos = await candidatosDoDepartamento(supabase, tenantId, parentId, excludeAgentId);
   }
 
   let agenteEscolhido: string | null = null;

@@ -9,6 +9,7 @@ interface ConversaTravadaRow {
   assigned_to: string | null;
   department_id: string | null;
   ultima_mensagem_em: string | null;
+  timeout_disparado_em: string | null;
 }
 
 const MENSAGEM_TRANQUILIZACAO =
@@ -57,17 +58,20 @@ export async function GET(request: NextRequest) {
     .maybeSingle();
   const minutosPadrao = (tenantConfig as { auto_close_inatividade_minutos: number | null } | null)?.auto_close_inatividade_minutos ?? 5;
 
+  // Sem filtro fino de tempo no banco (cada conversa pode ter um limite
+  // diferente por departamento) - busca todas as candidatas em aberto (escala
+  // pequena) e filtra em JS logo abaixo.
   const { data, error } = await admin
     .from("conversas")
-    .select("id, assigned_to, department_id, ultima_mensagem_em")
+    .select("id, assigned_to, department_id, ultima_mensagem_em, timeout_disparado_em")
     .eq("tenant_id", tenantId)
     .eq("status", "ativo")
     .eq("ia_ativa", false)
     .eq("dispatch_status", "atribuido")
     .not("assigned_to", "is", null)
-    .eq("ultima_mensagem_remetente", "lead")
+    .neq("ultima_mensagem_remetente", "humano")
     .not("ultima_mensagem_em", "is", null)
-    .limit(50);
+    .limit(200);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const candidatas = (data ?? []) as ConversaTravadaRow[];
@@ -85,10 +89,16 @@ export async function GET(request: NextRequest) {
   const travadas = candidatas.filter((c) => {
     const minutos = (c.department_id && minutosPorDept.get(c.department_id)) || minutosPadrao;
     const limite = agora - minutos * 60 * 1000;
-    return new Date(c.ultima_mensagem_em as string).getTime() < limite;
+    const foraDoCooldown = !c.timeout_disparado_em || new Date(c.timeout_disparado_em).getTime() < limite;
+    return new Date(c.ultima_mensagem_em as string).getTime() < limite && foraDoCooldown;
   });
 
   if (travadas.length === 0) return NextResponse.json({ processadas: 0 });
+
+  await admin
+    .from("conversas")
+    .update({ timeout_disparado_em: new Date().toISOString() })
+    .in("id", travadas.map((c) => c.id));
 
   let reatribuidas = 0;
   let avisosEnviados = 0;

@@ -46,6 +46,32 @@ export interface Pipeline {
   total_negocios: number;
 }
 
+export interface NegocioLead {
+  nome: string;
+  email: string | null;
+  whatsapp: string | null;
+  instagram: string | null;
+  cpf: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_complemento: string | null;
+  endereco_bairro: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  endereco_cep: string | null;
+  servico_interesse: string | null;
+  observacoes: string | null;
+  eh_cliente?: boolean;
+}
+
+export interface NegocioVenda {
+  external_id: string | null;
+  produto_nome: string;
+  valor: number;
+  paid_at: string | null;
+  tipo_cobranca: string | null;
+}
+
 export interface Negocio {
   id: string;
   tenant_id: string;
@@ -60,10 +86,13 @@ export interface Negocio {
   motivo_perda: string | null;
   pipeline_id: string | null;
   pipeline_etapa_id: string | null;
+  venda_id: string | null;
   created_at: string;
   updated_at: string;
   closed_at: string | null;
-  leads?: { nome: string } | null;
+  leads?: NegocioLead | null;
+  vendas?: NegocioVenda | null;
+  situacao_pagamento?: "carrinho_abandonado" | "cartao_recusado" | "aguardando_pagamento" | null;
 }
 export type ConversaCanal = "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "webchat" | "interno";
 export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "trialing";

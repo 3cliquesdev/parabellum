@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Negocio } from "@/types/database";
 import { ORIGEM_LEAD_LABEL } from "@/lib/leads/origem";
+import { SITUACAO_PAGAMENTO_LABEL } from "@/lib/leads/situacao-pagamento";
 
 interface MembroEquipe {
   user_id: string | null;
@@ -72,6 +73,17 @@ export function NegocioCard({ negocio, selecionado, equipe, onToggleSelecionado,
           </div>
           {negocio.leads?.nome && (
             <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>{negocio.leads.nome}</p>
+          )}
+          {negocio.situacao_pagamento && SITUACAO_PAGAMENTO_LABEL[negocio.situacao_pagamento] && (
+            <span
+              className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-1"
+              style={{
+                color: SITUACAO_PAGAMENTO_LABEL[negocio.situacao_pagamento].color,
+                background: SITUACAO_PAGAMENTO_LABEL[negocio.situacao_pagamento].bg,
+              }}
+            >
+              {SITUACAO_PAGAMENTO_LABEL[negocio.situacao_pagamento].label}
+            </span>
           )}
         </div>
       </div>

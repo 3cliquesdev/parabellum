@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
 
   const tipoCobrancaAtual = tipoCobranca(body);
 
-  const { error } = await admin.from("vendas").upsert({
+  const { data: vendaSalva, error } = await admin.from("vendas").upsert({
     tenant_id: tenantId,
     lead_id: leadId,
     produto_nome: produtoNome,
@@ -209,12 +209,14 @@ export async function POST(request: NextRequest) {
     external_id: body.order_id ? `${body.order_id}:${body.Product?.product_id ?? produtoNome}` : null,
     raw_payload: rawBody,
     paid_at: status === "pago" ? new Date().toISOString() : null,
-  }, { onConflict: "tenant_id,origem,external_id" });
+  }, { onConflict: "tenant_id,origem,external_id" }).select("id").single();
 
   if (error) {
     console.error("kiwify webhook: falha ao salvar venda:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const vendaId = (vendaSalva as { id: string } | null)?.id ?? null;
 
   // eh_cliente tambem era setado so por um trigger no banco (AFTER INSERT OR
   // UPDATE OF status em vendas) - um reassign de lead_id (ex: merge de leads
@@ -278,6 +280,7 @@ export async function POST(request: NextRequest) {
           pipeline_id: pipelineId,
           pipeline_etapa_id: etapaGanhoId,
           assigned_to: assignedTo,
+          venda_id: vendaId,
           closed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }).eq("id", negocioInfo.id);
@@ -293,6 +296,7 @@ export async function POST(request: NextRequest) {
           pipeline_id: pipelineId,
           pipeline_etapa_id: etapaGanhoId,
           assigned_to: assignedTo,
+          venda_id: vendaId,
         }).select("id").single();
         negocioId = (negocioCriado as { id: string } | null)?.id ?? null;
       }

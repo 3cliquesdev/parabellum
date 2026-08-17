@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
 
   let query = auth.admin
     .from("negocios")
-    .select("*, leads(nome)")
+    .select(`*,
+      leads(nome, email, whatsapp, instagram, cpf, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, servico_interesse, observacoes, eh_cliente),
+      vendas(external_id, produto_nome, valor, paid_at, tipo_cobranca)`)
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
@@ -38,7 +40,31 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ negocios: data ?? [] });
+
+  const negocios = (data ?? []) as unknown as { id: string; lead_id: string; leads?: { eh_cliente?: boolean } | null }[];
+
+  // Situacao de pagamento (carrinho abandonado/cartao recusado/aguardando
+  // pagamento) - mesma logica que ja existia em useLeads.ts pro Pipeline
+  // antigo; some do card quando o lead ja e cliente.
+  const { data: vendasPendentes } = await auth.admin
+    .from("vendas")
+    .select("lead_id, status, created_at")
+    .eq("tenant_id", tenantId)
+    .in("status", ["carrinho_abandonado", "cartao_recusado", "aguardando_pagamento"])
+    .not("lead_id", "is", null)
+    .order("created_at", { ascending: false });
+
+  const situacaoPorLead = new Map<string, string>();
+  for (const venda of (vendasPendentes ?? []) as unknown as { lead_id: string; status: string }[]) {
+    if (!situacaoPorLead.has(venda.lead_id)) situacaoPorLead.set(venda.lead_id, venda.status);
+  }
+
+  const resultado = negocios.map((n) => ({
+    ...n,
+    situacao_pagamento: n.leads?.eh_cliente ? null : (situacaoPorLead.get(n.lead_id) ?? null),
+  }));
+
+  return NextResponse.json({ negocios: resultado });
 }
 
 export async function POST(request: NextRequest) {

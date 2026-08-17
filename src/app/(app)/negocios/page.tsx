@@ -10,6 +10,7 @@ import { GerenciarPipelinesModal } from "@/components/app/negocios/GerenciarPipe
 import { NegocioSheet } from "@/components/app/negocios/NegocioSheet";
 import { BulkActionsBar } from "@/components/app/negocios/BulkActionsBar";
 import { TransferirCarteiraModal } from "@/components/app/negocios/TransferirCarteiraModal";
+import { NovoNegocioModal } from "@/components/app/negocios/NovoNegocioModal";
 import type { Negocio } from "@/types/database";
 
 interface MembroEquipe {
@@ -32,6 +33,7 @@ export default function NegociosPage() {
 
   const [showGerenciar, setShowGerenciar] = useState(false);
   const [showTransferirCarteira, setShowTransferirCarteira] = useState(false);
+  const [showNovoNegocio, setShowNovoNegocio] = useState(false);
   const [negocioAberto, setNegocioAberto] = useState<Negocio | null>(null);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [equipe, setEquipe] = useState<MembroEquipe[]>([]);
@@ -60,26 +62,6 @@ export default function NegociosPage() {
     if (!res.ok) { alert("Erro ao distribuir fila"); return; }
     const d = await res.json();
     if (d.pendentes > 0) alert(`${d.distribuidos} distribuído(s). ${d.pendentes} continuam pendentes — nenhum vendedor disponível nesse pipeline.`);
-    refetchNegocios();
-  }
-
-  async function criarNegocio() {
-    if (!tenantId || !pipelineAtual) return;
-    const titulo = window.prompt("Título do negócio:");
-    if (!titulo?.trim()) return;
-    const leadId = window.prompt("ID do contato (lead) vinculado:");
-    if (!leadId?.trim()) { alert("É necessário informar o lead vinculado."); return; }
-
-    const res = await fetch("/api/negocios", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: tenantId, lead_id: leadId.trim(), titulo: titulo.trim(), pipeline_id: pipelineAtual.id }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Erro ao criar negócio");
-      return;
-    }
     refetchNegocios();
   }
 
@@ -121,7 +103,7 @@ export default function NegociosPage() {
             style={{ background: "var(--input-bg)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}>
             <Settings className="w-4 h-4" /> Gerenciar Pipelines
           </button>
-          <button onClick={criarNegocio}
+          <button onClick={() => setShowNovoNegocio(true)}
             className="flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold"
             style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
             <Plus className="w-4 h-4" /> Novo Negócio
@@ -207,6 +189,15 @@ export default function NegociosPage() {
           pipelines={pipelines}
           onClose={() => setShowTransferirCarteira(false)}
           onConcluido={() => { setShowTransferirCarteira(false); refetchNegocios(); }}
+        />
+      )}
+
+      {showNovoNegocio && pipelineAtual && (
+        <NovoNegocioModal
+          tenantId={tenantId!}
+          pipelineId={pipelineAtual.id}
+          onClose={() => setShowNovoNegocio(false)}
+          onCriado={() => { setShowNovoNegocio(false); refetchNegocios(); }}
         />
       )}
     </div>

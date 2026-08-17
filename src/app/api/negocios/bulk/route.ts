@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
+import { registrarEventoNegocio } from "@/lib/negocios/eventos";
+import type { AdminClient } from "@/lib/auth/guard";
+
+async function etapaAnteriorPorNegocio(admin: AdminClient, ids: string[]) {
+  const { data } = await admin.from("negocios").select("id, pipeline_etapa_id").in("id", ids);
+  const mapa = new Map<string, string | null>();
+  for (const row of (data ?? []) as { id: string; pipeline_etapa_id: string | null }[]) {
+    mapa.set(row.id, row.pipeline_etapa_id);
+  }
+  return mapa;
+}
 
 type Acao = "mover_pipeline" | "transferir_vendedor" | "marcar_perdido" | "excluir";
 
@@ -44,12 +55,27 @@ export async function POST(request: NextRequest) {
       pipelineEtapaId = (primeiraEtapa as { id: string } | null)?.id ?? null;
     }
 
+    const etapaAnteriorPorId = await etapaAnteriorPorNegocio(auth.admin, ids);
+
     const { error } = await auth.admin
       .from("negocios")
       .update({ pipeline_id: body.pipeline_id, pipeline_etapa_id: pipelineEtapaId, updated_at: new Date().toISOString() })
       .eq("tenant_id", tenant_id)
       .in("id", ids);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    for (const id of ids) {
+      await registrarEventoNegocio(auth.admin, {
+        negocioId: id,
+        tenantId: tenant_id,
+        tipo: "mudanca_etapa",
+        etapaAnteriorId: etapaAnteriorPorId.get(id) ?? null,
+        etapaNovaId: pipelineEtapaId,
+        usuarioId: auth.userId ?? null,
+        origem: "acao_em_massa",
+      });
+    }
+
     return NextResponse.json({ success: true, afetados: ids.length });
   }
 
@@ -76,6 +102,17 @@ export async function POST(request: NextRequest) {
       .eq("tenant_id", tenant_id)
       .in("id", ids);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    for (const id of ids) {
+      await registrarEventoNegocio(auth.admin, {
+        negocioId: id,
+        tenantId: tenant_id,
+        tipo: "perdido",
+        usuarioId: auth.userId ?? null,
+        origem: "acao_em_massa",
+      });
+    }
+
     return NextResponse.json({ success: true, afetados: ids.length });
   }
 

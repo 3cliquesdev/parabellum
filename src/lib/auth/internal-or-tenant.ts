@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isInternalRequest } from "@/lib/security/internal-auth";
 import { assertTenantMember, createAdminClient, type AdminClient } from "@/lib/auth/guard";
 
-type Ok = { ok: true; admin: AdminClient };
+type Ok = { ok: true; admin: AdminClient; userId?: string };
 type Fail = { ok: false; response: NextResponse };
 
 /**
@@ -20,5 +20,5 @@ export async function resolveInternalOrTenantAuth(
 
   const result = await assertTenantMember(tenantId);
   if (!result.ok) return result;
-  return { ok: true, admin: result.admin };
+  return { ok: true, admin: result.admin, userId: result.user.id };
 }

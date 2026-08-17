@@ -4,6 +4,7 @@ import type { LooseDatabase } from "@/types/database";
 import { resolveOrLinkLead } from "@/lib/inbox/service";
 import { resolvePipelinePadrao } from "@/lib/negocios/pipeline-padrao";
 import { escolherVendedorMenosCarregado } from "@/lib/negocios/distribuicao";
+import { registrarEventoNegocio } from "@/lib/negocios/eventos";
 
 function adminClient() {
   return createServerClient<LooseDatabase>(
@@ -256,15 +257,16 @@ export async function POST(request: NextRequest) {
       // Ganho em vez de criar um segundo card duplicado pro mesmo lead.
       const { data: negocioExistente } = await admin
         .from("negocios")
-        .select("id, assigned_to")
+        .select("id, assigned_to, pipeline_etapa_id")
         .eq("lead_id", leadId)
         .eq("estagio", "aberto")
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
 
-      const negocioInfo = negocioExistente as { id: string; assigned_to: string | null } | null;
+      const negocioInfo = negocioExistente as { id: string; assigned_to: string | null; pipeline_etapa_id: string | null } | null;
       const assignedTo = negocioInfo?.assigned_to ?? (pipelineId ? await escolherVendedorMenosCarregado(admin, pipelineId) : null);
+      let negocioId = negocioInfo?.id ?? null;
 
       if (negocioInfo) {
         await admin.from("negocios").update({
@@ -280,7 +282,7 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         }).eq("id", negocioInfo.id);
       } else {
-        await admin.from("negocios").insert({
+        const { data: negocioCriado } = await admin.from("negocios").insert({
           tenant_id: tenantId,
           lead_id: leadId,
           titulo: produtoNome,
@@ -291,8 +293,22 @@ export async function POST(request: NextRequest) {
           pipeline_id: pipelineId,
           pipeline_etapa_id: etapaGanhoId,
           assigned_to: assignedTo,
+        }).select("id").single();
+        negocioId = (negocioCriado as { id: string } | null)?.id ?? null;
+      }
+
+      if (negocioId) {
+        await registrarEventoNegocio(admin, {
+          negocioId,
+          tenantId,
+          tipo: "ganho",
+          etapaAnteriorId: negocioInfo?.pipeline_etapa_id ?? null,
+          etapaNovaId: etapaGanhoId,
+          usuarioId: null,
+          origem: "kiwify_webhook",
         });
       }
+
       await admin.from("leads").update({ status: "ganho", valor_estimado: valor }).eq("id", leadId);
     }
   }
@@ -323,6 +339,15 @@ export async function POST(request: NextRequest) {
       }
       if (valorParaLead) {
         await admin.from("leads").update({ valor_estimado: valorParaLead }).eq("id", leadId);
+        // O Kanban de Negocios le negocios.valor, nao leads.valor_estimado -
+        // sem isso aqui, todo negocio nascia "Sem valor" mesmo com o lead
+        // ja tendo o valor estimado sincronizado (bug real encontrado).
+        await admin
+          .from("negocios")
+          .update({ valor: valorParaLead })
+          .eq("lead_id", leadId)
+          .eq("estagio", "aberto")
+          .is("valor", null);
       }
     }
   }

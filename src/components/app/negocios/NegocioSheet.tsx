@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, History, ChevronDown, ChevronUp } from "lucide-react";
 import type { Negocio, Pipeline } from "@/types/database";
+import { NegocioTimeline } from "./NegocioTimeline";
 
 interface NegocioSheetProps {
   negocio: Negocio;
@@ -20,6 +21,7 @@ const inputStyle: React.CSSProperties = {
 
 export function NegocioSheet({ negocio, tenantId, pipelines, onClose, onAtualizado }: NegocioSheetProps) {
   const [saving, setSaving] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(true);
   const [form, setForm] = useState({
     titulo: negocio.titulo,
     valor: negocio.valor?.toString() ?? "",
@@ -114,6 +116,22 @@ export function NegocioSheet({ negocio, tenantId, pipelines, onClose, onAtualiza
           <div className="grid grid-cols-2 gap-3 pt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
             {negocio.canal && <p>Canal: <span style={{ color: "var(--text-primary)" }}>{negocio.canal}</span></p>}
             {negocio.origem && <p>Origem: <span style={{ color: "var(--text-primary)" }}>{negocio.origem}</span></p>}
+          </div>
+
+          <div className="pt-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+            <button className="w-full flex items-center justify-between py-2 text-left" onClick={() => setShowTimeline((v) => !v)}>
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                <History className="inline w-3 h-3 mr-1.5 mb-0.5" />Timeline
+              </span>
+              {showTimeline
+                ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--text-secondary)" }} />
+                : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--text-secondary)" }} />}
+            </button>
+            {showTimeline && (
+              <div className="mt-1">
+                <NegocioTimeline negocioId={negocio.id} tenantId={tenantId} />
+              </div>
+            )}
           </div>
         </div>
 

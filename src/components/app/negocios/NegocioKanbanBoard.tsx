@@ -73,7 +73,7 @@ export function NegocioKanbanBoard({ pipeline, negocios, tenantId, equipe, selec
     await fetch(`/api/negocios/${negocioId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: tenantId, pipeline_etapa_id: etapaDestino }),
+      body: JSON.stringify({ tenant_id: tenantId, pipeline_etapa_id: etapaDestino, origem_mudanca: "drag_kanban" }),
     });
     onNegocioAtualizado();
   }

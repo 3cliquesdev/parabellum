@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LooseDatabase } from "@/types/database";
 import { getLeadDirectIdentity, normalizeChannelIdentity, type InboxExternalCanal } from "@/lib/inbox/channels";
 import { resolvePipelinePadrao } from "@/lib/negocios/pipeline-padrao";
+import { registrarEventoNegocio } from "@/lib/negocios/eventos";
 
 type AdminClient = SupabaseClient<LooseDatabase>;
 
@@ -297,16 +298,31 @@ async function resolveLead(
     // clientes pagos da Kiwify ganhavam negocio automatico).
     const { pipelineId, etapaId } = await resolvePipelinePadrao(supabase, tenantId);
     if (pipelineId) {
-      await supabase.from("negocios").insert({
-        tenant_id: tenantId,
-        lead_id: newLead.id,
-        titulo: newLead.nome,
-        canal: primaryIdentity.canal,
-        origem: leadInput?.origem ?? primaryIdentity.canal,
-        estagio: "aberto",
-        pipeline_id: pipelineId,
-        pipeline_etapa_id: etapaId,
-      });
+      const origemNegocio = leadInput?.origem ?? primaryIdentity.canal;
+      const { data: novoNegocio } = await supabase
+        .from("negocios")
+        .insert({
+          tenant_id: tenantId,
+          lead_id: newLead.id,
+          titulo: newLead.nome,
+          canal: primaryIdentity.canal,
+          origem: origemNegocio,
+          estagio: "aberto",
+          pipeline_id: pipelineId,
+          pipeline_etapa_id: etapaId,
+        })
+        .select("id")
+        .single();
+
+      if (novoNegocio) {
+        await registrarEventoNegocio(supabase, {
+          negocioId: (novoNegocio as { id: string }).id,
+          tenantId,
+          tipo: "criado",
+          etapaNovaId: etapaId,
+          origem: origemNegocio,
+        });
+      }
     }
   }
 

@@ -73,52 +73,96 @@ interface ConversationTagRow {
   tags: { id: string; nome: string; cor: string } | { id: string; nome: string; cor: string }[] | null;
 }
 
+interface AuthContext {
+  userId: string | null;
+  role: string;
+  deptIds: string[];
+}
+
 export function useConversas(tenantId: string | null) {
   const [conversas, setConversas] = useState<ConversaWithLead[]>([]);
   const [loading, setLoading] = useState(true);
+  // Role e departamentos do usuario mudam raramente - carregar isso uma vez
+  // por tenant (nao a cada evento realtime) evita 2-3 round trips extras
+  // toda vez que uma mensagem chega, que e o que deixava o app inteiro mais
+  // lento a cada novo evento, nao so o Inbox.
+  const [authContext, setAuthContext] = useState<AuthContext | null>(null);
+
+  useEffect(() => {
+    function resetAuthContext() {
+      setAuthContext(null);
+    }
+    resetAuthContext();
+
+    if (!tenantId) {
+      function marcarSemTenant() {
+        setLoading(false);
+      }
+      marcarSemTenant();
+      return;
+    }
+    let cancelled = false;
+    const tid = tenantId;
+
+    async function loadAuthContext() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        if (!cancelled) setAuthContext({ userId: null, role: "atendente", deptIds: [] });
+        return;
+      }
+
+      const { data: memberData } = await supabase
+        .from("tenant_members")
+        .select("role")
+        .eq("tenant_id", tid)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const role = (memberData as { role?: string } | null)?.role ?? "atendente";
+
+      let deptIds: string[] = [];
+      if (role !== "owner" && role !== "gerente") {
+        const { data: deptRows } = await supabase
+          .from("agent_departments")
+          .select("department_id")
+          .eq("tenant_id", tid)
+          .eq("user_id", user.id);
+        deptIds = ((deptRows ?? []) as unknown as Array<{ department_id: string }>).map((d) => d.department_id);
+      }
+
+      if (!cancelled) setAuthContext({ userId: user.id, role, deptIds });
+    }
+
+    void loadAuthContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   const fetchConversas = useCallback(async () => {
-    if (!tenantId) {
-      setLoading(false);
+    if (!tenantId || !authContext) {
+      if (!tenantId) setLoading(false);
       return;
     }
 
     try {
       const supabase = createClient();
 
-      const { data: { user } } = await supabase.auth.getUser();
       let query = supabase
         .from("conversas")
         .select("*, leads(id, nome, whatsapp, email, instagram, eh_cliente)")
         .eq("tenant_id", tenantId)
         .order("updated_at", { ascending: false });
 
-      if (user) {
-        const { data: memberData } = await supabase
-          .from("tenant_members")
-          .select("role")
-          .eq("tenant_id", tenantId)
-          .eq("user_id", user.id)
-          .maybeSingle();
-        const role = (memberData as { role?: string } | null)?.role ?? "atendente";
+      // Gerente/dono veem tudo; qualquer outro cargo so ve o que e dele ou o
+      // que ainda nao tem dono (fila da IA, ou nao-atribuido do proprio
+      // departamento/sem departamento) - mesma logica ja usada na referencia
+      // (Parabellum) pra nao expor a fila inteira do tenant pra todo mundo.
+      if (authContext.userId && authContext.role !== "owner" && authContext.role !== "gerente") {
+        const unassignedOr = ["ia_ativa.eq.true", "department_id.is.null"];
+        if (authContext.deptIds.length > 0) unassignedOr.push(`department_id.in.(${authContext.deptIds.join(",")})`);
 
-        // Gerente/dono veem tudo; qualquer outro cargo so ve o que e dele ou o
-        // que ainda nao tem dono (fila da IA, ou nao-atribuido do proprio
-        // departamento/sem departamento) - mesma logica ja usada na referencia
-        // (Parabellum) pra nao expor a fila inteira do tenant pra todo mundo.
-        if (role !== "owner" && role !== "gerente") {
-          const { data: deptRows } = await supabase
-            .from("agent_departments")
-            .select("department_id")
-            .eq("tenant_id", tenantId)
-            .eq("user_id", user.id);
-          const deptIds = ((deptRows ?? []) as unknown as Array<{ department_id: string }>).map((d) => d.department_id);
-
-          const unassignedOr = ["ia_ativa.eq.true", "department_id.is.null"];
-          if (deptIds.length > 0) unassignedOr.push(`department_id.in.(${deptIds.join(",")})`);
-
-          query = query.or(`assigned_to.eq.${user.id},and(assigned_to.is.null,or(${unassignedOr.join(",")}))`);
-        }
+        query = query.or(`assigned_to.eq.${authContext.userId},and(assigned_to.is.null,or(${unassignedOr.join(",")}))`);
       }
 
       const { data } = await query;
@@ -205,13 +249,13 @@ export function useConversas(tenantId: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, authContext]);
 
   useEffect(() => {
+    if (!tenantId || !authContext) return;
     queueMicrotask(() => {
       void fetchConversas();
     });
-    if (!tenantId) return;
 
     const supabase = createClient();
     const channel = supabase
@@ -226,7 +270,7 @@ export function useConversas(tenantId: string | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tenantId, fetchConversas]);
+  }, [tenantId, authContext, fetchConversas]);
 
   return { conversas, loading, refetch: fetchConversas };
 }

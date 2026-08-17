@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   useDroppable, type DragStartEvent, type DragEndEvent, type DragOverEvent,
@@ -37,11 +37,19 @@ interface NegocioKanbanBoardProps {
   onAbrirNegocio: (negocio: Negocio) => void;
 }
 
+// Quantas cards renderizar por coluna de cara - o resto so monta no DOM
+// quando o usuario pede "carregar mais". Sem isso, uma coluna com centenas
+// de negocios (conforme a base cresce) deixa o drag-and-drop do dnd-kit
+// visivelmente travado, ja que cada item arrastavel recalcula posicao dos
+// vizinhos a cada movimento do ponteiro.
+const CARDS_POR_LOTE = 40;
+
 export function NegocioKanbanBoard({ pipeline, negocios, tenantId, equipe, selecionados, onToggleSelecionado, onNegocioAtualizado, onAbrirNegocio }: NegocioKanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [limitesPorEtapa, setLimitesPorEtapa] = useState<Record<string, number>>({});
 
-  const etapas = [...pipeline.pipeline_etapas].sort((a, b) => a.posicao - b.posicao);
+  const etapas = useMemo(() => [...pipeline.pipeline_etapas].sort((a, b) => a.posicao - b.posicao), [pipeline.pipeline_etapas]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const activeNegocio = negocios.find((n) => n.id === activeId);
 
@@ -90,6 +98,9 @@ export function NegocioKanbanBoard({ pipeline, negocios, tenantId, equipe, selec
           const etapaValor = getEtapaValor(etapa.id);
           const isOver = overId ? getEtapaId(overId) === etapa.id : false;
           const cor = etapa.e_ganho ? "#10B981" : etapa.e_perdido ? "#f87171" : "var(--status-ganho)";
+          const limite = limitesPorEtapa[etapa.id] ?? CARDS_POR_LOTE;
+          const negociosVisiveis = etapaNegocios.slice(0, limite);
+          const ocultos = etapaNegocios.length - negociosVisiveis.length;
 
           return (
             <div key={etapa.id} className="flex flex-col shrink-0 w-64 rounded-xl transition-all"
@@ -112,17 +123,26 @@ export function NegocioKanbanBoard({ pipeline, negocios, tenantId, equipe, selec
                 </div>
               </div>
 
-              <SortableContext id={etapa.id} items={etapaNegocios.map((n) => n.id)} strategy={verticalListSortingStrategy}>
+              <SortableContext id={etapa.id} items={negociosVisiveis.map((n) => n.id)} strategy={verticalListSortingStrategy}>
                 <DroppableColuna etapa={etapa} isOver={isOver}>
                   {etapaNegocios.length === 0 && !isOver && (
                     <div className="flex items-center justify-center h-16 rounded-xl" style={{ border: "1px dashed var(--border-subtle)" }}>
                       <p className="text-xs" style={{ color: "var(--text-faint)" }}>Solte aqui</p>
                     </div>
                   )}
-                  {etapaNegocios.map((negocio) => (
+                  {negociosVisiveis.map((negocio) => (
                     <NegocioCard key={negocio.id} negocio={negocio} selecionado={selecionados.includes(negocio.id)} equipe={equipe}
                       onToggleSelecionado={onToggleSelecionado} onClick={onAbrirNegocio} />
                   ))}
+                  {ocultos > 0 && (
+                    <button
+                      onClick={() => setLimitesPorEtapa((prev) => ({ ...prev, [etapa.id]: limite + CARDS_POR_LOTE }))}
+                      className="w-full py-2 rounded-lg text-xs font-semibold"
+                      style={{ background: "var(--input-bg)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
+                    >
+                      Carregar mais {Math.min(ocultos, CARDS_POR_LOTE)} (de {ocultos} ocultos)
+                    </button>
+                  )}
                 </DroppableColuna>
               </SortableContext>
             </div>

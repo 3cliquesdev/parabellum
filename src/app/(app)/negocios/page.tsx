@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, Settings, RefreshCw, Users, ArrowLeftRight } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { usePipelines } from "@/hooks/usePipelines";
@@ -46,9 +46,9 @@ export default function NegociosPage() {
       .then((d) => setEquipe(d.members ?? []));
   }, [tenantId]);
 
-  function toggleSelecionado(id: string) {
+  const toggleSelecionado = useCallback((id: string) => {
     setSelecionados((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
+  }, []);
 
   async function distribuirFila() {
     if (!tenantId || !pipelineAtual) return;

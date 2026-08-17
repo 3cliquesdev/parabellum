@@ -38,21 +38,24 @@ export async function GET(request: NextRequest) {
   if (leadId) query = query.eq("lead_id", leadId);
   if (pipelineId) query = query.eq("pipeline_id", pipelineId);
 
-  const { data, error } = await query;
+  // Situacao de pagamento (carrinho abandonado/cartao recusado/aguardando
+  // pagamento) - mesma logica que ja existia em useLeads.ts pro Pipeline
+  // antigo; some do card quando o lead ja e cliente. Roda em paralelo com a
+  // query principal - as duas sao independentes, nao ha motivo pra esperar
+  // uma terminar pra comecar a outra.
+  const [{ data, error }, { data: vendasPendentes }] = await Promise.all([
+    query,
+    auth.admin
+      .from("vendas")
+      .select("lead_id, status, created_at")
+      .eq("tenant_id", tenantId)
+      .in("status", ["carrinho_abandonado", "cartao_recusado", "aguardando_pagamento"])
+      .not("lead_id", "is", null)
+      .order("created_at", { ascending: false }),
+  ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const negocios = (data ?? []) as unknown as { id: string; lead_id: string; leads?: { eh_cliente?: boolean } | null }[];
-
-  // Situacao de pagamento (carrinho abandonado/cartao recusado/aguardando
-  // pagamento) - mesma logica que ja existia em useLeads.ts pro Pipeline
-  // antigo; some do card quando o lead ja e cliente.
-  const { data: vendasPendentes } = await auth.admin
-    .from("vendas")
-    .select("lead_id, status, created_at")
-    .eq("tenant_id", tenantId)
-    .in("status", ["carrinho_abandonado", "cartao_recusado", "aguardando_pagamento"])
-    .not("lead_id", "is", null)
-    .order("created_at", { ascending: false });
 
   const situacaoPorLead = new Map<string, string>();
   for (const venda of (vendasPendentes ?? []) as unknown as { lead_id: string; status: string }[]) {

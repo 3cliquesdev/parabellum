@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Negocio } from "@/types/database";
@@ -30,7 +31,7 @@ function diasParado(negocio: Negocio): number | null {
   return dias >= DIAS_PARADO_LIMITE ? dias : null;
 }
 
-export function NegocioCard({ negocio, selecionado, equipe, onToggleSelecionado, onClick }: NegocioCardProps) {
+function NegocioCardComponent({ negocio, selecionado, equipe, onToggleSelecionado, onClick }: NegocioCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: negocio.id,
   });
@@ -109,3 +110,5 @@ export function NegocioCard({ negocio, selecionado, equipe, onToggleSelecionado,
     </div>
   );
 }
+
+export const NegocioCard = memo(NegocioCardComponent);

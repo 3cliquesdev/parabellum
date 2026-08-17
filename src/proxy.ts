@@ -14,6 +14,10 @@ const PROTECTED = [
 ];
 const AUTH_ROUTES = ["/login", "/signup"];
 
+// Papeis do time financeiro so tratam tickets (ex: reembolso) - nunca devem
+// acessar a inbox de conversas dos outros times, mesmo digitando a URL direto.
+const ROLES_SO_TICKETS = ["financeiro", "gerente_financeiro"];
+
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
@@ -48,8 +52,23 @@ export async function proxy(request: NextRequest) {
   if (isProtected && !user) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (isAuthRoute && user) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+
+  if (user && (isAuthRoute || (isProtected && !pathname.startsWith("/tickets")))) {
+    const { data: membership } = await supabase
+      .from("tenant_members")
+      .select("role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+    const role = (membership as { role?: string } | null)?.role;
+    const somenteTickets = role ? ROLES_SO_TICKETS.includes(role) : false;
+
+    if (isAuthRoute) {
+      return NextResponse.redirect(new URL(somenteTickets ? "/tickets" : "/dashboard", request.url));
+    }
+    if (somenteTickets) {
+      return NextResponse.redirect(new URL("/tickets", request.url));
+    }
   }
 
   return supabaseResponse;

@@ -18,3 +18,27 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ tags: data ?? [] });
 }
+
+interface CreateTagBody {
+  tenant_id?: string;
+  nome?: string;
+  cor?: string;
+}
+
+export async function POST(request: NextRequest) {
+  const body = (await request.json().catch(() => ({}))) as CreateTagBody;
+  const { tenant_id, nome } = body;
+  if (!tenant_id || !nome) return NextResponse.json({ error: "tenant_id e nome sao obrigatorios" }, { status: 400 });
+
+  const auth = await assertTenantMember(tenant_id);
+  if (!auth.ok) return auth.response;
+
+  const { data, error } = await auth.admin
+    .from("tags")
+    .insert({ tenant_id, nome, cor: body.cor ?? "#939da4" })
+    .select("id, nome, cor")
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ tag: data });
+}

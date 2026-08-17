@@ -38,6 +38,10 @@ const navItems = [
   { href: "/ia", icon: Sparkles, label: "Studio IA", separator: true },
 ];
 
+// Papeis do time financeiro so tratam tickets (ex: reembolso) - nao precisam
+// nem devem ver a inbox de conversas dos outros times.
+const ROLES_SO_TICKETS = ["financeiro", "gerente_financeiro"];
+
 const SIDEBAR_COLLAPSED_KEY = "3cliques-sidebar-collapsed";
 
 export function Sidebar() {
@@ -54,6 +58,7 @@ export function Sidebar() {
   const [status, setStatus] = useState<string>("offline");
   const [savingStatus, setSavingStatus] = useState(false);
   const [atendimentosAtivos, setAtendimentosAtivos] = useState(0);
+  const [myRole, setMyRole] = useState<string | null>(null);
 
   useEffect(() => {
     function inicializar() {
@@ -71,14 +76,15 @@ export function Sidebar() {
       if (!user) return;
       const { data: member } = await supabase
         .from("tenant_members")
-        .select("id, availability_status")
+        .select("id, availability_status, role")
         .eq("tenant_id", tenantId)
         .eq("user_id", user.id)
         .maybeSingle();
-      const row = member as { id: string; availability_status: string | null } | null;
+      const row = member as { id: string; availability_status: string | null; role: string } | null;
       if (!row) return;
       setMemberId(row.id);
       setStatus(row.availability_status ?? "offline");
+      setMyRole(row.role);
 
       const { count } = await supabase
         .from("conversas")
@@ -119,6 +125,9 @@ export function Sidebar() {
   const logoSrc = branding.logo_url && mounted && resolvedTheme === "dark"
     ? branding.logo_url.replace(/\.png$/, "-white.png")
     : branding.logo_url;
+
+  const somenteTickets = myRole ? ROLES_SO_TICKETS.includes(myRole) : false;
+  const visibleNavItems = somenteTickets ? navItems.filter((item) => item.href === "/tickets") : navItems;
 
   async function handleLogout() {
     if (atendimentosAtivos > 0) {
@@ -179,7 +188,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {navItems.map(({ href, icon: Icon, label, separator }) => {
+        {visibleNavItems.map(({ href, icon: Icon, label, separator }) => {
           const active = href === "/ia" ? pathname.startsWith("/ia") : pathname.startsWith(href);
           const hovered = hoveredHref === href;
 

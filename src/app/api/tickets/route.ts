@@ -8,6 +8,7 @@ interface CreateTicketBody {
   tenant_id?: string;
   titulo?: string;
   descricao?: string;
+  nota_interna?: string;
   categoria_id?: string | null;
   categoria_nome?: string | null;
   lead_id?: string | null;
@@ -17,6 +18,9 @@ interface CreateTicketBody {
   assigned_to?: string | null;
   created_by?: string | null;
   tag_ids?: string[];
+  department_id?: string | null;
+  operacao_id?: string | null;
+  evidencia_url?: string | null;
 }
 
 const VERIFICACAO_RECENTE_MS = 2 * 60 * 60 * 1000; // 2h
@@ -123,6 +127,9 @@ export async function POST(request: NextRequest) {
       assigned_to: body.assigned_to ?? null,
       created_by: body.created_by ?? null,
       due_date: computeDueDate(prioridade),
+      department_id: body.department_id ?? null,
+      operacao_id: body.operacao_id ?? null,
+      evidencia_url: body.evidencia_url ?? null,
     })
     .select("*, ticket_categories(nome, cor)")
     .single();
@@ -133,6 +140,17 @@ export async function POST(request: NextRequest) {
     await auth.admin
       .from("ticket_tags")
       .insert(body.tag_ids.map((tag_id) => ({ ticket_id: (data as unknown as { id: string }).id, tag_id })));
+  }
+
+  if (body.nota_interna && data) {
+    await auth.admin.from("ticket_comments").insert({
+      ticket_id: (data as unknown as { id: string }).id,
+      tenant_id,
+      autor_id: body.created_by ?? null,
+      autor_tipo: "agente",
+      conteudo: body.nota_interna,
+      interno: true,
+    });
   }
 
   if (isInternalRequest(request) && data) {

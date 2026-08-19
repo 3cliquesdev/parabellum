@@ -45,6 +45,8 @@ const features = [
   },
 ];
 
+const LOGIN_TIMEOUT_MS = 12_000;
+
 export default function LoginPage() {
   const router = useRouter();
   const branding = useBranding();
@@ -59,17 +61,30 @@ export default function LoginPage() {
     setLoading(true);
     const form = new FormData(e.currentTarget);
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: form.get("email") as string,
-      password: form.get("password") as string,
-    });
-    if (signInError) {
-      setError("E-mail ou senha incorretos.");
+    try {
+      const result = await Promise.race([
+        supabase.auth.signInWithPassword({
+          email: form.get("email") as string,
+          password: form.get("password") as string,
+        }),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => reject(new Error("LOGIN_TIMEOUT")), LOGIN_TIMEOUT_MS);
+        }),
+      ]);
+
+      if (result.error) {
+        setError("E-mail ou senha incorretos.");
+        return;
+      }
+
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.push(next?.startsWith("/") ? next : "/dashboard");
+      router.refresh();
+    } catch {
+      setError("Não foi possível conectar ao serviço de autenticação. Tente novamente em instantes.");
+    } finally {
       setLoading(false);
-      return;
     }
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (

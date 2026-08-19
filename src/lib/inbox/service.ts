@@ -3,6 +3,7 @@ import type { LooseDatabase } from "@/types/database";
 import { getLeadDirectIdentity, normalizeChannelIdentity, type InboxExternalCanal } from "@/lib/inbox/channels";
 import { resolvePipelinePadrao } from "@/lib/negocios/pipeline-padrao";
 import { registrarEventoNegocio } from "@/lib/negocios/eventos";
+import { reconcileLeadWithKiwify } from "@/lib/kiwify-reconciliation";
 
 type AdminClient = SupabaseClient<LooseDatabase>;
 
@@ -191,6 +192,71 @@ async function findLeadByKiwifyPhone(supabase: AdminClient, tenantId: string, id
   return loadLeadById(supabase, tenantId, match.lead_id);
 }
 
+type KiwifyCustomerSnapshot = {
+  nome: string | null;
+  email: string | null;
+  cpf: string | null;
+  enderecoRua: string | null;
+  enderecoNumero: string | null;
+  enderecoComplemento: string | null;
+  enderecoBairro: string | null;
+  enderecoCidade: string | null;
+  enderecoEstado: string | null;
+  enderecoCep: string | null;
+  produtoNome: string | null;
+};
+
+// Compras antigas podem ter sido gravadas antes de o lead ser criado (ou numa
+// falha temporaria do webhook). Quando esse cliente fala no WhatsApp, usamos o
+// telefone como chave silenciosa para recuperar os dados originais da Kiwify.
+async function findUnlinkedKiwifyCustomerByPhone(
+  supabase: AdminClient,
+  tenantId: string,
+  identity: InboxIdentityInput,
+): Promise<KiwifyCustomerSnapshot | null> {
+  if (identity.canal !== "whatsapp") return null;
+  const normalizedValue = normalizeChannelIdentity("whatsapp", identity.value);
+  if (!normalizedValue) return null;
+
+  const { data } = await supabase
+    .from("vendas")
+    .select("raw_payload, produto_nome")
+    .eq("tenant_id", tenantId)
+    .eq("buyer_phone_normalized", normalizedValue)
+    .is("lead_id", null)
+    .eq("origem", "kiwify")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const sale = data as { raw_payload?: Record<string, unknown> | null; produto_nome?: string | null } | null;
+  if (!sale) return null;
+
+  const payload = sale.raw_payload ?? {};
+  const customer = (payload.Customer ?? payload.customer ?? payload) as Record<string, unknown>;
+  const read = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = customer[key] ?? payload[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return null;
+  };
+
+  return {
+    nome: read("full_name", "name"),
+    email: read("email"),
+    cpf: read("CPF", "cpf"),
+    enderecoRua: read("street"),
+    enderecoNumero: read("number"),
+    enderecoComplemento: read("complement"),
+    enderecoBairro: read("neighborhood"),
+    enderecoCidade: read("city"),
+    enderecoEstado: read("state"),
+    enderecoCep: read("zipcode"),
+    produtoNome: sale.produto_nome ?? read("product_name"),
+  };
+}
+
 async function findLeadByCpf(supabase: AdminClient, tenantId: string, cpf: string | null | undefined) {
   if (!cpf) return null;
   const normalized = cpf.replace(/\D/g, "");
@@ -258,17 +324,23 @@ async function resolveLead(
     if (kiwifyMatch) return kiwifyMatch;
   }
 
+  let kiwifyCustomer: KiwifyCustomerSnapshot | null = null;
+  for (const identity of identities) {
+    kiwifyCustomer = await findUnlinkedKiwifyCustomerByPhone(supabase, tenantId, identity);
+    if (kiwifyCustomer) break;
+  }
+
   const cpfMatch = await findLeadByCpf(supabase, tenantId, leadInput?.extra?.cpf);
   if (cpfMatch) return cpfMatch;
 
   const initialLead: Record<string, string | null> = {
     tenant_id: tenantId,
-    nome: leadInput?.name?.trim() || primaryIdentity.value?.trim() || `Lead ${primaryIdentity.canal}`,
+    nome: leadInput?.name?.trim() || kiwifyCustomer?.nome || primaryIdentity.value?.trim() || `Lead ${primaryIdentity.canal}`,
     status: "novo",
     whatsapp: null,
     email: null,
     instagram: null,
-    origem_lead: leadInput?.origem ?? primaryIdentity.canal,
+    origem_lead: leadInput?.origem ?? (kiwifyCustomer ? "kiwify" : primaryIdentity.canal),
   };
 
   const directField = directLeadField(primaryIdentity.canal);
@@ -276,22 +348,71 @@ async function resolveLead(
     initialLead[directField] = primaryIdentity.value;
   }
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("leads")
     .insert(initialLead)
     .select("id, tenant_id, nome, whatsapp, email, instagram, status")
     .single();
 
+  if (error || !data) {
+    throw new Error(`Nao foi possivel criar o lead de entrada: ${error?.message ?? "resposta vazia do banco"}`);
+  }
+
   const newLead = data as LeadRow;
+
+  if (kiwifyCustomer) {
+    await syncLeadExtraFields(supabase, newLead, {
+      cpf: kiwifyCustomer.cpf,
+      enderecoRua: kiwifyCustomer.enderecoRua,
+      enderecoNumero: kiwifyCustomer.enderecoNumero,
+      enderecoComplemento: kiwifyCustomer.enderecoComplemento,
+      enderecoBairro: kiwifyCustomer.enderecoBairro,
+      enderecoCidade: kiwifyCustomer.enderecoCidade,
+      enderecoEstado: kiwifyCustomer.enderecoEstado,
+      enderecoCep: kiwifyCustomer.enderecoCep,
+    });
+    if (kiwifyCustomer.email) {
+      await syncLeadDirectField(supabase, newLead, { canal: "email", value: kiwifyCustomer.email });
+      await upsertLeadIdentity(supabase, tenantId, newLead.id, { canal: "email", value: kiwifyCustomer.email });
+    }
+
+    const normalizedPhone = normalizeChannelIdentity("whatsapp", primaryIdentity.value);
+    if (normalizedPhone) {
+      await supabase
+        .from("vendas")
+        .update({ lead_id: newLead.id })
+        .eq("tenant_id", tenantId)
+        .eq("buyer_phone_normalized", normalizedPhone)
+        .is("lead_id", null)
+        .eq("origem", "kiwify");
+    }
+
+    await supabase.from("atividades").insert({
+      tenant_id: tenantId,
+      lead_id: newLead.id,
+      tipo: "whatsapp",
+      titulo: "Lead recuperado automaticamente da Kiwify",
+      descricao: `Identificado silenciosamente pelo WhatsApp${kiwifyCustomer.produtoNome ? ` — compra: ${kiwifyCustomer.produtoNome}` : ""}. Dados da compra foram vinculados ao cadastro.`,
+      concluida: true,
+      concluida_em: new Date().toISOString(),
+    });
+  }
 
   const claimed = await claimPrimaryIdentity(supabase, tenantId, newLead.id, primaryIdentity);
   if (!claimed) {
-    // outro request reivindicou a mesma identidade um instante antes - o lead
-    // recem-criado ainda nao tem conversa/mensagem/venda associada, entao e
-    // seguro descarta-lo e devolver o lead que venceu a corrida.
-    await supabase.from("leads").delete().eq("id", newLead.id);
+    // O trigger trg_sync_lead_identity_columns pode ter registrado a
+    // identidade para o proprio newLead durante o INSERT. Nesse caso, a
+    // segunda insercao acima recebe 23505, mas nao houve corrida: o lead
+    // continua sendo o dono correto e nao pode ser apagado.
     const winner = await loadLeadByIdentity(supabase, tenantId, primaryIdentity);
-    if (winner) return winner;
+    if (winner?.id === newLead.id) return newLead;
+
+    // Outro request de fato venceu a corrida. O lead recem-criado ainda nao
+    // tem conversa, mensagem ou venda associada, entao pode ser removido.
+    if (winner) {
+      await supabase.from("leads").delete().eq("id", newLead.id);
+      return winner;
+    }
   } else {
     // Todo lead novo ja nasce como oportunidade no pipeline padrao, etapa
     // "Novo" - unifica o Kanban de Negocios como fonte unica (antes so
@@ -466,29 +587,76 @@ export interface ConversationChannelHints {
   iaAtivaPadrao?: boolean;
 }
 
+// Tag analitica minima: nenhuma conversa pode ficar sem classificacao. As
+// tags de motivo (venda, suporte, encerramento etc.) sao adicionadas depois,
+// sem substituir esta marca de entrada.
+const TAG_INICIAL_CONVERSA = "0.00 Em atendimento";
+
+async function ensureInitialConversationTag(
+  supabase: AdminClient,
+  tenantId: string,
+  conversaId: string,
+) {
+  const { data: existingTag, error: findError } = await supabase
+    .from("tags")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("nome", TAG_INICIAL_CONVERSA)
+    .maybeSingle();
+  if (findError) throw new Error(`Nao foi possivel localizar a tag inicial: ${findError.message}`);
+
+  let tagId = (existingTag as { id: string } | null)?.id;
+  if (!tagId) {
+    const { data: createdTag, error: createError } = await supabase
+      .from("tags")
+      .insert({ tenant_id: tenantId, nome: TAG_INICIAL_CONVERSA, cor: "#3b82f6" })
+      .select("id")
+      .single();
+    if (createError || !createdTag) {
+      throw new Error(`Nao foi possivel criar a tag inicial: ${createError?.message ?? "resposta vazia"}`);
+    }
+    tagId = (createdTag as { id: string }).id;
+  }
+
+  const { error: linkError } = await supabase
+    .from("conversation_tags")
+    .upsert({ conversa_id: conversaId, tag_id: tagId }, { onConflict: "conversa_id,tag_id" });
+  if (linkError) throw new Error(`Nao foi possivel aplicar a tag inicial: ${linkError.message}`);
+}
+
 export async function findOrCreateConversation(
   supabase: AdminClient,
   tenantId: string,
   leadId: string,
   canal: InboxExternalCanal,
   channelHints?: ConversationChannelHints,
+  options?: { ignorePendingCsat?: boolean },
 ) {
-  const { data: existingConversation } = await supabase
+  let query = supabase
     .from("conversas")
     .select("id, tenant_id, lead_id, canal, status, ia_ativa, ai_mode, aguardando_csat")
     .eq("tenant_id", tenantId)
     .eq("lead_id", leadId)
-    .eq("canal", canal)
-    .or("status.eq.ativo,aguardando_csat.eq.true")
+    .eq("canal", canal);
+
+  // Uma nota de CSAT pertence a conversa encerrada. Qualquer outra mensagem
+  // posterior deve comecar um atendimento novo, sem reabrir nem misturar o
+  // historico do atendimento que ja foi finalizado.
+  query = options?.ignorePendingCsat
+    ? query.eq("status", "ativo")
+    : query.or("status.eq.ativo,aguardando_csat.eq.true");
+
+  const { data: existingConversation } = await query
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (existingConversation) {
+    await ensureInitialConversationTag(supabase, tenantId, (existingConversation as ConversationRow).id);
     return existingConversation as ConversationRow;
   }
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("conversas")
     .insert({
       tenant_id: tenantId,
@@ -507,6 +675,12 @@ export async function findOrCreateConversation(
     .select("id, tenant_id, lead_id, canal, status, ia_ativa, ai_mode, aguardando_csat")
     .single();
 
+  if (error || !data) {
+    throw new Error(`Nao foi possivel criar a conversa de entrada: ${error?.message ?? "resposta vazia do banco"}`);
+  }
+
+  await ensureInitialConversationTag(supabase, tenantId, (data as ConversationRow).id);
+
   return data as ConversationRow;
 }
 
@@ -519,6 +693,7 @@ export async function resolveOrLinkLead(
   tenantId: string,
   identity: InboxIdentityInput,
   leadInput?: InboxLeadInput,
+  options?: { reconcile?: boolean },
 ) {
   let lead = await resolveLead(supabase, tenantId, identity, leadInput);
 
@@ -532,6 +707,8 @@ export async function resolveOrLinkLead(
   for (const item of identities) {
     await upsertLeadIdentity(supabase, tenantId, lead.id, item);
   }
+
+  if (options?.reconcile !== false) await reconcileLeadWithKiwify(supabase, tenantId, lead.id);
 
   return lead;
 }
@@ -567,7 +744,7 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
     replyToMensagemId = (quotedMessage as { id?: string } | null)?.id ?? null;
   }
 
-  const { error: insertError } = await supabase.from("mensagens").insert({
+  const { data: insertedMessage, error: insertError } = await supabase.from("mensagens").insert({
     conversa_id: conversation.id,
     tenant_id: tenantId,
     remetente: "lead",
@@ -584,7 +761,7 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
     latitude: message.latitude ?? null,
     longitude: message.longitude ?? null,
     metadata: message.metadata ?? { canal, direction: "inbound" },
-  });
+  }).select("id").maybeSingle();
   if (insertError) {
     console.error("ingestInboundMessage: falha ao salvar mensagem inbound:", insertError.message);
   }
@@ -603,5 +780,6 @@ export async function ingestInboundMessage(params: IngestInboundMessageParams) {
     duplicate: false,
     lead,
     conversation,
+    messageId: (insertedMessage as { id?: string } | null)?.id ?? null,
   };
 }

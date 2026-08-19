@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { GoogleAuth } from "google-auth-library";
 import { dispatchConversation } from "@/lib/dispatch";
 import { processFlowMessage } from "@/lib/flow-engine";
-import { ingestInboundMessage, type ConversationChannelHints, type InboxIdentityInput, type InboxLeadInput, type InboxMessageInput } from "@/lib/inbox/service";
+import { findOrCreateConversation, ingestInboundMessage, type ConversationChannelHints, type InboxIdentityInput, type InboxLeadInput, type InboxMessageInput } from "@/lib/inbox/service";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { checkAndHandleCsatReply } from "@/lib/inbox/csat";
 import { maskPII } from "@/lib/security/pii-mask";
@@ -43,6 +43,7 @@ type LeadLike = {
 
 type ConversationLike = {
   id: string;
+  status?: string;
   ia_ativa: boolean;
   ai_mode: "autopilot" | "copilot" | "disabled";
   aguardando_csat?: boolean;
@@ -517,7 +518,7 @@ export async function handleInboundAutomation(params: InboundAutomationParams) {
   }
 
   const lead = ingested.lead as LeadLike;
-  const conversation = ingested.conversation as ConversationLike;
+  let conversation = ingested.conversation as ConversationLike;
   const text = message.text?.trim() ?? "";
 
   const csatHandled = await checkAndHandleCsatReply(supabase, {
@@ -528,6 +529,32 @@ export async function handleInboundAutomation(params: InboundAutomationParams) {
     aguardando_csat: conversation.aguardando_csat,
   }, text);
   if (csatHandled) return ingested;
+
+  // Uma mensagem que nao e nota de CSAT inicia um NOVO atendimento. A conversa
+  // anterior permanece encerrada, com sua tag, avaliacao e historico intactos.
+  if (conversation.status === "resolvido" && conversation.aguardando_csat) {
+    const previousConversationId = conversation.id;
+    conversation = await findOrCreateConversation(
+      supabase,
+      tenantId,
+      lead.id,
+      canal,
+      channelHints,
+      { ignorePendingCsat: true },
+    ) as ConversationLike;
+
+    // A mensagem ja foi recebida antes de sabermos se era uma nota de CSAT.
+    // Ao iniciar o novo atendimento, ela precisa acompanhar a nova conversa;
+    // assim o historico encerrado fica intacto e o agente recebe o contexto
+    // correto, sem responder como se ainda estivesse aguardando avaliacao.
+    if (ingested.messageId) {
+      await supabase
+        .from("mensagens")
+        .update({ conversa_id: conversation.id })
+        .eq("id", ingested.messageId)
+        .eq("conversa_id", previousConversationId);
+    }
+  }
 
   await dispatchWebhook(tenantId, "message.received", {
     lead_id: lead.id,

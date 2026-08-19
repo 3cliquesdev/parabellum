@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, Loader2, Lock, Mail, MapPinHouse, Save, UserRound, X } from "lucide-react";
+import { BriefcaseBusiness, Camera, CheckCircle2, Loader2, Lock, Mail, MapPinHouse, Save, UserRound, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ const EMPTY_PROFILE: UserProfileForm = {
   first_name: null,
   last_name: null,
   cpf: null,
+  whatsapp: null,
   avatar_url: null,
   address_zip: null,
   address_street: null,
@@ -68,7 +69,20 @@ function toFormValue(value: string | null | undefined) {
   return value ?? "";
 }
 
-export function UserProfileSection() {
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Dono",
+  gerente: "Gerente",
+  gerente_geral: "Gerente geral",
+  gerente_suporte: "Gerente de suporte",
+  gerente_cs: "Gerente de CS",
+  gerente_financeiro: "Gerente financeiro",
+  financeiro: "Financeiro",
+  vendedor: "Vendedor",
+  atendente: "Atendente",
+  consultor: "Consultor",
+};
+
+export function UserProfileSection({ role }: { role?: string | null }) {
   const [supabase] = useState(() => createClient());
   const [profile, setProfile] = useState<UserProfileForm>(EMPTY_PROFILE);
   const [userEmail, setUserEmail] = useState("");
@@ -134,6 +148,7 @@ export function UserProfileSection() {
         first_name: row?.first_name ?? (firstName || null),
         last_name: row?.last_name ?? (lastName || null),
         cpf: row?.cpf ?? null,
+        whatsapp: (row as any)?.whatsapp ?? null,
         avatar_url: row?.avatar_url ?? (user.user_metadata?.avatar_url as string | undefined) ?? null,
         address_zip: row?.address_zip ?? null,
         address_street: row?.address_street ?? null,
@@ -163,6 +178,7 @@ export function UserProfileSection() {
       first_name: cleanText(toFormValue(nextProfile.first_name)),
       last_name: cleanText(toFormValue(nextProfile.last_name)),
       cpf: cleanText(toFormValue(nextProfile.cpf)),
+      whatsapp: cleanText(toFormValue((nextProfile as any).whatsapp)),
       avatar_url: cleanText(toFormValue(nextProfile.avatar_url)),
       address_zip: cleanText(toFormValue(nextProfile.address_zip)),
       address_street: cleanText(toFormValue(nextProfile.address_street)),
@@ -399,6 +415,17 @@ export function UserProfileSection() {
                 O email continua sendo gerenciado pela autenticacao do sistema.
               </p>
             </div>
+
+            <div className="rounded-lg p-4" style={{ background: "var(--primary-bg)", border: "1px solid var(--primary-border)" }}>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--status-ganho)" }}>
+                <BriefcaseBusiness className="h-3.5 w-3.5" />
+                Cargo na equipe
+              </div>
+              <p className="text-sm font-semibold text-white">{ROLE_LABELS[role ?? ""] ?? "Membro da equipe"}</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                Seu acesso e definido pelo administrador do workspace.
+              </p>
+            </div>
           </div>
 
           <div className="rounded-xl p-5 space-y-5" style={cardStyle}>
@@ -503,7 +530,7 @@ export function UserProfileSection() {
                 />
               </div>
 
-              <div className="space-y-1.5 md:col-span-2">
+              <div className="space-y-1.5 md:col-span-1">
                 <Label htmlFor="cpf" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   CPF
                 </Label>
@@ -513,6 +540,19 @@ export function UserProfileSection() {
                   onChange={event => updateField("cpf", formatCpf(event.target.value) || null)}
                   className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
                   placeholder="000.000.000-00"
+                />
+              </div>
+
+              <div className="space-y-1.5 md:col-span-1">
+                <Label htmlFor="whatsapp" className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                  WhatsApp (apenas números, com DDD)
+                </Label>
+                <Input
+                  id="whatsapp"
+                  value={toFormValue((profile as any).whatsapp)}
+                  onChange={event => updateField("whatsapp", event.target.value || null)}
+                  className="h-9 rounded-lg border-white/10 bg-white/5 text-white text-sm"
+                  placeholder="5511999999999"
                 />
               </div>
             </div>

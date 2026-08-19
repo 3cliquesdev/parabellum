@@ -60,6 +60,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sem permissao" }, { status: 403 });
   }
 
+  // Reenviar para o mesmo e-mail substitui o link antigo, evitando dois
+  // convites ativos para a mesma pessoa.
+  await admin.from("invite_tokens")
+    .delete()
+    .eq("tenant_id", tenant_id)
+    .eq("email", email.trim().toLowerCase())
+    .is("accepted_at", null);
+
   const { data: tenant } = await admin.from("tenants")
     .select("name, nome_fantasia, logo_url, cor_primaria, email_theme")
     .eq("id", tenant_id)
@@ -78,7 +86,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: inviteError?.message ?? "Nao foi possivel gerar o convite" }, { status: 500 });
   }
 
-  const inviteUrl = `${SITE_URL}/invite?token=${inviteData.token}`;
+  // O convite de um usuário novo começa pela criação da primeira senha.
+  // Após concluir, ele é direcionado ao login para entrar na equipe.
+  const inviteUrl = `${SITE_URL}/signup?invite=${inviteData.token}`;
   const tenantName = tenantData?.nome_fantasia ?? tenantData?.name ?? "Parabellum";
   const branding: InviteEmailBranding = {
     nome: tenantName,
@@ -109,4 +119,31 @@ export async function POST(request: NextRequest) {
     token: inviteData.token,
     email_sent: emailSent.ok,
   });
+}
+
+export async function DELETE(request: NextRequest) {
+  const { invite_id, tenant_id } = (await request.json().catch(() => ({}))) as { invite_id?: string; tenant_id?: string };
+  if (!invite_id || !tenant_id) return NextResponse.json({ error: "invite_id e tenant_id sao obrigatorios" }, { status: 400 });
+
+  const cookieStore = await cookies();
+  const supabase = createServerClient<LooseDatabase>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const admin = createServerClient<LooseDatabase>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { cookies: { getAll: () => [], setAll: () => {} } },
+  );
+  const { data: membership } = await admin.from("tenant_members").select("role")
+    .eq("tenant_id", tenant_id).eq("user_id", user.id).maybeSingle();
+  const role = (membership as unknown as TenantMemberRoleRow | null)?.role;
+  if (!role || !["owner", "gerente"].includes(role)) return NextResponse.json({ error: "Sem permissao" }, { status: 403 });
+
+  const { error } = await admin.from("invite_tokens").delete()
+    .eq("id", invite_id).eq("tenant_id", tenant_id).is("accepted_at", null);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
 }

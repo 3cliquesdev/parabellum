@@ -41,6 +41,9 @@ const navItems = [
 // Papeis do time financeiro so tratam tickets (ex: reembolso) - nao precisam
 // nem devem ver a inbox de conversas dos outros times.
 const ROLES_SO_TICKETS = ["financeiro", "gerente_financeiro"];
+// Vendedores trabalham na operacao do CRM, sem acesso a configuracoes de
+// produto, automacoes ou disparos em massa.
+const ROLES_OPERACIONAIS = ["vendedor", "atendente", "consultor"];
 
 const SIDEBAR_COLLAPSED_KEY = "3cliques-sidebar-collapsed";
 
@@ -127,7 +130,12 @@ export function Sidebar() {
     : branding.logo_url;
 
   const somenteTickets = myRole ? ROLES_SO_TICKETS.includes(myRole) : false;
-  const visibleNavItems = somenteTickets ? navItems.filter((item) => item.href === "/tickets") : navItems;
+  const operacional = myRole ? ROLES_OPERACIONAIS.includes(myRole) : false;
+  const visibleNavItems = somenteTickets
+    ? navItems.filter((item) => item.href === "/tickets")
+    : operacional
+      ? navItems.filter((item) => !["/broadcasts", "/ia"].includes(item.href))
+      : navItems;
 
   async function handleLogout() {
     if (atendimentosAtivos > 0) {
@@ -275,7 +283,7 @@ export function Sidebar() {
             }}
           >
             <Settings className="w-4 h-4 shrink-0" style={{ color: "var(--text-faint)" }} />
-            {!collapsed && "Configuracoes"}
+            {!collapsed && (operacional ? "Meu perfil" : "Configuracoes")}
           </Link>
 
           <button

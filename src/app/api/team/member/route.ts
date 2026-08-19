@@ -17,6 +17,7 @@ interface TeamMemberBody {
   department_ids?: string[];
   availability_status?: "online" | "away" | "offline";
   max_concurrent_chats?: number;
+  receber_alertas_operacionais?: boolean;
 }
 
 /** Confirma que o membro-alvo realmente pertence ao tenant informado. */
@@ -37,7 +38,7 @@ async function loadTargetMember(
 
 export async function PATCH(request: NextRequest) {
   const body = (await request.json()) as TeamMemberBody;
-  const { member_id, role, tenant_id, department_ids, availability_status, max_concurrent_chats } = body;
+  const { member_id, role, tenant_id, department_ids, availability_status, max_concurrent_chats, receber_alertas_operacionais } = body;
   if (!member_id || !tenant_id) {
     return NextResponse.json({ error: "member_id e tenant_id sao obrigatorios" }, { status: 400 });
   }
@@ -65,6 +66,13 @@ export async function PATCH(request: NextRequest) {
 
   if (max_concurrent_chats !== undefined) updates.max_concurrent_chats = max_concurrent_chats;
   if (availability_status !== undefined) updates.availability_status = availability_status;
+  if (receber_alertas_operacionais !== undefined) {
+    if (!["owner", "gerente"].includes(callerRole) && callerRole !== target.role) {
+       // Only managers or the user themselves can change this
+    } else {
+      updates.receber_alertas_operacionais = receber_alertas_operacionais;
+    }
+  }
 
   if (Object.keys(updates).length > 0) {
     await admin.from("tenant_members").update(updates).eq("id", member_id);

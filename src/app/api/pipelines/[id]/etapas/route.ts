@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
+import { resolveInternalOrTenantAdmin } from "@/lib/auth/internal-or-tenant";
 
 interface CreateEtapaBody {
   tenant_id?: string;
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
   if (!nome?.trim()) return NextResponse.json({ error: "nome required" }, { status: 400 });
 
-  const auth = await resolveInternalOrTenantAuth(request, tenant_id);
+  const auth = await resolveInternalOrTenantAdmin(request, tenant_id);
   if (!auth.ok) return auth.response;
 
   const { data: pipeline } = await auth.admin

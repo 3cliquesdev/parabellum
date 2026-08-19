@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { LooseDatabase } from "@/types/database";
 import { resolveOrLinkLead } from "@/lib/inbox/service";
-import { resolvePipelinePadrao } from "@/lib/negocios/pipeline-padrao";
-import { escolherVendedorMenosCarregado } from "@/lib/negocios/distribuicao";
-import { registrarEventoNegocio } from "@/lib/negocios/eventos";
+import { reconcileLeadWithKiwify } from "@/lib/kiwify-reconciliation";
 
 function adminClient() {
   return createServerClient<LooseDatabase>(
@@ -159,6 +157,8 @@ export async function POST(request: NextRequest) {
     const digits = rawPhone.replace(/\D/g, "");
     buyerPhoneNormalized = digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits || null;
   }
+  const buyerEmailNormalized = customer?.email?.trim().toLowerCase() || null;
+  const buyerCpfNormalized = customer?.CPF?.replace(/\D/g, "") || null;
 
   let leadId: string | null = null;
   if (customer?.email || customer?.mobile || customer?.phone_number) {
@@ -203,6 +203,8 @@ export async function POST(request: NextRequest) {
     tipo_cobranca: tipoCobrancaAtual,
     origem: "kiwify",
     buyer_phone_normalized: buyerPhoneNormalized,
+    buyer_email_normalized: buyerEmailNormalized,
+    buyer_cpf_normalized: buyerCpfNormalized,
     // Inclui o produto na chave de conflito: um pedido com order bump manda
     // um webhook por produto com o mesmo order_id - sem o product_id aqui, o
     // segundo evento sobrescrevia o primeiro em vez de registrar os dois.
@@ -218,104 +220,7 @@ export async function POST(request: NextRequest) {
 
   const vendaId = (vendaSalva as { id: string } | null)?.id ?? null;
 
-  // eh_cliente tambem era setado so por um trigger no banco (AFTER INSERT OR
-  // UPDATE OF status em vendas) - um reassign de lead_id (ex: merge de leads
-  // duplicados) nao dispara esse trigger, entao um lead podia ficar com uma
-  // venda paga vinculada e mesmo assim eh_cliente=false pra sempre (bug real
-  // encontrado). Setar direto aqui a cada evento pago remove essa dependencia.
-  if (status === "pago" && leadId) {
-    await admin.from("leads").update({ eh_cliente: true }).eq("id", leadId).eq("eh_cliente", false);
-  }
-
-  // Cliente novo (primeira venda paga, nao renovacao/recompra) vira
-  // oportunidade automatica no Pipeline, ja fechada como "ganho" - ele ja
-  // pagou, nao precisa passar pelo funil manual. Renovacao ou recompra de
-  // quem ja e cliente nao mexe em nada disso (evita ficar "recriando" lead
-  // antigo como se fosse novo).
-  if (status === "pago" && leadId) {
-    const { count } = await admin
-      .from("vendas")
-      .select("id", { count: "exact", head: true })
-      .eq("lead_id", leadId)
-      .eq("status", "pago");
-
-    if ((count ?? 0) <= 1) {
-      const { pipelineId, etapaId } = await resolvePipelinePadrao(admin, tenantId);
-      // Ganho ja e' etapa terminal - busca a etapa marcada e_ganho do
-      // pipeline padrao em vez da primeira etapa (que e' "Novo").
-      let etapaGanhoId = etapaId;
-      if (pipelineId) {
-        const { data: etapaGanho } = await admin
-          .from("pipeline_etapas")
-          .select("id")
-          .eq("pipeline_id", pipelineId)
-          .eq("e_ganho", true)
-          .limit(1)
-          .maybeSingle();
-        etapaGanhoId = (etapaGanho as { id: string } | null)?.id ?? etapaId;
-      }
-      // Todo lead ja nasce com um negocio "aberto" no pipeline padrao (ver
-      // resolveLead em lib/inbox/service.ts) - move esse negocio existente pra
-      // Ganho em vez de criar um segundo card duplicado pro mesmo lead.
-      const { data: negocioExistente } = await admin
-        .from("negocios")
-        .select("id, assigned_to, pipeline_etapa_id")
-        .eq("lead_id", leadId)
-        .eq("estagio", "aberto")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      const negocioInfo = negocioExistente as { id: string; assigned_to: string | null; pipeline_etapa_id: string | null } | null;
-      const assignedTo = negocioInfo?.assigned_to ?? (pipelineId ? await escolherVendedorMenosCarregado(admin, pipelineId) : null);
-      let negocioId = negocioInfo?.id ?? null;
-
-      if (negocioInfo) {
-        await admin.from("negocios").update({
-          titulo: produtoNome,
-          valor,
-          canal: "kiwify",
-          estagio: "ganho",
-          origem: "kiwify_auto",
-          pipeline_id: pipelineId,
-          pipeline_etapa_id: etapaGanhoId,
-          assigned_to: assignedTo,
-          venda_id: vendaId,
-          closed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }).eq("id", negocioInfo.id);
-      } else {
-        const { data: negocioCriado } = await admin.from("negocios").insert({
-          tenant_id: tenantId,
-          lead_id: leadId,
-          titulo: produtoNome,
-          valor,
-          canal: "kiwify",
-          estagio: "ganho",
-          origem: "kiwify_auto",
-          pipeline_id: pipelineId,
-          pipeline_etapa_id: etapaGanhoId,
-          assigned_to: assignedTo,
-          venda_id: vendaId,
-        }).select("id").single();
-        negocioId = (negocioCriado as { id: string } | null)?.id ?? null;
-      }
-
-      if (negocioId) {
-        await registrarEventoNegocio(admin, {
-          negocioId,
-          tenantId,
-          tipo: "ganho",
-          etapaAnteriorId: negocioInfo?.pipeline_etapa_id ?? null,
-          etapaNovaId: etapaGanhoId,
-          usuarioId: null,
-          origem: "kiwify_webhook",
-        });
-      }
-
-      await admin.from("leads").update({ status: "ganho", valor_estimado: valor }).eq("id", leadId);
-    }
-  }
+  if (status === "pago" && leadId) await reconcileLeadWithKiwify(admin, tenantId, leadId, { triggeredSaleId: vendaId });
 
   // Carrinho abandonado/cartao recusado/aguardando pagamento tambem
   // alimentam o valor estimado do lead (aparece no card do Kanban e soma no

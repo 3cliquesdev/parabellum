@@ -5,6 +5,37 @@ interface ConversaInativaRow {
   id: string;
   lead_id: string | null;
   ia_ultimo_departamento: string | null;
+  orchestration_context: Record<string, unknown> | null;
+}
+
+const ESTADOS_QUE_NAO_PODEM_SER_ENCERRADOS = new Set([
+  "DESCOBERTA_COMERCIAL",
+  "VENDA_EM_ANDAMENTO",
+  "VENDA_QUENTE",
+  "OBJECAO_COMERCIAL",
+  "PLANO_ESCOLHIDO",
+  "AGUARDANDO_CHECKOUT",
+  "CHECKOUT_ENVIADO",
+  "AGUARDANDO_PAGAMENTO",
+  "FINANCEIRO",
+  "OTP_EM_ANDAMENTO",
+  "TRANSFERENCIA_SOLICITADA",
+]);
+
+function podeEncerrarPorInatividade(conversa: ConversaInativaRow) {
+  const contexto = conversa.orchestration_context ?? {};
+  const estado = typeof contexto.conversation_state === "string" ? contexto.conversation_state : null;
+  const owner = typeof contexto.owner_agent === "string" ? contexto.owner_agent : null;
+  const intent = typeof contexto.intent === "string" ? contexto.intent : null;
+
+  // Um lead em venda, pagamento, validação financeira ou espera de humano
+  // não "sumiu": ele está em uma etapa pendente. Esses casos jamais podem
+  // receber CSAT nem ser resolvidos automaticamente pelo cron.
+  if (ESTADOS_QUE_NAO_PODEM_SER_ENCERRADOS.has(estado ?? "")) return false;
+  if (owner === "hunter" || intent === "vendas" || intent === "financeiro") return false;
+  if (contexto.payment_pending === true || contexto.human_requested === true) return false;
+
+  return true;
 }
 
 export async function GET(request: NextRequest) {
@@ -33,7 +64,7 @@ export async function GET(request: NextRequest) {
   // timeout_disparado_em preenchido e nunca mais ser reavaliada.
   const { data, error } = await auth.admin
     .from("conversas")
-    .select("id, lead_id, ia_ultimo_departamento")
+    .select("id, lead_id, ia_ultimo_departamento, orchestration_context")
     .eq("tenant_id", tenantId)
     .eq("status", "ativo")
     .eq("ia_ativa", true)
@@ -41,11 +72,13 @@ export async function GET(request: NextRequest) {
     .or(`timeout_disparado_em.is.null,timeout_disparado_em.lt.${limite}`)
     .not("ultima_resposta_ia_em", "is", null)
     .lt("ultima_resposta_ia_em", limite)
-    .limit(20);
+    .limit(100);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const conversas = (data ?? []) as ConversaInativaRow[];
+  const conversas = ((data ?? []) as ConversaInativaRow[])
+    .filter(podeEncerrarPorInatividade)
+    .slice(0, 20);
   if (conversas.length === 0) return NextResponse.json({ conversas: [] });
 
   await auth.admin

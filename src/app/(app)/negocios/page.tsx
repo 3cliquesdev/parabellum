@@ -25,7 +25,7 @@ const selectStyle: React.CSSProperties = {
 };
 
 export default function NegociosPage() {
-  const { tenantId, loading: tenantLoading } = useTenant();
+  const { tenantId, role, loading: tenantLoading } = useTenant();
   const { pipelines, loading: pipelinesLoading, refetch: refetchPipelines } = usePipelines(tenantId);
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const pipelineAtual = pipelines.find((p) => p.id === pipelineId) ?? pipelines[0] ?? null;
@@ -38,6 +38,7 @@ export default function NegociosPage() {
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [equipe, setEquipe] = useState<MembroEquipe[]>([]);
   const [distribuindo, setDistribuindo] = useState(false);
+  const isOperational = ["vendedor", "atendente", "consultor"].includes(role ?? "");
 
   useEffect(() => {
     if (!tenantId) return;
@@ -93,16 +94,16 @@ export default function NegociosPage() {
             style={{ background: "var(--input-bg)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}>
             <RefreshCw className="w-4 h-4" />
           </button>
-          <button onClick={() => setShowTransferirCarteira(true)}
+          {!isOperational && <button onClick={() => setShowTransferirCarteira(true)}
             className="flex items-center gap-2 px-3 h-9 rounded-lg text-sm font-semibold"
             style={{ background: "var(--input-bg)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}>
             <ArrowLeftRight className="w-4 h-4" /> Transferir Carteira
-          </button>
-          <button onClick={() => setShowGerenciar(true)}
+          </button>}
+          {!isOperational && <button onClick={() => setShowGerenciar(true)}
             className="flex items-center gap-2 px-3 h-9 rounded-lg text-sm font-semibold"
             style={{ background: "var(--input-bg)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}>
             <Settings className="w-4 h-4" /> Gerenciar Pipelines
-          </button>
+          </button>}
           <button onClick={() => setShowNovoNegocio(true)}
             className="flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold"
             style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
@@ -119,7 +120,7 @@ export default function NegociosPage() {
           ))}
         </select>
 
-        {pendentesDistribuicao > 0 && (
+        {!isOperational && pendentesDistribuicao > 0 && (
           <div className="flex items-center gap-2 px-3 h-9 rounded-lg text-xs font-semibold"
             style={{ background: "rgba(161,98,7,0.1)", color: "#a16207", border: "1px solid rgba(161,98,7,0.25)" }}>
             <Users className="w-3.5 h-3.5" />

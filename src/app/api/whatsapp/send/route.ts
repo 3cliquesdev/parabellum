@@ -10,6 +10,8 @@ interface SendMessageBody {
   remetente?: "humano" | "ia";
   departamento?: string;
   reply_to_mensagem_id?: string;
+  /** Estado interno calculado pelo orquestrador depois de uma resposta da IA. */
+  orchestration_context_patch?: Record<string, unknown>;
 }
 
 interface RelatedLeadRow {
@@ -26,7 +28,11 @@ interface ConversationRow {
   leads: RelatedLeadRow | RelatedLeadRow[] | null;
 }
 
-function buildConversaUpdates(remetente: "humano" | "ia", departamento?: string): Record<string, unknown> {
+function buildConversaUpdates(
+  remetente: "humano" | "ia",
+  departamento?: string,
+  orchestrationContextPatch?: Record<string, unknown>,
+): Record<string, unknown> {
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
     ultima_mensagem_remetente: remetente,
@@ -39,6 +45,7 @@ function buildConversaUpdates(remetente: "humano" | "ia", departamento?: string)
   if (remetente === "humano") {
     updates.agente_respondeu = true;
   }
+  if (orchestrationContextPatch) updates.orchestration_context = orchestrationContextPatch;
   return updates;
 }
 
@@ -79,6 +86,7 @@ export async function POST(request: NextRequest) {
   let conteudo = "";
   let remetente: "humano" | "ia" = "humano";
   let departamento: string | undefined;
+  let orchestrationContextPatch: Record<string, unknown> | undefined;
   let file: File | null = null;
   let replyToMensagemId: string | undefined;
 
@@ -96,6 +104,11 @@ export async function POST(request: NextRequest) {
     remetente = body.remetente === "ia" ? "ia" : "humano";
     departamento = body.departamento;
     replyToMensagemId = body.reply_to_mensagem_id;
+    // O estado de orquestração é interno. Só chamadas autenticadas pelo
+    // orquestrador podem gravá-lo; nunca aceite isso de um usuário do painel.
+    if (body.orchestration_context_patch && isInternalRequest(request)) {
+      orchestrationContextPatch = body.orchestration_context_patch;
+    }
   }
 
   if (!conversaId || !tenantId) {
@@ -128,7 +141,7 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       return NextResponse.json({ error: `Falha ao salvar mensagem: ${insertError.message}` }, { status: 500 });
     }
-    await supabase.from("conversas").update(buildConversaUpdates(remetente, departamento)).eq("id", conversaId);
+    await supabase.from("conversas").update(buildConversaUpdates(remetente, departamento, orchestrationContextPatch)).eq("id", conversaId);
     if (remetente === "ia" && isInternalRequest(request)) {
       await logAiDecision(supabase, {
         tenantId,
@@ -284,7 +297,7 @@ export async function POST(request: NextRequest) {
   }
   await supabase
     .from("conversas")
-    .update(buildConversaUpdates(remetente, departamento))
+    .update(buildConversaUpdates(remetente, departamento, orchestrationContextPatch))
     .eq("id", conversaId);
 
   if (remetente === "ia" && isInternalRequest(request)) {

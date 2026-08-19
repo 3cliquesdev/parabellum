@@ -8,11 +8,12 @@ export async function GET() {
   const admin = createAdminClient();
   const { data: memberships } = await admin
     .from("tenant_members")
-    .select("tenant_id")
+    .select("tenant_id, role")
     .eq("user_id", user.id)
     .order("created_at", { ascending: true })
     .limit(1);
-  const tenantId = ((memberships ?? [])[0] as { tenant_id?: string } | undefined)?.tenant_id ?? null;
+  const membership = (memberships ?? [])[0] as { tenant_id?: string; role?: string } | undefined;
+  const tenantId = membership?.tenant_id ?? null;
 
   if (!tenantId) {
     return NextResponse.json({ error: "Nenhum workspace ativo" }, { status: 404 });
@@ -25,5 +26,5 @@ export async function GET() {
     .maybeSingle();
   if (!tenant) return NextResponse.json({ error: "Workspace nao encontrado" }, { status: 404 });
 
-  return NextResponse.json({ tenant });
+  return NextResponse.json({ tenant, role: membership?.role ?? "vendedor" });
 }

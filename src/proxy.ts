@@ -12,11 +12,25 @@ const PROTECTED = [
   "/broadcasts",
   "/ia",
 ];
-const AUTH_ROUTES = ["/login", "/signup"];
 
 // Papeis do time financeiro so tratam tickets (ex: reembolso) - nunca devem
 // acessar a inbox de conversas dos outros times, mesmo digitando a URL direto.
 const ROLES_SO_TICKETS = ["financeiro", "gerente_financeiro"];
+const ROLES_OPERACIONAIS = ["vendedor", "atendente", "consultor"];
+const ROTAS_RESTRITAS_OPERACIONAIS = ["/pipeline", "/broadcasts", "/ia"];
+const AUTH_TIMEOUT_MS = 2_500;
+
+async function withTimeout<T>(promise: PromiseLike<T>): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), AUTH_TIMEOUT_MS); }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -26,6 +40,14 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/api/") || pathname.startsWith("/admin")) {
     return supabaseResponse;
   }
+
+  const isProtected = PROTECTED.some(p => pathname.startsWith(p));
+
+  // Paginas publicas e de autenticacao nao precisam validar sessao no edge.
+  // Isso evita uma tempestade de GET /auth/v1/user a cada carregamento de
+  // login/signup quando o banco esta sob pressao. As rotas protegidas abaixo
+  // continuam exigindo usuario autenticado e cargo valido.
+  if (!isProtected) return supabaseResponse;
 
   // ── Auth guard ──
   const supabase = createServerClient<LooseDatabase>(
@@ -45,29 +67,35 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-  const isProtected = PROTECTED.some(p => pathname.startsWith(p));
-  const isAuthRoute = AUTH_ROUTES.some(p => pathname.startsWith(p));
+  const authResult = await withTimeout(supabase.auth.getUser());
+  const user = authResult?.data.user ?? null;
 
   if (isProtected && !user) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (user && (isAuthRoute || (isProtected && !pathname.startsWith("/tickets")))) {
-    const { data: membership } = await supabase
+  if (user && !pathname.startsWith("/tickets")) {
+    const membershipResult = await withTimeout(supabase
       .from("tenant_members")
       .select("role")
       .eq("user_id", user.id)
       .limit(1)
-      .maybeSingle();
+      .maybeSingle());
+    // Em caso de timeout, falhar fechado para rotas protegidas em vez de
+    // permitir acesso sem saber o cargo do usuario.
+    if (!membershipResult && isProtected) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    const membership = membershipResult?.data ?? null;
     const role = (membership as { role?: string } | null)?.role;
     const somenteTickets = role ? ROLES_SO_TICKETS.includes(role) : false;
+    const operacional = role ? ROLES_OPERACIONAIS.includes(role) : false;
 
-    if (isAuthRoute) {
-      return NextResponse.redirect(new URL(somenteTickets ? "/tickets" : "/dashboard", request.url));
-    }
     if (somenteTickets) {
       return NextResponse.redirect(new URL("/tickets", request.url));
+    }
+    if (operacional && ROTAS_RESTRITAS_OPERACIONAIS.some((route) => pathname.startsWith(route))) {
+      return NextResponse.redirect(new URL("/negocios", request.url));
     }
   }
 

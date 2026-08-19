@@ -10,7 +10,10 @@ interface ResolverBody {
   ignorar_confirmacao?: boolean;
 }
 
-const NAO_CONFIRMACAO_RE = /\?|^\s*(obrigad[ao]|valeu|vlw|blz|beleza|ok|de nada)\s*!?\.?\s*$/i;
+// Fechar uma conversa desliga a IA e pode disparar o CSAT. Uma resposta
+// positiva sobre a venda ("com certeza", "quero o plano 1") nunca pode ser
+// permissao para encerrar. Inatividade usa `ignorar_confirmacao`.
+const CONFIRMACAO_ENCERRAMENTO_RE = /^(?:(?:ja\s+)?pode\s+)?(?:encerrar|finalizar|fechar)(?:\s+(?:o\s+)?(?:atendimento|conversa|chat))?[.!\s]*$|^(?:nao|n[ãa]o)\s+(?:preciso|quero)(?:\s+de)?(?:\s+mais)?\s+(?:ajuda|atendimento)[.!\s]*$/i;
 
 const CSAT_MENSAGEM = "Antes de encerrar, avalie nosso atendimento de 1 a 5 (1 = péssimo, 5 = excelente). Responda só com o número.";
 
@@ -28,12 +31,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: conversa } = await auth.admin
     .from("conversas")
-    .select("id, tenant_id, lead_id, canal")
+    .select("id, tenant_id, lead_id, canal, status, aguardando_csat")
     .eq("id", conversaId)
     .eq("tenant_id", tenant_id)
     .maybeSingle();
-  const conversation = conversa as { id: string; tenant_id: string; lead_id: string | null; canal: string } | null;
+  const conversation = conversa as { id: string; tenant_id: string; lead_id: string | null; canal: string; status: string; aguardando_csat: boolean } | null;
   if (!conversation) return NextResponse.json({ error: "conversa nao encontrada" }, { status: 404 });
+
+  // O cron pode repetir uma chamada. Depois de resolvida, a conversa nao pode
+  // enviar outro encerramento nem outro pedido de avaliacao.
+  if (conversation.status === "resolvido") {
+    return NextResponse.json({ success: true, already_resolved: true });
+  }
 
   const { data: tag } = await auth.admin
     .from("tags")
@@ -58,8 +67,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .limit(1)
       .maybeSingle();
     const texto = (ultimaMensagem as { conteudo?: string } | null)?.conteudo ?? "";
-    if (NAO_CONFIRMACAO_RE.test(texto.trim())) {
-      return NextResponse.json({ error: "ultima mensagem do cliente nao parece uma confirmacao explicita de encerramento" }, { status: 400 });
+    if (!CONFIRMACAO_ENCERRAMENTO_RE.test(texto.trim())) {
+      return NextResponse.json({ error: "encerramento bloqueado: o cliente nao pediu explicitamente para encerrar" }, { status: 400 });
     }
   }
 

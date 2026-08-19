@@ -51,13 +51,18 @@ export async function POST(request: NextRequest) {
     ? process.env.WHATSAPP_MAIN_FORWARD_URL
     : `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/webhooks/whatsapp`;
 
+  console.info("WhatsApp router: evento recebido", {
+    phoneNumberId: phoneNumberId ?? "ausente",
+    destination: isMainNumber ? "crm-legado" : "3cliques",
+  });
+
   if (!targetUrl) {
     console.error("WHATSAPP_MAIN_FORWARD_URL nao configurado — nao foi possivel rotear.");
     return NextResponse.json({ status: "ok" });
   }
 
   try {
-    await fetch(targetUrl, {
+    const forwardResponse = await fetch(targetUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -65,6 +70,11 @@ export async function POST(request: NextRequest) {
       },
       body: rawBody,
       signal: AbortSignal.timeout(8000),
+    });
+    console.info("WhatsApp router: encaminhamento concluido", {
+      phoneNumberId: phoneNumberId ?? "ausente",
+      destination: isMainNumber ? "crm-legado" : "3cliques",
+      status: forwardResponse.status,
     });
   } catch (error) {
     console.error("Falha ao rotear webhook do WhatsApp:", error);

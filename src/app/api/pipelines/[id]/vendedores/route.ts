@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
+import { resolveInternalOrTenantAdmin, resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: pipelineId } = await params;
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
   if (!user_id) return NextResponse.json({ error: "user_id required" }, { status: 400 });
 
-  const auth = await resolveInternalOrTenantAuth(request, tenant_id);
+  const auth = await resolveInternalOrTenantAdmin(request, tenant_id);
   if (!auth.ok) return auth.response;
 
   const { data, error } = await auth.admin
@@ -52,7 +52,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!tenantId) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
   if (!userId) return NextResponse.json({ error: "user_id required" }, { status: 400 });
 
-  const auth = await resolveInternalOrTenantAuth(request, tenantId);
+  const auth = await resolveInternalOrTenantAdmin(request, tenantId);
   if (!auth.ok) return auth.response;
 
   const { error } = await auth.admin

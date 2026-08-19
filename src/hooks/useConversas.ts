@@ -152,7 +152,8 @@ export function useConversas(tenantId: string | null) {
         .from("conversas")
         .select("*, leads(id, nome, whatsapp, email, instagram, eh_cliente)")
         .eq("tenant_id", tenantId)
-        .order("updated_at", { ascending: false });
+        .order("updated_at", { ascending: false })
+        .limit(100);
 
       // Gerente/dono veem tudo; qualquer outro cargo so ve o que e dele ou o
       // que ainda nao tem dono (fila da IA, ou nao-atribuido do proprio

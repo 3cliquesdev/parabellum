@@ -8,7 +8,7 @@ import { getInviteEmailFeatures, getInviteEmailPalette } from "@/lib/email/invit
 import {
   UserRound, Puzzle, Users, Settings, CreditCard,
   CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp,
-  Plus, Trash2, Copy, Check, Send, Briefcase,
+  Plus, Trash2, Copy, Check, Send, Briefcase, RefreshCw, X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +44,7 @@ interface TeamMemberRow {
   availability_status?: string | null;
   max_concurrent_chats?: number | null;
   department_ids?: string[];
+  receber_alertas_operacionais?: boolean;
 }
 
 interface DepartmentRow {
@@ -116,12 +117,17 @@ interface PhoneOption { id: string; display_phone_number: string; verified_name:
 
 // ─── Main Page ───
 export default function SettingsPage() {
-  const { tenant, tenantId, loading } = useTenant();
+  const { tenant, tenantId, role, loading } = useTenant();
   const [section, setSection] = useState<NavSection>("perfil");
   const [category, setCategory] = useState("todos");
   const [activeIntegration, setActiveIntegration] = useState<string | null>(null);
 
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
+  const isOperational = ["vendedor", "atendente", "consultor"].includes(role ?? "");
+  const visibleNavItems = isOperational ? NAV_ITEMS.filter((item) => item.id === "perfil") : NAV_ITEMS;
+  // Mesmo que uma aba administrativa tenha ficado em memoria antes do cargo
+  // carregar, o vendedor sempre renderiza somente o perfil.
+  const activeSection: NavSection = isOperational ? "perfil" : section;
 
   const filteredIntegrations = INTEGRATIONS.filter(i => {
     if (category === "todos") return true;
@@ -145,12 +151,12 @@ export default function SettingsPage() {
           Configurações
         </p>
         <div className="space-y-0.5">
-          {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
+          {visibleNavItems.map(({ id, icon: Icon, label }) => (
             <button key={id} onClick={() => setSection(id as NavSection)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
-              style={section === id ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
+              style={activeSection === id ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
                 : { color: "var(--text-secondary)", border: "1px solid transparent" }}>
-              <Icon className="w-4 h-4 shrink-0" style={{ color: section === id ? "var(--status-ganho)" : "var(--text-faint)" }} />
+              <Icon className="w-4 h-4 shrink-0" style={{ color: activeSection === id ? "var(--status-ganho)" : "var(--text-faint)" }} />
               {label}
             </button>
           ))}
@@ -162,14 +168,14 @@ export default function SettingsPage() {
       <main className="flex-1 overflow-y-auto">
 
         {/* ─── PERFIL ─── */}
-        {section === "perfil" && (
+        {activeSection === "perfil" && (
           <div className="p-6">
-            <UserProfileSection />
+            <UserProfileSection role={role} />
           </div>
         )}
 
         {/* ─── INTEGRAÇÕES ─── */}
-        {section === "integracoes" && (
+        {activeSection === "integracoes" && (
           <div className="p-6 space-y-5">
             <div>
               <h1 className="text-lg font-semibold text-white tracking-tight">Integrações</h1>
@@ -211,7 +217,7 @@ export default function SettingsPage() {
         )}
 
         {/* ─── EQUIPE ─── */}
-        {section === "equipe" && tenantId && (
+        {activeSection === "equipe" && tenantId && (
           <div className="p-6">
             <div className="mb-6">
               <h1 className="text-lg font-semibold text-white tracking-tight">Equipe</h1>
@@ -222,7 +228,7 @@ export default function SettingsPage() {
         )}
 
         {/* ─── DEPART. & OPERAÇÕES ─── */}
-        {section === "operacoes" && tenantId && (
+        {activeSection === "operacoes" && tenantId && (
           <div className="p-6">
             <div className="mb-6">
               <h1 className="text-lg font-semibold text-white tracking-tight">Depart. &amp; Operações</h1>
@@ -233,7 +239,7 @@ export default function SettingsPage() {
         )}
 
         {/* ─── WORKSPACE ─── */}
-        {section === "workspace" && (
+        {activeSection === "workspace" && (
           <div className="p-6 space-y-5 max-w-2xl">
             <div>
               <h1 className="text-lg font-semibold text-white tracking-tight">Workspace</h1>
@@ -258,7 +264,7 @@ export default function SettingsPage() {
         )}
 
         {/* ─── PLANO ─── */}
-        {section === "plano" && (
+        {activeSection === "plano" && (
           <div className="p-6 space-y-5 max-w-2xl">
             <div>
               <h1 className="text-lg font-semibold text-white tracking-tight">Plano & Faturamento</h1>
@@ -1268,6 +1274,22 @@ function TeamSection({ tenantId }: { tenantId: string }) {
     setMembers(m => m.filter(x => x.id !== id));
   }
 
+  async function cancelInvite(id: string) {
+    const response = await fetch("/api/team/invite", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ invite_id: id, tenant_id: tenantId }) });
+    if (!response.ok) return alert("Nao foi possivel cancelar o convite");
+    setInvites(current => current.filter(invite => invite.id !== id));
+  }
+
+  async function resendInvite(invite: InviteRow) {
+    setInviteForm({ email: invite.email, role: invite.role });
+    setInviting(true);
+    const response = await fetch("/api/team/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: invite.email, role: invite.role, tenant_id: tenantId }) });
+    const data = await response.json(); setInviting(false);
+    if (!data.invite_url) return alert(data.error ?? "Nao foi possivel reenviar o convite");
+    setInviteLink(data.invite_url);
+    setInvites(current => current.filter(item => item.id !== invite.id));
+  }
+
   return (
     <div className="space-y-4 max-w-2xl">
       <div className="rounded-xl p-5 space-y-4" style={cardStyle}>
@@ -1327,6 +1349,8 @@ function TeamSection({ tenantId }: { tenantId: string }) {
               <div key={inv.id} className="flex items-center gap-3 py-2 px-3 rounded-xl mb-1.5" style={{ background: "rgba(250,204,21,0.04)", border: "1px solid rgba(250,204,21,0.1)" }}>
                 <p className="flex-1 text-xs font-medium text-white truncate">{inv.email}</p>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(250,204,21,0.1)", color: "#facc15" }}>{ROLE_LABEL[inv.role]}</span>
+                <button title="Reenviar convite" disabled={inviting} onClick={() => resendInvite(inv)}><RefreshCw className="w-3.5 h-3.5" style={{ color: "#60a5fa" }} /></button>
+                <button title="Cancelar convite" onClick={() => cancelInvite(inv.id)}><X className="w-4 h-4" style={{ color: "rgba(248,113,113,0.7)" }} /></button>
               </div>
             ))}
           </div>
@@ -1346,6 +1370,7 @@ function MemberConfig({ member, tenantId, isSelf }: { member: TeamMemberRow; ten
   const [departments, setDepartments] = useState<DepartmentRow[]>([]);
   const [selected, setSelected] = useState<string[]>(member.department_ids ?? []);
   const [status, setStatus] = useState(member.availability_status ?? "online");
+  const [receberAlertas, setReceberAlertas] = useState(member.receber_alertas_operacionais ?? false);
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const [openIntegracoes, setOpenIntegracoes] = useState(false);
@@ -1371,7 +1396,7 @@ function MemberConfig({ member, tenantId, isSelf }: { member: TeamMemberRow; ten
     });
   }
 
-  async function save(newDepartmentIds?: string[], newStatus?: string) {
+  async function save(newDepartmentIds?: string[], newStatus?: string, newAlertas?: boolean) {
     setSaving(true);
     await fetch("/api/team/member", {
       method: "PATCH",
@@ -1381,6 +1406,7 @@ function MemberConfig({ member, tenantId, isSelf }: { member: TeamMemberRow; ten
         tenant_id: tenantId,
         department_ids: newDepartmentIds ?? selected,
         availability_status: newStatus ?? status,
+        receber_alertas_operacionais: newAlertas ?? receberAlertas,
       }),
     });
     setSaving(false);
@@ -1397,6 +1423,12 @@ function MemberConfig({ member, tenantId, isSelf }: { member: TeamMemberRow; ten
     const novo = ordem[(ordem.indexOf(status) + 1) % ordem.length];
     setStatus(novo);
     void save(undefined, novo);
+  }
+
+  function toggleAlertas() {
+    const novo = !receberAlertas;
+    setReceberAlertas(novo);
+    void save(undefined, undefined, novo);
   }
 
   return (
@@ -1446,6 +1478,19 @@ function MemberConfig({ member, tenantId, isSelf }: { member: TeamMemberRow; ten
             </div>
           )}
         </div>
+      )}
+      
+      {["owner", "gerente", "gerente_geral"].includes(member.role) && (
+        <button onClick={toggleAlertas}
+          title="Ativar/desativar recebimento de alertas de sistema no WhatsApp"
+          className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-bold transition-all"
+          style={{ 
+            background: receberAlertas ? "rgba(16,185,129,0.1)" : "var(--surface-soft)", 
+            color: receberAlertas ? "var(--status-ganho)" : "var(--text-secondary)", 
+            border: `1px solid ${receberAlertas ? "rgba(16,185,129,0.2)" : "var(--border-subtle)"}` 
+          }}>
+          {receberAlertas ? "Recebe Alertas" : "Sem Alertas"}
+        </button>
       )}
     </div>
   );

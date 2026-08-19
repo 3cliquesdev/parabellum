@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
+import { resolveInternalOrTenantAdmin } from "@/lib/auth/internal-or-tenant";
 
 interface UpdatePipelineBody {
   tenant_id?: string;
@@ -13,7 +13,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { tenant_id } = body;
   if (!tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
 
-  const auth = await resolveInternalOrTenantAuth(request, tenant_id);
+  const auth = await resolveInternalOrTenantAdmin(request, tenant_id);
   if (!auth.ok) return auth.response;
 
   if (body.is_default) {
@@ -44,7 +44,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const tenantId = searchParams.get("tenant_id");
   if (!tenantId) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
 
-  const auth = await resolveInternalOrTenantAuth(request, tenantId);
+  const auth = await resolveInternalOrTenantAdmin(request, tenantId);
   if (!auth.ok) return auth.response;
 
   const { count: totalPipelines } = await auth.admin

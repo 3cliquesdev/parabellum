@@ -8,6 +8,7 @@ interface TenantMemberRow {
   created_at: string;
   availability_status: string;
   max_concurrent_chats: number;
+  receber_alertas_operacionais?: boolean;
 }
 
 interface EnrichedTenantMember extends TenantMemberRow {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
   const admin = auth.admin;
   const { data: members } = await admin
     .from("tenant_members")
-    .select("id, role, user_id, created_at, availability_status, max_concurrent_chats")
+    .select("id, role, user_id, created_at, availability_status, max_concurrent_chats, receber_alertas_operacionais")
     .eq("tenant_id", tenantId);
 
   const { data: deptLinks } = await admin

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Ticket as TicketIcon, AlertTriangle, Upload, X } from "lucide-react";
+import { Plus, Ticket as TicketIcon, AlertTriangle, Upload, X, RefreshCw } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 
@@ -91,6 +91,10 @@ export default function TicketsPage() {
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [showModal, setShowModal] = useState(false);
+  const [syncingLegacy, setSyncingLegacy] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   const membersByUserId = useMemo(
     () => Object.fromEntries(members.map((m) => [m.user_id, m])),
@@ -112,12 +116,24 @@ export default function TicketsPage() {
   async function fetchTickets() {
     setLoading(true);
     const supabase = createClient();
-    const { data } = await supabase
-      .from("tickets")
-      .select("*, ticket_categories(nome, cor), ticket_tags(tags(id, nome, cor)), ticket_stakeholders(user_id), leads(nome)")
-      .eq("tenant_id", tenantId!)
-      .order("created_at", { ascending: false });
-    setTickets((data ?? []) as unknown as TicketRow[]);
+    const rows: TicketRow[] = [];
+    const batchSize = 1000;
+    let offset = 0;
+    // O PostgREST limita cada resposta. Buscamos em lotes para o total e a
+    // paginação refletirem todos os tickets, inclusive os migrados.
+    while (true) {
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("*, ticket_categories(nome, cor), ticket_tags(tags(id, nome, cor)), ticket_stakeholders(user_id), leads(nome)")
+        .eq("tenant_id", tenantId!)
+        .order("created_at", { ascending: false })
+        .range(offset, offset + batchSize - 1);
+      if (error || !data?.length) break;
+      rows.push(...(data as unknown as TicketRow[]));
+      if (data.length < batchSize) break;
+      offset += batchSize;
+    }
+    setTickets(rows);
     setLoading(false);
   }
 
@@ -131,6 +147,39 @@ export default function TicketsPage() {
     const r = await fetch(`/api/departments?tenant_id=${tenantId}`);
     const d = await r.json();
     setDepartments(d.departments ?? []);
+  }
+
+  async function syncLegacyTickets() {
+    if (!tenantId) return;
+    setSyncingLegacy(true); setSyncMessage(null);
+    try {
+      let created = 0;
+      let updated = 0;
+      let commentsCreated = 0;
+      let hasMore = true;
+      let batches = 0;
+      // 3.422 tickets cabem em até 69 lotes de 50. Mantemos margem para
+      // reprocessamentos idempotentes sem exigir ação manual entre lotes.
+      while (hasMore && batches < 80) {
+        const response = await fetch("/api/internal/migrations/tickets/sync", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant_id: tenantId }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "Não foi possível sincronizar");
+        created += result.created ?? 0;
+        updated += result.updated ?? 0;
+        commentsCreated += result.commentsCreated ?? 0;
+        hasMore = Boolean(result.hasMore);
+        batches += 1;
+        setSyncMessage(`${created} criado(s), ${updated} atualizado(s) e ${commentsCreated} comentário(s) trazido(s). ${hasMore ? `Processando lote ${batches + 1}...` : "Sincronização concluída."}`);
+      }
+      if (hasMore) throw new Error("A sincronização atingiu o limite de lotes. Inicie novamente para continuar.");
+      await fetchTickets();
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Não foi possível sincronizar");
+    } finally {
+      setSyncingLegacy(false);
+    }
   }
 
   const departamentoFinanceiro = departments.find((d) => d.name.toLowerCase() === "financeiro");
@@ -153,6 +202,13 @@ export default function TicketsPage() {
         return tickets;
     }
   }, [filtro, tickets, myUserId, departamentoFinanceiro]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const visibleTickets = useMemo(
+    () => filtered.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filtered, safePage],
+  );
 
   const SIDEBAR_TOP: { id: Filtro; label: string }[] = [
     { id: "todos", label: "Todos os tickets" },
@@ -218,15 +274,25 @@ export default function TicketsPage() {
           <div>
             <h1 className="text-lg font-semibold text-white tracking-tight">Tickets</h1>
             <p className="text-[13px] mt-0.5 font-medium" style={{ color: "var(--text-secondary)" }}>
-              {filtered.length} de {tickets.length} tickets
+              Mostrando {filtered.length ? (safePage - 1) * pageSize + 1 : 0}–{Math.min(safePage * pageSize, filtered.length)} de {filtered.length} ticket{filtered.length === 1 ? "" : "s"}
             </p>
           </div>
-          <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-bold"
-            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
-            <Plus className="w-3.5 h-3.5" /> Novo Ticket
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={syncLegacyTickets} disabled={syncingLegacy}
+              className="flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-bold disabled:opacity-60"
+              style={{ background: "var(--surface-soft)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }}>
+              <RefreshCw className={`w-3.5 h-3.5 ${syncingLegacy ? "animate-spin" : ""}`} />
+              {syncingLegacy ? "Sincronizando..." : "Trazer tickets antigos"}
+            </button>
+            <button onClick={() => setShowModal(true)}
+              className="flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-bold"
+              style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>
+              <Plus className="w-3.5 h-3.5" /> Novo Ticket
+            </button>
+          </div>
         </div>
+
+        {syncMessage && <p className="text-xs" style={{ color: syncMessage.includes("Não foi") || syncMessage.includes("configurado") ? "#f87171" : "var(--status-ganho)" }}>{syncMessage}</p>}
 
         {filtered.length === 0 ? (
           <div className="py-16 text-center rounded-xl" style={{ border: "1px solid var(--border-subtle)" }}>
@@ -244,7 +310,7 @@ export default function TicketsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((t) => {
+                {visibleTickets.map((t) => {
                   const assignee = t.assigned_to ? membersByUserId[t.assigned_to] : null;
                   const criador = t.created_by ? membersByUserId[t.created_by] : null;
                   return (
@@ -287,6 +353,20 @@ export default function TicketsPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {filtered.length > pageSize && (
+          <div className="flex items-center justify-between px-1" aria-label="Paginação dos tickets">
+            <p className="text-xs" style={{ color: "var(--text-faint)" }}>Página {safePage} de {totalPages}</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={safePage === 1}
+                className="h-8 px-3 rounded-lg text-xs font-semibold disabled:opacity-40"
+                style={{ background: "var(--surface-soft)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>Anterior</button>
+              <button type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={safePage === totalPages}
+                className="h-8 px-3 rounded-lg text-xs font-semibold disabled:opacity-40"
+                style={{ background: "var(--surface-soft)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>Próxima</button>
+            </div>
           </div>
         )}
       </div>

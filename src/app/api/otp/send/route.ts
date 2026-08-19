@@ -9,6 +9,16 @@ interface SendOtpBody {
   conversa_id?: string;
 }
 
+function digits(value: string | null | undefined) {
+  return (value ?? "").replace(/\D/g, "");
+}
+
+function samePhone(left: string, right: string) {
+  const a = digits(left).replace(/^55/, "");
+  const b = digits(right).replace(/^55/, "");
+  return Boolean(a && b && a === b);
+}
+
 // Envia um codigo de verificacao para o e-mail cadastrado do lead. Usado antes de
 // qualquer acao financeira que mexa em dinheiro de verdade (ex: saque de saldo).
 export async function POST(request: NextRequest) {
@@ -23,15 +33,34 @@ export async function POST(request: NextRequest) {
 
   const { data: lead, error: leadError } = await auth.admin
     .from("leads")
-    .select("email")
+    .select("email, whatsapp, cpf")
     .eq("id", lead_id)
     .eq("tenant_id", tenant_id)
     .maybeSingle();
 
   if (leadError) return NextResponse.json({ error: leadError.message }, { status: 500 });
-  const email = (lead as { email?: string | null } | null)?.email;
+  const leadRow = lead as { email?: string | null; whatsapp?: string | null; cpf?: string | null } | null;
+  const email = leadRow?.email?.trim().toLowerCase();
   if (!email) {
     return NextResponse.json({ found: false, error: "Lead nao tem e-mail cadastrado para enviar o codigo" }, { status: 404 });
+  }
+
+  const { data: paidSales, error: salesError } = await auth.admin
+    .from("vendas")
+    .select("buyer_phone_normalized, buyer_cpf_normalized")
+    .eq("tenant_id", tenant_id)
+    .in("origem", ["kiwify", "kiwify_lovable"])
+    .eq("status", "pago")
+    .eq("buyer_email_normalized", email)
+    .limit(20);
+  if (salesError) return NextResponse.json({ error: salesError.message }, { status: 500 });
+
+  const hasPaidIdentityMatch = ((paidSales ?? []) as Array<{ buyer_phone_normalized?: string | null; buyer_cpf_normalized?: string | null }>).some((sale) =>
+    samePhone(sale.buyer_phone_normalized ?? "", leadRow?.whatsapp ?? "") ||
+    (digits(sale.buyer_cpf_normalized) !== "" && digits(sale.buyer_cpf_normalized) === digits(leadRow?.cpf)),
+  );
+  if (!hasPaidIdentityMatch) {
+    return NextResponse.json({ enviado: false, error: "Identidade financeira nao confirmada por compra Kiwify paga" }, { status: 403 });
   }
 
   const result = await sendOtpEmail(auth.admin, { tenantId: tenant_id, leadId: lead_id, conversaId: conversa_id, email });

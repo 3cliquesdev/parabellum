@@ -100,14 +100,41 @@ export async function POST(request: NextRequest) {
       }
       const { data: conversa } = await auth.admin
         .from("conversas")
-        .select("financeiro_verificado_em")
+        .select("financeiro_verificado_em, orchestration_context")
         .eq("id", body.conversa_id)
         .eq("tenant_id", tenant_id)
         .maybeSingle();
-      const verificadoEm = (conversa as { financeiro_verificado_em?: string | null } | null)?.financeiro_verificado_em;
+      const conversaRow = conversa as {
+        financeiro_verificado_em?: string | null;
+        orchestration_context?: Record<string, unknown> | null;
+      } | null;
+      const verificadoEm = conversaRow?.financeiro_verificado_em;
       const recente = verificadoEm && Date.now() - new Date(verificadoEm).getTime() < VERIFICACAO_RECENTE_MS;
       if (!recente) {
         return NextResponse.json({ error: "Verificação de identidade (OTP) necessária antes de abrir esse tipo de ticket" }, { status: 403 });
+      }
+    }
+  }
+
+  if (categoriaId && isInternalRequest(request)) {
+    const { data: categoria } = await auth.admin
+      .from("ticket_categories")
+      .select("requer_verificacao")
+      .eq("id", categoriaId)
+      .maybeSingle();
+    if ((categoria as { requer_verificacao?: boolean } | null)?.requer_verificacao) {
+      const { data: conversa } = await auth.admin
+        .from("conversas")
+        .select("orchestration_context")
+        .eq("id", body.conversa_id ?? "")
+        .eq("tenant_id", tenant_id)
+        .maybeSingle();
+      const confirmedAt = (conversa as { orchestration_context?: Record<string, unknown> | null } | null)
+        ?.orchestration_context?.financial_ticket_confirmed_at;
+      const confirmationIsRecent = typeof confirmedAt === "string"
+        && Date.now() - new Date(confirmedAt).getTime() < VERIFICACAO_RECENTE_MS;
+      if (!confirmationIsRecent) {
+        return NextResponse.json({ error: "Confirmacao explicita do cliente necessaria antes de abrir o ticket de saque" }, { status: 409 });
       }
     }
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, BookOpen, Search, CheckCircle, Circle, Trash2, Edit2, Globe, FileText, PenLine, Upload, X } from "lucide-react";
+import { Plus, BookOpen, Search, CheckCircle, Circle, Trash2, Edit2, Globe, FileText, PenLine, Upload, X, RefreshCw } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 
@@ -40,6 +40,7 @@ export default function KnowledgePage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [refreshingSabr, setRefreshingSabr] = useState(false);
 
   const cardStyle = { background: "var(--surface-gradient)", border: "1px solid var(--border-subtle)" };
 
@@ -138,6 +139,24 @@ export default function KnowledgePage() {
     fetchCandidates();
   }
 
+  async function refreshSabrKnowledge() {
+    if (!tenantId) return;
+    setRefreshingSabr(true); setImportResult(null);
+    try {
+      const response = await fetch("/api/knowledge/refresh-sabr", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant_id: tenantId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Erro ao atualizar");
+      setImportResult({ ok: true, msg: `${result.removidos} artigo(s) antigo(s) removido(s) e ${result.criados} artigos vigentes publicados.` });
+      await fetchArticles();
+    } catch (error) {
+      setImportResult({ ok: false, msg: error instanceof Error ? error.message : "Erro ao atualizar" });
+    } finally {
+      setRefreshingSabr(false);
+    }
+  }
+
   const filtered = articles.filter(a => a.titulo.toLowerCase().includes(search.toLowerCase()) || a.conteudo.toLowerCase().includes(search.toLowerCase()));
   const withEmbedding = articles.filter(a => a.embedding).length;
   const published = articles.filter(a => a.publicado).length;
@@ -153,6 +172,12 @@ export default function KnowledgePage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button onClick={refreshSabrKnowledge} disabled={refreshingSabr}
+            className="flex items-center gap-2 px-3 h-9 rounded-xl text-xs font-bold disabled:opacity-60"
+            style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.28)", color: "#10B981" }}>
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshingSabr ? "animate-spin" : ""}`} />
+            {refreshingSabr ? "Atualizando..." : "Atualizar SABR"}
+          </button>
           <button onClick={() => { setShowForm(true); setEditing(null); setForm({ titulo: "", conteudo: "", categoria: "Geral", tags: "" }); }}
             className="flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-bold"
             style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}>

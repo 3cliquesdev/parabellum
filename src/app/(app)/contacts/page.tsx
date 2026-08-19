@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, Download } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
@@ -33,14 +33,21 @@ export default function ContactsPage() {
   const { leads, loading } = useLeads(tenantId);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<LeadStatus | "all">("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const filtered = leads.filter(l => {
+  const filtered = useMemo(() => leads.filter(l => {
     const matchSearch = l.nome.toLowerCase().includes(search.toLowerCase()) ||
       (l.email ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (l.whatsapp ?? "").includes(search);
     const matchStatus = filterStatus === "all" || l.status === filterStatus;
     return matchSearch && matchStatus;
-  });
+  }), [leads, search, filterStatus]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const visibleLeads = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => { setPage(1); }, [search, filterStatus, pageSize]);
 
   if (tenantLoading || loading) return (
     <div className="flex items-center justify-center h-full">
@@ -79,6 +86,12 @@ export default function ContactsPage() {
             <option key={v} value={v} style={{ background: "var(--surface-solid)", color: "var(--text-primary)" }}>{l}</option>
           ))}
         </select>
+        <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}
+          aria-label="Contatos por pagina"
+          className="h-9 px-3 rounded-lg text-sm outline-none"
+          style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}>
+          {[10, 25, 50, 100].map(size => <option key={size} value={size}>{size} por página</option>)}
+        </select>
       </div>
 
       {/* Table */}
@@ -91,7 +104,7 @@ export default function ContactsPage() {
           <div className="py-16 text-center">
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Nenhum contato encontrado.</p>
           </div>
-        ) : filtered.map((lead, i) => (
+        ) : visibleLeads.map((lead, i) => (
           <Link key={lead.id} href={`/contacts/${lead.id}`} className="grid px-5 py-3 items-center transition-colors"
             style={{ gridTemplateColumns: "2fr 1.5fr 1.5fr 1fr 1fr", borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)" }}
             onMouseEnter={e => (e.currentTarget.style.background = "var(--input-bg)")}
@@ -118,6 +131,18 @@ export default function ContactsPage() {
           </Link>
         ))}
       </div>
+      {filtered.length > 0 && (
+        <div className="flex items-center justify-between gap-3 text-sm" style={{ color: "var(--text-secondary)" }}>
+          <span>Mostrando {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filtered.length)} de {filtered.length}</span>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setPage(current => Math.max(1, current - 1))} disabled={safePage === 1}
+              className="h-9 px-3 rounded-lg disabled:opacity-40" style={{ border: "1px solid var(--input-border)" }}>Anterior</button>
+            <span>Página {safePage} de {totalPages}</span>
+            <button type="button" onClick={() => setPage(current => Math.min(totalPages, current + 1))} disabled={safePage === totalPages}
+              className="h-9 px-3 rounded-lg disabled:opacity-40" style={{ border: "1px solid var(--input-border)" }}>Próxima</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

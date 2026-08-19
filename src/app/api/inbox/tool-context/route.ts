@@ -6,6 +6,7 @@ interface ConversaRow {
   id: string;
   tenant_id: string;
   lead_id: string;
+  orchestration_context: Record<string, unknown> | null;
 }
 
 // Resolve tenant_id/lead_id a partir do conversa_id, com autoridade do
@@ -25,12 +26,40 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient();
   const { data } = await admin
     .from("conversas")
-    .select("id, tenant_id, lead_id")
+    .select("id, tenant_id, lead_id, orchestration_context")
     .eq("id", conversaId)
     .maybeSingle();
 
   if (!data) return NextResponse.json({ found: false, error: "Conversa nao encontrada" }, { status: 404 });
 
   const conversa = data as unknown as ConversaRow;
-  return NextResponse.json({ found: true, tenant_id: conversa.tenant_id, lead_id: conversa.lead_id, conversa_id: conversa.id });
+  return NextResponse.json({
+    found: true,
+    tenant_id: conversa.tenant_id,
+    lead_id: conversa.lead_id,
+    conversa_id: conversa.id,
+    orchestration_context: conversa.orchestration_context ?? {},
+  });
+}
+
+// Atualizacao exclusiva do orquestrador n8n. O contexto nao e dado do cliente
+// e nunca sai desta rota para interfaces publicas.
+export async function POST(request: NextRequest) {
+  if (!isInternalRequest(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json().catch(() => ({})) as { conversa_id?: string; orchestration_context?: unknown };
+  if (!body.conversa_id || !body.orchestration_context || typeof body.orchestration_context !== "object" || Array.isArray(body.orchestration_context)) {
+    return NextResponse.json({ error: "conversa_id e orchestration_context sao obrigatorios" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("conversas")
+    .update({ orchestration_context: body.orchestration_context as Record<string, unknown> })
+    .eq("id", body.conversa_id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
 }

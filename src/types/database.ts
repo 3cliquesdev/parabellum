@@ -136,6 +136,7 @@ export interface UserProfile {
   first_name: string | null;
   last_name: string | null;
   cpf: string | null;
+  whatsapp: string | null;
   avatar_url: string | null;
   address_zip: string | null;
   address_street: string | null;

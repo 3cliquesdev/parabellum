@@ -3,6 +3,12 @@ import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
 import type { AdminClient } from "@/lib/auth/guard";
 import { dispatchConversation } from "@/lib/dispatch";
 import { sendMail } from "@/lib/mailer";
+import {
+  loadConversationForOutbound,
+  sendEmailConversationMessage,
+  sendInstagramConversationMessage,
+  sendWhatsAppConversationMessage,
+} from "@/lib/inbox/outbound";
 
 interface ConversaTravadaRow {
   id: string;
@@ -124,17 +130,22 @@ export async function GET(request: NextRequest) {
       reatribuidas += 1;
     }
 
-    await admin.from("mensagens").insert({
-      conversa_id: conversa.id,
-      tenant_id: tenantId,
-      remetente: "ia",
-      conteudo: MENSAGEM_TRANQUILIZACAO,
-      enviada: true,
-    });
-    await admin
-      .from("conversas")
-      .update({ ultima_mensagem_remetente: "ia", ultima_mensagem_em: new Date().toISOString() })
-      .eq("id", conversa.id);
+    const conversationForOutbound = await loadConversationForOutbound(admin, conversa.id);
+    if (conversationForOutbound) {
+      switch (conversationForOutbound.canal) {
+        case "whatsapp":
+          await sendWhatsAppConversationMessage(admin, conversationForOutbound, MENSAGEM_TRANQUILIZACAO);
+          break;
+        case "email":
+          await sendEmailConversationMessage(admin, conversationForOutbound, MENSAGEM_TRANQUILIZACAO);
+          break;
+        case "instagram":
+          await sendInstagramConversationMessage(admin, conversationForOutbound, MENSAGEM_TRANQUILIZACAO);
+          break;
+        default:
+          break;
+      }
+    }
   }
 
   return NextResponse.json({ processadas: travadas.length, reatribuidas, avisos_enviados: avisosEnviados });

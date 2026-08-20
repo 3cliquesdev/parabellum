@@ -75,6 +75,7 @@ export async function dispatchConversation(
   }
 
   let agenteEscolhido: string | null = null;
+  let escolhidoUltimaAtribuicao: string | null = null;
   let menorCarga = Infinity;
 
   for (const candidato of candidatos) {
@@ -88,9 +89,16 @@ export async function dispatchConversation(
     const carga = count ?? 0;
     if (carga >= candidato.max_concurrent_chats) continue;
 
-    if (carga < menorCarga) {
+    if (
+      carga < menorCarga ||
+      (carga === menorCarga && (
+        !candidato.ultima_atribuicao ||
+        (escolhidoUltimaAtribuicao !== null && candidato.ultima_atribuicao < escolhidoUltimaAtribuicao)
+      ))
+    ) {
       menorCarga = carga;
       agenteEscolhido = candidato.user_id;
+      escolhidoUltimaAtribuicao = candidato.ultima_atribuicao;
     }
   }
 

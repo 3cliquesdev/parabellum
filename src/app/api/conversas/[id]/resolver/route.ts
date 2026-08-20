@@ -72,13 +72,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  await auth.admin.from("conversas").update({
+  // UPDATE condicional (nao so o SELECT de guard acima) fecha a janela de
+  // corrida: se duas chamadas concorrentes passarem pelo guard antes de
+  // qualquer commit, so a primeira a chegar aqui realmente resolve - a
+  // segunda afeta 0 linhas e cai no already_resolved abaixo, sem duplicar
+  // tag/CSAT. dispatch_status:null evita que uma conversa resolvida continue
+  // aparecendo como "atribuida" na fila.
+  const { data: resolvida } = await auth.admin.from("conversas").update({
     status: "resolvido",
     resolvido_por: resolvidoPor,
     resolvido_em: new Date().toISOString(),
     ia_ativa: false,
     aguardando_csat: enviar_csat,
-  }).eq("id", conversaId);
+    dispatch_status: null,
+  })
+    .eq("id", conversaId)
+    .neq("status", "resolvido")
+    .select("id")
+    .maybeSingle();
+
+  if (!resolvida) {
+    return NextResponse.json({ success: true, already_resolved: true });
+  }
 
   // Aplica a tag do motivo de encerramento sem apagar tags que o atendente
   // ja tenha adicionado durante a conversa (ex: categorizacao manual) - o

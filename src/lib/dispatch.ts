@@ -57,14 +57,32 @@ async function candidatosDoDepartamento(
  * pela Parabellum. Se o departamento e filho (ex: Suporte Pedidos) e ninguem
  * disponivel, cai pro departamento pai (Suporte) como fallback.
  */
+const MAX_TENTATIVAS_CAS = 3;
+
 export async function dispatchConversation(
   tenantId: string,
   conversaId: string,
   departmentId: string,
   motivo: string,
   excludeAgentId?: string,
-): Promise<{ atribuido: boolean; agente_id?: string; na_fila?: boolean }> {
+  tentativa = 1,
+): Promise<{ atribuido: boolean; agente_id?: string; na_fila?: boolean; conflito?: boolean }> {
   const supabase = adminClient();
+
+  // Le o estado atual pra usar como condicao do CAS no update final: se
+  // alguem (resolver, outro transferir, assumir manual) mexeu na conversa
+  // entre essa leitura e a escrita, lock_version nao vai bater e o UPDATE
+  // abaixo afeta 0 linhas - em vez de sobrescrever cegamente uma decisao
+  // concorrente (ex: transferir uma conversa que acabou de ser resolvida).
+  const { data: estadoAntes } = await supabase
+    .from("conversas")
+    .select("status, lock_version")
+    .eq("id", conversaId)
+    .maybeSingle();
+  const estado = estadoAntes as { status: string; lock_version: number } | null;
+  if (!estado || estado.status === "resolvido") {
+    return { atribuido: false, conflito: true };
+  }
 
   let candidatos = await candidatosDoDepartamento(supabase, tenantId, departmentId, excludeAgentId);
 
@@ -103,7 +121,7 @@ export async function dispatchConversation(
   }
 
   if (agenteEscolhido) {
-    await supabase.from("conversas").update({
+    const { data: atualizado } = await supabase.from("conversas").update({
       assigned_to: agenteEscolhido,
       dispatch_status: "atribuido",
       assigned_at: new Date().toISOString(),
@@ -111,7 +129,17 @@ export async function dispatchConversation(
       ai_mode: "disabled",
       ia_ativa: false,
       agente_respondeu: false,
-    }).eq("id", conversaId);
+    })
+      .eq("id", conversaId)
+      .eq("lock_version", estado.lock_version)
+      .neq("status", "resolvido")
+      .select("id")
+      .maybeSingle();
+
+    if (!atualizado) {
+      if (tentativa >= MAX_TENTATIVAS_CAS) return { atribuido: false, conflito: true };
+      return dispatchConversation(tenantId, conversaId, departmentId, motivo, excludeAgentId, tentativa + 1);
+    }
 
     await supabase.from("tenant_members").update({
       ultima_atribuicao: new Date().toISOString(),
@@ -120,13 +148,23 @@ export async function dispatchConversation(
     return { atribuido: true, agente_id: agenteEscolhido };
   }
 
-  await supabase.from("conversas").update({
+  const { data: atualizadoFila } = await supabase.from("conversas").update({
     dispatch_status: "fila",
     department_id: departmentId,
     ai_mode: "disabled",
     ia_ativa: false,
     assigned_to: null,
-  }).eq("id", conversaId);
+  })
+    .eq("id", conversaId)
+    .eq("lock_version", estado.lock_version)
+    .neq("status", "resolvido")
+    .select("id")
+    .maybeSingle();
+
+  if (!atualizadoFila) {
+    if (tentativa >= MAX_TENTATIVAS_CAS) return { atribuido: false, conflito: true };
+    return dispatchConversation(tenantId, conversaId, departmentId, motivo, excludeAgentId, tentativa + 1);
+  }
 
   await supabase.from("conversation_queue").upsert({
     tenant_id: tenantId,

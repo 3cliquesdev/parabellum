@@ -1,5 +1,6 @@
 "use client";
 
+import { Toaster } from "sonner";
 import { Sidebar } from "@/components/app/Sidebar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -11,6 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <Toaster richColors position="top-right" />
     </div>
   );
 }

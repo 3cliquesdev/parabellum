@@ -87,11 +87,14 @@ export interface Negocio {
   pipeline_id: string | null;
   pipeline_etapa_id: string | null;
   venda_id: string | null;
+  venda_id_sugerida: string | null;
+  aguardando_confirmacao_kiwify_em: string | null;
   created_at: string;
   updated_at: string;
   closed_at: string | null;
   leads?: NegocioLead | null;
   vendas?: NegocioVenda | null;
+  venda_sugerida?: (NegocioVenda & { id: string }) | null;
   situacao_pagamento?: "carrinho_abandonado" | "cartao_recusado" | "aguardando_pagamento" | null;
 }
 export type ConversaCanal = "whatsapp" | "email" | "instagram" | "telegram" | "facebook_messenger" | "webchat" | "interno";
@@ -209,6 +212,8 @@ export interface Conversa {
   ia_ativa: boolean;
   created_at: string;
   updated_at: string;
+  /** Incrementado por trigger a cada UPDATE - usado como trava otimista (CAS) contra corrida entre atendentes. */
+  lock_version: number;
 }
 
 export interface LeadIdentity {
@@ -241,6 +246,7 @@ export interface Mensagem {
   media_nome: string | null;
   media_mime: string | null;
   media_caption: string | null;
+  media_duracao_seg: number | null;
   latitude: number | null;
   longitude: number | null;
   metadata: Record<string, unknown> | null;

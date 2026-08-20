@@ -50,5 +50,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const resultado = await dispatchConversation(tenant_id, conversaId, departamento.id, motivo ?? "transferencia_ia");
 
+  if (resultado.conflito) {
+    return NextResponse.json(
+      { error: "Essa conversa foi alterada por outra ação simultânea (resolvida ou transferida). Atualize e tente novamente.", conflito: true },
+      { status: 409 },
+    );
+  }
+
   return NextResponse.json({ ...resultado, departamento: departamento.name });
 }

@@ -139,6 +139,84 @@ export function useConversas(tenantId: string | null) {
     };
   }, [tenantId]);
 
+  // Merge de um evento UPDATE do Realtime na entrada local existente. Os
+  // campos derivados (lead_*, tags, canal_*, etc.) nao mudam num UPDATE de
+  // `conversas` (mudar lead/canal de uma conversa existente nao acontece no
+  // fluxo atual), entao preserva-los do estado anterior evita ter que
+  // reconsultar leads/tags/identities a cada evento.
+  const mergeConversaUpdate = useCallback((atual: ConversaWithLead, novaRow: ConversaRow): ConversaWithLead => ({
+    ...atual,
+    ...novaRow,
+    ai_mode: novaRow.ai_mode ?? "autopilot",
+    ai_suggestion: novaRow.ai_suggestion ?? null,
+  }), []);
+
+  const fetchAndUpsertOne = useCallback(async (conversaId: string) => {
+    if (!tenantId) return;
+    const supabase = createClient();
+
+    const { data } = await supabase
+      .from("conversas")
+      .select("*, leads(id, nome, whatsapp, email, instagram, eh_cliente)")
+      .eq("id", conversaId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (!data) return;
+    const row = data as unknown as ConversaRow;
+
+    const { data: tagRows } = await supabase
+      .from("conversation_tags")
+      .select("conversa_id, tags(id, nome, cor)")
+      .eq("conversa_id", conversaId);
+    const tags = ((tagRows ?? []) as unknown as ConversationTagRow[])
+      .map((r) => (Array.isArray(r.tags) ? r.tags[0] : r.tags))
+      .filter((t): t is ConversaTagInfo => Boolean(t));
+
+    const lead = row.leads ?? null;
+    let identities: LeadIdentitySnapshot[] = [];
+    if (lead?.id) {
+      const { data: identityData } = await supabase
+        .from("lead_identities")
+        .select("lead_id, canal, valor, valor_normalizado, external_id")
+        .eq("tenant_id", tenantId)
+        .eq("lead_id", lead.id);
+      identities = ((identityData ?? []) as unknown as IdentityRow[]).map((identity) => ({
+        canal: identity.canal,
+        valor: identity.valor ?? null,
+        valor_normalizado: identity.valor_normalizado ?? null,
+        external_id: identity.external_id ?? null,
+      }));
+    }
+
+    const channelMeta = CHANNEL_META[row.canal];
+    const safeLead = lead ? { whatsapp: lead.whatsapp ?? null, email: lead.email ?? null, instagram: lead.instagram ?? null } : null;
+
+    const nova: ConversaWithLead = {
+      ...row,
+      lead_nome: lead?.nome ?? "Desconhecido",
+      lead_whatsapp: lead?.whatsapp ?? null,
+      lead_email: lead?.email ?? null,
+      lead_instagram: lead?.instagram ?? null,
+      lead_identifier: resolveConversationIdentity(row.canal, safeLead, identities),
+      eh_cliente: lead?.eh_cliente ?? false,
+      canal_label: channelMeta.label,
+      canal_color: channelMeta.accent,
+      supports_outbound: channelMeta.supportsOutbound,
+      supports_attachments: channelMeta.supportsAttachments,
+      ai_mode: row.ai_mode ?? "autopilot",
+      ai_suggestion: row.ai_suggestion ?? null,
+      tags,
+    };
+
+    setConversas((prev) => {
+      const existeIndex = prev.findIndex((c) => c.id === conversaId);
+      if (existeIndex === -1) return [nova, ...prev];
+      const copia = [...prev];
+      copia[existeIndex] = nova;
+      return copia;
+    });
+  }, [tenantId]);
+
   const fetchConversas = useCallback(async () => {
     if (!tenantId || !authContext) {
       if (!tenantId) setLoading(false);
@@ -263,15 +341,40 @@ export function useConversas(tenantId: string | null) {
       .channel("conversas-realtime")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "conversas", filter: `tenant_id=eq.${tenantId}` },
-        () => fetchConversas(),
+        { event: "UPDATE", schema: "public", table: "conversas", filter: `tenant_id=eq.${tenantId}` },
+        (payload) => {
+          const updated = payload.new as ConversaRow;
+          setConversas((prev) => prev.map((c) => (c.id === updated.id ? mergeConversaUpdate(c, updated) : c)));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "conversas", filter: `tenant_id=eq.${tenantId}` },
+        (payload) => {
+          const inserted = payload.new as ConversaRow;
+          void fetchAndUpsertOne(inserted.id);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "conversas", filter: `tenant_id=eq.${tenantId}` },
+        (payload) => {
+          const removed = payload.old as { id: string };
+          setConversas((prev) => prev.filter((c) => c.id !== removed.id));
+        },
       )
       .subscribe();
 
+    // Rede de seguranca de baixa frequencia: o merge incremental cobre o
+    // caminho comum sem refazer a query inteira, mas qualquer drift (evento
+    // perdido por reconexao do canal, etc.) se autocorrige em ate 60s.
+    const intervaloSeguranca = setInterval(() => void fetchConversas(), 60_000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(intervaloSeguranca);
     };
-  }, [tenantId, authContext, fetchConversas]);
+  }, [tenantId, authContext, fetchConversas, mergeConversaUpdate, fetchAndUpsertOne]);
 
   return { conversas, loading, refetch: fetchConversas };
 }

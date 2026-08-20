@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Clock, Users, Zap } from "lucide-react";
+import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { createClient } from "@/lib/supabase/client";
 import { resolveConversationIdentity } from "@/lib/inbox/channels";
@@ -102,14 +103,32 @@ export default function InboxQueuePage() {
     setAssuming(item.id);
     const supabase = createClient();
 
-    await supabase
+    // UPDATE condicional (CAS): so assume se ninguem pegou essa conversa
+    // primeiro (por aqui ou pelo Inbox individual) desde que a fila carregou.
+    const { data, error } = await supabase
       .from("conversas")
       .update({
         assigned_to: myUserId,
         dispatch_status: "atribuido",
         assigned_at: new Date().toISOString(),
       })
-      .eq("id", item.conversa_id);
+      .eq("id", item.conversa_id)
+      .is("assigned_to", null)
+      .neq("status", "resolvido")
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      toast.error("Erro ao assumir conversa. Tente novamente.");
+      setAssuming(null);
+      return;
+    }
+    if (!data) {
+      toast.error("Essa conversa já foi assumida por outro atendente.");
+      setQueue((prev) => prev.filter((queueItem) => queueItem.id !== item.id));
+      setAssuming(null);
+      return;
+    }
 
     await supabase.from("conversation_queue").update({ assigned_at: new Date().toISOString() }).eq("id", item.id);
     await supabase

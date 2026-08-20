@@ -2,12 +2,14 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { Bot, Check, CheckCheck, ChevronDown, ChevronRight, Clock, Download, FileText, MapPin, MessageSquare, MoreVertical, Paperclip, Reply, Send, User } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { useIsCompact } from "@/hooks/useIsCompact";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
 import { useMensagens } from "@/hooks/useMensagens";
+import { useConversaPresence } from "@/hooks/useConversaPresence";
 import { createClient } from "@/lib/supabase/client";
 import { isWindowOpen } from "@/lib/inbox/window";
 import { TemplatePickerModal } from "@/components/app/inbox/TemplatePickerModal";
@@ -367,6 +369,8 @@ function InboxPageInner() {
   }
 
   const selected = conversas.find((conversa) => conversa.id === selectedId);
+  const meuLabel = equipe.find((m) => m.user_id === myUserId)?.email ?? "Você";
+  const outrosVendo = useConversaPresence(selectedId, myUserId, meuLabel);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -395,7 +399,7 @@ function InboxPageInner() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error ?? "Erro ao enviar mensagem");
+        toast.error(err.error ?? "Erro ao enviar mensagem");
         setText(msg);
       }
     } finally {
@@ -406,7 +410,7 @@ function InboxPageInner() {
   async function toggleIA(conversa: ConversaWithLead) {
     const supabase = createClient();
     const { error } = await supabase.from("conversas").update({ ia_ativa: !conversa.ia_ativa }).eq("id", conversa.id);
-    if (error) alert("Erro ao alternar IA: " + error.message);
+    if (error) toast.error("Erro ao alternar IA: " + error.message);
   }
 
   const [tags, setTags] = useState<{ id: string; nome: string; cor: string }[]>([]);
@@ -430,7 +434,7 @@ function InboxPageInner() {
     setResolvendo(false);
     if (!r.ok) {
       const err = await r.json();
-      alert(err.error ?? "Erro ao encerrar conversa");
+      toast.error(err.error ?? "Erro ao encerrar conversa");
       return;
     }
     setShowResolverMenu(false);
@@ -440,12 +444,38 @@ function InboxPageInner() {
   async function assumirConversa(conversa: ConversaWithLead) {
     if (!myUserId) return;
     const supabase = createClient();
-    await supabase.from("conversas").update({
-      assigned_to: myUserId,
-      dispatch_status: "atribuido",
-      ia_ativa: false,
-      agente_respondeu: false,
-    }).eq("id", conversa.id);
+    // UPDATE condicional (CAS): so assume se ninguem pegou primeiro. Se 0
+    // linhas forem afetadas, outro atendente ja assumiu entre a renderizacao
+    // da tela e o clique - busca quem foi e avisa em vez de sobrescrever.
+    const { data, error } = await supabase
+      .from("conversas")
+      .update({
+        assigned_to: myUserId,
+        dispatch_status: "atribuido",
+        assigned_at: new Date().toISOString(),
+        ia_ativa: false,
+        agente_respondeu: false,
+      })
+      .eq("id", conversa.id)
+      .is("assigned_to", null)
+      .neq("status", "resolvido")
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      toast.error("Erro ao assumir conversa. Tente novamente.");
+      return;
+    }
+    if (!data) {
+      const { data: atual } = await supabase.from("conversas").select("assigned_to, status").eq("id", conversa.id).maybeSingle();
+      const atualRow = atual as { assigned_to: string | null; status: string } | null;
+      if (atualRow?.status === "resolvido") {
+        toast.error("Essa conversa já foi resolvida.");
+      } else {
+        const dono = equipe.find((m) => m.user_id === atualRow?.assigned_to);
+        toast.error(dono ? `Essa conversa já foi assumida por ${dono.email ?? "outro atendente"}.` : "Essa conversa já foi assumida por outro atendente.");
+      }
+    }
   }
 
   const [showTransferirMenu, setShowTransferirMenu] = useState(false);
@@ -478,7 +508,7 @@ function InboxPageInner() {
     setTransferindo(false);
     if (!r.ok) {
       const err = await r.json();
-      alert(err.error ?? "Erro ao transferir conversa");
+      toast.error(err.error ?? "Erro ao transferir conversa");
       return;
     }
     setShowTransferirMenu(false);
@@ -735,6 +765,15 @@ function InboxPageInner() {
                   <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                     Protocolo #{String(selected.protocolo).padStart(4, "0")}
                   </span>
+                  {outrosVendo.length > 0 && (
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(250,204,21,0.12)", color: "#facc15", border: "1px solid rgba(250,204,21,0.25)" }}
+                      title={outrosVendo.map((v) => v.label).join(", ")}
+                    >
+                      {outrosVendo.length === 1 ? `${outrosVendo[0].label} também está vendo` : `${outrosVendo.length} atendentes também vendo`}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

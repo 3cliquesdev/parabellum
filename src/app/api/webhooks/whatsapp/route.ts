@@ -50,12 +50,18 @@ interface WhatsAppStatusUpdate {
   recipient_id?: string;
 }
 
+interface WhatsAppContact {
+  wa_id?: string;
+  profile?: { name?: string };
+}
+
 interface WhatsAppWebhookBody {
   entry?: Array<{
     changes?: Array<{
       field?: string;
       value?: {
         metadata?: { phone_number_id?: string };
+        contacts?: WhatsAppContact[];
         messages?: WhatsAppInboundMessage[];
         statuses?: WhatsAppStatusUpdate[];
       };
@@ -152,6 +158,12 @@ export async function POST(request: NextRequest) {
     };
     const supportedTypes = new Set(["text", "image", "audio", "video", "document", "sticker", "location", "voice"]);
 
+    const nomesPorNumero = new Map<string, string>();
+    for (const contato of value.contacts ?? []) {
+      const nome = contato.profile?.name?.trim();
+      if (contato.wa_id && nome) nomesPorNumero.set(contato.wa_id, nome);
+    }
+
     for (const message of messages) {
       if (!supportedTypes.has(message.type)) continue;
 
@@ -211,7 +223,7 @@ export async function POST(request: NextRequest) {
           value: fromNumber,
         },
         lead: {
-          name: `Lead ${fromNumber}`,
+          name: nomesPorNumero.get(fromNumber) ?? `Lead ${fromNumber}`,
         },
         message: {
           externalMessageId: waMessageId,

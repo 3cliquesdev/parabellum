@@ -2,6 +2,10 @@ import type { AdminClient } from "@/lib/auth/guard";
 import { escolherVendedorMenosCarregado } from "@/lib/negocios/distribuicao";
 import { registrarEventoNegocio } from "@/lib/negocios/eventos";
 import { resolvePipelinePadrao } from "@/lib/negocios/pipeline-padrao";
+import { sendMail } from "@/lib/mailer";
+import { phoneSuffix8 } from "@/lib/inbox/channels";
+
+const CONFIRMACAO_JANELA_MINUTOS = 30;
 
 type LeadForReconciliation = {
   id: string;
@@ -79,6 +83,27 @@ async function registerTimeline(admin: AdminClient, tenantId: string, leadId: st
   });
 }
 
+// Avisa o vendedor responsavel que uma venda Kiwify casou com um negocio que
+// ele ja esta trabalhando, e que ele tem 30min pra confirmar o ID da venda
+// antes do sistema fechar sozinho (ver src/app/api/negocios/kiwify-pendentes).
+async function notificarConfirmacaoPendente(admin: AdminClient, tenantId: string, leadId: string, negocioId: string, vendedorId: string | null, sale: KiwifySale) {
+  await admin.from("atividades").insert({
+    tenant_id: tenantId, lead_id: leadId, tipo: "outro", titulo: "Confirmar venda Kiwify",
+    descricao: `Pagamento Kiwify recebido (produto=${sale.produto_nome}; valor=R$ ${Number(sale.valor ?? 0).toFixed(2)}; venda_id=${sale.id}). Confirme o ID da venda em até ${CONFIRMACAO_JANELA_MINUTOS} minutos ou o negócio fecha automaticamente como Ganho.`,
+    concluida: false,
+  });
+  if (!vendedorId) return;
+  const { data } = await admin.auth.admin.getUserById(vendedorId);
+  const emailVendedor = data.user?.email;
+  if (!emailVendedor) return;
+  await sendMail({
+    to: emailVendedor,
+    subject: "Confirme a venda Kiwify pra fechar esse negócio",
+    html: `<p>O lead do seu negócio (ID ${negocioId}) pagou pela Kiwify: <strong>${sale.produto_nome}</strong>, R$ ${Number(sale.valor ?? 0).toFixed(2)}.</p>
+      <p>Confirme o ID da venda (${sale.id}) no CRM em até ${CONFIRMACAO_JANELA_MINUTOS} minutos pra fechar você mesmo — depois disso o sistema fecha automaticamente.</p>`,
+  });
+}
+
 async function moveToGain(admin: AdminClient, tenantId: string, leadId: string, sale: KiwifySale) {
   const { pipelineId, etapaId } = await resolvePipelinePadrao(admin, tenantId);
   if (!pipelineId) return;
@@ -87,12 +112,18 @@ async function moveToGain(admin: AdminClient, tenantId: string, leadId: string, 
   const stageId = (wonStage as { id: string } | null)?.id ?? etapaId;
   if (!stageId) return;
 
-  const { data: open } = await admin.from("negocios").select("id, pipeline_etapa_id")
+  const { data: open } = await admin.from("negocios").select("id, pipeline_etapa_id, assigned_to")
     .eq("lead_id", leadId).eq("estagio", "aberto").order("created_at", { ascending: true }).limit(1).maybeSingle();
-  const openBusiness = open as { id: string; pipeline_etapa_id: string | null } | null;
+  const openBusiness = open as { id: string; pipeline_etapa_id: string | null; assigned_to: string | null } | null;
   if (openBusiness) {
-    await admin.from("negocios").update({ titulo: sale.produto_nome, valor: sale.valor, canal: "kiwify", estagio: "ganho", origem: "kiwify_auto", pipeline_id: pipelineId, pipeline_etapa_id: stageId, venda_id: sale.id, closed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", openBusiness.id);
-    await registrarEventoNegocio(admin, { negocioId: openBusiness.id, tenantId, tipo: "ganho", etapaAnteriorId: openBusiness.pipeline_etapa_id, etapaNovaId: stageId, origem: "kiwify_reconciliation" });
+    // Nao fecha na hora: fica em aberto aguardando o vendedor confirmar o ID
+    // da venda (ou o timeout de 30min mover sozinho) - ver plano/dividas.
+    await admin.from("negocios").update({
+      valor: sale.valor, canal: "kiwify", origem: "kiwify_auto",
+      aguardando_confirmacao_kiwify_em: new Date().toISOString(), venda_id_sugerida: sale.id,
+      updated_at: new Date().toISOString(),
+    }).eq("id", openBusiness.id);
+    await notificarConfirmacaoPendente(admin, tenantId, leadId, openBusiness.id, openBusiness.assigned_to, sale);
     return;
   }
 
@@ -114,11 +145,11 @@ export async function reconcileLeadWithKiwify(
   const lead = leadData as LeadForReconciliation | null;
   if (!lead) return { matched: false, conflict: false, linkedSales: 0 };
 
-  const phone = digits(lead.whatsapp);
+  const phoneSuffix = phoneSuffix8(lead.whatsapp);
   const leadEmail = email(lead.email);
   const cpf = digits(lead.cpf);
   const filters = [`lead_id.eq.${leadId}`];
-  if (phone) filters.push(`buyer_phone_normalized.eq.${phone}`);
+  if (phoneSuffix) filters.push(`buyer_phone_normalized.ilike.%${phoneSuffix}`);
   if (leadEmail) filters.push(`buyer_email_normalized.eq.${leadEmail}`);
   if (cpf) filters.push(`buyer_cpf_normalized.eq.${cpf}`);
 

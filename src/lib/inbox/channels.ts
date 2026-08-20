@@ -74,6 +74,18 @@ function normalizePhone(raw: string) {
   return digits;
 }
 
+// Celular brasileiro pode aparecer com ou sem o 9º dígito dependendo de onde
+// veio (WhatsApp sempre manda com o 9; formulário de checkout da Kiwify às
+// vezes não), entao comparar o numero inteiro por igualdade/substring perde
+// casos legitimos. Os ultimos 8 digitos (o numero de assinante em si, sem
+// DDD nem o 9) sao estaveis nas duas origens - usar como chave de comparacao.
+export function phoneSuffix8(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const normalized = normalizePhone(raw);
+  if (!normalized || normalized.length < 8) return null;
+  return normalized.slice(-8);
+}
+
 export function normalizeChannelIdentity(canal: InboxExternalCanal, raw: string | null | undefined) {
   if (!raw) return null;
   const value = raw.trim();

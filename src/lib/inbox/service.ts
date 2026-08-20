@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LooseDatabase } from "@/types/database";
-import { getLeadDirectIdentity, normalizeChannelIdentity, type InboxExternalCanal } from "@/lib/inbox/channels";
+import { getLeadDirectIdentity, normalizeChannelIdentity, phoneSuffix8, type InboxExternalCanal } from "@/lib/inbox/channels";
 import { resolvePipelinePadrao } from "@/lib/negocios/pipeline-padrao";
 import { registrarEventoNegocio } from "@/lib/negocios/eventos";
 import { reconcileLeadWithKiwify } from "@/lib/kiwify-reconciliation";
@@ -143,16 +143,30 @@ async function loadLeadByIdentity(
 
   const directField = directLeadField(identity.canal);
   if (directField && identity.value) {
+    if (identity.canal === "whatsapp") {
+      // Compara pelos ultimos 8 digitos (numero de assinante, sem DDD nem o
+      // 9º digito) em vez do valor inteiro - o mesmo lead pode ter chegado
+      // com e sem o 9 dependendo da origem (WhatsApp sempre manda com 9,
+      // checkout as vezes nao), e uma comparacao exata perde o match.
+      const suffix = phoneSuffix8(identity.value);
+      if (!suffix) return null;
+      const { data } = await supabase
+        .from("leads")
+        .select("id, tenant_id, nome, whatsapp, email, instagram, status")
+        .eq("tenant_id", tenantId)
+        .ilike("whatsapp", `%${suffix}`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data as unknown as LeadRow | null) ?? null;
+    }
+
     const query = supabase
       .from("leads")
       .select("id, tenant_id, nome, whatsapp, email, instagram, status")
       .eq("tenant_id", tenantId);
 
-    if (identity.canal === "whatsapp") {
-      const normalizedValue = normalizeChannelIdentity("whatsapp", identity.value);
-      if (!normalizedValue) return null;
-      query.ilike("whatsapp", `%${normalizedValue}%`);
-    } else if (identity.canal === "email") {
+    if (identity.canal === "email") {
       query.ilike("email", identity.value.trim().toLowerCase());
     } else if (identity.canal === "instagram") {
       query.ilike("instagram", identity.value.replace(/^@/, ""));
@@ -173,14 +187,14 @@ async function loadLeadByIdentity(
 // reaproveitar o lead certo em vez de criar um duplicado sem historico.
 async function findLeadByKiwifyPhone(supabase: AdminClient, tenantId: string, identity: InboxIdentityInput) {
   if (identity.canal !== "whatsapp") return null;
-  const normalizedValue = normalizeChannelIdentity("whatsapp", identity.value);
-  if (!normalizedValue) return null;
+  const suffix = phoneSuffix8(identity.value);
+  if (!suffix) return null;
 
   const { data } = await supabase
     .from("vendas")
     .select("lead_id")
     .eq("tenant_id", tenantId)
-    .eq("buyer_phone_normalized", normalizedValue)
+    .ilike("buyer_phone_normalized", `%${suffix}`)
     .eq("status", "pago")
     .not("lead_id", "is", null)
     .order("created_at", { ascending: false })
@@ -215,14 +229,14 @@ async function findUnlinkedKiwifyCustomerByPhone(
   identity: InboxIdentityInput,
 ): Promise<KiwifyCustomerSnapshot | null> {
   if (identity.canal !== "whatsapp") return null;
-  const normalizedValue = normalizeChannelIdentity("whatsapp", identity.value);
-  if (!normalizedValue) return null;
+  const suffix = phoneSuffix8(identity.value);
+  if (!suffix) return null;
 
   const { data } = await supabase
     .from("vendas")
     .select("raw_payload, produto_nome")
     .eq("tenant_id", tenantId)
-    .eq("buyer_phone_normalized", normalizedValue)
+    .ilike("buyer_phone_normalized", `%${suffix}`)
     .is("lead_id", null)
     .eq("origem", "kiwify")
     .order("created_at", { ascending: false })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveInternalOrTenantAuth } from "@/lib/auth/internal-or-tenant";
+import { getTenantOperationalConfig } from "@/lib/tenant-config";
 
 interface ConversaInativaRow {
   id: string;
@@ -46,14 +47,9 @@ export async function GET(request: NextRequest) {
   const auth = await resolveInternalOrTenantAuth(request, tenantId);
   if (!auth.ok) return auth.response;
 
-  const { data: tenantConfig } = await auth.admin
-    .from("tenants")
-    .select("auto_close_inatividade_ativo, auto_close_inatividade_minutos")
-    .eq("id", tenantId)
-    .maybeSingle();
-  const config = tenantConfig as { auto_close_inatividade_ativo: boolean; auto_close_inatividade_minutos: number } | null;
+  const config = await getTenantOperationalConfig(auth.admin, tenantId);
 
-  if (!config || !config.auto_close_inatividade_ativo) {
+  if (!config.auto_close_inatividade_ativo) {
     return NextResponse.json({ conversas: [] });
   }
 

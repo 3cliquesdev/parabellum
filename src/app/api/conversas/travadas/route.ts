@@ -9,6 +9,7 @@ import {
   sendInstagramConversationMessage,
   sendWhatsAppConversationMessage,
 } from "@/lib/inbox/outbound";
+import { getTenantOperationalConfig } from "@/lib/tenant-config";
 
 interface ConversaTravadaRow {
   id: string;
@@ -57,12 +58,8 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return auth.response;
   const admin = auth.admin;
 
-  const { data: tenantConfig } = await admin
-    .from("tenants")
-    .select("auto_close_inatividade_minutos")
-    .eq("id", tenantId)
-    .maybeSingle();
-  const minutosPadrao = (tenantConfig as { auto_close_inatividade_minutos: number | null } | null)?.auto_close_inatividade_minutos ?? 5;
+  const tenantConfig = await getTenantOperationalConfig(admin, tenantId);
+  const minutosPadrao = tenantConfig.auto_close_inatividade_minutos;
 
   // Sem filtro fino de tempo no banco (cada conversa pode ter um limite
   // diferente por departamento) - busca todas as candidatas em aberto (escala

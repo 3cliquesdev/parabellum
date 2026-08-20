@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertTenantMember } from "@/lib/auth/guard";
+import { invalidateTenantOperationalConfig } from "@/lib/tenant-config";
 
 export async function GET(request: NextRequest) {
   const tenantId = request.nextUrl.searchParams.get("tenant_id");
@@ -40,6 +41,8 @@ export async function PATCH(request: NextRequest) {
 
   const { error } = await auth.admin.from("tenants").update(updates).eq("id", tenant_id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await invalidateTenantOperationalConfig(tenant_id);
 
   return NextResponse.json({ success: true });
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/auth/guard";
 import { isInternalRequest } from "@/lib/security/internal-auth";
+import { estaDentroDoHorarioComercial } from "@/lib/horario-comercial";
+import { getTenantOperationalConfig } from "@/lib/tenant-config";
 
 interface ConversaRow {
   id: string;
@@ -33,12 +35,21 @@ export async function GET(request: NextRequest) {
   if (!data) return NextResponse.json({ found: false, error: "Conversa nao encontrada" }, { status: 404 });
 
   const conversa = data as unknown as ConversaRow;
+
+  // Pra IA poder avisar proativamente ("nosso atendimento humano funciona
+  // das X as Y") em vez de so descobrir isso depois de tentar transferir e
+  // levar fora_do_horario:true na resposta da ferramenta.
+  const horario = await getTenantOperationalConfig(admin, conversa.tenant_id);
+
   return NextResponse.json({
     found: true,
     tenant_id: conversa.tenant_id,
     lead_id: conversa.lead_id,
     conversa_id: conversa.id,
     orchestration_context: conversa.orchestration_context ?? {},
+    dentro_do_horario_comercial: estaDentroDoHorarioComercial(horario),
+    horario_atendimento_inicio: horario.horario_atendimento_inicio,
+    horario_atendimento_fim: horario.horario_atendimento_fim,
   });
 }
 

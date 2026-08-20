@@ -175,10 +175,18 @@ export async function sendWhatsAppConversationMessage(
     const buffer = await file.arrayBuffer();
     const fileName = `${conversation.tenant_id}/${Date.now()}_${file.name}`;
 
-    await supabase.storage.from("whatsapp-media").upload(fileName, buffer, {
+    const { error: storageError } = await supabase.storage.from("whatsapp-media").upload(fileName, buffer, {
       contentType: mimeType,
       upsert: true,
     });
+    // getPublicUrl() so monta a URL a partir do bucket/path - nao confere se o
+    // arquivo realmente existe. Sem checar o erro do upload aqui, um bucket
+    // ausente ou uma falha de permissao gera uma media_url que nunca vai
+    // carregar, silenciosamente (foi exatamente isso que aconteceu quando o
+    // bucket "whatsapp-media" nao existia).
+    if (storageError) {
+      return { ok: false as const, error: `Falha ao salvar midia no Storage: ${storageError.message}` };
+    }
 
     const { data: urlData } = supabase.storage.from("whatsapp-media").getPublicUrl(fileName);
     mediaUrl = urlData.publicUrl;

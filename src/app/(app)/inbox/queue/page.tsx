@@ -136,6 +136,12 @@ export default function InboxQueuePage() {
       .update({ ultima_atribuicao: new Date().toISOString() })
       .eq("tenant_id", tenantId)
       .eq("user_id", myUserId);
+    await supabase.from("conversa_eventos").insert({
+      tenant_id: tenantId,
+      conversa_id: item.conversa_id,
+      tipo: "assumido",
+      user_id: myUserId,
+    });
 
     setQueue((prev) => prev.filter((queueItem) => queueItem.id !== item.id));
     setAssuming(null);

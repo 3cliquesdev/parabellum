@@ -10,6 +10,8 @@ interface SendMessageBody {
   remetente?: "humano" | "ia";
   departamento?: string;
   reply_to_mensagem_id?: string;
+  /** Nome do agente de IA que respondeu (ex: "Hunter", "Ana Julia") - so gravado quando remetente="ia". */
+  ia_agente?: string;
   /** Estado interno calculado pelo orquestrador depois de uma resposta da IA. */
   orchestration_context_patch?: Record<string, unknown>;
 }
@@ -89,6 +91,7 @@ export async function POST(request: NextRequest) {
   let orchestrationContextPatch: Record<string, unknown> | undefined;
   let file: File | null = null;
   let replyToMensagemId: string | undefined;
+  let iaAgente: string | undefined;
 
   if (isFormData) {
     const formData = await request.formData();
@@ -104,6 +107,7 @@ export async function POST(request: NextRequest) {
     remetente = body.remetente === "ia" ? "ia" : "humano";
     departamento = body.departamento;
     replyToMensagemId = body.reply_to_mensagem_id;
+    iaAgente = body.ia_agente;
     // O estado de orquestração é interno. Só chamadas autenticadas pelo
     // orquestrador podem gravá-lo; nunca aceite isso de um usuário do painel.
     if (body.orchestration_context_patch && isInternalRequest(request)) {
@@ -137,11 +141,13 @@ export async function POST(request: NextRequest) {
       remetente,
       conteudo,
       enviada: true,
+      ia_agente_nome: remetente === "ia" ? iaAgente ?? null : null,
     });
     if (insertError) {
       return NextResponse.json({ error: `Falha ao salvar mensagem: ${insertError.message}` }, { status: 500 });
     }
     await supabase.from("conversas").update(buildConversaUpdates(remetente, departamento, orchestrationContextPatch)).eq("id", conversaId);
+    await supabase.from("conversas").update({ primeira_resposta_em: new Date().toISOString() }).eq("id", conversaId).is("primeira_resposta_em", null);
     if (remetente === "ia" && isInternalRequest(request)) {
       await logAiDecision(supabase, {
         tenantId,
@@ -205,10 +211,13 @@ export async function POST(request: NextRequest) {
     const buffer = await file.arrayBuffer();
     const fileName = `${tenantId}/${Date.now()}_${file.name}`;
 
-    await supabase.storage.from("whatsapp-media").upload(fileName, buffer, {
+    const { error: storageError } = await supabase.storage.from("whatsapp-media").upload(fileName, buffer, {
       contentType: mimeType,
       upsert: true,
     });
+    if (storageError) {
+      return NextResponse.json({ error: `Falha ao salvar midia no Storage: ${storageError.message}` }, { status: 500 });
+    }
     const { data: urlData } = supabase.storage.from("whatsapp-media").getPublicUrl(fileName);
     mediaUrl = urlData.publicUrl;
     mediaNome = file.name;
@@ -291,6 +300,7 @@ export async function POST(request: NextRequest) {
     media_type: mediaType,
     media_nome: mediaNome,
     media_mime: mediaMime,
+    ia_agente_nome: remetente === "ia" ? iaAgente ?? null : null,
   });
   if (insertError) {
     return NextResponse.json({ error: `Mensagem enviada mas nao salva: ${insertError.message}` }, { status: 500 });
@@ -299,6 +309,7 @@ export async function POST(request: NextRequest) {
     .from("conversas")
     .update(buildConversaUpdates(remetente, departamento, orchestrationContextPatch))
     .eq("id", conversaId);
+  await supabase.from("conversas").update({ primeira_resposta_em: new Date().toISOString() }).eq("id", conversaId).is("primeira_resposta_em", null);
 
   if (remetente === "ia" && isInternalRequest(request)) {
     await logAiDecision(supabase, {

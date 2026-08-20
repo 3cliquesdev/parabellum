@@ -16,6 +16,7 @@ export interface ConversaWithLead extends Conversa {
   dispatch_status?: string | null;
   department_id?: string | null;
   resolvido_por?: string | null;
+  resolvido_em?: string | null;
   protocolo: number;
   ultima_mensagem_remetente?: "lead" | "humano" | "ia" | null;
   ultima_mensagem_em?: string | null;
@@ -58,6 +59,7 @@ interface ConversaRow extends Conversa {
   dispatch_status?: string | null;
   department_id?: string | null;
   resolvido_por?: string | null;
+  resolvido_em?: string | null;
   protocolo: number;
   ultima_mensagem_remetente?: "lead" | "humano" | "ia" | null;
   ultima_mensagem_em?: string | null;

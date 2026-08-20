@@ -95,6 +95,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: true, already_resolved: true });
   }
 
+  await auth.admin.from("conversa_eventos").insert({
+    tenant_id,
+    conversa_id: conversaId,
+    tipo: "resolvido",
+    user_id: auth.userId ?? null,
+  });
+
   // Aplica a tag do motivo de encerramento sem apagar tags que o atendente
   // ja tenha adicionado durante a conversa (ex: categorizacao manual) - o
   // UNIQUE(conversa_id, tag_id) evita duplicar caso essa mesma tag ja tenha

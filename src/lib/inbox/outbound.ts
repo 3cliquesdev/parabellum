@@ -77,6 +77,16 @@ function escapeHtml(input: string) {
     .replace(/'/g, "&#039;");
 }
 
+// So grava na primeira vez (usado pra medir SLA: tempo do inicio da conversa
+// ate a primeira resposta, humana ou de IA).
+async function marcarPrimeiraRespostaSeNecessario(supabase: AdminClient, conversaId: string) {
+  await supabase
+    .from("conversas")
+    .update({ primeira_resposta_em: new Date().toISOString() })
+    .eq("id", conversaId)
+    .is("primeira_resposta_em", null);
+}
+
 export async function loadConversationForOutbound(supabase: AdminClient, conversationId: string) {
   const { data } = await supabase
     .from("conversas")
@@ -141,6 +151,7 @@ export async function sendWhatsAppConversationMessage(
   replyToMensagemId?: string | null,
   duracaoSeg?: number,
   caption?: string,
+  enviadoPorUserId?: string | null,
 ) {
   const lead = singleLead(conversation.leads);
   const toNumber = lead?.whatsapp?.replace(/\D/g, "") ?? "";
@@ -279,6 +290,7 @@ export async function sendWhatsAppConversationMessage(
     media_mime: mediaMime,
     media_duracao_seg: duracaoSeg ?? null,
     media_caption: caption?.trim() || null,
+    enviado_por_user_id: enviadoPorUserId ?? null,
     metadata: { canal: "whatsapp", direction: "outbound" },
   });
 
@@ -291,6 +303,7 @@ export async function sendWhatsAppConversationMessage(
       agente_respondeu: true,
     })
     .eq("id", conversation.id);
+  await marcarPrimeiraRespostaSeNecessario(supabase, conversation.id);
 
   return { ok: true as const };
 }
@@ -306,6 +319,7 @@ export async function sendWhatsAppTemplateConversationMessage(
   languageCode: string,
   variables: Record<string, string>,
   previewText: string,
+  enviadoPorUserId?: string | null,
 ) {
   const lead = singleLead(conversation.leads);
   const toNumber = lead?.whatsapp?.replace(/\D/g, "") ?? "";
@@ -356,6 +370,7 @@ export async function sendWhatsAppTemplateConversationMessage(
     external_message_id: outboundMessageId ? `whatsapp:${outboundMessageId}` : null,
     enviada: true,
     status: "sent",
+    enviado_por_user_id: enviadoPorUserId ?? null,
     metadata: { canal: "whatsapp", direction: "outbound", is_template: true, template_name: templateName },
   });
 
@@ -368,6 +383,7 @@ export async function sendWhatsAppTemplateConversationMessage(
       agente_respondeu: true,
     })
     .eq("id", conversation.id);
+  await marcarPrimeiraRespostaSeNecessario(supabase, conversation.id);
 
   return { ok: true as const };
 }
@@ -377,6 +393,7 @@ export async function sendEmailConversationMessage(
   conversation: ConversationLookup,
   text: string,
   subject?: string | null,
+  enviadoPorUserId?: string | null,
 ) {
   const lead = singleLead(conversation.leads);
   if (!lead?.email) {
@@ -413,6 +430,7 @@ export async function sendEmailConversationMessage(
     wa_message_id: null,
     external_message_id: null,
     enviada: true,
+    enviado_por_user_id: enviadoPorUserId ?? null,
     metadata: {
       canal: "email",
       direction: "outbound",
@@ -430,6 +448,7 @@ export async function sendEmailConversationMessage(
       agente_respondeu: true,
     })
     .eq("id", conversation.id);
+  await marcarPrimeiraRespostaSeNecessario(supabase, conversation.id);
 
   return { ok: true as const };
 }
@@ -438,6 +457,7 @@ export async function sendInstagramConversationMessage(
   supabase: AdminClient,
   conversation: ConversationLookup,
   text: string,
+  enviadoPorUserId?: string | null,
 ) {
   const recipientId = await resolveInstagramRecipientId(supabase, conversation);
   if (!recipientId) {
@@ -474,6 +494,7 @@ export async function sendInstagramConversationMessage(
     wa_message_id: null,
     external_message_id: outboundMessageId ? `instagram:${outboundMessageId}` : null,
     enviada: true,
+    enviado_por_user_id: enviadoPorUserId ?? null,
     metadata: {
       canal: "instagram",
       direction: "outbound",
@@ -491,6 +512,7 @@ export async function sendInstagramConversationMessage(
       agente_respondeu: true,
     })
     .eq("id", conversation.id);
+  await marcarPrimeiraRespostaSeNecessario(supabase, conversation.id);
 
   return { ok: true as const };
 }

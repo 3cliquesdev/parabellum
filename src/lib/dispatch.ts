@@ -84,6 +84,7 @@ export async function dispatchConversation(
   motivo: string,
   excludeAgentId?: string,
   tentativa = 1,
+  actorUserId?: string | null,
 ): Promise<{ atribuido: boolean; agente_id?: string; na_fila?: boolean; conflito?: boolean }> {
   const supabase = adminClient();
 
@@ -156,12 +157,20 @@ export async function dispatchConversation(
 
     if (!atualizado) {
       if (tentativa >= MAX_TENTATIVAS_CAS) return { atribuido: false, conflito: true };
-      return dispatchConversation(tenantId, conversaId, departmentId, motivo, excludeAgentId, tentativa + 1);
+      return dispatchConversation(tenantId, conversaId, departmentId, motivo, excludeAgentId, tentativa + 1, actorUserId);
     }
 
     await supabase.from("tenant_members").update({
       ultima_atribuicao: new Date().toISOString(),
     }).eq("tenant_id", tenantId).eq("user_id", agenteEscolhido);
+
+    await supabase.from("conversa_eventos").insert({
+      tenant_id: tenantId,
+      conversa_id: conversaId,
+      tipo: "transferido",
+      user_id: actorUserId ?? null,
+      department_id: departmentId,
+    });
 
     return { atribuido: true, agente_id: agenteEscolhido };
   }
@@ -181,7 +190,7 @@ export async function dispatchConversation(
 
   if (!atualizadoFila) {
     if (tentativa >= MAX_TENTATIVAS_CAS) return { atribuido: false, conflito: true };
-    return dispatchConversation(tenantId, conversaId, departmentId, motivo, excludeAgentId, tentativa + 1);
+    return dispatchConversation(tenantId, conversaId, departmentId, motivo, excludeAgentId, tentativa + 1, actorUserId);
   }
 
   await supabase.from("conversation_queue").upsert({
@@ -191,6 +200,14 @@ export async function dispatchConversation(
     motivo,
     prioridade: motivo === "sentimento_negativo" ? 1 : 0,
   }, { onConflict: "conversa_id" });
+
+  await supabase.from("conversa_eventos").insert({
+    tenant_id: tenantId,
+    conversa_id: conversaId,
+    tipo: "transferido",
+    user_id: actorUserId ?? null,
+    department_id: departmentId,
+  });
 
   return { atribuido: false, na_fila: true };
 }

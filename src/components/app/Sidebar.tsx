@@ -15,6 +15,7 @@ import {
   Megaphone,
   Ticket,
   Handshake,
+  BarChart3,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -27,15 +28,36 @@ const AVAILABILITY_ORDER = ["online", "away", "offline"] as const;
 const AVAILABILITY_COLOR: Record<string, string> = { online: "#10B981", away: "#facc15", offline: "#939da4" };
 const AVAILABILITY_LABEL: Record<string, string> = { online: "Disponivel", away: "Ausente", offline: "Offline" };
 
-const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/negocios", icon: Handshake, label: "Negócios" },
-  { href: "/contacts", icon: Users, label: "Contatos" },
-  { href: "/activities", icon: CheckSquare, label: "Atividades" },
-  { href: "/inbox", icon: MessageSquare, label: "Inbox IA" },
-  { href: "/tickets", icon: Ticket, label: "Tickets" },
-  { href: "/broadcasts", icon: Megaphone, label: "Broadcast" },
-  { href: "/ia", icon: Sparkles, label: "Studio IA", separator: true },
+// Agrupado como CRM (funil/relacionamento) vs Atendimento (fila de conversas -
+// Tickets fica aqui, nao no CRM, pelo mesmo motivo que HubSpot/Intercom/Zendesk
+// separam: e um fluxo de resolver problema, nao de gerenciar negocio) vs
+// Ferramentas (automacao/marketing). Bate com ROLES_SO_TICKETS abaixo, que ja
+// trata Tickets como fila de atendimento do financeiro, nao tela de CRM.
+const navSections = [
+  {
+    label: "CRM",
+    items: [
+      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+      { href: "/negocios", icon: Handshake, label: "Negócios" },
+      { href: "/contacts", icon: Users, label: "Contatos" },
+      { href: "/activities", icon: CheckSquare, label: "Atividades" },
+    ],
+  },
+  {
+    label: "Atendimento",
+    items: [
+      { href: "/inbox", icon: MessageSquare, label: "Inbox IA" },
+      { href: "/tickets", icon: Ticket, label: "Tickets" },
+      { href: "/relatorios", icon: BarChart3, label: "Relatórios" },
+    ],
+  },
+  {
+    label: "Ferramentas",
+    items: [
+      { href: "/broadcasts", icon: Megaphone, label: "Broadcast" },
+      { href: "/ia", icon: Sparkles, label: "Studio IA" },
+    ],
+  },
 ];
 
 // Papeis do time financeiro so tratam tickets (ex: reembolso) - nao precisam
@@ -131,11 +153,16 @@ export function Sidebar() {
 
   const somenteTickets = myRole ? ROLES_SO_TICKETS.includes(myRole) : false;
   const operacional = myRole ? ROLES_OPERACIONAIS.includes(myRole) : false;
-  const visibleNavItems = somenteTickets
-    ? navItems.filter((item) => item.href === "/tickets")
-    : operacional
-      ? navItems.filter((item) => !["/broadcasts", "/ia"].includes(item.href))
-      : navItems;
+  const visibleNavSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (somenteTickets) return item.href === "/tickets";
+        if (operacional) return !["/broadcasts", "/ia"].includes(item.href);
+        return true;
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
 
   async function handleLogout() {
     if (atendimentosAtivos > 0) {
@@ -195,54 +222,58 @@ export function Sidebar() {
         </button>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {visibleNavItems.map(({ href, icon: Icon, label, separator }) => {
-          const active = href === "/ia" ? pathname.startsWith("/ia") : pathname.startsWith(href);
-          const hovered = hoveredHref === href;
-
-          return (
-            <div key={href}>
-              {separator && (
-                <div className="my-2 relative">
-                  <div style={{ borderTop: "1px solid var(--sidebar-border)" }} />
-                  {active && (
-                    <div
-                      className="absolute inset-x-0 -top-px h-px"
-                      style={{ background: "linear-gradient(90deg, transparent, rgba(21,128,61,0.35), transparent)" }}
-                    />
-                  )}
-                </div>
-              )}
-
-              <Link
-                href={href}
-                title={collapsed ? label : undefined}
-                className={`relative flex items-center gap-3 py-2.5 rounded-lg text-sm font-medium ${collapsed ? "justify-center px-0" : "px-3"}`}
-                style={{
-                  color: active ? "var(--status-ganho)" : hovered ? "var(--sidebar-foreground)" : "var(--text-secondary)",
-                  background: active ? "var(--primary-bg)" : hovered ? "var(--surface-soft)" : "transparent",
-                  border: active ? "1px solid var(--primary-border)" : "1px solid transparent",
-                  transform: hovered && !active ? "translateX(2px)" : "none",
-                  transition: "all 0.15s ease",
-                }}
-                onMouseEnter={() => setHoveredHref(href)}
-                onMouseLeave={() => setHoveredHref(null)}
+      <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden">
+        {visibleNavSections.map((section, sectionIndex) => (
+          <div key={section.label} className={sectionIndex > 0 ? "mt-4" : ""}>
+            {sectionIndex > 0 && (
+              <div className="mb-2" style={{ borderTop: "1px solid var(--sidebar-border)" }} />
+            )}
+            {!collapsed && (
+              <p
+                className="px-3 mb-1.5 text-[10px] font-bold uppercase"
+                style={{ color: "var(--text-faint)", letterSpacing: "0.06em" }}
               >
-                {active && !collapsed && (
-                  <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
-                    style={{ background: "var(--status-ganho)", boxShadow: "0 0 8px rgba(21,128,61,0.45)" }}
-                  />
-                )}
-                <Icon
-                  className="w-4 h-4 shrink-0"
-                  style={{ color: active ? "var(--status-ganho)" : hovered ? "var(--sidebar-foreground)" : "var(--text-faint)" }}
-                />
-                {!collapsed && label}
-              </Link>
+                {section.label}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {section.items.map(({ href, icon: Icon, label }) => {
+                const active = href === "/ia" ? pathname.startsWith("/ia") : pathname.startsWith(href);
+                const hovered = hoveredHref === href;
+
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    title={collapsed ? label : undefined}
+                    className={`relative flex items-center gap-3 py-2.5 rounded-lg text-sm font-medium ${collapsed ? "justify-center px-0" : "px-3"}`}
+                    style={{
+                      color: active ? "var(--status-ganho)" : hovered ? "var(--sidebar-foreground)" : "var(--text-secondary)",
+                      background: active ? "var(--primary-bg)" : hovered ? "var(--surface-soft)" : "transparent",
+                      border: active ? "1px solid var(--primary-border)" : "1px solid transparent",
+                      transform: hovered && !active ? "translateX(2px)" : "none",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={() => setHoveredHref(href)}
+                    onMouseLeave={() => setHoveredHref(null)}
+                  >
+                    {active && !collapsed && (
+                      <div
+                        className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
+                        style={{ background: "var(--status-ganho)", boxShadow: "0 0 8px rgba(21,128,61,0.45)" }}
+                      />
+                    )}
+                    <Icon
+                      className="w-4 h-4 shrink-0"
+                      style={{ color: active ? "var(--status-ganho)" : hovered ? "var(--sidebar-foreground)" : "var(--text-faint)" }}
+                    />
+                    {!collapsed && label}
+                  </Link>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </nav>
 
       <div className="px-3 pb-5 space-y-0.5" style={{ borderTop: "1px solid var(--sidebar-border)" }}>

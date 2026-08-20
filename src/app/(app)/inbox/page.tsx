@@ -10,6 +10,7 @@ import { useIsCompact } from "@/hooks/useIsCompact";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
 import { useMensagens } from "@/hooks/useMensagens";
 import { useConversaPresence } from "@/hooks/useConversaPresence";
+import { useConversaEventos } from "@/hooks/useConversaEventos";
 import { createClient } from "@/lib/supabase/client";
 import { isWindowOpen } from "@/lib/inbox/window";
 import { TemplatePickerModal } from "@/components/app/inbox/TemplatePickerModal";
@@ -31,6 +32,7 @@ import { ContactPanel } from "./ContactPanel";
 import { AudioPlayer } from "@/components/app/inbox/AudioPlayer";
 import { VoiceRecorderActive, VoiceRecorderButton } from "@/components/app/inbox/VoiceRecorder";
 import { MediaAttachmentPreview } from "@/components/app/inbox/MediaAttachmentPreview";
+import { ImageLightbox } from "@/components/app/inbox/ImageLightbox";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { validarTamanhoArquivo } from "@/lib/inbox/mediaLimits";
 
@@ -96,7 +98,7 @@ function conversationTimeLabel(dateStr: string) {
   return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-function MediaContent({ msg, tone }: { msg: Mensagem; tone: "lead" | "humano" | "ia" }) {
+function MediaContent({ msg, tone, onImageClick }: { msg: Mensagem; tone: "lead" | "humano" | "ia"; onImageClick?: (url: string) => void }) {
   const pad = "px-4 py-2.5";
   const textColor =
     tone === "lead"
@@ -113,7 +115,8 @@ function MediaContent({ msg, tone }: { msg: Mensagem; tone: "lead" | "humano" | 
         <img
           src={msg.media_url ?? ""}
           alt="imagem"
-          className="max-w-full rounded-xl block"
+          onClick={() => msg.media_url && onImageClick?.(msg.media_url)}
+          className="max-w-full rounded-xl block cursor-pointer"
           style={{ maxWidth: 280, maxHeight: 300, objectFit: "cover" }}
         />
         {msg.media_caption && (
@@ -239,6 +242,7 @@ function InboxPageInner() {
   const safeColor = useContrastSafeColor();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { mensagens, loading: msgsLoading } = useMensagens(selectedId);
+  const { eventos: conversaEventos } = useConversaEventos(selectedId);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Mensagem | null>(null);
@@ -376,7 +380,14 @@ function InboxPageInner() {
   const selected = conversas.find((conversa) => conversa.id === selectedId);
   const meuLabel = equipe.find((m) => m.user_id === myUserId)?.email ?? "Você";
   const outrosVendo = useConversaPresence(selectedId, myUserId, meuLabel);
+
+  const EVENTO_LABEL: Record<string, string> = { assumido: "assumiu a conversa", transferido: "transferiu a conversa", resolvido: "resolveu a conversa" };
+  const timelineItems = [
+    ...mensagens.map((msg) => ({ kind: "mensagem" as const, data: msg.created_at, msg })),
+    ...conversaEventos.map((ev) => ({ kind: "evento" as const, data: ev.criado_em, ev })),
+  ].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
   const audioRecorder = useAudioRecorder();
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -539,7 +550,14 @@ function InboxPageInner() {
         const dono = equipe.find((m) => m.user_id === atualRow?.assigned_to);
         toast.error(dono ? `Essa conversa já foi assumida por ${dono.email ?? "outro atendente"}.` : "Essa conversa já foi assumida por outro atendente.");
       }
+      return;
     }
+    await supabase.from("conversa_eventos").insert({
+      tenant_id: tenantId,
+      conversa_id: conversa.id,
+      tipo: "assumido",
+      user_id: myUserId,
+    });
   }
 
   const [showTransferirMenu, setShowTransferirMenu] = useState(false);
@@ -1045,7 +1063,7 @@ function InboxPageInner() {
               <div className="flex items-center justify-center py-12">
                 <div className="w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid var(--border-subtle)", borderTopColor: "var(--status-ganho)" }} />
               </div>
-            ) : mensagens.length === 0 ? (
+            ) : timelineItems.length === 0 ? (
               <div className="text-center py-14">
                 <div className="w-14 h-14 rounded-xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--surface)", border: "1px solid var(--border-subtle)" }}>
                   <MessageSquare className="w-6 h-6" style={{ color: "var(--text-faint)" }} />
@@ -1058,7 +1076,21 @@ function InboxPageInner() {
                 </p>
               </div>
             ) : (
-              mensagens.map((msg: Mensagem) => {
+              timelineItems.map((item) => {
+                if (item.kind === "evento") {
+                  const ev = item.ev;
+                  const quem = ev.user_id ? equipe.find((m) => m.user_id === ev.user_id)?.email ?? "atendente" : "sistema/IA";
+                  const dept = ev.department_id ? departamentos.find((d) => d.id === ev.department_id)?.name : null;
+                  return (
+                    <div key={ev.id} className="flex justify-center">
+                      <span className="text-[10px] px-3 py-1 rounded-full" style={{ background: "var(--surface-soft)", color: "var(--text-faint)" }}>
+                        {quem} {EVENTO_LABEL[ev.tipo] ?? ev.tipo}{dept ? ` — ${dept}` : ""} · {timeLabel(ev.criado_em)}
+                      </span>
+                    </div>
+                  );
+                }
+
+                const msg = item.msg;
                 const isLead = msg.remetente === "lead";
                 const tone: "lead" | "humano" | "ia" = isLead ? "lead" : msg.remetente === "ia" ? "ia" : "humano";
                 const quoted = msg.reply_to_mensagem_id ? mensagens.find((m) => m.id === msg.reply_to_mensagem_id) : null;
@@ -1085,14 +1117,16 @@ function InboxPageInner() {
                       </button>
                     </div>
                     <div className={`max-w-[82%] md:max-w-[74%] ${isLead ? "order-1" : "order-2"}`}>
-                      {tone === "ia" && (
-                        <div className="flex items-center gap-1.5 mb-1 justify-end">
-                          <Bot className="w-3 h-3" style={{ color: "var(--status-ganho)" }} />
-                          <span className="text-[10px] font-bold" style={{ color: "var(--status-ganho)" }}>
-                            IA
-                          </span>
-                        </div>
-                      )}
+                      <div className={`flex items-center gap-1.5 mb-1 ${isLead ? "justify-start" : "justify-end"}`}>
+                        {tone === "ia" && <Bot className="w-3 h-3" style={{ color: "var(--status-ganho)" }} />}
+                        <span className="text-[10px] font-bold" style={{ color: tone === "ia" ? "var(--status-ganho)" : "var(--text-secondary)" }}>
+                          {isLead
+                            ? selected.lead_nome
+                            : tone === "ia"
+                              ? msg.ia_agente_nome ?? "IA"
+                              : equipe.find((m) => m.user_id === msg.enviado_por_user_id)?.email ?? "Atendente"}
+                        </span>
+                      </div>
 
                       {quoted && (
                         <div
@@ -1115,7 +1149,7 @@ function InboxPageInner() {
                       )}
 
                       <div className="rounded-xl overflow-hidden text-sm" style={inboxBubbleStyle(tone)}>
-                        <MediaContent msg={msg} tone={tone} />
+                        <MediaContent msg={msg} tone={tone} onImageClick={setLightboxSrc} />
                       </div>
 
                       <p className={`text-[10px] mt-1 font-medium flex items-center gap-1 ${isLead ? "text-left" : "text-right justify-end"}`} style={{ color: "var(--text-secondary)" }}>
@@ -1290,6 +1324,8 @@ function InboxPageInner() {
           onEnviado={() => setShowTemplatePicker(false)}
         />
       )}
+
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
 
       {selected && tenantId && (
         <aside className="w-72 shrink-0 rounded-[28px] overflow-hidden hidden xl:flex xl:flex-col min-h-0" style={inboxPanelStyle}>

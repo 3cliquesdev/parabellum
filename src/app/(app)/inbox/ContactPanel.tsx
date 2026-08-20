@@ -45,6 +45,14 @@ const TICKET_STATUS_LABEL: Record<string, string> = {
   resolvido: "Resolvido", fechado: "Fechado",
 };
 
+function formatarDuracao(ms: number): string {
+  const min = Math.round(ms / 60000);
+  if (min < 60) return `${min} min`;
+  const horas = Math.floor(min / 60);
+  const minRestante = min % 60;
+  return `${horas}h ${minRestante}min`;
+}
+
 const VENDA_STATUS_TONE: Record<string, "green" | "yellow" | "neutral"> = {
   pago: "green", aguardando_pagamento: "yellow", cartao_recusado: "neutral",
   reembolsado: "neutral", chargeback: "neutral", cancelado: "neutral",
@@ -178,6 +186,21 @@ export function ContactPanel({ conversa, tenantId, allTags, novaTag, setNovaTag,
           <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full" style={inboxBadgeStyle(safeColor(STATUS_COLOR[lead.status]))}>
             {STATUS_LABEL[lead.status]}
           </span>
+        )}
+
+        {(conversa.primeira_resposta_em || conversa.resolvido_em) && (
+          <div className="flex flex-wrap gap-1.5 text-[10px]" style={{ color: "var(--text-faint)" }}>
+            {conversa.primeira_resposta_em && (
+              <span className="px-2 py-0.5 rounded-full" style={{ background: "var(--surface-soft)" }}>
+                1ª resposta em {formatarDuracao(new Date(conversa.primeira_resposta_em).getTime() - new Date(conversa.created_at).getTime())}
+              </span>
+            )}
+            {conversa.resolvido_em && (
+              <span className="px-2 py-0.5 rounded-full" style={{ background: "var(--surface-soft)" }}>
+                Resolvida em {formatarDuracao(new Date(conversa.resolvido_em).getTime() - new Date(conversa.created_at).getTime())}
+              </span>
+            )}
+          </div>
         )}
 
         <div>

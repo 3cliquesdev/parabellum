@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
     languageCode,
     variables ?? {},
     previewText,
+    user.id,
   );
 
   if (!result.ok) {

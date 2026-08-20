@@ -214,6 +214,18 @@ export interface Conversa {
   updated_at: string;
   /** Incrementado por trigger a cada UPDATE - usado como trava otimista (CAS) contra corrida entre atendentes. */
   lock_version: number;
+  /** Marca a primeira resposta (humano ou IA) apos a conversa comecar - usado pra SLA. */
+  primeira_resposta_em: string | null;
+}
+
+export interface ConversaEvento {
+  id: string;
+  tenant_id: string;
+  conversa_id: string;
+  tipo: "assumido" | "transferido" | "resolvido";
+  user_id: string | null;
+  department_id: string | null;
+  criado_em: string;
 }
 
 export interface LeadIdentity {
@@ -250,6 +262,8 @@ export interface Mensagem {
   latitude: number | null;
   longitude: number | null;
   metadata: Record<string, unknown> | null;
+  enviado_por_user_id: string | null;
+  ia_agente_nome: string | null;
 }
 
 export interface Subscription {

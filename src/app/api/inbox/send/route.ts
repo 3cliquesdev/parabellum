@@ -111,21 +111,21 @@ export async function POST(request: NextRequest) {
 
   switch (conversation.canal) {
     case "whatsapp": {
-      const result = await sendWhatsAppConversationMessage(admin, conversation, conteudo.trim(), file, replyToMensagemId, duracaoSeg, legenda);
+      const result = await sendWhatsAppConversationMessage(admin, conversation, conteudo.trim(), file, replyToMensagemId, duracaoSeg, legenda, user.id);
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       return NextResponse.json({ status: "sent", canal: "whatsapp" });
     }
     case "email": {
-      const result = await sendEmailConversationMessage(admin, conversation, conteudo.trim(), assunto);
+      const result = await sendEmailConversationMessage(admin, conversation, conteudo.trim(), assunto, user.id);
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       return NextResponse.json({ status: "sent", canal: "email" });
     }
     case "instagram": {
-      const result = await sendInstagramConversationMessage(admin, conversation, conteudo.trim());
+      const result = await sendInstagramConversationMessage(admin, conversation, conteudo.trim(), user.id);
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }

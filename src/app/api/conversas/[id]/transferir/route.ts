@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
   }
 
-  const resultado = await dispatchConversation(tenant_id, conversaId, departamento.id, motivo ?? "transferencia_ia");
+  const resultado = await dispatchConversation(tenant_id, conversaId, departamento.id, motivo ?? "transferencia_ia", undefined, 1, auth.userId ?? null);
 
   if (resultado.conflito) {
     return NextResponse.json(

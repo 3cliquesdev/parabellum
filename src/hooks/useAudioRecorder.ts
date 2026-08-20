@@ -1,67 +1,54 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import Recorder from "opus-recorder";
 
 export type RecorderState = "idle" | "recording" | "recorded" | "error";
 
-function pickMimeType(): string {
-  const candidatos = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
-  for (const tipo of candidatos) {
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(tipo)) return tipo;
-  }
-  return "";
-}
-
+// MediaRecorder nativo grava audio/webm no Chrome/Firefox, mas o WhatsApp
+// Cloud API SO aceita audio/ogg (opus), audio/aac, audio/mp4, audio/mpeg ou
+// audio/amr para mensagens de audio - webm e rejeitado no upload pra Meta, e
+// alem disso tem bug conhecido de duracao/seek em blobs webm no Chrome. Por
+// isso usamos opus-recorder (WASM), que gera um .ogg real e valido desde a
+// gravacao, funcionando igual em qualquer navegador.
 export function useAudioRecorder() {
   const [state, setState] = useState<RecorderState>("idle");
   const [seconds, setSeconds] = useState(0);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const recorderRef = useRef<Recorder | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mimeTypeRef = useRef("");
 
-  const cleanupStream = useCallback(() => {
+  const stopTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
   }, []);
 
-  useEffect(() => cleanupStream, [cleanupStream]);
-
   const start = useCallback(async () => {
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    if (typeof window === "undefined" || !Recorder.isRecordingSupported()) {
       setState("error");
       setErrorMessage("Gravação de áudio não é suportada neste navegador.");
       return;
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const mimeType = pickMimeType();
-      mimeTypeRef.current = mimeType;
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      chunksRef.current = [];
+      const recorder = new Recorder({
+        encoderPath: "/vendor/encoderWorker.min.js",
+        numberOfChannels: 1,
+        encoderSampleRate: 24000,
+        encoderBitRate: 32000,
+      });
 
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
-      };
-      recorder.onstop = () => {
-        const gravado = new Blob(chunksRef.current, { type: mimeTypeRef.current || "audio/webm" });
-        setBlob(gravado);
+      recorder.ondataavailable = (arrayBuffer) => {
+        setBlob(new Blob([arrayBuffer], { type: "audio/ogg" }));
         setState("recorded");
-        cleanupStream();
       };
 
-      mediaRecorderRef.current = recorder;
-      recorder.start();
+      recorderRef.current = recorder;
+      await recorder.start();
       setState("recording");
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
@@ -69,31 +56,28 @@ export function useAudioRecorder() {
       setState("error");
       setErrorMessage("Não foi possível acessar o microfone. Verifique a permissão do navegador.");
     }
-  }, [cleanupStream]);
-
-  const stop = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
   }, []);
 
+  const stop = useCallback(() => {
+    stopTimer();
+    recorderRef.current?.stop();
+  }, [stopTimer]);
+
   const cancel = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.onstop = null;
-      mediaRecorderRef.current.stop();
+    stopTimer();
+    if (recorderRef.current) {
+      recorderRef.current.ondataavailable = () => {};
+      recorderRef.current.close();
+      recorderRef.current = null;
     }
-    cleanupStream();
-    chunksRef.current = [];
     setBlob(null);
     setSeconds(0);
     setState("idle");
-  }, [cleanupStream]);
+  }, [stopTimer]);
 
   const reset = useCallback(() => {
+    recorderRef.current?.close();
+    recorderRef.current = null;
     setBlob(null);
     setSeconds(0);
     setState("idle");

@@ -88,8 +88,7 @@ export function VoiceRecorderActive({ recorder, onSend, disabled }: VoiceRecorde
           disabled={disabled}
           onClick={async () => {
             if (!blob) return;
-            const extensao = blob.type.includes("mp4") ? "mp4" : "webm";
-            const file = new File([blob], `nota-de-voz-${Date.now()}.${extensao}`, { type: blob.type });
+            const file = new File([blob], `nota-de-voz-${Date.now()}.ogg`, { type: "audio/ogg" });
             await onSend(file, seconds);
             reset();
           }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Bot, Check, CheckCheck, ChevronDown, ChevronRight, Clock, Download, FileText, MapPin, MessageSquare, MoreVertical, Paperclip, Reply, Send, User } from "lucide-react";
@@ -382,10 +382,10 @@ function InboxPageInner() {
   const outrosVendo = useConversaPresence(selectedId, myUserId, meuLabel);
 
   const EVENTO_LABEL: Record<string, string> = { assumido: "assumiu a conversa", transferido: "transferiu a conversa", resolvido: "resolveu a conversa" };
-  const timelineItems = [
+  const timelineItems = useMemo(() => [
     ...mensagens.map((msg) => ({ kind: "mensagem" as const, data: msg.created_at, msg })),
     ...conversaEventos.map((ev) => ({ kind: "evento" as const, data: ev.criado_em, ev })),
-  ].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
+  ].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime()), [mensagens, conversaEventos]);
   const audioRecorder = useAudioRecorder();
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 

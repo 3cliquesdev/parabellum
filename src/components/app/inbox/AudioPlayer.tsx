@@ -74,7 +74,7 @@ export function AudioPlayer({ src, durationHint, accent = "var(--status-ganho)" 
 
   return (
     <div className="flex items-center gap-2.5 min-w-[220px]">
-      <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
+      <audio ref={audioRef} src={src} preload="none" className="hidden" />
       <button
         type="button"
         onClick={togglePlay}

@@ -3,11 +3,12 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Bot, Check, CheckCheck, ChevronDown, ChevronRight, Clock, Download, FileText, MapPin, MessageSquare, MoreVertical, Paperclip, Reply, Send, User } from "lucide-react";
+import { Bot, Check, CheckCheck, ChevronDown, ChevronRight, Clock, Download, FileText, MapPin, MessageSquare, MoreVertical, Paperclip, Reply, Search, Send, User, X } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/hooks/useTenant";
 import { useIsCompact } from "@/hooks/useIsCompact";
 import { useConversas, type ConversaWithLead } from "@/hooks/useConversas";
+import { useConversasSearch } from "@/hooks/useConversasSearch";
 import { useMensagens } from "@/hooks/useMensagens";
 import { useConversaPresence } from "@/hooks/useConversaPresence";
 import { useConversaEventos } from "@/hooks/useConversaEventos";
@@ -273,6 +274,7 @@ function InboxPageInner() {
   const [departamentoFiltro, setDepartamentoFiltro] = useState<string | null>(null);
   const [tagFiltro, setTagFiltro] = useState<string | null>(null);
   const [atendenteFiltro, setAtendenteFiltro] = useState<string | null>(null);
+  const [busca, setBusca] = useState("");
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<string>("vendedor");
   const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null);
@@ -357,6 +359,9 @@ function InboxPageInner() {
     .filter((c) => !departamentoFiltro || c.department_id === departamentoFiltro)
     .filter((c) => !tagFiltro || c.tags.some((t) => t.id === tagFiltro))
     .filter((c) => !atendenteFiltro || c.assigned_to === atendenteFiltro);
+
+  const { resultados: resultadosBusca, buscando: buscandoConversas, ativa: buscaAtiva } = useConversasSearch(tenantId, busca);
+  const listaExibida = buscaAtiva ? resultadosBusca : conversasFiltradas;
 
   const contagemPorDepartamento = new Map<string, number>();
   for (const c of conversas) {
@@ -562,6 +567,7 @@ function InboxPageInner() {
 
   const [showTransferirMenu, setShowTransferirMenu] = useState(false);
   const [departamentoEscolhido, setDepartamentoEscolhido] = useState("");
+  const [pessoaEscolhida, setPessoaEscolhida] = useState("");
   const [transferindo, setTransferindo] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const isCompact = useIsCompact();
@@ -580,12 +586,18 @@ function InboxPageInner() {
   }, []);
 
   async function transferirConversa(conversa: ConversaWithLead) {
-    if (!departamentoEscolhido || !tenantId) return;
+    if (!departamentoEscolhido && !pessoaEscolhida) return;
+    if (!tenantId) return;
     setTransferindo(true);
     const r = await fetch(`/api/conversas/${conversa.id}/transferir`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: tenantId, departamento_slug: departamentoEscolhido, motivo: "transferencia_manual" }),
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        ...(departamentoEscolhido ? { departamento_slug: departamentoEscolhido } : {}),
+        ...(pessoaEscolhida ? { user_id: pessoaEscolhida } : {}),
+        motivo: "transferencia_manual",
+      }),
     });
     setTransferindo(false);
     if (!r.ok) {
@@ -595,6 +607,7 @@ function InboxPageInner() {
     }
     setShowTransferirMenu(false);
     setDepartamentoEscolhido("");
+    setPessoaEscolhida("");
   }
 
   const [novaTag, setNovaTag] = useState("");
@@ -714,33 +727,54 @@ function InboxPageInner() {
           <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
             Conversas do WhatsApp, Instagram e canais conectados
           </p>
+          <div className="relative mt-3">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-faint)" }} />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por nome, telefone ou protocolo..."
+              className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
+              style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}
+            />
+            {busca.length > 0 && (
+              <button
+                onClick={() => setBusca("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                style={{ color: "var(--text-faint)" }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {conversasLoading ? (
+          {conversasLoading || (buscaAtiva && buscandoConversas) ? (
             <div className="flex items-center justify-center py-14">
               <div className="w-5 h-5 rounded-full animate-spin" style={{ border: "2px solid var(--border-subtle)", borderTopColor: "var(--status-ganho)" }} />
             </div>
-          ) : conversasFiltradas.length === 0 ? (
+          ) : listaExibida.length === 0 ? (
             <div className="px-6 py-14 text-center">
               <div className="w-14 h-14 rounded-xl mx-auto mb-4 flex items-center justify-center" style={{ background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
                 <MessageSquare className="w-6 h-6" style={{ color: "var(--text-faint)" }} />
               </div>
               <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                Nenhuma conversa por aqui
+                {buscaAtiva ? "Nenhuma conversa encontrada" : "Nenhuma conversa por aqui"}
               </p>
               <p className="text-xs mt-1 leading-5" style={{ color: "var(--text-secondary)" }}>
-                {filtro === "fila_ia"
-                  ? "Nenhuma conversa com a IA no momento."
-                  : filtro === "fila_humana"
-                    ? "Nenhuma conversa esperando ou atribuída a um humano."
-                    : filtro === "encerradas"
-                      ? "Nenhuma conversa encerrada ainda."
-                      : "As novas conversas vão aparecer aqui assim que entrarem."}
+                {buscaAtiva
+                  ? "Tente buscar por outro nome, telefone ou número de protocolo."
+                  : filtro === "fila_ia"
+                    ? "Nenhuma conversa com a IA no momento."
+                    : filtro === "fila_humana"
+                      ? "Nenhuma conversa esperando ou atribuída a um humano."
+                      : filtro === "encerradas"
+                        ? "Nenhuma conversa encerrada ainda."
+                        : "As novas conversas vão aparecer aqui assim que entrarem."}
               </p>
             </div>
           ) : (
-            conversasFiltradas.map((conversa) => {
+            listaExibida.map((conversa) => {
               const dispatch = conversa.dispatch_status ?? "ia";
               const badge = DISPATCH_BADGE[dispatch] ?? DISPATCH_BADGE.ia;
               const active = selectedId === conversa.id;
@@ -997,13 +1031,25 @@ function InboxPageInner() {
                       <option key={dep.id} value={dep.slug} style={{ background: "var(--surface-solid)" }}>{dep.name}</option>
                     ))}
                   </select>
+                  <p className="text-xs font-bold pt-1" style={{ color: "var(--text-primary)" }}>Ou transferir para uma pessoa</p>
+                  <select
+                    value={pessoaEscolhida}
+                    onChange={(e) => setPessoaEscolhida(e.target.value)}
+                    className="w-full h-9 px-2 rounded-lg text-xs outline-none"
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+                  >
+                    <option value="">Selecione uma pessoa...</option>
+                    {equipe.map((membro) => (
+                      <option key={membro.user_id} value={membro.user_id ?? ""} style={{ background: "var(--surface-solid)" }}>{membro.email ?? membro.user_id}</option>
+                    ))}
+                  </select>
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowTransferirMenu(false)} className="inbox-ghost-btn px-3 h-8 rounded-lg text-xs transition-all" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
+                    <button onClick={() => { setShowTransferirMenu(false); setDepartamentoEscolhido(""); setPessoaEscolhida(""); }} className="inbox-ghost-btn px-3 h-8 rounded-lg text-xs transition-all" style={{ background: "var(--ghost-bg)", color: "var(--text-secondary)" }}>Cancelar</button>
                     <button
                       onClick={() => transferirConversa(selected)}
-                      disabled={!departamentoEscolhido || transferindo}
+                      disabled={(!departamentoEscolhido && !pessoaEscolhida) || transferindo}
                       className="px-3 h-8 rounded-lg text-xs font-bold"
-                      style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: !departamentoEscolhido || transferindo ? 0.6 : 1 }}
+                      style={{ background: "var(--primary)", color: "var(--primary-foreground)", opacity: (!departamentoEscolhido && !pessoaEscolhida) || transferindo ? 0.6 : 1 }}
                     >
                       {transferindo ? "Transferindo..." : "Confirmar"}
                     </button>

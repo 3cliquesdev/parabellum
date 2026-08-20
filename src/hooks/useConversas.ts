@@ -54,7 +54,7 @@ interface IdentityRow {
   external_id?: string | null;
 }
 
-interface ConversaRow extends Conversa {
+export interface ConversaRow extends Conversa {
   assigned_to?: string | null;
   dispatch_status?: string | null;
   department_id?: string | null;
@@ -79,6 +79,86 @@ interface AuthContext {
   userId: string | null;
   role: string;
   deptIds: string[];
+}
+
+/**
+ * Enriquece linhas cruas de `conversas` (join com leads) com tags,
+ * identities e campos derivados (lead_nome, canal_label, etc.) - reaproveitado
+ * tanto pela carga normal (fetchConversas) quanto pela busca textual
+ * (useConversasSearch), que faz sua propria query mas precisa do mesmo
+ * formato de saida pra renderizar na mesma lista.
+ */
+export async function enrichConversaRows(
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string,
+  rows: ConversaRow[],
+): Promise<ConversaWithLead[]> {
+  const conversaIds = rows.map((row) => row.id);
+  const tagsByConversa = new Map<string, ConversaTagInfo[]>();
+  if (conversaIds.length > 0) {
+    const { data: tagRows } = await supabase
+      .from("conversation_tags")
+      .select("conversa_id, tags(id, nome, cor)")
+      .in("conversa_id", conversaIds);
+
+    for (const row of (tagRows ?? []) as unknown as ConversationTagRow[]) {
+      const tag = Array.isArray(row.tags) ? row.tags[0] : row.tags;
+      if (!tag) continue;
+      const list = tagsByConversa.get(row.conversa_id) ?? [];
+      list.push(tag);
+      tagsByConversa.set(row.conversa_id, list);
+    }
+  }
+
+  const leadIds = rows
+    .map((row) => row.leads?.id)
+    .filter((leadId): leadId is string => Boolean(leadId));
+
+  const identitiesByLead = new Map<string, LeadIdentitySnapshot[]>();
+  if (leadIds.length > 0) {
+    const { data: identityData } = await supabase
+      .from("lead_identities")
+      .select("lead_id, canal, valor, valor_normalizado, external_id")
+      .eq("tenant_id", tenantId)
+      .in("lead_id", leadIds);
+
+    for (const identity of (identityData ?? []) as unknown as IdentityRow[]) {
+      const list = identitiesByLead.get(identity.lead_id) ?? [];
+      list.push({
+        canal: identity.canal,
+        valor: identity.valor ?? null,
+        valor_normalizado: identity.valor_normalizado ?? null,
+        external_id: identity.external_id ?? null,
+      });
+      identitiesByLead.set(identity.lead_id, list);
+    }
+  }
+
+  return rows.map((row) => {
+    const lead = row.leads ?? null;
+    const identities = lead?.id ? identitiesByLead.get(lead.id) ?? [] : [];
+    const channelMeta = CHANNEL_META[row.canal];
+    const safeLead = lead
+      ? { whatsapp: lead.whatsapp ?? null, email: lead.email ?? null, instagram: lead.instagram ?? null }
+      : null;
+
+    return {
+      ...row,
+      lead_nome: lead?.nome ?? "Desconhecido",
+      lead_whatsapp: lead?.whatsapp ?? null,
+      lead_email: lead?.email ?? null,
+      lead_instagram: lead?.instagram ?? null,
+      lead_identifier: resolveConversationIdentity(row.canal, safeLead, identities),
+      eh_cliente: lead?.eh_cliente ?? false,
+      canal_label: channelMeta.label,
+      canal_color: channelMeta.accent,
+      supports_outbound: channelMeta.supportsOutbound,
+      supports_attachments: channelMeta.supportsAttachments,
+      ai_mode: row.ai_mode ?? "autopilot",
+      ai_suggestion: row.ai_suggestion ?? null,
+      tags: tagsByConversa.get(row.id) ?? [],
+    };
+  });
 }
 
 export function useConversas(tenantId: string | null) {
@@ -249,80 +329,7 @@ export function useConversas(tenantId: string | null) {
       const { data } = await query;
 
       const rows = (data ?? []) as unknown as ConversaRow[];
-      const conversaIds = rows.map((row) => row.id);
-      const tagsByConversa = new Map<string, ConversaTagInfo[]>();
-      if (conversaIds.length > 0) {
-        const { data: tagRows } = await supabase
-          .from("conversation_tags")
-          .select("conversa_id, tags(id, nome, cor)")
-          .in("conversa_id", conversaIds);
-
-        for (const row of (tagRows ?? []) as unknown as ConversationTagRow[]) {
-          const tag = Array.isArray(row.tags) ? row.tags[0] : row.tags;
-          if (!tag) continue;
-          const list = tagsByConversa.get(row.conversa_id) ?? [];
-          list.push(tag);
-          tagsByConversa.set(row.conversa_id, list);
-        }
-      }
-
-      const leadIds = rows
-        .map((row) => row.leads?.id)
-        .filter((leadId): leadId is string => Boolean(leadId));
-
-      const identitiesByLead = new Map<string, LeadIdentitySnapshot[]>();
-      if (leadIds.length > 0) {
-        const { data: identityData, error: identityError } = await supabase
-          .from("lead_identities")
-          .select("lead_id, canal, valor, valor_normalizado, external_id")
-          .eq("tenant_id", tenantId)
-          .in("lead_id", leadIds);
-
-        if (identityError) {
-          console.warn("useConversas identities:", identityError.message);
-        } else {
-          for (const identity of (identityData ?? []) as unknown as IdentityRow[]) {
-            const list = identitiesByLead.get(identity.lead_id) ?? [];
-            list.push({
-              canal: identity.canal,
-              valor: identity.valor ?? null,
-              valor_normalizado: identity.valor_normalizado ?? null,
-              external_id: identity.external_id ?? null,
-            });
-            identitiesByLead.set(identity.lead_id, list);
-          }
-        }
-      }
-
-      const list = rows.map((row) => {
-        const lead = row.leads ?? null;
-        const identities = lead?.id ? identitiesByLead.get(lead.id) ?? [] : [];
-        const channelMeta = CHANNEL_META[row.canal];
-        const safeLead = lead
-          ? {
-              whatsapp: lead.whatsapp ?? null,
-              email: lead.email ?? null,
-              instagram: lead.instagram ?? null,
-            }
-          : null;
-
-        return {
-          ...row,
-          lead_nome: lead?.nome ?? "Desconhecido",
-          lead_whatsapp: lead?.whatsapp ?? null,
-          lead_email: lead?.email ?? null,
-          lead_instagram: lead?.instagram ?? null,
-          lead_identifier: resolveConversationIdentity(row.canal, safeLead, identities),
-          eh_cliente: lead?.eh_cliente ?? false,
-          canal_label: channelMeta.label,
-          canal_color: channelMeta.accent,
-          supports_outbound: channelMeta.supportsOutbound,
-          supports_attachments: channelMeta.supportsAttachments,
-          ai_mode: row.ai_mode ?? "autopilot",
-          ai_suggestion: row.ai_suggestion ?? null,
-          tags: tagsByConversa.get(row.id) ?? [],
-        };
-      });
+      const list = await enrichConversaRows(supabase, tenantId, rows);
 
       setConversas(list);
     } catch (e) {

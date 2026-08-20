@@ -21,6 +21,7 @@ interface TicketRow {
   resolved_at: string | null;
   assigned_to: string | null;
   created_by: string | null;
+  criado_via_label: string | null;
   department_id: string | null;
   lead_id: string | null;
   created_at: string;
@@ -60,6 +61,25 @@ const STATUS_SIDEBAR: TicketStatus[] = [
 type Filtro =
   | "todos" | "meus_abertos" | "criei" | "participei" | "nao_atribuidos" | "sla_vencido" | "sem_tag"
   | `status:${TicketStatus}` | "financeiro";
+
+function aplicarFiltro(tickets: TicketRow[], filtro: Filtro, myUserId: string | null, departamentoFinanceiroId?: string): TicketRow[] {
+  switch (filtro) {
+    case "todos": return tickets;
+    case "meus_abertos": return tickets.filter((t) => t.assigned_to === myUserId && !["resolvido", "fechado"].includes(t.status));
+    case "criei": return tickets.filter((t) => t.created_by === myUserId);
+    case "participei": return tickets.filter((t) => (t.ticket_stakeholders ?? []).some((s) => s.user_id === myUserId));
+    case "nao_atribuidos": return tickets.filter((t) => !t.assigned_to);
+    case "sla_vencido": return tickets.filter((t) => t.due_date && !t.resolved_at && new Date(t.due_date).getTime() < Date.now());
+    case "sem_tag": return tickets.filter((t) => !(t.ticket_tags ?? []).length);
+    case "financeiro": return departamentoFinanceiroId ? tickets.filter((t) => t.department_id === departamentoFinanceiroId) : [];
+    default:
+      if (filtro.startsWith("status:")) {
+        const status = filtro.slice(7) as TicketStatus;
+        return tickets.filter((t) => t.status === status);
+      }
+      return tickets;
+  }
+}
 
 function slaBadge(ticket: TicketRow) {
   if (!ticket.due_date || ticket.resolved_at) return null;
@@ -184,24 +204,24 @@ export default function TicketsPage() {
 
   const departamentoFinanceiro = departments.find((d) => d.name.toLowerCase() === "financeiro");
 
-  const filtered = useMemo(() => {
-    switch (filtro) {
-      case "todos": return tickets;
-      case "meus_abertos": return tickets.filter((t) => t.assigned_to === myUserId && !["resolvido", "fechado"].includes(t.status));
-      case "criei": return tickets.filter((t) => t.created_by === myUserId);
-      case "participei": return tickets.filter((t) => (t.ticket_stakeholders ?? []).some((s) => s.user_id === myUserId));
-      case "nao_atribuidos": return tickets.filter((t) => !t.assigned_to);
-      case "sla_vencido": return tickets.filter((t) => t.due_date && !t.resolved_at && new Date(t.due_date).getTime() < Date.now());
-      case "sem_tag": return tickets.filter((t) => !(t.ticket_tags ?? []).length);
-      case "financeiro": return departamentoFinanceiro ? tickets.filter((t) => t.department_id === departamentoFinanceiro.id) : [];
-      default:
-        if (filtro.startsWith("status:")) {
-          const status = filtro.slice(7) as TicketStatus;
-          return tickets.filter((t) => t.status === status);
-        }
-        return tickets;
-    }
-  }, [filtro, tickets, myUserId, departamentoFinanceiro]);
+  const filtered = useMemo(
+    () => aplicarFiltro(tickets, filtro, myUserId, departamentoFinanceiro?.id),
+    [filtro, tickets, myUserId, departamentoFinanceiro],
+  );
+
+  // Contagem de cada filtro do menu lateral - a lista inteira ja esta
+  // carregada no cliente (fetchTickets traz tudo), entao isso e so aplicar
+  // cada predicado sobre o array e pegar o tamanho, sem query nova.
+  const contagens = useMemo(() => {
+    const todosOsFiltros: Filtro[] = [
+      "todos", "meus_abertos", "criei", "participei", "nao_atribuidos", "sla_vencido", "sem_tag",
+      ...STATUS_SIDEBAR.map((s) => `status:${s}` as Filtro),
+      "financeiro",
+    ];
+    const mapa = {} as Record<Filtro, number>;
+    for (const f of todosOsFiltros) mapa[f] = aplicarFiltro(tickets, f, myUserId, departamentoFinanceiro?.id).length;
+    return mapa;
+  }, [tickets, myUserId, departamentoFinanceiro]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -237,7 +257,8 @@ export default function TicketsPage() {
               style={filtro === id
                 ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
                 : { color: "var(--text-secondary)", border: "1px solid transparent" }}>
-              {label}
+              <span>{label}</span>
+              <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-faint)" }}>{contagens[id]}</span>
             </button>
           ))}
         </div>
@@ -250,7 +271,8 @@ export default function TicketsPage() {
                 ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
                 : { color: "var(--text-secondary)", border: "1px solid transparent" }}>
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS_COLOR[status] }} />
-              {STATUS_LABEL[status]}
+              <span className="flex-1">{STATUS_LABEL[status]}</span>
+              <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-faint)" }}>{contagens[`status:${status}`]}</span>
             </button>
           ))}
         </div>
@@ -258,11 +280,12 @@ export default function TicketsPage() {
           <>
             <p className="px-3 mb-1.5 text-[10px] font-bold uppercase" style={{ color: "rgba(147,157,164,0.5)", letterSpacing: "0.06em" }}>Financeiro</p>
             <button onClick={() => setFiltro("financeiro")}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-left"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-left"
               style={filtro === "financeiro"
                 ? { background: "var(--primary-bg)", color: "var(--status-ganho)", border: "1px solid var(--primary-border)" }
                 : { color: "var(--text-secondary)", border: "1px solid transparent" }}>
-              Tickets do Financeiro
+              <span>Tickets do Financeiro</span>
+              <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-faint)" }}>{contagens.financeiro}</span>
             </button>
           </>
         )}
@@ -347,7 +370,7 @@ export default function TicketsPage() {
                       <td className="px-4 py-3 text-xs truncate max-w-[140px]" style={{ color: "var(--text-secondary)" }}>{t.leads?.nome ?? "—"}</td>
                       <td className="px-4 py-3 text-xs truncate max-w-[140px]" style={{ color: "var(--text-secondary)" }}>{assignee?.name ?? assignee?.email ?? "Não atribuído"}</td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: "var(--text-faint)" }}>{new Date(t.created_at).toLocaleDateString("pt-BR")}</td>
-                      <td className="px-4 py-3 text-xs truncate max-w-[140px]" style={{ color: "var(--text-faint)" }}>{criador?.name ?? criador?.email ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs truncate max-w-[140px]" style={{ color: "var(--text-faint)" }}>{criador?.name ?? criador?.email ?? t.criado_via_label ?? "—"}</td>
                     </tr>
                   );
                 })}
@@ -401,6 +424,7 @@ function NovoTicketModal({
   const [leadResults, setLeadResults] = useState<LeadOpt[]>([]);
   const [leadSelecionado, setLeadSelecionado] = useState<LeadOpt | null>(null);
   const [novaTag, setNovaTag] = useState("");
+  const [filtroTag, setFiltroTag] = useState("");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -420,7 +444,13 @@ function NovoTicketModal({
 
   useEffect(() => {
     fetch(`/api/operacoes?tenant_id=${tenantId}`).then((r) => r.json()).then((d) => setOperacoes(d.operacoes ?? []));
-    fetch(`/api/tags?tenant_id=${tenantId}`).then((r) => r.json()).then((d) => setTags(d.tags ?? []));
+    // Ordem alfabetica pura quebra a numeracao das tags (ex: "10.01" vem
+    // antes de "2.01") - extrai o prefixo numerico e ordena como float.
+    fetch(`/api/tags?tenant_id=${tenantId}`).then((r) => r.json()).then((d) => {
+      const lista = (d.tags ?? []) as TagOpt[];
+      const prefixo = (nome: string) => Number.parseFloat(nome) || Number.POSITIVE_INFINITY;
+      setTags([...lista].sort((a, b) => prefixo(a.nome) - prefixo(b.nome) || a.nome.localeCompare(b.nome)));
+    });
   }, [tenantId]);
 
   useEffect(() => {
@@ -441,6 +471,17 @@ function NovoTicketModal({
   function toggleTag(tagId: string) {
     setForm((f) => ({ ...f, tagIds: f.tagIds.includes(tagId) ? f.tagIds.filter((t) => t !== tagId) : [...f.tagIds, tagId] }));
   }
+
+  const gruposTag = useMemo(() => {
+    const filtradas = tags.filter((t) => t.nome.toLowerCase().includes(filtroTag.trim().toLowerCase()));
+    const grupos = new Map<string, TagOpt[]>();
+    for (const tag of filtradas) {
+      const categoria = tag.nome.match(/^(\d+)\./)?.[1] ?? "Outras";
+      if (!grupos.has(categoria)) grupos.set(categoria, []);
+      grupos.get(categoria)!.push(tag);
+    }
+    return grupos;
+  }, [tags, filtroTag]);
 
   async function criarTagInline() {
     if (!novaTag.trim()) return;
@@ -573,17 +614,33 @@ function NovoTicketModal({
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-white">Tags</label>
-          <div className="flex flex-wrap gap-1.5 mt-1">
-            {tags.map((tag) => (
-              <button key={tag.id} onClick={() => toggleTag(tag.id)} type="button"
-                className="text-[11px] font-bold px-2 py-1 rounded-full"
-                style={form.tagIds.includes(tag.id)
-                  ? { color: tag.cor, background: `${tag.cor}25`, border: `1px solid ${tag.cor}50` }
-                  : { color: "var(--text-secondary)", background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
-                {tag.nome}
-              </button>
+          <label className="text-xs font-semibold text-white">
+            Tags {form.tagIds.length > 0 && <span style={{ color: "var(--text-faint)" }}>({form.tagIds.length} selecionada{form.tagIds.length > 1 ? "s" : ""})</span>}
+          </label>
+          <input value={filtroTag} onChange={(e) => setFiltroTag(e.target.value)} placeholder="Filtrar tags..."
+            className="w-full h-8 px-2.5 mt-1 rounded-lg text-xs text-white outline-none" style={inputStyle} />
+          <div className="mt-1.5 max-h-40 overflow-y-auto space-y-2 pr-1">
+            {[...gruposTag.entries()].map(([categoria, tagsDoGrupo]) => (
+              <div key={categoria}>
+                <div className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--text-faint)" }}>
+                  {categoria === "Outras" ? "Outras" : `Categoria ${categoria}`}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {tagsDoGrupo.map((tag) => (
+                    <button key={tag.id} onClick={() => toggleTag(tag.id)} type="button"
+                      className="text-[11px] font-bold px-2 py-1 rounded-full"
+                      style={form.tagIds.includes(tag.id)
+                        ? { color: tag.cor, background: `${tag.cor}25`, border: `1px solid ${tag.cor}50` }
+                        : { color: "var(--text-secondary)", background: "var(--surface-soft)", border: "1px solid var(--border-subtle)" }}>
+                      {tag.nome}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
+            {gruposTag.size === 0 && (
+              <p className="text-xs" style={{ color: "var(--text-faint)" }}>Nenhuma tag encontrada.</p>
+            )}
           </div>
           <div className="flex gap-1.5 mt-1.5">
             <input value={novaTag} onChange={(e) => setNovaTag(e.target.value)} placeholder="Adicionar tag..."

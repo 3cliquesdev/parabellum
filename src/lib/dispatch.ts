@@ -212,6 +212,72 @@ export async function dispatchConversation(
   return { atribuido: false, na_fila: true };
 }
 
+const MAX_TENTATIVAS_CAS_ASSIGN = 3;
+
+/**
+ * Atribuicao direta a uma pessoa especifica (nao round-robin), usada quando
+ * quem transfere ja escolhe o atendente em vez de deixar o dispatch decidir.
+ * Mesmo padrao de CAS via lock_version do dispatchConversation, pra nao
+ * sobrescrever uma decisao concorrente (ex: a conversa acabou de ser resolvida).
+ */
+export async function assignConversationToUser(
+  tenantId: string,
+  conversaId: string,
+  userId: string,
+  departmentId: string | null | undefined,
+  motivo: string,
+  actorUserId?: string | null,
+  tentativa = 1,
+): Promise<{ atribuido: boolean; conflito?: boolean }> {
+  const supabase = adminClient();
+
+  const { data: estadoAntes } = await supabase
+    .from("conversas")
+    .select("status, lock_version, department_id")
+    .eq("id", conversaId)
+    .maybeSingle();
+  const estado = estadoAntes as { status: string; lock_version: number; department_id: string | null } | null;
+  if (!estado || estado.status === "resolvido") {
+    return { atribuido: false, conflito: true };
+  }
+
+  const departamentoFinal = departmentId ?? estado.department_id;
+
+  const { data: atualizado } = await supabase.from("conversas").update({
+    assigned_to: userId,
+    dispatch_status: "atribuido",
+    assigned_at: new Date().toISOString(),
+    department_id: departamentoFinal,
+    ai_mode: "disabled",
+    ia_ativa: false,
+    agente_respondeu: false,
+  })
+    .eq("id", conversaId)
+    .eq("lock_version", estado.lock_version)
+    .neq("status", "resolvido")
+    .select("id")
+    .maybeSingle();
+
+  if (!atualizado) {
+    if (tentativa >= MAX_TENTATIVAS_CAS_ASSIGN) return { atribuido: false, conflito: true };
+    return assignConversationToUser(tenantId, conversaId, userId, departmentId, motivo, actorUserId, tentativa + 1);
+  }
+
+  await supabase.from("tenant_members").update({
+    ultima_atribuicao: new Date().toISOString(),
+  }).eq("tenant_id", tenantId).eq("user_id", userId);
+
+  await supabase.from("conversa_eventos").insert({
+    tenant_id: tenantId,
+    conversa_id: conversaId,
+    tipo: "transferido",
+    user_id: actorUserId ?? null,
+    department_id: departamentoFinal ?? null,
+  });
+
+  return { atribuido: true };
+}
+
 /**
  * Quando um agente fica offline, redistribui as conversas que estavam
  * atribuidas a ele (ainda ativas) - usa o mesmo dispatchConversation de

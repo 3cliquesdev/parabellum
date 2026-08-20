@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assertTenantAdmin } from "@/lib/auth/guard";
+import { resolveInternalOrTenantAdmin } from "@/lib/auth/internal-or-tenant";
 
 interface MetaTemplateComponent {
   type: "HEADER" | "BODY" | "FOOTER" | "BUTTONS";
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   const { tenant_id } = body;
   if (!tenant_id) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
 
-  const auth = await assertTenantAdmin(tenant_id);
+  const auth = await resolveInternalOrTenantAdmin(request, tenant_id);
   if (!auth.ok) return auth.response;
 
   const { data: config } = await auth.admin

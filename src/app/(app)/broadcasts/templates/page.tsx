@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
@@ -15,6 +15,17 @@ const STATUS_BADGE: Record<string, { label: string; color: string }> = {
 const CATEGORY_COLORS: Record<string, string> = {
   MARKETING: "#fb923c", UTILITY: "#60a5fa", AUTHENTICATION: "#a78bfa",
 };
+const CATEGORY_LABEL: Record<string, string> = { MARKETING: "Marketing", UTILITY: "Utilidade", AUTHENTICATION: "Autenticação" };
+const CATEGORY_ORDER = ["MARKETING", "UTILITY", "AUTHENTICATION"];
+
+function agruparPorCategoria<T extends { category: string }>(items: T[]): [string, T[]][] {
+  const grupos = new Map<string, T[]>();
+  for (const item of items) {
+    if (!grupos.has(item.category)) grupos.set(item.category, []);
+    grupos.get(item.category)!.push(item);
+  }
+  return [...grupos.entries()].sort(([a], [b]) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b));
+}
 
 interface BroadcastTemplate {
   id: string;
@@ -36,6 +47,7 @@ export default function BroadcastTemplatesPage() {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [categoriasAbertas, setCategoriasAbertas] = useState<Record<string, boolean>>({ MARKETING: true, UTILITY: true, AUTHENTICATION: true });
 
   const cardStyle = { background: "linear-gradient(180deg, rgba(23,23,23,0.88) 0%, rgba(13,13,13,0.92) 100%)", border: "1px solid rgba(255,255,255,0.07)" };
 
@@ -176,36 +188,52 @@ export default function BroadcastTemplatesPage() {
             <p className="text-xs mt-1" style={{ color: "rgba(147,157,164,0.4)" }}>Crie templates no Meta e depois cadastre aqui.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {templates.map(t => {
-              const st = STATUS_BADGE[t.status] ?? STATUS_BADGE.pending;
-              return (
-                <div key={t.id} className="rounded-xl p-5" style={cardStyle}>
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
-                        style={{ background: `${CATEGORY_COLORS[t.category]}15`, color: CATEGORY_COLORS[t.category] }}>
-                        {t.category.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-white font-mono">{t.template_name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] font-bold" style={{ color: CATEGORY_COLORS[t.category] }}>{t.category}</span>
-                          <span className="text-[10px]" style={{ color: "#939da4" }}>· {t.language_code}</span>
-                          <span className="text-[10px]" style={{ color: "#939da4" }}>· {t.variables_count} variável(is)</span>
+          <div className="space-y-5">
+            {agruparPorCategoria(templates).map(([categoria, itens]) => (
+              <div key={categoria}>
+                <button
+                  onClick={() => setCategoriasAbertas((prev) => ({ ...prev, [categoria]: !prev[categoria] }))}
+                  className="w-full flex items-center gap-2 px-1 py-1.5 mb-2 text-xs font-bold uppercase tracking-wide"
+                  style={{ color: CATEGORY_COLORS[categoria] ?? "#939da4" }}
+                >
+                  {categoriasAbertas[categoria] ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  {CATEGORY_LABEL[categoria] ?? categoria} ({itens.length})
+                </button>
+                {categoriasAbertas[categoria] && (
+                  <div className="space-y-3">
+                    {itens.map(t => {
+                      const st = STATUS_BADGE[t.status] ?? STATUS_BADGE.pending;
+                      return (
+                        <div key={t.id} className="rounded-xl p-5" style={cardStyle}>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                                style={{ background: `${CATEGORY_COLORS[t.category]}15`, color: CATEGORY_COLORS[t.category] }}>
+                                {t.category.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-white font-mono">{t.template_name}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[10px] font-bold" style={{ color: CATEGORY_COLORS[t.category] }}>{CATEGORY_LABEL[t.category] ?? t.category}</span>
+                                  <span className="text-[10px]" style={{ color: "#939da4" }}>· {t.language_code}</span>
+                                  <span className="text-[10px]" style={{ color: "#939da4" }}>· {t.variables_count} variável(is)</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: st.color, background: `${st.color}15` }}>{st.label}</span>
+                              <button onClick={() => remove(t.id)}><Trash2 className="w-3.5 h-3.5" style={{ color: "rgba(248,113,113,0.5)" }} /></button>
+                            </div>
+                          </div>
+                          <p className="text-xs leading-relaxed" style={{ color: "#939da4" }}>{t.body_text}</p>
+                          {t.footer_text && <p className="text-[10px] mt-2" style={{ color: "rgba(147,157,164,0.4)" }}>{t.footer_text}</p>}
                         </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: st.color, background: `${st.color}15` }}>{st.label}</span>
-                      <button onClick={() => remove(t.id)}><Trash2 className="w-3.5 h-3.5" style={{ color: "rgba(248,113,113,0.5)" }} /></button>
-                    </div>
+                      );
+                    })}
                   </div>
-                  <p className="text-xs leading-relaxed" style={{ color: "#939da4" }}>{t.body_text}</p>
-                  {t.footer_text && <p className="text-[10px] mt-2" style={{ color: "rgba(147,157,164,0.4)" }}>{t.footer_text}</p>}
-                </div>
-              );
-            })}
+                )}
+              </div>
+            ))}
           </div>
         )}
     </div>

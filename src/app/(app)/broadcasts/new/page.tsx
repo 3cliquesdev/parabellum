@@ -3,8 +3,20 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Users, Check, Upload, MessageSquare, Kanban, Database, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, ArrowRight, Users, Check, Upload, MessageSquare, Kanban, Database, FileSpreadsheet, ChevronDown, ChevronRight } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
+
+const CATEGORY_LABEL: Record<string, string> = { MARKETING: "Marketing", UTILITY: "Utilidade", AUTHENTICATION: "Autenticação" };
+const CATEGORY_ORDER = ["MARKETING", "UTILITY", "AUTHENTICATION"];
+
+function agruparPorCategoria<T extends { category: string }>(items: T[]): [string, T[]][] {
+  const grupos = new Map<string, T[]>();
+  for (const item of items) {
+    if (!grupos.has(item.category)) grupos.set(item.category, []);
+    grupos.get(item.category)!.push(item);
+  }
+  return [...grupos.entries()].sort(([a], [b]) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b));
+}
 
 const LEAD_FIELDS = [
   { id: "nome", label: "Nome" },
@@ -92,6 +104,7 @@ export default function NewBroadcastPage() {
   const [preview, setPreview] = useState<BroadcastPreview | null>(null);
   const [starting, setStarting] = useState(false);
   const [csvData, setCsvData] = useState<{ phones: string[]; names: string[] }>({ phones: [], names: [] });
+  const [categoriasAbertas, setCategoriasAbertas] = useState<Record<string, boolean>>({ MARKETING: true, UTILITY: true, AUTHENTICATION: true });
   const [form, setForm] = useState<BroadcastFormState>({
     nome: "",
     template_id: "",
@@ -247,13 +260,25 @@ export default function NewBroadcastPage() {
                   <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Nenhum template aprovado.</p>
                   <Link href="/broadcasts/templates" className="text-xs font-bold mt-1 block" style={{ color: "var(--status-ganho)" }}>Cadastrar templates →</Link>
                 </div>
-              ) : templates.map(t => (
-                <button key={t.id} onClick={() => setForm(f => ({ ...f, template_id: t.id }))}
-                  className="w-full p-4 rounded-xl text-left"
-                  style={form.template_id === t.id ? { ...cardStyle, border: "1px solid rgba(16,185,129,0.3)", background: "rgba(16,185,129,0.04)" } : cardStyle}>
-                  <div className="flex justify-between mb-1"><p className="text-sm font-bold text-white font-mono">{t.template_name}</p><span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: "#60a5fa", background: "rgba(96,165,250,0.1)" }}>{t.category}</span></div>
-                  <p className="text-xs line-clamp-2" style={{ color: "var(--text-secondary)" }}>{t.body_text}</p>
-                </button>
+              ) : agruparPorCategoria(templates).map(([categoria, itens]) => (
+                <div key={categoria} className="space-y-2">
+                  <button
+                    onClick={() => setCategoriasAbertas((prev) => ({ ...prev, [categoria]: !prev[categoria] }))}
+                    className="w-full flex items-center justify-between gap-2 px-1 py-1 text-xs font-bold uppercase tracking-wide"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <span>{CATEGORY_LABEL[categoria] ?? categoria} ({itens.length})</span>
+                    {categoriasAbertas[categoria] ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  </button>
+                  {categoriasAbertas[categoria] && itens.map(t => (
+                    <button key={t.id} onClick={() => setForm(f => ({ ...f, template_id: t.id }))}
+                      className="w-full p-4 rounded-xl text-left"
+                      style={form.template_id === t.id ? { ...cardStyle, border: "1px solid rgba(16,185,129,0.3)", background: "rgba(16,185,129,0.04)" } : cardStyle}>
+                      <div className="flex justify-between mb-1"><p className="text-sm font-bold text-white font-mono">{t.template_name}</p><span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: "#60a5fa", background: "rgba(96,165,250,0.1)" }}>{CATEGORY_LABEL[t.category] ?? t.category}</span></div>
+                      <p className="text-xs line-clamp-2" style={{ color: "var(--text-secondary)" }}>{t.body_text}</p>
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
           )}

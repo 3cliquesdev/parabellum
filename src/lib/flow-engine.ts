@@ -1,13 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { GoogleAuth } from "google-auth-library";
-import { dispatchConversation } from "@/lib/dispatch";
+import { dispatchConversation, resolveDepartmentIdBySlug } from "@/lib/dispatch";
 import type { LooseDatabase } from "@/types/database";
 
 const VERTEX_PROJECT = "adsliberty";
 const VERTEX_LOCATION = "us-central1";
 
 type FlowResult = "done" | "waiting" | null;
-type QueueDepartment = "vendas" | "suporte";
 type ConditionType = "is_not_empty" | "is_empty" | "equals" | "contains";
 
 interface FlowOption {
@@ -156,10 +155,6 @@ function getCollectedData(value: unknown): Record<string, string> {
   return Object.fromEntries(
     Object.entries(value).map(([key, fieldValue]) => [key, String(fieldValue ?? "")])
   );
-}
-
-function normalizeDepartment(value: string | undefined): QueueDepartment {
-  return value === "suporte" ? "suporte" : "vendas";
 }
 
 function normalize(text: string): string {
@@ -511,11 +506,17 @@ async function executeNode(
     }
 
     case "transfer": {
-      const dept = normalizeDepartment(node.data.departamento);
+      // node.data.departamento e o slug real configurado no construtor de
+      // fluxos (ex: "suporte_pedidos") - nunca um valor fixo "vendas"/"suporte".
+      const departmentId = node.data.departamento
+        ? await resolveDepartmentIdBySlug(params.tenantId, node.data.departamento)
+        : null;
       if (node.data.message) {
         await sendFlowMessage(params.tenantId, params.conversaId, node.data.message, params.sendText);
       }
-      await dispatchConversation(params.tenantId, params.conversaId, dept, "flow_transfer");
+      if (departmentId) {
+        await dispatchConversation(params.tenantId, params.conversaId, departmentId, "flow_transfer");
+      }
       await completeFlow(state, "transferido");
       return "done";
     }

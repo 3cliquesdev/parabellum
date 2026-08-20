@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { GoogleAuth } from "google-auth-library";
-import { dispatchConversation } from "@/lib/dispatch";
+import { dispatchConversation, resolveDepartmentIdBySlug } from "@/lib/dispatch";
 import { processFlowMessage } from "@/lib/flow-engine";
 import { findOrCreateConversation, ingestInboundMessage, type ConversationChannelHints, type InboxIdentityInput, type InboxLeadInput, type InboxMessageInput } from "@/lib/inbox/service";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -161,7 +161,14 @@ async function handoffToHuman(
   reason: "handoff_ia" | "sentimento_negativo" | "ia_error" | "ia_low_confidence",
   title: string,
 ) {
-  const dispatch = await dispatchConversation(tenantId, conversationId, "vendas", reason);
+  // "vendas"/"suporte" nunca foram um department_id valido (a tabela departments
+  // usa UUID) - resolve o slug real antes de despachar. customer_success e o
+  // destino generico pra "IA nao conseguiu resolver", ja que esse handoff nao
+  // sabe se o caso e comercial ou de suporte especifico.
+  const departmentId = await resolveDepartmentIdBySlug(tenantId, "customer_success");
+  const dispatch = departmentId
+    ? await dispatchConversation(tenantId, conversationId, departmentId, reason)
+    : { atribuido: false, na_fila: false };
 
   await supabase.from("atividades").insert({
     tenant_id: tenantId,

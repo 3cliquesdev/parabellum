@@ -52,6 +52,24 @@ async function candidatosDoDepartamento(
 }
 
 /**
+ * Resolve o UUID real de um departamento a partir do slug (ex: "suporte_pedidos")
+ * pro tenant. Usar sempre que uma string de departamento vier de fora (IA, flow
+ * builder) antes de passar pra dispatchConversation, que espera um UUID de
+ * verdade - nunca aceitar "vendas"/"suporte" como se fossem department_id.
+ */
+export async function resolveDepartmentIdBySlug(tenantId: string, slug: string): Promise<string | null> {
+  const supabase = adminClient();
+  const { data } = await supabase
+    .from("departments")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .maybeSingle();
+  return (data as { id: string } | null)?.id ?? null;
+}
+
+/**
  * Round-robin com menor carga primeiro (empate por quem esta ha mais tempo sem
  * receber), igual ao algoritmo "round_robin_least_loaded" ja usado em producao
  * pela Parabellum. Se o departamento e filho (ex: Suporte Pedidos) e ninguem

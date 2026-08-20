@@ -47,38 +47,49 @@ export async function POST(request: NextRequest) {
   }
 
   const isMainNumber = phoneNumberId === process.env.WHATSAPP_MAIN_PHONE_NUMBER_ID;
-  const targetUrl = isMainNumber
-    ? process.env.WHATSAPP_MAIN_FORWARD_URL
-    : `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/webhooks/whatsapp`;
+  const novoUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://3cliques-crm.vercel.app"}/api/webhooks/whatsapp`;
+
+  // Fase de migracao do numero principal: espelha pros dois sistemas ao mesmo
+  // tempo (Parabellum + 3cliques-crm), pra validar o novo lado a lado antes de
+  // desligar o antigo. Fora dessa janela (numero != principal), segue so pro
+  // novo, como sempre foi.
+  const destinos = isMainNumber
+    ? [
+        { nome: "crm-legado", url: process.env.WHATSAPP_MAIN_FORWARD_URL },
+        { nome: "3cliques", url: novoUrl },
+      ]
+    : [{ nome: "3cliques", url: novoUrl }];
 
   console.info("WhatsApp router: evento recebido", {
     phoneNumberId: phoneNumberId ?? "ausente",
-    destination: isMainNumber ? "crm-legado" : "3cliques",
+    destinos: destinos.map((d) => d.nome),
   });
 
-  if (!targetUrl) {
-    console.error("WHATSAPP_MAIN_FORWARD_URL nao configurado — nao foi possivel rotear.");
-    return NextResponse.json({ status: "ok" });
-  }
+  const resultados = await Promise.allSettled(
+    destinos.map(async (destino) => {
+      if (!destino.url) throw new Error(`URL nao configurada para destino ${destino.nome}`);
+      const forwardResponse = await fetch(destino.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(signature ? { "x-hub-signature-256": signature } : {}),
+        },
+        body: rawBody,
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!forwardResponse.ok) throw new Error(`HTTP ${forwardResponse.status}`);
+      return forwardResponse.status;
+    }),
+  );
 
-  try {
-    const forwardResponse = await fetch(targetUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(signature ? { "x-hub-signature-256": signature } : {}),
-      },
-      body: rawBody,
-      signal: AbortSignal.timeout(8000),
-    });
-    console.info("WhatsApp router: encaminhamento concluido", {
-      phoneNumberId: phoneNumberId ?? "ausente",
-      destination: isMainNumber ? "crm-legado" : "3cliques",
-      status: forwardResponse.status,
-    });
-  } catch (error) {
-    console.error("Falha ao rotear webhook do WhatsApp:", error);
-  }
+  resultados.forEach((resultado, i) => {
+    const destino = destinos[i];
+    if (resultado.status === "fulfilled") {
+      console.info("WhatsApp router: encaminhamento concluido", { phoneNumberId, destino: destino.nome, status: resultado.value });
+    } else {
+      console.error("WhatsApp router: falha ao encaminhar", { phoneNumberId, destino: destino.nome, erro: resultado.reason?.message ?? resultado.reason });
+    }
+  });
 
   return NextResponse.json({ status: "ok" });
 }

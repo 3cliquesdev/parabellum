@@ -28,6 +28,11 @@ import {
   type InboxBadgeTone,
 } from "./theme";
 import { ContactPanel } from "./ContactPanel";
+import { AudioPlayer } from "@/components/app/inbox/AudioPlayer";
+import { VoiceRecorderActive, VoiceRecorderButton } from "@/components/app/inbox/VoiceRecorder";
+import { MediaAttachmentPreview } from "@/components/app/inbox/MediaAttachmentPreview";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { validarTamanhoArquivo } from "@/lib/inbox/mediaLimits";
 
 const DISPATCH_BADGE: Record<string, { label: string; tone: InboxBadgeTone }> = {
   ia: { label: "IA", tone: "green" },
@@ -123,7 +128,7 @@ function MediaContent({ msg, tone }: { msg: Mensagem; tone: "lead" | "humano" | 
   if (msg.media_type === "audio") {
     return (
       <div className={pad}>
-        <audio controls src={msg.media_url ?? ""} className="w-full" style={{ maxWidth: 260, height: 36 }} />
+        <AudioPlayer src={msg.media_url ?? ""} durationHint={msg.media_duracao_seg} accent={tone === "lead" ? "var(--status-ganho)" : textColor} />
       </div>
     );
   }
@@ -371,10 +376,69 @@ function InboxPageInner() {
   const selected = conversas.find((conversa) => conversa.id === selectedId);
   const meuLabel = equipe.find((m) => m.user_id === myUserId)?.email ?? "Você";
   const outrosVendo = useConversaPresence(selectedId, myUserId, meuLabel);
+  const audioRecorder = useAudioRecorder();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens]);
+
+  const [pendingAttachment, setPendingAttachment] = useState<{ file: File; url: string } | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  function cancelarAnexo() {
+    if (pendingAttachment) URL.revokeObjectURL(pendingAttachment.url);
+    setPendingAttachment(null);
+    setUploadProgress(0);
+  }
+
+  function enviarAnexo(legenda: string) {
+    if (!pendingAttachment || !selectedId || !tenantId) return;
+    setUploadingAttachment(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append("file", pendingAttachment.file);
+    formData.append("conversa_id", selectedId);
+    formData.append("tenant_id", tenantId);
+    if (legenda.trim()) formData.append("legenda", legenda.trim());
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/inbox/send");
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) setUploadProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onload = () => {
+      setUploadingAttachment(false);
+      if (xhr.status < 200 || xhr.status >= 300) {
+        const err = JSON.parse(xhr.responseText || "{}");
+        toast.error(err.error ?? "Erro ao enviar arquivo");
+        return;
+      }
+      cancelarAnexo();
+    };
+    xhr.onerror = () => {
+      setUploadingAttachment(false);
+      toast.error("Erro de rede ao enviar arquivo");
+    };
+    xhr.send(formData);
+  }
+
+  async function handleSendAudio(file: File, durationSeg: number) {
+    if (!selectedId || !tenantId) return;
+    setSending(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("conversa_id", selectedId);
+    formData.append("tenant_id", tenantId);
+    formData.append("duracao_seg", String(durationSeg));
+    const res = await fetch("/api/inbox/send", { method: "POST", body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error ?? "Erro ao enviar áudio");
+    }
+    setSending(false);
+  }
 
   async function handleSend() {
     if (!text.trim() || !selectedId || !tenantId || !selected?.supports_outbound) return;
@@ -1083,6 +1147,16 @@ function InboxPageInner() {
           </div>
 
           <div className="px-4 py-4 shrink-0" style={{ borderTop: "1px solid var(--border-subtle)", background: "var(--surface-panel)" }}>
+            {pendingAttachment && (
+              <MediaAttachmentPreview
+                file={pendingAttachment.file}
+                previewUrl={pendingAttachment.url}
+                uploading={uploadingAttachment}
+                uploadProgress={uploadProgress}
+                onCancel={cancelarAnexo}
+                onSend={enviarAnexo}
+              />
+            )}
             {replyingTo && (
               <div
                 className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 mb-2 border-l-2 text-xs"
@@ -1129,62 +1203,72 @@ function InboxPageInner() {
                       className="hidden"
                       disabled={!selected.supports_attachments || sending}
                       accept="image/*,audio/*,video/*,application/pdf,.doc,.docx"
-                      onChange={async (event) => {
+                      onChange={(event) => {
                         const file = event.target.files?.[0];
                         if (!file || !selectedId || !tenantId || !selected.supports_attachments) return;
 
-                        setSending(true);
-                        const formData = new FormData();
-                        formData.append("file", file);
-                        formData.append("conversa_id", selectedId);
-                        formData.append("tenant_id", tenantId);
-                        const res = await fetch("/api/inbox/send", { method: "POST", body: formData });
-                        if (!res.ok) {
-                          const err = await res.json().catch(() => ({}));
-                          alert(err.error ?? "Erro ao enviar arquivo");
+                        const validacao = validarTamanhoArquivo(file);
+                        if (!validacao.ok) {
+                          toast.error(validacao.erro);
+                          event.target.value = "";
+                          return;
                         }
-                        setSending(false);
+                        if (file.type === "image/gif") {
+                          toast.warning("GIFs podem aparecer como imagem estática no WhatsApp do cliente (limitação da Meta).");
+                        }
+
+                        setPendingAttachment({ file, url: URL.createObjectURL(file) });
                         event.target.value = "";
                       }}
                     />
                   </label>
 
-                  <input
-                    value={text}
-                    onChange={(event) => setText(event.target.value)}
-                    onKeyDown={(event) => event.key === "Enter" && !event.shiftKey && handleSend()}
-                    disabled={!selected.supports_outbound || sending}
-                    placeholder={
-                      !selected.supports_outbound
-                        ? `Entrada via ${selected.canal_label}. Resposta manual ativa em breve.`
-                        : selected.canal === "email"
-                          ? "Escreva o corpo do email..."
-                          : "Digite uma mensagem..."
-                    }
-                    className="flex-1 h-11 px-3 text-sm outline-none rounded-xl"
-                    style={{ background: "transparent", border: "none", color: "var(--text-primary)" }}
-                  />
+                  {audioRecorder.state !== "idle" ? (
+                    <VoiceRecorderActive recorder={audioRecorder} onSend={handleSendAudio} disabled={sending} />
+                  ) : (
+                    <>
+                      <input
+                        value={text}
+                        onChange={(event) => setText(event.target.value)}
+                        onKeyDown={(event) => event.key === "Enter" && !event.shiftKey && handleSend()}
+                        disabled={!selected.supports_outbound || sending}
+                        placeholder={
+                          !selected.supports_outbound
+                            ? `Entrada via ${selected.canal_label}. Resposta manual ativa em breve.`
+                            : selected.canal === "email"
+                              ? "Escreva o corpo do email..."
+                              : "Digite uma mensagem..."
+                        }
+                        className="flex-1 h-11 px-3 text-sm outline-none rounded-xl"
+                        style={{ background: "transparent", border: "none", color: "var(--text-primary)" }}
+                      />
 
-                  <button
-                    onClick={handleSend}
-                    disabled={!selected.supports_outbound || !text.trim() || sending}
-                    className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
-                    style={
-                      text.trim() && !sending && selected.supports_outbound
-                        ? {
-                            background: "var(--status-ganho)",
-                            color: "#0a0a0a",
-                            boxShadow: "0 10px 18px rgba(21,128,61,0.22)",
+                      {!text.trim() && selected.supports_outbound && selected.canal === "whatsapp" ? (
+                        <VoiceRecorderButton recorder={audioRecorder} disabled={sending} />
+                      ) : (
+                        <button
+                          onClick={handleSend}
+                          disabled={!selected.supports_outbound || !text.trim() || sending}
+                          className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
+                          style={
+                            text.trim() && !sending && selected.supports_outbound
+                              ? {
+                                  background: "var(--status-ganho)",
+                                  color: "#0a0a0a",
+                                  boxShadow: "0 10px 18px rgba(21,128,61,0.22)",
+                                }
+                              : {
+                                  background: "var(--ghost-bg)",
+                                  color: "var(--text-faint)",
+                                  border: "1px solid var(--chip-border)",
+                                }
                           }
-                        : {
-                            background: "var(--ghost-bg)",
-                            color: "var(--text-faint)",
-                            border: "1px solid var(--chip-border)",
-                          }
-                    }
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <p className="text-[10px] mt-2.5 text-center" style={{ color: "var(--text-faint)" }}>

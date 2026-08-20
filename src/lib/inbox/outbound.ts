@@ -139,6 +139,8 @@ export async function sendWhatsAppConversationMessage(
   text: string,
   file?: File | null,
   replyToMensagemId?: string | null,
+  duracaoSeg?: number,
+  caption?: string,
 ) {
   const lead = singleLead(conversation.leads);
   const toNumber = lead?.whatsapp?.replace(/\D/g, "") ?? "";
@@ -208,9 +210,12 @@ export async function sendWhatsAppConversationMessage(
       type: mediaType,
       ...replyContext,
     };
+    // Caption e suportado pela Meta em image/video/document, mas nao em sticker.
+    const suportaCaption = mediaType === "image" || mediaType === "video" || mediaType === "document";
+    const legendaLimpa = suportaCaption ? caption?.trim() || undefined : undefined;
     payload[mediaType] = mediaType === "document"
-      ? { id: uploadData.id, filename: file.name }
-      : { id: uploadData.id };
+      ? { id: uploadData.id, filename: file.name, ...(legendaLimpa ? { caption: legendaLimpa } : {}) }
+      : { id: uploadData.id, ...(legendaLimpa ? { caption: legendaLimpa } : {}) };
 
     const response = await fetch(`https://graph.facebook.com/v20.0/${config.phone_number_id}/messages`, {
       method: "POST",
@@ -264,6 +269,8 @@ export async function sendWhatsAppConversationMessage(
     media_type: mediaType,
     media_nome: mediaName,
     media_mime: mediaMime,
+    media_duracao_seg: duracaoSeg ?? null,
+    media_caption: caption?.trim() || null,
     metadata: { canal: "whatsapp", direction: "outbound" },
   });
 

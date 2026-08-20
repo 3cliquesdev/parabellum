@@ -8,6 +8,7 @@ import {
   sendInstagramConversationMessage,
   sendWhatsAppConversationMessage,
 } from "@/lib/inbox/outbound";
+import { validarTamanhoArquivo } from "@/lib/inbox/mediaLimits";
 
 interface SendMessageBody {
   conversa_id?: string;
@@ -51,6 +52,8 @@ export async function POST(request: NextRequest) {
   let assunto = "";
   let file: File | null = null;
   let replyToMensagemId: string | undefined;
+  let duracaoSeg: number | undefined;
+  let legenda: string | undefined;
 
   if (isFormData) {
     const formData = await request.formData();
@@ -60,6 +63,14 @@ export async function POST(request: NextRequest) {
     assunto = String(formData.get("assunto") ?? "");
     file = formData.get("file") as File | null;
     replyToMensagemId = (formData.get("reply_to_mensagem_id") as string | null) ?? undefined;
+    const duracaoRaw = formData.get("duracao_seg");
+    if (duracaoRaw) duracaoSeg = Number(duracaoRaw) || undefined;
+    legenda = (formData.get("legenda") as string | null) ?? undefined;
+
+    if (file) {
+      const validacao = validarTamanhoArquivo(file);
+      if (!validacao.ok) return NextResponse.json({ error: validacao.erro }, { status: 400 });
+    }
   } else {
     const body = (await request.json().catch(() => ({}))) as SendMessageBody;
     conversaId = body.conversa_id ?? "";
@@ -100,7 +111,7 @@ export async function POST(request: NextRequest) {
 
   switch (conversation.canal) {
     case "whatsapp": {
-      const result = await sendWhatsAppConversationMessage(admin, conversation, conteudo.trim(), file, replyToMensagemId);
+      const result = await sendWhatsAppConversationMessage(admin, conversation, conteudo.trim(), file, replyToMensagemId, duracaoSeg, legenda);
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }

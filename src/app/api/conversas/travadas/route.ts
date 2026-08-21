@@ -31,7 +31,8 @@ async function notificarGestores(admin: AdminClient, tenantId: string, conversaI
     .from("tenant_members")
     .select("user_id")
     .eq("tenant_id", tenantId)
-    .in("role", ROLES_GESTOR);
+    .in("role", ROLES_GESTOR)
+    .eq("receber_alertas_operacionais", true);
 
   const userIds = ((gestores ?? []) as unknown as Array<{ user_id: string }>).map((g) => g.user_id);
   if (userIds.length === 0) return;

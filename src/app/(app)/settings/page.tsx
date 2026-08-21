@@ -1480,7 +1480,7 @@ function MemberConfig({ member, tenantId, isSelf }: { member: TeamMemberRow; ten
         </div>
       )}
       
-      {["owner", "gerente", "gerente_geral"].includes(member.role) && (
+      {["owner", "gerente", "gerente_geral", "gerente_suporte", "gerente_cs", "gerente_financeiro"].includes(member.role) && (
         <button onClick={toggleAlertas}
           title="Ativar/desativar recebimento de alertas de sistema no WhatsApp"
           className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-bold transition-all"

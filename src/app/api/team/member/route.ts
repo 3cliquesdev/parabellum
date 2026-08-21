@@ -45,7 +45,7 @@ export async function PATCH(request: NextRequest) {
 
   const auth = await assertTenantMember(tenant_id);
   if (!auth.ok) return auth.response;
-  const { admin, role: callerRole } = auth;
+  const { admin, role: callerRole, user: callerUser } = auth;
 
   const target = await loadTargetMember(admin, member_id, tenant_id);
   if (!target) {
@@ -67,11 +67,19 @@ export async function PATCH(request: NextRequest) {
   if (max_concurrent_chats !== undefined) updates.max_concurrent_chats = max_concurrent_chats;
   if (availability_status !== undefined) updates.availability_status = availability_status;
   if (receber_alertas_operacionais !== undefined) {
-    if (!["owner", "gerente"].includes(callerRole) && callerRole !== target.role) {
-       // Only managers or the user themselves can change this
-    } else {
-      updates.receber_alertas_operacionais = receber_alertas_operacionais;
+    // Bug corrigido: comparava callerRole com target.role (cargo com cargo) pra
+    // decidir "e o proprio usuario?", em vez de comparar o id de quem chama
+    // com o id do alvo. Como o alvo quase sempre tem o mesmo cargo de quem
+    // esta editando a propria linha, o bug so aparecia quando um gerente_geral
+    // (nao incluido na lista de gerentes por engano) tentava mexer no alerta
+    // de alguem com cargo diferente do seu - falhava calado (retornava
+    // success:true sem gravar nada).
+    const ehGerente = ["owner", "gerente", "gerente_geral"].includes(callerRole);
+    const ehOProprioUsuario = callerUser.id === target.user_id;
+    if (!ehGerente && !ehOProprioUsuario) {
+      return NextResponse.json({ error: "Sem permissão para alterar alertas de outro usuário" }, { status: 403 });
     }
+    updates.receber_alertas_operacionais = receber_alertas_operacionais;
   }
 
   if (Object.keys(updates).length > 0) {

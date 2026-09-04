@@ -43,8 +43,10 @@ export default function BroadcastTemplatesPage() {
   const [templates, setTemplates] = useState<BroadcastTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ template_name: "", category: "UTILITY", body_text: "", footer_text: "", header_type: "NONE", variables_schema: "" });
+  const emptyForm = { template_name: "", category: "UTILITY", body_text: "", body_example: "", footer_text: "", quick_reply_text: "" };
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [categoriasAbertas, setCategoriasAbertas] = useState<Record<string, boolean>>({ MARKETING: true, UTILITY: true, AUTHENTICATION: true });
@@ -60,13 +62,32 @@ export default function BroadcastTemplatesPage() {
   async function save() {
     if (!tenantId || !form.template_name || !form.body_text) return;
     setSaving(true);
-    const vars_count = (form.body_text.match(/\{\{\d+\}\}/g) ?? []).length;
-    const r = await fetch("/api/broadcast/templates", {
+    setSaveError(null);
+    const r = await fetch("/api/broadcast/templates/submit", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, tenant_id: tenantId, variables_count: vars_count }),
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        template_name: form.template_name,
+        category: form.category,
+        language_code: "pt_BR",
+        body_text: form.body_text,
+        body_examples: form.body_example ? [form.body_example] : [],
+        footer_text: form.footer_text,
+        quick_reply_text: form.quick_reply_text,
+      }),
     });
-    const d = await r.json(); setSaving(false);
-    if (d.template) { setTemplates(t => [d.template, ...t]); setShowForm(false); setForm({ template_name: "", category: "UTILITY", body_text: "", footer_text: "", header_type: "NONE", variables_schema: "" }); }
+    const d = await r.json();
+    setSaving(false);
+    if (!r.ok) {
+      setSaveError(d.error ?? "Não foi possível enviar o template à Meta");
+      return;
+    }
+    if (d.template) {
+      setTemplates(t => [d.template, ...t.filter(item => item.id !== d.template.id)]);
+      setShowForm(false);
+      setForm(emptyForm);
+      setSyncMsg("Template enviado à Meta e aguardando aprovação.");
+    }
   }
 
   async function sincronizarDoMeta() {
@@ -126,7 +147,7 @@ export default function BroadcastTemplatesPage() {
       <div className="rounded-xl p-4" style={{ background: "rgba(250,204,21,0.06)", border: "1px solid rgba(250,204,21,0.2)" }}>
         <p className="text-xs font-bold mb-1" style={{ color: "#facc15" }}>Pré-requisito: Aprovar templates na Meta</p>
         <p className="text-xs" style={{ color: "#939da4" }}>
-          Antes de disparar, crie os templates no <strong style={{ color: "#fff" }}>Meta Business Manager → WhatsApp Manager → Modelos de mensagens</strong> e aguarde aprovação (24-48h). Depois cadastre aqui com o mesmo nome exato.
+          Ao cadastrar aqui, o CRM envia o modelo diretamente para a Meta. O disparo fica bloqueado até a aprovação; use <strong style={{ color: "#fff" }}>Sincronizar do Meta</strong> para atualizar o status.
         </p>
       </div>
 
@@ -164,17 +185,36 @@ export default function BroadcastTemplatesPage() {
               Variáveis detectadas: {(form.body_text.match(/\{\{\d+\}\}/g) ?? []).length} — mapeie para campos do lead ao criar a campanha
             </p>
           </div>
+          {form.body_text.includes("{{1}}") && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium" style={{ color: "#939da4" }}>Exemplo da variável {`{{1}}`} para análise da Meta</label>
+              <input value={form.body_example} onChange={e => setForm(f => ({ ...f, body_example: e.target.value }))}
+                placeholder="Ronny" className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+            </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-xs font-medium" style={{ color: "#939da4" }}>Footer (opcional)</label>
             <input value={form.footer_text} onChange={e => setForm(f => ({ ...f, footer_text: e.target.value }))}
               placeholder="Parabellum" className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
           </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium" style={{ color: "#939da4" }}>Botão de resposta rápida (opcional)</label>
+            <input value={form.quick_reply_text} onChange={e => setForm(f => ({ ...f, quick_reply_text: e.target.value }))}
+              placeholder="Receber relatório" className="w-full h-9 px-3 rounded-xl text-sm text-white outline-none"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
+          </div>
+          {saveError && (
+            <div className="rounded-xl p-3 text-xs" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#f87171" }}>
+              {saveError}
+            </div>
+          )}
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowForm(false)} className="px-4 h-9 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.06)", color: "#939da4" }}>Cancelar</button>
             <button onClick={save} disabled={saving || !form.template_name || !form.body_text}
               className="px-5 h-9 rounded-xl text-sm font-bold" style={{ background: "#10B981", color: "#0a0a0a", opacity: saving ? 0.6 : 1 }}>
-              {saving ? "Salvando..." : "Cadastrar template"}
+              {saving ? "Enviando à Meta..." : "Enviar para aprovação"}
             </button>
           </div>
         </div>

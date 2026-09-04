@@ -82,11 +82,27 @@ Kiwify). Se um dia precisar linkar negócio↔venda de verdade, é aqui que entr
 
 ## WhatsApp: Etapa 2 (template fora da janela de 24h)
 
-O Meta só deixa reabrir uma conversa depois de 24h sem contato do cliente usando um
-"template" pré-aprovado pela própria Meta (mensagem estruturada, não texto livre).
-Isso não foi implementado — hoje só respondemos dentro da janela de 24h. Fica pra uma
-próxima rodada: cadastro/gestão de templates aprovados + UI pra escolher qual mandar
-quando a conversa esfriou.
+**Resolvido (2026-09-04)**: `/broadcasts/templates` cadastra um template direto na
+Meta (`POST /api/broadcast/templates/submit`, com botão de resposta rápida opcional)
+e `POST /api/broadcast/templates/sync` traz o status real (aprovado/pendente/
+rejeitado) de volta pro CRM — os dois já existiam parcialmente, faltava ligar o
+formulário na rota de fato (antes só salvava local, sem chamar a Meta). O workflow
+n8n **"CRM — Sincronizar Templates Meta"** roda `sync` a cada 15 minutos
+automaticamente (usa a mesma autenticação interna — `x-internal-key` — que
+`send-internal` já usa, sem sessão de admin), pra qualquer template novo aparecer
+com status atualizado sem precisar clicar em "Sincronizar do Meta" na mão.
+
+Padrão consolidado de "template abre janela → mensagem livre depois do clique":
+template com botão (`quick_reply_text`) → clique chega em
+`src/app/api/webhooks/whatsapp/route.ts` → identifica o texto do botão → aciona um
+webhook n8n dedicado → esse webhook busca dado atual e responde via
+`/api/whatsapp/send-internal` sem `template_name` (texto livre, dentro da janela de
+24h aberta pelo clique). Dois exemplos já em produção: `atlas_relatorio_disponivel`
+(relatório ATLAS/SABR) e `sentinel_compra_urgente` (alerta de pedido pago sem
+estoque — ver `sabr-analytics/docs/integracoes/n8n-sentinel-alerta-estoque.md`).
+Cada template novo que seguir esse padrão precisa de: 1) template aprovado com
+botão, 2) um branch novo no webhook reconhecendo o texto exato do botão, 3) um
+webhook n8n de entrega autenticado por segredo próprio.
 
 ## WhatsApp: múltiplos números por tenant
 
@@ -110,3 +126,20 @@ pra adicionar número extra colando `phone_number_id`/`access_token` manualmente
 Recebemos localização do cliente normalmente, mas não implementamos enviar localização
 ou contato de volta — nem a própria referência tem isso no envio, só no recebimento.
 Baixa prioridade.
+
+## Pipeline configurável por canal/evento
+
+Hoje todo negócio criado automaticamente (Kiwify, ou qualquer automação futura) cai
+sempre no pipeline marcado como padrão (`resolvePipelinePadrao`,
+`src/lib/negocios/pipeline-padrao.ts`) — não existe como escolher, por tenant, "esse
+tipo de evento cai nesse pipeline/etapa específico". Levantado numa sessão olhando o
+Kanban de Negócios: a ideia é uma tela de configuração onde dá pra escolher, por
+exemplo, que eventos da Kiwify (compra, assinatura, cartão recusado, carrinho
+abandonado — o enum já existe em `STATUS_MAP` de
+`src/app/api/webhooks/kiwify/route.ts`) alimentam qual pipeline/etapa, e no futuro
+formulários (ainda nem existem como canal) também.
+
+Fica pendente porque precisa de decisões de produto antes de virar plano técnico:
+regra é por pipeline ou global pro tenant? Todo evento sempre cria oportunidade, ou só
+alguns? Como fica quando um tenant tem só um pipeline (caso mais comum hoje)? Retomar
+numa conversa dedicada só pra desenhar isso.

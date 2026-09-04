@@ -511,6 +511,26 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+
+      // Botão do template de alerta de compra urgente (SENTINEL). Diferente
+      // do webhook do ATLAS, este exige segredo compartilhado — o n8n
+      // rejeita a chamada sem o header correto.
+      if (normalizedText === "ver pedidos sem estoque") {
+        const sentinelWebhook = process.env.SENTINEL_REPORT_WEBHOOK_URL;
+        const sentinelSecret = process.env.SENTINEL_REPORT_WEBHOOK_SECRET;
+        if (sentinelWebhook && sentinelSecret) {
+          try {
+            await fetch(sentinelWebhook, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", authorization: `Bearer ${sentinelSecret}` },
+              body: JSON.stringify({ tenant_id: tenantId, destinatario: fromNumber, agente: "SENTINEL" }),
+              signal: AbortSignal.timeout(15_000),
+            });
+          } catch (error) {
+            console.error("SENTINEL report webhook error:", error);
+          }
+        }
+      }
     }
 
     return NextResponse.json({ status: "ok" });

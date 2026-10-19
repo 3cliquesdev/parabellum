@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   // tempo (Parabellum + 3cliques-crm), pra validar o novo lado a lado antes de
   // desligar o antigo. Fora dessa janela (numero != principal), segue so pro
   // novo, como sempre foi.
-  const destinos: Array<{ nome: string; url: string | undefined }> = isMainNumber
+  const destinos: Array<{ nome: string; url: string | undefined; mirrorSecret?: string }> = isMainNumber
     ? [
         { nome: "crm-legado", url: process.env.WHATSAPP_MAIN_FORWARD_URL },
         { nome: "3cliques", url: novoUrl },
@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
     destinos.push({
       nome: "whitelabel-mirror",
       url: process.env.WHATSAPP_MIRROR_FORWARD_URL,
+      mirrorSecret: process.env.WHATSAPP_MIRROR_SECRET,
     });
   }
 
@@ -88,6 +89,9 @@ export async function POST(request: NextRequest) {
         headers: {
           "Content-Type": "application/json",
           ...(signature ? { "x-hub-signature-256": signature } : {}),
+          ...(destino.mirrorSecret
+            ? { "x-whatsapp-mirror-secret": destino.mirrorSecret }
+            : {}),
         },
         body: rawBody,
         signal: AbortSignal.timeout(8000),

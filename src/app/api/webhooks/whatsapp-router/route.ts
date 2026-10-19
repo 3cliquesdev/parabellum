@@ -53,12 +53,27 @@ export async function POST(request: NextRequest) {
   // tempo (Parabellum + 3cliques-crm), pra validar o novo lado a lado antes de
   // desligar o antigo. Fora dessa janela (numero != principal), segue so pro
   // novo, como sempre foi.
-  const destinos = isMainNumber
+  const destinos: Array<{ nome: string; url: string | undefined }> = isMainNumber
     ? [
         { nome: "crm-legado", url: process.env.WHATSAPP_MAIN_FORWARD_URL },
         { nome: "3cliques", url: novoUrl },
       ]
     : [{ nome: "3cliques", url: novoUrl }];
+
+  // Um white-label pode espelhar somente o numero contratado sem alterar o
+  // fluxo dos demais numeros que compartilham este App/WABA. A Meta continua
+  // chamando um unico callback e o CRM original continua recebendo primeiro;
+  // o espelho e um destino adicional e falhas nele nao interrompem a origem.
+  if (
+    phoneNumberId &&
+    phoneNumberId === process.env.WHATSAPP_MIRROR_PHONE_NUMBER_ID &&
+    process.env.WHATSAPP_MIRROR_FORWARD_URL
+  ) {
+    destinos.push({
+      nome: "whitelabel-mirror",
+      url: process.env.WHATSAPP_MIRROR_FORWARD_URL,
+    });
+  }
 
   console.info("WhatsApp router: evento recebido", {
     phoneNumberId: phoneNumberId ?? "ausente",
